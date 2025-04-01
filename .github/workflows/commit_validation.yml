@@ -1,0 +1,62 @@
+# V1 - For all projects
+name: Commit validation
+on:
+  push:
+     branches: '**'
+     # This setup to commit on commit only - as the check is not tag dependant --> https://stackoverflow.com/questions/64708371/how-to-run-github-workflow-on-every-commit-of-a-push
+     # When the commit is rebase, it is most often creating a new predecessor so a new commit sha. It is made on purpose to test this again, in case the rebasing automatic conflict resolution would create something harmful
+jobs:
+  clojure:
+    permissions:
+       contents: read
+    strategy:
+      matrix:
+        os: [ubuntu-latest] # , windows-latest There is a path issue
+                # macOS-latest is removed to save github costs
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install java
+        uses: actions/setup-java@v4
+        with:
+           distribution: 'temurin'
+           java-version: '21'
+           check-latest: true
+      - name: Install clojure tools
+        # See https://github.com/DeLaGuardo/setup-clojure/commits/main/
+        uses: DeLaGuardo/setup-clojure@ada62bb3282a01a296659d48378b812b8e097360 #v13.2
+        with:
+          cli: 1.12.0.1530
+          bb: 1.12.197
+          clj-kondo: 2025.02.20
+          zprint: 1.2.9
+      - name: Lint
+        run: bb lint -v
+      - name: Setup zprint
+        run: echo "{:search-config? true}" >> ~/.zprintrc
+      - name: Install fdfind
+        run: sudo rm /var/lib/man-db/auto-update && sudo apt-get install -y fd-find && mkdir -p ~/.local/bin/ && PATH=$PATH:~/.local/bin/ && ln -s $(which fdfind) ~/.local/bin/fd
+      - name: Cache clojure dependencies
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.m2/repository
+          key: cljdeps-${{ hashFiles('deps.edn', 'bb.edn', '.github/workflows/commit_validation.yml') }}
+          restore-keys: cljdeps-
+      - name: format again to check the code pushed was uptodate
+        run: bb format -v
+      - name: Write git diff - show what has been changed by zprint
+        run: git diff
+      - name: Pushed code should already be formatted
+        # See https://github.com/CatChen/check-git-status-action
+        uses: CatChen/check-git-status-action@fb60fe626b56d5a4adcb227327ba4d24326a873a  #v1.4.4
+        with:
+          fail-if-not-clean: true
+          request-changes-if-not-clean: false
+          push-if-not-clean: false
+      - name: test
+        run: bb gha
+      - name: print infos just for debugging, and the logs
+        run: bb heph-info

@@ -1,0 +1,34 @@
+# caumond-resume
+
+[[https://github.com/hephaistox/landing/actions/workflows/commit_validation.yml][https://github.com/hephaistox/landing/actions/workflows/commit_validation.yml/badge.svg]] [[https://github.com/hephaistox/landing/actions/workflows/pages/pages-build-deployment][https://github.com/hephaistox/landing/actions/workflows/pages/pages-build-deployment/badge.svg]]
+
+[[https://github.com/hephaistox/hephaistox/wiki][https://img.shields.io/badge/wiki-hephaistox-blue.svg]] [[https://github.com/hephaistox/landing/wiki][https://img.shields.io/badge/wiki-project-blue.svg]] [[https://github.com/hephaistox/landing/discussions][https://img.shields.io/badge/discussions-blue.svg]]
+[[https://hephaistox.github.io/landing/][https://img.shields.io/badge/api-blue.svg]]
+
+* Goal
+This is a private project representing [[Hephaistox][www.hephaistox.com]].
+* Launch
+** Locally dev
+#+BEGIN_SRC zsh
+export LANDING_PORT="8080"
+bb repl
+#+END_SRC
+** Locally prod like
+#+BEGIN_SRC zsh
+export LANDING_PORT="8080"
+bb prod-local
+#+END_SRC
+** Local acceptance
+#+BEGIN_SRC zsh
+bb la
+java -DLANDING_PORT=80 -jar ./landing.jar
+#+END_SRC
+** Prod
+#+BEGIN_SRC zsh
+bb prod
+java -DLANDING_PORT=80 -jar ./landing.jar
+#+END_SRC
+* LICENCE
+See license information in [[LICENSE.md][Attribution-NonCommercial 4.0 International]]
+
+Copyright © 2020-2025 Hephaistox

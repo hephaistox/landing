@@ -1,0 +1,16 @@
+;; V1 - For all projects
+;; See [doc](https://github.com/kkinnear/zprint/blob/d0bb27e51ac97b1cdae5ea32b9b953f66cd650b2/doc/reference.md#introduction-to-configuration) for more details
+{:style [:community
+         :how-to-ns
+         :sort-require
+         {:style-call :require-justify
+          :max-variance 1000}
+         :sort-dependencies
+         :backtranslate
+         :hiccup]
+ :map {:comma? false
+       :force-nl? true}
+ :pair {:force-nl? true}
+ :pair-fn {:hang? false}
+ :comment {:wrap? false}
+ :width 100}

@@ -1,0 +1,2 @@
+{:lint-as {day8.re-frame.tracing/fn-traced clojure.core/fn
+           mount.core/defstate clojure.core/def}}

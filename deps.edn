@@ -1,0 +1,40 @@
+{:aliases
+ {:antq {:deps {com.github.liquidz/antq {:mvn/version "2.11.1276"}
+                org.slf4j/slf4j-nop {:mvn/version "2.0.17"}}
+         :main-opts ["-m" "antq.core"]}
+  :clj-test-runner {:exec-fn cognitect.test-runner.api/test
+                    :extra-deps {com.cognitect/test-runner
+                                 {:git/url "https://github.com/cognitect-labs/test-runner"
+                                  :sha "3f288f1f16d167723ad87cc35b1dfee3c1681e10"}}}
+  :cljs-deps {:extra-deps {com.github.hephaistox/auto-web
+                           {:git/sha "8e44465cdec6ab4c10b62bc1da5375df64288593"}
+                           thheller/shadow-cljs {:mvn/version "2.28.22"}}
+              :extra-paths ["src/cljc" "test/unit/cljc"]}
+  :codox {:exec-args {:description "`landing` is the Hephaistox public website"
+                      :doc-paths ["docs/codox"]
+                      :metadata {:doc/format :markdown}
+                      :name "landing"
+                      :source-uri
+                      "https://github.com/hephaistox/landing/blob/{version}/{filepath}#L{line}"}
+          :exec-fn codox.main/generate-docs
+          :extra-deps {codox/codox {:mvn/version "0.10.8"}}}
+  :env-prod {:exec-fn landing.server/-main}
+  :test-clj {:extra-paths ["test/unit/clj" "test/unit/cljc"]
+             :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]
+             :main-opts
+             ["-m" "cognitect.test-runner" "-r" ".*-test.*" "-d" "test/unit/clj" "test/unit/cljc"]}
+  :test-demo {:extra-paths ["test/demo/clj"]
+              :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]
+              :main-opts ["-m" "cognitect.test-runner" "-r" ".*-test.*" "-d" "test/unit/clj"]}
+  :uberjar {:exec-args {:class-dir "target/classes"
+                        :jarname "landing.jar"
+                        :major-version "1.0"
+                        :production-dir "target/production"
+                        :root-dir "target"}
+            :exec-fn jar/uber
+            :extra-deps {io.github.clojure/tools.build {:git/sha
+                                                        "0267c5eec59059e5706db72e3466fded86a2f709"}}
+            :extra-paths ["env/build"]}}
+ :deps {com.github.hephaistox/auto-core {:git/sha "d6a8fff0d5179ff70742216bdb101d0ed3506a1c"}
+        com.github.hephaistox/auto-web {:git/sha "8e44465cdec6ab4c10b62bc1da5375df64288593"}}
+ :paths ["src/clj" "src/cljc" "resources"]}

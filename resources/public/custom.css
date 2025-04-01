@@ -1,0 +1,8 @@
+body, h1, h2, h3, h4, h5, h6, p {
+  /* font-family: 'plus-jakarta-sans', ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji; */
+}
+
+@media (prefers-color-scheme: dark) {
+  color: #FF0000!important;
+  background-color: #FFBB!important;
+}

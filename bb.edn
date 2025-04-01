@@ -1,0 +1,104 @@
+{:deps {com.github.hephaistox/auto-build {:git/sha "6f96cd7ce3162ea3a4be5edc4a3b65ba801ac288"}}
+ :paths []
+ :tasks
+ {:requires [[auto-build.os.exit-codes] [auto-build.os.exiting :refer [exit]]]
+  bp {:doc "Before push"
+      :task (binding [exit (fn [exit-code & _] (when-not (zero? exit-code) exit-code))]
+              (-> (or (run 'format)
+                      (run 'lint)
+                      (binding [*command-line-args* (conj *command-line-args* "all")]
+                        (run 'clj-test))
+                      (binding [*command-line-args* (conj *command-line-args* "all")]
+                        (run 'cljs-node-test))
+                      auto-build.os.exit-codes/ok)
+                  System/exit))}
+  clean
+  {:doc "Remove temporary build files"
+   :requires [[auto-build.tasks.clean :as task-clean] [auto-build.echo :refer [level1-header]]]
+   :task (-> (task-clean/clean
+              level1-header
+              "."
+              [".DS_Store"]
+              ["resources/public/js/compiled" "target" ".cpcache" ".shadow-cljs" "node_modules"]
+              (current-task))
+             exit)}
+  clj-test {:doc "Test with clj"
+            :requires [[auto-build.tasks.clj-test :as build-clj-test]
+                       [auto-build.echo :refer [level1-header]]]
+            :task (some->>
+                    ["test-clj"]
+                    (build-clj-test/clj-test level1-header "." "clj-test-runner" (current-task))
+                    exit)}
+  cljs-browser-test
+  {:doc "Test with cljs in browser"
+   :requires [[auto-build.tasks.cljs-browser-test :as build-cljs-browser]
+              [auto-build.echo :refer [level1-header]]]
+   :task (->
+           (build-cljs-browser/cljs-browser-test level1-header "." (current-task) ["browser-test"])
+           exit)}
+  cljs-node-test
+  {:doc "Test with cljs"
+   :requires [[auto-build.tasks.cljs-node-test :as build-cljs-node-test]
+              [auto-build.echo :refer [level1-header]]]
+   :task (-> (build-cljs-node-test/cljs-node-test level1-header "." (current-task) ["ltest"])
+             exit)}
+  deploy {:doc "Build and deploy"
+          :requires [[auto-build.tasks.frontend :as build-frontend]
+                     [auto-build.echo :refer [level1-header]]]
+          :task (-> (build-frontend/deploy level1-header
+                                           "."
+                                           (:target-dir pars)
+                                           (:cljs-app pars)
+                                           (:deployment-url pars))
+                    exit)}
+  deps {:doc "Update deps"
+        :task (do (shell "clj -M:antq") (shell "npm upgrade"))}
+  format {:doc "Format"
+          :requires [[auto-build.tasks.formatting :as task-format]
+                     [auto-build.echo :refer [level1-header]]]
+          :task (-> (task-format/format level1-header "." (current-task))
+                    exit)}
+  gha {:doc "For github action tests"
+       :task (do (shell "bb clj-test test-clj -v") (shell "bb cljs-node-test all -v"))}
+  heph-info {:doc "Hephaistox project info"
+             :requires [[auto-build.tasks.heph-info :as heph-info]
+                        [auto-build.echo :refer [level1-header]]]
+             :task (-> (heph-info/heph-info level1-header (current-task) ".")
+                       exit)}
+  la {:doc "Start local acceptance"
+      :requires [[auto-build.tasks.web.prod-build :as task-prod-build]
+                 [auto-build.echo :refer [level1-header]]]
+      :task (task-prod-build/build-and-push level1-header
+                                            "." (current-task)
+                                            :uberjar nil
+                                            "LANDING_LA_REPO" "target/la")}
+  lint {:doc "Lint"
+        :requires [[auto-build.tasks.lint :as task-lint] [auto-build.echo :refer [level1-header]]]
+        :task (-> (task-lint/lint level1-header ["src" "test"] "." (current-task))
+                  exit)}
+  prod {:doc "Start local acceptance"
+        :requires [[auto-build.tasks.web.prod-build :as task-prod-build]
+                   [auto-build.echo :refer [level1-header]]]
+        :task (task-prod-build/build-and-push level1-header
+                                              "." (current-task)
+                                              :uberjar nil
+                                              "LANDING_PROD_REPO" "target/prod")}
+  prod-local {:doc "Compile frontend and backend in production mode and start it locally"
+              :task (binding [exit (fn [exit-code & _] (when-not (zero? exit-code) exit-code))]
+                      (shell "bb clean")
+                      (shell "clj -X:env-prod"))}
+  repl {:doc "Clojure repl"
+        :override-builtin true
+        :requires [[auto-build.tasks.repl :as build-repl] [auto-build.echo :refer [level1-header]]]
+        :task (-> (build-repl/repl level1-header "." (current-task) [:repl] 7051)
+                  exit)}
+  uberjar {:doc "Uberjar"
+           :override-builtin true
+           :requires [[auto-build.tasks.frontend :as build-frontend]
+                      [auto-build.echo :refer [level1-header]]]
+           :task (-> (build-frontend/uberjar level1-header
+                                             "."
+                                             (:target-dir pars)
+                                             (:cljs-app pars)
+                                             (:deployment-url pars))
+                     exit)}}}

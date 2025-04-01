@@ -1,0 +1,28 @@
+# V2 With javascript
+# ********************************************************************************
+# auto-core
+# ********************************************************************************
+## auto-build
+**/**/.nrepl-port
+**/.DS_Store
+**/.clj-kondo/.cache
+**/.cpcache/
+### Private credentials
+**/.clever.json
+**/tmp
+**/target
+
+### Intellij
+.idea/
+**.iml
+**/**.iml
+
+docs/wiki/
+docs/codox/
+
+## auto-core
+**/.shadow-cljs
+**/node_modules
+**/.clever.json
+**/.clever
+pom.properties
