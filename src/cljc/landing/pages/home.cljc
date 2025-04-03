@@ -1,26 +1,25 @@
 (ns landing.pages.home
   "Specific to the website home page"
   (:require
-   [auto-web.assembled.v-people-card :refer [people-card-with-description]]
-   [auto-web.components.v-button     :refer [v-link-button]]
-   [auto-web.components.v-img        :refer [v-img]
-                                     :as    wvimage]
-   [auto-web.components.v-link       :refer [v-a]]
-   [landing.language                 :refer [lang-bar]]
-   [landing.pages.structure          :refer [footer]]
-   [landing.routes                   :as lroutes]))
+   [auto-web.assembled.people-card :refer [cpeople-card-with-modal]]
+   [auto-web.components.button     :refer [clink-button]]
+   [auto-web.components.img        :refer [cimg]]
+   [auto-web.components.link       :refer [clink]]
+   [landing.language               :refer [landing-lang-bar]]
+   [landing.pages.structure        :refer [cfooter]]
+   [landing.routes                 :as lroutes]))
 
 (def images
   (->> [{:url "/img/factory.jpg"
          :alt "factory illustration"
-         :name :factory}
+         :img-id :factory}
         {:url "/img/anthony.jpeg"
          :alt "Portrait anthony"
-         :name :anthony}
+         :img-id :anthony}
         {:url "/img/mati.jpeg"
          :alt "Portrait mati"
-         :name :mati}]
-       (mapv (fn [link] [(:name link) link]))
+         :img-id :mati}]
+       (mapv (fn [link] [(:img-id link) link]))
        (into {})))
 
 (def dic
@@ -28,6 +27,8 @@
            :en "Reduce costs, optimize stock, improve the service level"}
    :sub-title {:fr "Notre jumeau numérique"
                :en "Our digital twin"}
+   :home-page {:en "Hephaistox home page"
+               :fr "Page d'accueil Hephaistox"}
    :desc
    {:fr
     "Nous commençons par des consultations approfondies pour identifier les questions clés, nous créons le jumeau numérique de votre usine et nous effectuons des simulations pour transformer l'intuition en réalité et garantir un processus de mise en œuvre efficace et sans heurts."
@@ -52,10 +53,6 @@
     "Hi, we are Mati and Anthony, co-founders of Hephaistox! Together we unite our passion for solving problems in the supply chain field with the help of software development. Our goal is to provide high-level solutions to small and medium industries, as we firmly believe that the strength and self-sufficiency of Europe lie within our local industries. We are committed to offering them the care and solutions that are often only available to large corporations."
     :fr
     "Bonjour, nous sommes mati et anthony, co-fondateurs d’Hephaistox ! Ensemble, nous avons unis notre passion pour la résolution de problèmes dans le domaine de la chaîne logistique à l’aide de logiciels informatiques. Notre but est de proposer des solutions de haute qualité pour les entreprises et industries de petites et moyennes tailles. Nous avons la conviction profonde que l’efficacité et l’auto suffisance de l’Europe passera par nos industries locales et leur dynamisme. Nous nous engageons à offrir l’attention et les solutions souvent réservées aux grandes corporations."}
-   :b {:fr "Une compréhension profonde de la théorie, de l'enseignement dans le supérieur"
-       :en "Deep understanding of theory and years of teaching at university"}
-   :a {:fr "20+ années d'expérience industrielle en chaîne logistique et en informatique"
-       :en "20+ years of commercial experience with supply chain and IT"}
    :simulation-offer
    {:fr
     [:div
@@ -99,15 +96,17 @@
 (defn body
   [http-request]
   (let [l (get http-request :lang)
-        tr #(get-in dic [% l])]
+        tr #(get-in dic [% l])
+        factory (:factory images)]
     [:body.w3-row.w3-xlarge {}
-     [:div {:style {:min-height "87em"}}
+     [:div#app {:style {:min-height "87em"}}
       [:div#first-section.w3-row
        [:div#small-header.w3-panel.w3-row.l6.w3-col
-        (vec (concat [:header.w3-display-container.w3-container
-                      [:div.w3-display-left
-                       (v-a (:home lroutes/links) (v-img (:hephaistox-logo lroutes/images) :tiny))]]
-                     [[:div.w3-right (lang-bar http-request)]]))
+        (vec (concat
+              [:header.w3-display-container.w3-container
+               [:div.w3-display-left
+                (clink {} (:home lroutes/links) (cimg {} :tiny (:hephaistox-logo lroutes/images)))]]
+              [[:div.w3-right (landing-lang-bar {} http-request)]]))
         [:div.w3-padding.w3-auto {:style {:max-width "40em"}}
          [:br]
          [:h2.w3-right-align.w3-bold.text.w3-text-red.w3-xxxlarge (tr :sub-title)]
@@ -118,53 +117,52 @@
           [:p.text (tr :but-first)]
           [:br]
           [:div.w3-display-container.w3-panel
-           (v-link-button
-            (get-in lroutes/social [:meeting :link])
-            (tr :speak-about-it)
+           (clink-button
             {:class
-             "w3-display-middle w3-btn w3-orange w3-text-white w3-text-bold w3-round w3-ripple"})]
+             "w3-display-middle w3-btn w3-orange w3-text-white w3-text-bold w3-round w3-ripple"}
+            (tr :speak-about-it)
+            (get-in lroutes/social [:meeting :link]))]
           [:br]]]]
-       [:div#styled-factory.w3-display-container.w3-col.l6.w3-hide-small.w3-hide-medium
-        {:style "height:40em;overflow: hidden;"}
-        [:svg.w3-display-left.w3-transparent.w3-hide-small.w3-hide-medium {:style {:height "40em"
-                                                                                   :fill "white"}
-                                                                           :viewbox "0 0 100 100"}
-         [:polygon {:points "0,100 0,0 0,0 10,100"
-                    :style {:height "100%"
-                            :z-index 100}}]]
-        [:img {:style {:z-index 20
-                       :class "w3-display-right"
-                       :height "100%"}
-               :alt (:alt (:factory images))
-               :src (:url (:factory images))}]]]
+       [:div#styled-factory.w3-display-container.l6.w3-hide-small.w3-hide-medium {:style {:height
+                                                                                          "40em"
+                                                                                          :overflow
+                                                                                          "hidden"}}
+        [:div.w3-display-right {:style {:height "100%"}}
+         [:img {:style {:height "100%"}
+                :alt (:alt factory)
+                :src (:url factory)}]
+         [:svg.w3-transparent.w3-hide-small.w3-hide-medium.w3-display-left {:style {:fill "white"
+                                                                                    :height "100%"}
+                                                                            :viewbox "0 0 100 100"}
+          [:polygon {:points "0,100 0,0 0,0 10,100"}]]]]]
       [:div#offers-section.w3-row.w3-flat-midnight-blue.w3-padding
        [:div.w3-content.text.w3-padding {:style {:max-width "40em"}}
         (tr :simulation-offer)
-        (v-link-button (:simulation lroutes/links)
-                       (tr :read-more)
-                       {:class " w3-text-orange w3-text-bold w3-round"})]]
+        (clink-button {:class "w3-text-orange w3-text-bold w3-round"}
+                      (tr :read-more)
+                      (:simulation lroutes/links))]]
       [:div#about-us-section.w3-row
        [:div.w3-content.text.w3-padding {:style {:max-width "40em"}}
         [:h1 (tr :about-us)]
         [:p (tr :about-us-desc)]]]
-      [:div.w3-row
+      [:div.w3-row.w3-panel
        [:div.w3-col.m1 [:p]]
-       (people-card-with-description :anthony-card
-                                     [{:fa-icon "fa-linkedin fa-brands"
-                                       :link (:linkedin-anthony lroutes/links)}]
-                                     (:anthony images)
-                                     "Anthony CAUMOND"
-                                     (tr :co-founder)
-                                     (tr :about-anthony))
+       (cpeople-card-with-modal {}
+                                :anthony-card
+                                [{:fa-icon "fa-linkedin fa-brands"
+                                  :link (:linkedin-anthony lroutes/links)}]
+                                (:anthony images)
+                                "Anthony CAUMOND"
+                                (tr :co-founder)
+                                (tr :about-anthony))
        [:div.w3-col.m2 [:p]]
-       (people-card-with-description :mati-card
-                                     [{:fa-icon "fa-linkedin fa-brands"
-                                       :link (:linkedin-mati lroutes/links)}]
-                                     (:mati images)
-                                     "Mati MAZURCZAK"
-                                     (tr :co-founder)
-                                     (tr :about-mati))
-       [:div.w3-col.m1 [:p]]]
-      [:br]
-      [:br]]
-     (footer http-request)]))
+       (cpeople-card-with-modal {}
+                                :mati-card
+                                [{:fa-icon "fa-linkedin fa-brands"
+                                  :link (:linkedin-mati lroutes/links)}]
+                                (:mati images)
+                                "Mati MAZURCZAK"
+                                (tr :co-founder)
+                                (tr :about-mati))
+       [:div.w3-col.m1 [:p]]]]
+     (cfooter {} http-request)]))

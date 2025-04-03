@@ -1,4 +1,4 @@
-{:deps {com.github.hephaistox/auto-build {:git/sha "6f96cd7ce3162ea3a4be5edc4a3b65ba801ac288"}}
+{:deps {com.github.hephaistox/auto-build {:git/sha "740a55bfdeca371fffda8ae96f7dbab16072052b"}}
  :paths []
  :tasks
  {:requires [[auto-build.os.exit-codes] [auto-build.os.exiting :refer [exit]]]
@@ -25,10 +25,11 @@
   clj-test {:doc "Test with clj"
             :requires [[auto-build.tasks.clj-test :as build-clj-test]
                        [auto-build.echo :refer [level1-header]]]
-            :task (some->>
-                    ["test-clj"]
-                    (build-clj-test/clj-test level1-header "." "clj-test-runner" (current-task))
-                    exit)}
+            :task
+            (some->>
+              ["test-clj"]
+              (build-clj-test/clj-test level1-header "." "clj-test-runner:env-dev" (current-task))
+              exit)}
   cljs-browser-test
   {:doc "Test with cljs in browser"
    :requires [[auto-build.tasks.cljs-browser-test :as build-cljs-browser]
@@ -65,24 +66,30 @@
                         [auto-build.echo :refer [level1-header]]]
              :task (-> (heph-info/heph-info level1-header (current-task) ".")
                        exit)}
-  la {:doc "Start local acceptance"
+  la {:doc "Deploy current codebase to local acceptance"
       :requires [[auto-build.tasks.web.prod-build :as task-prod-build]
                  [auto-build.echo :refer [level1-header]]]
       :task (task-prod-build/build-and-push level1-header
-                                            "." (current-task)
-                                            :uberjar nil
-                                            "LANDING_LA_REPO" "target/la")}
+                                            "."
+                                            (current-task)
+                                            [:env-prod :uberjar]
+                                            ["app" "app-admin"]
+                                            "LANDING_LA_REPO"
+                                            "target/la")}
   lint {:doc "Lint"
         :requires [[auto-build.tasks.lint :as task-lint] [auto-build.echo :refer [level1-header]]]
         :task (-> (task-lint/lint level1-header ["src" "test"] "." (current-task))
                   exit)}
-  prod {:doc "Start local acceptance"
+  prod {:doc "Deploy current codebase to production"
         :requires [[auto-build.tasks.web.prod-build :as task-prod-build]
                    [auto-build.echo :refer [level1-header]]]
         :task (task-prod-build/build-and-push level1-header
-                                              "." (current-task)
-                                              :uberjar nil
-                                              "LANDING_PROD_REPO" "target/prod")}
+                                              "."
+                                              (current-task)
+                                              [:env-prod :uberjar]
+                                              ["app" "app-admin"]
+                                              "LANDING_PROD_REPO"
+                                              "target/prod")}
   prod-local {:doc "Compile frontend and backend in production mode and start it locally"
               :task (binding [exit (fn [exit-code & _] (when-not (zero? exit-code) exit-code))]
                       (shell "bb clean")
@@ -90,8 +97,14 @@
   repl {:doc "Clojure repl"
         :override-builtin true
         :requires [[auto-build.tasks.repl :as build-repl] [auto-build.echo :refer [level1-header]]]
-        :task (-> (build-repl/repl level1-header "." (current-task) [:repl] 7051)
+        :task (-> (build-repl/repl level1-header "." (current-task) [:env-dev] 7051)
                   exit)}
+  repl-fe {:doc "Clojure repl for frontend"
+           :override-builtin true
+           :requires [[auto-build.tasks.repl-fe :as build-repl-fe]
+                      [auto-build.echo :refer [level1-header]]]
+           :task (-> (build-repl-fe/repl-fe level1-header "." (current-task) ["app" "app-admin"])
+                     exit)}
   uberjar {:doc "Uberjar"
            :override-builtin true
            :requires [[auto-build.tasks.frontend :as build-frontend]

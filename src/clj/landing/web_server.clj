@@ -1,8 +1,8 @@
 (ns landing.web-server
   (:require
    [auto-core.log          :as core-log]
-   [landing.handler        :refer [render]]
-   [landing.pages.error-be :refer [exception-page]]
+   [landing.handler]
+   [landing.pages.error-be :refer [exception-response]]
    [mount.core             :refer [defstate]]
    [org.httpkit.server     :as http-kit]))
 
@@ -42,16 +42,12 @@
         [e-msg
          "While running app routes an exception has happened, look into :error to find more information"]
         (core-log/error-exception e e-msg))
-      {:status 500
-       :headers {}
-       :body (render (exception-page http-req e))})
+      (exception-response http-req e))
     (catch Error e
       (core-log/fatal-exception
        e
        "While running app routes an error has happened, look into :error to find more information")
-      {:status 500
-       :headers {}
-       :body (render (exception-page http-req e))})))
+      (exception-response http-req e))))
 
 (defstate http-server
           :start (try (core-log/info "Starting http-server")

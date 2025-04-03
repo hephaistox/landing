@@ -37,29 +37,29 @@
     :fr
     [:article.text
      [:h1 "Discours en deux minutes"]
-     [:p "Bienvenue à Hephaistox, l’artisan de la chaîne logistique."]
+     [:p "Bienvenue &agrave; Hephaistox, l’artisan de la cha&icirc;ne logistique."]
      [:p
-      "Vous êtes industriels? Vous avez une décision difficile à prendre? et bien pensez à Hephaistox. Mati et Anthony (moi-même) pouvons vous aider si:"]
+      "Vous êtes industriels? Vous avez une décision difficile &agrave; prendre? et bien pensez &agrave; Hephaistox. Mati et Anthony (moi-même) pouvons vous aider si:"]
      [:ul
       [:li "Vous doutez de la rentabilité d’un nouvel investissement?"]
       [:li
-       "Vous cherchez à vous organiser différemment pour diminuer votre consommation énergétique, mais vous avez des doutes sur la pertinence de vos solutions?"]
+       "Vous cherchez &agrave; vous organiser différemment pour diminuer votre consommation énergétique, mais vous avez des doutes sur la pertinence de vos solutions?"]
       [:li "Vous cherchez des alternatives pour minimiser votre perte matière?"]
       [:li "Vous pensez pouvoir diminuer votre stock mais ne savez pas dans quelles conditions?"]
       [:li
-       "Vous industrialisez un nouveau produit et cherchez à anticiper son impact sur l’atelier existant?"]]
-     [:p "Ainsi que des questions qui vous tiennent à coeur…"]
+       "Vous industrialisez un nouveau produit et cherchez &agrave; anticiper son impact sur l’atelier existant?"]]
+     [:p "Ainsi que des questions qui vous tiennent &agrave; coeur…"]
      [:p
       "Vous avez des experts et leurs connaissances est irremplaçable, mais quand la question est complexe, que ses impacts font intervenir plusieurs domaines d’expertise, quand la situation est nouvelle, nous pouvons aider vos experts et ceux qui doivent prendre la décision."]
      [:p
-      "Hephaistox est votre partenaire, au-delà d’une simple prestation de consultants - nous sommes des artisans de la chaîne logistique, fabriquant des solutions sur mesure, avec du logiciel de qualité. Nous utilisons une méthodologie qui a été éprouvée par nos années d’expériences. Elle consiste dans les étapes suivantes:"]
+      "Hephaistox est votre partenaire, au-del&agrave; d’une simple prestation de consultants - nous sommes des artisans de la chaîne logistique, fabriquant des solutions sur mesure, avec du logiciel de qualité. Nous utilisons une méthodologie qui a été éprouvée par nos années d’expériences. Elle consiste dans les étapes suivantes:"]
      [:ul
       [:li
        [:b "Définir le problème:"]
-       "Grâce à notre connaissance de la chaîne logistique et des expériences industrielles variées, nous pouvons vous aider à bien poser votre question - un problème bien posé est à moitié résolu,"]
+       "Grâce &agrave; notre connaissance de la chaîne logistique et des expériences industrielles variées, nous pouvons vous aider &agrave; bien poser votre question - un problème bien posé est &agrave; moitié résolu,"]
       [:li
        [:b "Guider votre modélisation: "]
-       "Nos compétences en modélisation vont vous guider à commencer par les choses les plus importantes d’abord,"]
+       "Nos compétences en modélisation vont vous guider &agrave; commencer par les choses les plus importantes d’abord,"]
       [:li
        [:b "Résolution: "]
        "Nous mettons en oeuvre nos méthodes et outils dans le cadre convenu ensemble."]

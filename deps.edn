@@ -6,10 +6,20 @@
                     :extra-deps {com.cognitect/test-runner
                                  {:git/url "https://github.com/cognitect-labs/test-runner"
                                   :sha "3f288f1f16d167723ad87cc35b1dfee3c1681e10"}}}
-  :cljs-deps {:extra-deps {com.github.hephaistox/auto-web
-                           {:git/sha "8e44465cdec6ab4c10b62bc1da5375df64288593"}
+  :cljs-deps {:extra-deps {binaryage/devtools {:mvn/version "1.0.6"}
+                           clj-commons/pushy {:mvn/version "0.3.10"}
+                           com.github.hephaistox/auto-web
+                           {:git/sha "d0cadae8dc1f4075d20ab91980c78605c3b5ab66"}
+                           day8.re-frame/http-fx {:mvn/version "0.2.4"}
+                           day8.re-frame/tracing {:mvn/version "0.6.2"}
+                           metosin/reitit {:mvn/version "0.8.0"}
+                           re-frame/re-frame {:mvn/version "1.4.2"}
+                           re-frisk/re-frisk {:mvn/version "1.6.0"}
+                           re-pressed/re-pressed {:mvn/version "0.3.2"}
+                           reagent/reagent {:mvn/version "1.1.1"}
+                           superstructor/re-frame-fetch-fx {:mvn/version "0.4.0"}
                            thheller/shadow-cljs {:mvn/version "2.28.22"}}
-              :extra-paths ["src/cljc" "test/unit/cljc"]}
+              :extra-paths ["src/cljc" "src/cljs" "test/unit/cljc" "../auto_web/src/cljs"]}
   :codox {:exec-args {:description "`landing` is the Hephaistox public website"
                       :doc-paths ["docs/codox"]
                       :metadata {:doc/format :markdown}
@@ -18,7 +28,9 @@
                       "https://github.com/hephaistox/landing/blob/{version}/{filepath}#L{line}"}
           :exec-fn codox.main/generate-docs
           :extra-deps {codox/codox {:mvn/version "0.10.8"}}}
-  :env-prod {:exec-fn landing.server/-main}
+  :env-dev {:extra-paths ["env/dev"]}
+  :env-prod {:exec-fn landing.server/-main
+             :extra-paths ["env/prod"]}
   :test-clj {:extra-paths ["test/unit/clj" "test/unit/cljc"]
              :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]
              :main-opts
@@ -35,6 +47,5 @@
             :extra-deps {io.github.clojure/tools.build {:git/sha
                                                         "0267c5eec59059e5706db72e3466fded86a2f709"}}
             :extra-paths ["env/build"]}}
- :deps {com.github.hephaistox/auto-core {:git/sha "d6a8fff0d5179ff70742216bdb101d0ed3506a1c"}
-        com.github.hephaistox/auto-web {:git/sha "8e44465cdec6ab4c10b62bc1da5375df64288593"}}
+ :deps {com.github.hephaistox/auto-web {:git/sha "d0cadae8dc1f4075d20ab91980c78605c3b5ab66"}}
  :paths ["src/clj" "src/cljc" "resources"]}

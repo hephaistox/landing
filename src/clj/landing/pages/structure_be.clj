@@ -7,7 +7,7 @@
   "Create an html5 page, in utf8, taking the whole app
 
   The page is known by the SEO and twitter"
-  [_http-request title description]
+  [http-request title description]
   (let [{:keys [author-name page-snapshot permanent-url icon X-profile-url]} profile]
     (vec
      (concat [[:meta {:charset "utf-8"}]
@@ -25,6 +25,6 @@
               ;; (css-meta (:local-fa-sharp-duotone-thin links))
               [:meta {:content "width=device-width,initial-scale=1"
                       :name "viewport"}]]
-             (all-pages-metas title icon)
+             (all-pages-metas title icon (:lang http-request))
              (seo-page-metas author-name description page-snapshot permanent-url)
              (X-prepared-page-metas description X-profile-url page-snapshot)))))
