@@ -8,7 +8,8 @@
   (is (some? (r/match-by-path sut/router "/")) "home")
   (is (some? (r/match-by-path sut/router "")) "home")
   (is (= {:status 200
-          :headers {"Content-Type" "text/plain"}
+          :headers {"Content-Type" "text/plain"
+                    "X-Frame-Options" "DENY"}
           :body "pong"}
          ((get-in (r/match-by-path sut/router "/ping") [:result :get :handler]) {}))
       "ping")

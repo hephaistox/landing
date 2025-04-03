@@ -19,11 +19,14 @@
 (defn uber
   [{:keys [jarname root-dir production-dir class-dir]}]
   (let [uber-file (str production-dir "/" jarname)
-        basis (basis)]
+        basis (basis)
+        edn-c (edn-content deps-file)]
     (clean root-dir)
-    (b/copy-dir {:src-dirs (-> deps-file
-                               edn-content
-                               :paths)
+    (b/copy-dir {:src-dirs (concat (:paths edn-c)
+                                   (-> edn-c
+                                       :aliases
+                                       :env-prod
+                                       :extra-paths))
                  :target-dir class-dir})
     (b/compile-clj {:basis basis
                     :ns-compile '[landing.server]

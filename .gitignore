@@ -26,3 +26,5 @@ docs/codox/
 **/.clever.json
 **/.clever
 pom.properties
+
+resources/public/js/compiled

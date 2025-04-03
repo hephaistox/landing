@@ -1,4 +1,14 @@
-{:builds {:browser-test {:ns-regexp "-test$"
+{:builds {:app {:asset-path "/js/compiled"
+                :devtools {:preloads [re-frisk.preload]}
+                :modules {:app {:init-fn landing.fe/init}}
+                :output-dir "resources/public/js/compiled"
+                :target :browser}
+          :app-admin {:asset-path "/js/compiled"
+                      :devtools {:preloads [re-frisk.preload]}
+                      :modules {:app-admin {:init-fn landing.admin/init}}
+                      :output-dir "resources/public/js/compiled"
+                      :target :browser}
+          :browser-test {:ns-regexp "-test$"
                          :runner-ns shadow.test.browser
                          :target :browser-test
                          :test-dir "target/browser-test"}
@@ -9,4 +19,5 @@
  :deps {:aliases [:cljs-deps]}
  :dev-http {9651 ["target/browser-test"]}
  :http {:port 9551}
+ :jvm-opts ["-Xmx1G"]
  :nrepl {:port 7151}}

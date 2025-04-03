@@ -1,8 +1,13 @@
 (ns landing.article.contacts
   (:require
-   [auto-web.components.v-button :refer [v-link-button]]
-   [auto-web.components.v-list   :as wvlist]
-   [landing.routes               :as lroutes]))
+   [auto-web.components.button :refer [clink-button]]
+   [auto-web.components.list   :refer [cbullet]]
+   [landing.routes             :as lroutes]))
+
+;;TODO Check on-click de la page de garde
+;;TODO Check language ckick
+;;TODO Stash simulation
+;;TODO Scan pages on Validator
 
 (defn simulation-body
   [_http-request l]
@@ -12,39 +17,35 @@
      [:h1 "Contact us"]
      [:p
       "We will be able to adapt our explanation, our examples to your industry if we have the opportunity to discuss them with you. Don't hesitate."]
-     [:ul.w3-border-0.w3-ul
-      [:li (wvlist/v-small-icon (:linkedin lroutes/social)) "  You can contact us on linked-in"]
-      [:li
-       (wvlist/v-small-icon (:github lroutes/social))
-       "  As developpers you can see and interact with us on Github"]
-      [:li (wvlist/v-small-icon (:mail lroutes/social)) "  Send an email"]
-      [:li
-       [:p "Book a meeting: "]
-       [:p.w3-center
-        (v-link-button (get-in lroutes/social [:meeting :link])
-                       "Book a meeting"
-                       {:class
-                        "w3-btn w3-orange w3-text-white w3-text-bold w3-round w3-ripple"})]]]]
+     (cbullet {}
+              [(assoc (:linkedin lroutes/social) :desc "  You can contact us on linked-in")
+               (assoc (:github lroutes/social)
+                      :desc
+                      "  As developpers you can see and interact with us on Github")
+               (assoc (:mail lroutes/social) :desc "  Send an email")])
+     [:div
+      "or simply book a meeting: "
+      [:p.w3-center
+       (clink-button {:class "w3-btn w3-orange w3-text-white w3-text-bold w3-round w3-ripple"}
+                     "Book a meeting"
+                     (get-in lroutes/social [:meeting :link]))]]]
     :fr
     [:article.text
      [:h1 "Contactez-nous"]
      [:p
       "Nous pouvons adaptez nos explications ou nos exemples à votre industrie si nous avons l'opportunité de discutez avec vous. N'hésitez pas."]
-     [:ul.w3-border-0.w3-ul
-      [:li
-       (wvlist/v-small-icon (:linkedin lroutes/social))
-       "  Vous pouvez nous contacter sur LinkedIn"]
-      [:li
-       (wvlist/v-small-icon (:github lroutes/social))
-       "  En tant que développeurs, vous pourrez interagir avec nous sur Github"]
-      [:li (wvlist/v-small-icon (:mail lroutes/social)) "  nous envoyer un email"]
-      [:li
-       [:p "ou simplement organiser un rendez-vous:"]
-       [:p.w3-center
-        (v-link-button (get-in lroutes/social [:meeting :link])
-                       "Réservez"
-                       {:class
-                        "w3-btn w3-orange w3-text-white w3-text-bold w3-round w3-ripple"})]]]]))
+     (cbullet {}
+              [(assoc (:linkedin lroutes/social) :desc "  Vous pouvez nous contacter sur LinkedIn")
+               (assoc (:github lroutes/social)
+                      :desc
+                      "  En tant que développeurs, vous pourrez interagir avec nous sur Github")
+               (assoc (:mail lroutes/social) :desc "  nous envoyer un email")])
+     [:div
+      "Ou simplement organiser un rendez-vous:"
+      [:p.w3-center
+       (clink-button {:class "w3-btn w3-orange w3-text-white w3-text-bold w3-round w3-ripple"}
+                     "Réservez"
+                     (get-in lroutes/social [:meeting :link]))]]]))
 
 (def contacts-map
   {:title {:en "Contacts"
