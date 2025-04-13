@@ -1,20 +1,21 @@
 (ns landing.handler
   "Handler turns an http http-request into a response"
   (:require
-   [auto-web.middleware       :refer [wrap-add-language wrap-exception-handling]]
-   [env                       :refer [cors-parameters middlewares]]
-   [landing.language          :refer [default-language]]
-   [landing.pages.admin-be    :refer [admin-response]]
-   [landing.pages.article-be  :refer [article-response]]
-   [landing.pages.error-be    :refer [exception-response page-not-found-response]]
-   [landing.pages.home-be     :refer [home-response]]
-   [muuntaja.core             :as m]
-   [reitit.ring               :as rring]
-   [ring.middleware.cookies   :as ring-cookies]
-   [ring.middleware.cors      :as ring-cors]
-   [ring.middleware.gzip      :as ring-gzip]
-   [ring.middleware.x-headers :refer [wrap-frame-options]]
-   [ring.util.response        :as rr]))
+   [auto-web.middleware         :refer [wrap-add-language wrap-exception-handling]]
+   [env                         :refer [cors-parameters middlewares]]
+   [landing.language            :refer [default-language]]
+   [landing.pages.admin-be      :refer [admin-response]]
+   [landing.pages.article-be    :refer [article-response]]
+   [landing.pages.error-be      :refer [exception-response page-not-found-response]]
+   [landing.pages.home-be       :refer [home-response]]
+   [landing.pages.js-example-be :refer [js-example-response]]
+   [muuntaja.core               :as m]
+   [reitit.ring                 :as rring]
+   [ring.middleware.cookies     :as ring-cookies]
+   [ring.middleware.cors        :as ring-cors]
+   [ring.middleware.gzip        :as ring-gzip]
+   [ring.middleware.x-headers   :refer [wrap-frame-options]]
+   [ring.util.response          :as rr]))
 
 (def ^:private landing-middlewares "The middlewares for this application" middlewares)
 
@@ -28,6 +29,7 @@
                  ["/exception" (fn [_] (throw (ex-info "Exception" {:for :test})))]
                  ["/" home-response]
                  ["/articles/:article-id" article-response]
+                 ["/js-example" js-example-response]
                  ["/all-kind-of-checks" admin-response]]
                 {:data {:muuntaja m/instance
                         :middleware (concat landing-middlewares

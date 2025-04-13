@@ -44,6 +44,8 @@
          :link-id :reframe-admin}
         {:url "js/compiled/app.js"
          :link-id :reframe}
+        {:url "js/compiled/js-example.js"
+         :link-id :js-example}
         {:url "/fontawesome/css/sharp-duotone-thin.css"
          :link-id :local-fa-sharp-duotone-thin}]
        (mapv (fn [link] [(:link-id link) link]))
@@ -103,6 +105,7 @@
      [:hr]
      (clink opt-item (:digital-twin lroutes/links) (tr :digital-twin))
      (clink opt-item (:projets lroutes/links) (tr :projets))
+     (clink opt-item (:js-example lroutes/links) (tr :js-example))
      [:hr]
      (clink opt-item (:who-are-we lroutes/links) (tr :who-are-we))
      (clink opt-item (:sasu-caumond lroutes/links) (tr :sasu-caumond))

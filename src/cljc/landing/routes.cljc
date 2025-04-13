@@ -24,6 +24,8 @@
                 :en "Hephaistox"}
    :sasu-caumond {:fr "SASU caumond"
                   :en "SASU caumond"}
+   :js-example {:fr "Example de jobshop"
+                :en "Jobshop example"}
    :privacy {:fr "Clause de non responsabilité"
              :en "Privacy"}})
 
@@ -72,6 +74,9 @@
      {:url "/articles/hephaistox"
       :text :hephaistox
       :link-id :hephaistox}
+     {:url "/js-example"
+      :text :js-example
+      :link-id :js-example}
      {:link-id :mail
       :text :mail
       :url
