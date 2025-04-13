@@ -47,5 +47,7 @@
             :extra-deps {io.github.clojure/tools.build {:git/sha
                                                         "80868cd98af5fdef5386d45490be604f8931f666"}}
             :extra-paths ["env/build"]}}
- :deps {com.github.hephaistox/auto-web {:git/sha "8a4836c40ea0250641b1f56435a18d615217f28f"}}
+ :deps {com.github.hephaistox/auto-web {:git/sha "8a4836c40ea0250641b1f56435a18d615217f28f"}
+        com.github.hephaistox/auto-sim{:git/sha "59f72a42af13bcd165527f0b193a21dc19b3812e"}
+        com.github.hephaistox/auto-js {:git/sha "5282f86ebfe4836ca5866e6d37b292d520b18434"}}
  :paths ["src/clj" "src/cljc" "resources"]}

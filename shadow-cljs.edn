@@ -12,6 +12,11 @@
                          :runner-ns shadow.test.browser
                          :target :browser-test
                          :test-dir "target/browser-test"}
+          :js-example {:asset-path "/js/compiled"
+                       :devtools {:preloads [re-frisk.preload]}
+                       :modules {:js-example {:init-fn landing.js-example/init}}
+                       :output-dir "resources/public/js/compiled"
+                       :target :browser}
           :ltest {:autorun true
                   :ns-regexp "-test$"
                   :output-to "target/ltest.js"

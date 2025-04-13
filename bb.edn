@@ -73,7 +73,7 @@
                                             "."
                                             (current-task)
                                             [:env-prod :uberjar]
-                                            ["app" "app-admin"]
+                                            ["app" "app-admin" "js-example"]
                                             "LANDING_LA_REPO"
                                             "target/la")}
   lint {:doc "Lint"
@@ -87,7 +87,7 @@
                                               "."
                                               (current-task)
                                               [:env-prod :uberjar]
-                                              ["app" "app-admin"]
+                                              ["app" "app-admin" "js-example"]
                                               "LANDING_PROD_REPO"
                                               "target/prod")}
   prod-local {:doc "Compile frontend and backend in production mode and start it locally"
@@ -99,12 +99,13 @@
         :requires [[auto-build.tasks.repl :as build-repl] [auto-build.echo :refer [level1-header]]]
         :task (-> (build-repl/repl level1-header "." (current-task) [:env-dev] 7051)
                   exit)}
-  repl-fe {:doc "Clojure repl for frontend"
-           :override-builtin true
-           :requires [[auto-build.tasks.repl-fe :as build-repl-fe]
-                      [auto-build.echo :refer [level1-header]]]
-           :task (-> (build-repl-fe/repl-fe level1-header "." (current-task) ["app" "app-admin"])
-                     exit)}
+  repl-fe
+  {:doc "Clojure repl for frontend"
+   :override-builtin true
+   :requires [[auto-build.tasks.repl-fe :as build-repl-fe] [auto-build.echo :refer [level1-header]]]
+   :task (->
+           (build-repl-fe/repl-fe level1-header "." (current-task) ["app" "app-admin" "js-example"])
+           exit)}
   uberjar {:doc "Uberjar"
            :override-builtin true
            :requires [[auto-build.tasks.frontend :as build-frontend]
