@@ -1,5 +1,6 @@
 (ns landing.pages.error-be
   (:require
+   [auto-web.components.img    :refer [cimg images]]
    [clojure.string             :as str]
    [hiccup2.core               :refer [html]]
    [landing.pages.error        :refer [dic error-body pretty-print-exception]]
@@ -50,7 +51,8 @@
   [http-request]
   (let [l (:lang http-request)
         tr #(get-in dic [% l])]
-    (error-page http-request [:div [:h1 (tr :page-not-found)]])))
+    (error-page http-request
+                [:div [:h1 (tr :page-not-found)] (cimg {} :full (:not-found images))])))
 
 (defn page-not-found-response
   [http-request]

@@ -3,6 +3,15 @@ body, h1, h2, h3, h4, h5, h6, p {
 }
 
 @media (prefers-color-scheme: dark) {
-  color: #FF0000!important;
-  background-color: #FFBB!important;
-}
+  body, .w3-sidebar{
+    color: #FFFFFF !important;
+    background-color: #111111 !important;}
+  .fill-bg-color{
+    fill: #111111 !important;}}
+
+@media (prefers-color-scheme: light) {
+  body, .w3-sidebar{
+    color: #111111 !important;
+    background-color: #FFFFFF !important;}
+  .fill-bg-color {
+    fill: #FFFFFF !important;}}

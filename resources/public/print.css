@@ -1,0 +1,16 @@
+#footer-section{
+    display: none !important;
+  }
+
+#menu-sidebar{
+    display: none !important;
+  }
+
+
+#header  {
+    display: none !important;
+}
+
+#left-menu-placeholder{
+    display: none !important;
+}

@@ -14,7 +14,6 @@
               (css-meta (:w3-schools links))
               (css-meta (:w3-color-flat links))
               (css-meta (:component-css links))
-              (css-meta (:custom-css links))
               ;; https://docs.fontawesome.com/web/setup/host-yourself/webfonts
               ;;(css-meta (:local-fa-all links))
               (css-meta (:local-fa links))
@@ -27,4 +26,5 @@
                       :name "viewport"}]]
              (all-pages-metas title icon (:lang http-request))
              (seo-page-metas author-name description page-snapshot permanent-url)
-             (X-prepared-page-metas description X-profile-url page-snapshot)))))
+             (X-prepared-page-metas description X-profile-url page-snapshot)
+             [(css-meta (:custom-css links))]))))

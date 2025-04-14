@@ -5,28 +5,24 @@
    [auto-web.components.button     :refer [clink-button]]
    [auto-web.components.img        :refer [cimg]]
    [auto-web.components.link       :refer [clink]]
+   [auto-web.components.menu       :refer [chorizontal-text-menu]]
+   [landing.article.who-are-we     :as who-are-we]
    [landing.language               :refer [landing-lang-bar]]
    [landing.pages.structure        :refer [cfooter]]
    [landing.routes                 :as lroutes]))
 
 (def images
-  (->> [{:url "/img/factory.jpg"
+  (->> [{:url "/images/factory.jpg"
          :alt "factory illustration"
-         :img-id :factory}
-        {:url "/img/anthony.jpeg"
-         :alt "Portrait anthony"
-         :img-id :anthony}
-        {:url "/img/mati.jpeg"
-         :alt "Portrait mati"
-         :img-id :mati}]
+         :img-id :factory}]
        (mapv (fn [link] [(:img-id link) link]))
        (into {})))
 
 (def dic
   {:title {:fr "Anticipez, optimisez, expliquez, comprenez votre PMI"
            :en "Reduce costs, optimize stock, improve the service level"}
-   :sub-title {:fr "Notre jumeau numérique"
-               :en "Our digital twin"}
+   :sub-title {:fr "Le jumeau numérique d'Hephaistox"
+               :en "Hephaistox digital twin"}
    :home-page {:en "Hephaistox home page"
                :fr "Page d'accueil Hephaistox"}
    :desc
@@ -68,7 +64,7 @@
       [:li "Que se passe-t-il si une nouvelle machine est ajoutée dans l'atelier?"]]]
     :en
     [:div
-     [:h1 "Offre de simulation"]
+     [:h1 "Simulation offer"]
      [:p "Our simulation offer will take the guesswork out of your decision making."]
      [:p
       "Generally speaking, simulation can be used to answer questions concerning your plant starting with “What if?”"]
@@ -77,29 +73,23 @@
       [:li "What if more work in progress is authorized?"]
       [:li "What if the mix of products of customers is evolving?"]
       [:li "What if this new product is industrialized in the same workshop?"]
-      [:li "What if we add a new machine to the workshop?"]]]}
-   :about-anthony
-   {:en
-    [:p
-     "I'm Anthony, and I have a solid foundation from a knowledge perspective, but also some practical experiences. My educational background includes an engineering school education, a Master of Science degree, and a Ph.D. in computer science. Additionally, I hold professional certifications in Architecture (TOGAF) and Supply Chain (APICS). Practically speaking, it starts with my Ph.D. research that involved collaborating with six different industries and was focused on scheduling problems and supplementary constraints, utilizing highly successful techniques. These findings can prove extremely useful in your industries. Teaching has also been a significant part of my journey as I believe that the best way to truly understand something is by teaching it. I have dedicated six full years to imparting knowledge, where I taught operations research, mathematics, development, and supply chain. I take pride in having my work featured in prestigious scientific journals such as EJOR (European Journal of Operational Research) and COR (Computer & Operations Research), both specializing in operations research. With over two decades of commercial experience in supply chain management and software development, my most significant experience lies with Michelin, which offers a diverse range of industries and positions. The supply chain is not just my passion, it's my life's devotion. Even my thesis, specifically Chapter 5 laid the foundation for the software solutions we can now develop for you. It's important to note that Chapter 5 was an initial proposal, and with advancements in technology, maturity, and practical experience that I’ve gained over the years, I am now well-equipped to deliver exceptional results. Rest assured, this endeavor is not impromptu, but rather the culmination of a long path, and I hope you'll take advantage of the low-hanging fruits now available."]
-    :fr
-    [:p
-     "Je suis Anthony et j'ai des connaissances solides. J'ai suivi une formation dans une école d'ingénieurs, j'ai obtenu une maîtrise en sciences et un doctorat en informatique. En outre, je suis titulaire de certifications professionnelles en architecture (TOGAF) et en chaîne d'approvisionnement (APICS). D’un point de vue pratique, j’ai commencé pendant mon doctorat qui m’a permis d’apporter des connaissances de recherches opérationnelles à six industries différentes. J’étais concentré sur les problèmes d’ordonnancement avec contraintes supplémentaires, en utilisant des techniques tout à fait fructueux. Nous croyons que ces techniques sont très utiles pour vos industries. L’enseignement a aussi été une partie significative de cette aventure, car enseigner est un des meilleurs moyens de comprendre un sujet. J’ai dédié six années pleines à enseigner la recherche opérationnelle, des mathématiques, le développement informatique, la chaîne logistique. Je suis fier d’avoir écrit deux revues scientifiques de haut niveau: (European Journal of Operational Research) and COR (Computer & Operations Research) tous les deux spécialisés dans les problèmes de recherche opérationnelle. Avec mes deux décennies d’expérience industrielle dans la gestion de la chaîne logistique et de développement logiciel, mon expérience principale a été chez Michelin, qui m’a offert de m’intéresser à une grande diversité d’industries. La chaîne logistique n’est pas seulement une passion, mais une vraie dévotion. Même en thèse, j’ai consacré un chapitre 5 entier à la création d’un logiciel de gestion de chaîne logistique. Ce n’était qu’une proposition initiale qui, avec l’avancement des technologies et la connaissance pratique que j’ai acquise avec les années, je me sens maintenant tout à fait bien équiper pour vous délivrer des résultats exceptionnels. Soyez assuré que ces objectifs ne sont pas improvisés, mais plutôt l’aboutissement d’un long chemin, dont j’espère que vous serez les bénéficiaires, vous qui me lisez."]}
-   :about-mati
-   {:en
-    [:p
-     "I’m Mati, with a decade of experience in software development. I’ve thrived in fast-paced startups that revolve around cutting-edge technologies. My role was always being a problem solver, doesn’t matter if it was code, people relations, or business goals. And for project success, all of them need to be well taken care of. I’ve worked with all sorts of software sizes from e-commerce shops, through developing advanced technologies for movement rehabilitation to AI - NLP platforms for the biggest financial institutions and telecom companies. I was always interested in the full scope of the work, managing teams, creating software, and in the end solving problems for the end users that were the most valuable for the company. And always participated in the whole product cycle, from idea through creation to supporting it. I love software, but even more, I love creating software that is solving the most painful problems. Technologies are only tools, and I prefer tools that let me see and focus on the data, real problems, and information. And which needs to be understood deeply also on the aspect of your team's needs and usage to be fully successful. I also put high pressure on the highest code quality, documentation, and testing to ensure that the software is working as designed and can be easily modified and supported by other teams."]
-    :fr
-    [:p
-     "Et je suis Mati, avec une décennie d’expérience en développement logiciel. J’ai évolué dans des startups à croissance rapide, autour des nouvelles technologies. Je me suis positionné comme quelqu’un qui résout des problèmes, que ce soit du code, des relations humaines ou des objectifs business. Et pour que ce projet réussisse, nous avons besoin des trois. J’ai travaillé avec toute sorte de taille de logiciel, de magasins en lignes, à des logiciels pour la réhabilitation de mouvements jusqu’à de l’intelligence artificielle (NLP - Natural Language Processing) pour les grandes entreprises financières et téléphoniques. J’ai toujours été intéressé par le travail sur l’ensemble du périmètre, gérer les équipes, créer les logiciels, et pour finir la résolution des problèmes des utilisateurs finaux, utilisateurs qui ont le plus de valeurs pour l’entreprise. Et j’ai toujours participé dans l’ensemble du cycle produit, depuis l’idée jusqu’à sa création. J’adore le logiciel, mais plus encore, j’adore créer du logiciel qui résout de vrais problèmes. Les technologies ne sont que des outils, et je préfère les technologies qui me permettent de voir et de me focaliser sur les données, les réels problèmes et les informations. Tout ce qui a besoin d’être compris en détail pour le succès de votre équipe. Je mets aussi beaucoup de pression sur la qualité du code, la documentation, les tests pour s’assurer que le logiciel fourni fonctionne tel qu’attendu et puisse être facilement modifié et supporté par d’autres équipes."]}})
+      [:li "What if we add a new machine to the workshop?"]]]}})
+
+(def ^:private in-menu-items
+  (vals (select-keys lroutes/links [:digital-twin :projets :who-are-we])))
+
+(def full-dic (merge dic lroutes/dic who-are-we/dic))
 
 (defn body
   [http-request]
   (let [l (get http-request :lang)
-        tr #(get-in dic [% l])
+        tr #(get-in full-dic [% l])
         factory (:factory images)]
     [:body.w3-row.w3-xlarge {}
      [:div#app {:style {:min-height "87em"}}
+      [:div#main-header
+       (chorizontal-text-menu {:class "w3-small w3-card"}
+                              (mapv #(update % :text tr) in-menu-items))]
       [:div#first-section.w3-row
        [:div#small-header.w3-panel.w3-row.l6.w3-col
         (vec (concat
@@ -127,20 +117,20 @@
                                                                                           "40em"
                                                                                           :overflow
                                                                                           "hidden"}}
-        [:div.w3-display-right {:style {:height "100%"}}
+        [:div {:style {:height "100%"}}
          [:img {:style {:height "100%"}
                 :alt (:alt factory)
                 :src (:url factory)}]
-         [:svg.w3-transparent.w3-hide-small.w3-hide-medium.w3-display-left {:style {:fill "white"
-                                                                                    :height "100%"}
-                                                                            :viewbox "0 0 100 100"}
+         [:svg.w3-transparent.w3-hide-small.w3-hide-medium.w3-display-left.fill-bg-color
+          {:style {:height "100%"}
+           :viewbox "0 0 100 100"}
           [:polygon {:points "0,100 0,0 0,0 10,100"}]]]]]
       [:div#offers-section.w3-row.w3-flat-midnight-blue.w3-padding
        [:div.w3-content.text.w3-padding {:style {:max-width "40em"}}
         (tr :simulation-offer)
         (clink-button {:class "w3-text-orange w3-text-bold w3-round"}
                       (tr :read-more)
-                      (:simulation lroutes/links))]]
+                      (:digital-twin lroutes/links))]]
       [:div#about-us-section.w3-row
        [:div.w3-content.text.w3-padding {:style {:max-width "40em"}}
         [:h1 (tr :about-us)]
@@ -151,7 +141,7 @@
                                 :anthony-card
                                 [{:fa-icon "fa-linkedin fa-brands"
                                   :link (:linkedin-anthony lroutes/links)}]
-                                (:anthony images)
+                                (:anthony who-are-we/images)
                                 "Anthony CAUMOND"
                                 (tr :co-founder)
                                 (tr :about-anthony))
@@ -160,7 +150,7 @@
                                 :mati-card
                                 [{:fa-icon "fa-linkedin fa-brands"
                                   :link (:linkedin-mati lroutes/links)}]
-                                (:mati images)
+                                (:mati who-are-we/images)
                                 "Mati MAZURCZAK"
                                 (tr :co-founder)
                                 (tr :about-mati))

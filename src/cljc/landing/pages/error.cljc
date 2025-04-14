@@ -27,7 +27,7 @@
     [:p.w3-hide-small.w3-hide-medium {:style {:height "1px"
                                               :margin-bottom "1px"
                                               :margin-top "1px"}}]
-    (csidebar {:style {:height "97vh"}
+    (csidebar {:style {:height "100vh"}
                :class "w3-col l3"}
               http-request)]
    [:div#article-content.w3-col.m12.l9.s12

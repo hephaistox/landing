@@ -4,14 +4,26 @@
 (def dic
   {:disclaimer {:fr "Politique de confidentialité"
                 :en "Disclaimer"}
-   :contact {:fr "Contact"
-             :en "Contact"}
-   :simulation {:fr "Simulation"
-                :en "Simulation"}
+   :contacts {:fr "Contact"
+              :en "Contact"}
+   :projets {:fr "Projet"
+             :en "Projet"}
+   :digital-twin {:fr "Jumeau numérique"
+                  :en "Digital twin"}
+   :demo {:fr "Démonstrateur"
+          :en "Demo"}
+   :who-are-we {:fr "Qui nous sommes?"
+                :en "Who are we?"}
+   :about-this-website {:fr "A propos de ce site"
+                        :en "About this website"}
    :home {:fr "Accueil"
           :en "Home"}
    :admin {:fr "Admin"
            :en "Admin"}
+   :hephaistox {:fr "Hephaistox"
+                :en "Hephaistox"}
+   :sasu-caumond {:fr "SASU caumond"
+                  :en "SASU caumond"}
    :privacy {:fr "Clause de non responsabilité"
              :en "Privacy"}})
 
@@ -21,21 +33,45 @@
       :alt "Home link"
       :text :home
       :link-id :home}
-     {:url "/articles/contact"
-      :text :contact
-      :link-id :contact}
+     {:link-id :demo
+      :text :demo
+      :url "/articles/js-example"}
+     {:link-id :who-are-we
+      :text :who-are-we
+      :url "/articles/who-are-we"}
+     {:link-id :projets
+      :text :projets
+      :url "/articles/projets"}
+     {:link-id :hephaistox
+      :text :hephaistox
+      :url "/articles/hephaistox"}
+     {:link-id :sasu-caumond
+      :text :sasu-caumond
+      :url "/articles/sasu-caumond"}
+     {:url "/articles/contacts"
+      :text :contacts
+      :link-id :contacts}
+     {:url "/articles/about-site"
+      :text :about-this-website
+      :link-id :about-this-website}
      {:url "/articles/privacy"
       :text :privacy
       :link-id :privacy}
      {:url "/articles/disclaimer"
       :text :disclaimer
       :link-id :disclaimer}
+     {:url "/articles/projets"
+      :text :projets
+      :link-id :projets}
      {:url "/all-kind-of-checks"
       :text :admin
       :link-id :admin}
-     {:url "/articles/simulation"
-      :text :simulation
-      :link-id :simulation}
+     {:url "/articles/digital-twin"
+      :text :digital-twin
+      :link-id :digital-twin}
+     {:url "/articles/hephaistox"
+      :text :hephaistox
+      :link-id :hephaistox}
      {:link-id :mail
       :text :mail
       :url
