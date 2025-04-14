@@ -1,6 +1,6 @@
 # caumond-resume
 
-[[https://github.com/hephaistox/landing/actions/workflows/commit_validation.yml][https://github.com/hephaistox/landing/actions/workflows/commit_validation.yml/badge.svg]] [[https://github.com/hephaistox/landing/actions/workflows/pages/pages-build-deployment][https://github.com/hephaistox/landing/actions/workflows/pages/pages-build-deployment/badge.svg]]
+[[https://github.com/hephaistox/landing/actions/workflows/commit_validation.yml][https://github.com/hephaistox/landing/actions/workflows/commit_validation.yml/badge.svg]]
 
 [[https://github.com/hephaistox/hephaistox/wiki][https://img.shields.io/badge/wiki-hephaistox-blue.svg]] [[https://github.com/hephaistox/landing/wiki][https://img.shields.io/badge/wiki-project-blue.svg]] [[https://github.com/hephaistox/landing/discussions][https://img.shields.io/badge/discussions-blue.svg]]
 [[https://hephaistox.github.io/landing/][https://img.shields.io/badge/api-blue.svg]]

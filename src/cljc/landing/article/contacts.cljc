@@ -4,11 +4,6 @@
    [auto-web.components.list   :refer [cbullet]]
    [landing.routes             :as lroutes]))
 
-;;TODO Check on-click de la page de garde
-;;TODO Check language ckick
-;;TODO Stash simulation
-;;TODO Scan pages on Validator
-
 (defn simulation-body
   [_http-request l]
   (case l
@@ -35,13 +30,13 @@
      [:p
       "Nous pouvons adaptez nos explications ou nos exemples à votre industrie si nous avons l'opportunité de discutez avec vous. N'hésitez pas."]
      (cbullet {}
-              [(assoc (:linkedin lroutes/social) :desc "  Vous pouvez nous contacter sur LinkedIn")
+              [(assoc (:linkedin lroutes/social) :desc " Suivez nos publications sur LinkedIn")
                (assoc (:github lroutes/social)
                       :desc
                       "  En tant que développeurs, vous pourrez interagir avec nous sur Github")
-               (assoc (:mail lroutes/social) :desc "  nous envoyer un email")])
+               (assoc (:mail lroutes/social) :desc " Envoyez-nous un email")])
      [:div
-      "Ou simplement organiser un rendez-vous:"
+      [:p "Ou simplement organisez un rendez-vous:"]
       [:p.w3-center
        (clink-button {:class "w3-btn w3-orange w3-text-white w3-text-bold w3-round w3-ripple"}
                      "Réservez"

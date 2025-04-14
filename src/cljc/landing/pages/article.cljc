@@ -8,14 +8,14 @@
 (defn body
   [http-request body-element]
   [:body.w3-large.w3-row
-   [:div.w3-col.m3.l3.w3-row
+   [:div#left-menu-placeholder.w3-col.m3.l2.w3-row
     [:p.w3-hide-small.w3-hide-medium {:style {:height "1px"
                                               :margin-bottom "1px"
                                               :margin-top "1px"}}]
-    (csidebar {:style {:height "97vh"}
-               :class "w3-col l3"}
+    (csidebar {:style {:height "100vh"}
+               :class "w3-col l2"}
               http-request)]
-   [:div#article-content.w3-col.m12.l9.s12
+   [:div#article-content.w3-col.m12.l10.s12
     (cheader {:class "w3-margin"} http-request)
     [:div.w3-row
      [:div.w3-panel.w3-main {:style {:min-height "75vh"}}
