@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Install java
@@ -27,12 +27,12 @@ jobs:
            check-latest: true
       - name: Install clojure tools
         # See https://github.com/DeLaGuardo/setup-clojure/commits/main/
-        uses: DeLaGuardo/setup-clojure@ada62bb3282a01a296659d48378b812b8e097360 #v13.2
+        uses: DeLaGuardo/setup-clojure@3fe9b3ae632c6758d0b7757b0838606ef4287b08 #v13.2
         with:
-          cli: 1.12.0.1530
-          bb: 1.12.197
-          clj-kondo: 2025.02.20
-          zprint: 1.2.9
+          cli: 1.12.1.1561
+          bb: 1.12.207
+          clj-kondo: 2025.07.28
+          zprint: 1.3.0
       - name: Lint
         run: bb lint -v
       - name: Setup zprint
@@ -51,7 +51,7 @@ jobs:
         run: git diff
       - name: Pushed code should already be formatted
         # See https://github.com/CatChen/check-git-status-action
-        uses: CatChen/check-git-status-action@fb60fe626b56d5a4adcb227327ba4d24326a873a  #v1.4.4
+        uses: CatChen/check-git-status-action@d75bdbea704869e2a3b01111b4a82c49e9bd348d #v1.4.4
         with:
           fail-if-not-clean: true
           request-changes-if-not-clean: false
