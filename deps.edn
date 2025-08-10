@@ -9,7 +9,7 @@
   :cljs-deps {:extra-deps {binaryage/devtools {:mvn/version "1.0.6"}
                            clj-commons/pushy {:mvn/version "0.3.10"}
                            com.github.hephaistox/auto-web
-                           {:git/sha "d0cadae8dc1f4075d20ab91980c78605c3b5ab66"}
+                           {:git/sha "8a4836c40ea0250641b1f56435a18d615217f28f"}
                            day8.re-frame/http-fx {:mvn/version "0.2.4"}
                            day8.re-frame/tracing {:mvn/version "0.6.2"}
                            metosin/reitit {:mvn/version "0.8.0"}
@@ -19,7 +19,7 @@
                            reagent/reagent {:mvn/version "1.1.1"}
                            superstructor/re-frame-fetch-fx {:mvn/version "0.4.0"}
                            thheller/shadow-cljs {:mvn/version "2.28.22"}}
-              :extra-paths ["src/cljc" "src/cljs" "test/unit/cljc" "../auto_web/src/cljs"]}
+              :extra-paths ["src/cljc" "src/cljs" "test/unit/cljc"]}
   :codox {:exec-args {:description "`landing` is the Hephaistox public website"
                       :doc-paths ["docs/codox"]
                       :metadata {:doc/format :markdown}
@@ -47,5 +47,5 @@
             :extra-deps {io.github.clojure/tools.build {:git/sha
                                                         "0267c5eec59059e5706db72e3466fded86a2f709"}}
             :extra-paths ["env/build"]}}
- :deps {com.github.hephaistox/auto-web {:git/sha "d0cadae8dc1f4075d20ab91980c78605c3b5ab66"}}
+ :deps {com.github.hephaistox/auto-web {:git/sha "8a4836c40ea0250641b1f56435a18d615217f28f"}}
  :paths ["src/clj" "src/cljc" "resources"]}
