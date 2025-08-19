@@ -5,7 +5,7 @@
    [auto-sim.canvas      :refer [layout sprites]]
    [auto-sim.control-bar :refer [simulation-control-bar]]
    [auto-sim.links       :refer [links]]
-   [auto-sim.modal       :refer [simulation-control-panel]]
+   [auto-sim.modal       :refer [opening-element simulation-control-panel]]
    [auto-web.lang-fe     :refer [clang]]
    [re-frame.core        :refer [clear-subscription-cache! dispatch-sync reg-event-db subscribe]]
    [reagent.dom          :as rdom]))
@@ -58,20 +58,16 @@
   []
   (let [l (clang)]
     [:<>
-     [:div.w3-col.w3-light-grey {:style {:flex-grow "1"}}
-      [:div.w3-flex.w3-panel
-       [:div {:style {:flex-grow "1"}}]
-       [:div
-        [simulation-control-bar {:class "w3-row"}
-         l]]
-       [:div {:style {:flex-grow "1"}}]]
-      [layout rendering-data sprites links]]
-     [:div
-      (if @(subscribe [:auto-sim.modal/modal-close?])
-        [:hr {:style {:margin "0px 3px 0px 3px"
-                      :height "10px"}}]
-        [:div.w3-center [:i.fa.fa-angleup]])
-      [simulation-control-panel {:class "w3-background-white"}]]]))
+     [:div.w3-flex.w3-panel
+      [:div {:style {:flex-grow "1"}}]
+      [simulation-control-bar {:style {:flex-grow "0"}}
+       l]
+      [:div {:style {:flex-grow "1"}}]]
+     [layout {:style {:height "100%"}}
+      rendering-data
+      sprites
+      links]
+     [simulation-control-panel {}]]))
 
 (defn ^:dev/after-load mount-root
   []
