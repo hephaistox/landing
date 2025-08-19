@@ -1,4 +1,4 @@
-{:deps {com.github.hephaistox/auto-build {:git/sha "a8c56c7198405eee422bb70ea47dc7f3c206ad11"}}
+{:deps {com.github.hephaistox/auto-build {:git/sha "e7dacc20bceae50d5e5ba873434f37aeac964ad1"}}
  :paths []
  :tasks
  {:requires [[auto-build.os.exit-codes] [auto-build.os.exiting :refer [exit]]]
@@ -43,15 +43,18 @@
               [auto-build.echo :refer [level1-header]]]
    :task (-> (build-cljs-node-test/cljs-node-test level1-header "." (current-task) ["ltest"])
              exit)}
-  deploy {:doc "Build and deploy"
-          :requires [[auto-build.tasks.frontend :as build-frontend]
-                     [auto-build.echo :refer [level1-header]]]
-          :task (-> (build-frontend/deploy level1-header
-                                           "."
-                                           (:target-dir pars)
-                                           (:cljs-app pars)
-                                           (:deployment-url pars))
-                    exit)}
+  deploy
+  {:doc "Build and deploy"
+   :requires [[auto-build.tasks.frontend :as build-frontend]
+              [auto-build.echo :refer [level1-header]]]
+   :task
+   (->
+     (build-frontend/deploy
+      level1-header
+      "." "target/production"
+      "app"
+      "git+ssh://git@push-n3-par-clevercloud-customers.services.clever-cloud.com/app_310e3757-812b-4d7a-bd70-a58cfc181505.git")
+     exit)}
   deps {:doc "Update deps"
         :task (do (shell "clj -M:antq") (shell "npm upgrade"))}
   format {:doc "Format"
