@@ -1,27 +1,33 @@
-{:deps {com.github.hephaistox/auto-build {:git/sha "e7dacc20bceae50d5e5ba873434f37aeac964ad1"}}
+{:deps {com.github.hephaistox/auto-build {:git/sha "a790ef0819657e73803aa613ae74504a18a05d52"}}
  :paths []
  :tasks
  {:requires [[auto-build.os.exit-codes] [auto-build.os.exiting :refer [exit]]]
-  bp {:doc "Before push"
+  bp {:doc "To fail fast before git pushing a version"
+      :requires [[auto-build.echo :refer [level1-header]] [auto-build.tasks.deps :as td]]
       :task (binding [exit (fn [exit-code & _] (when-not (zero? exit-code) exit-code))]
               (-> (or (run 'format)
                       (run 'lint)
+                      (td/task level1-header ".")
                       (binding [*command-line-args* (conj *command-line-args* "all")]
                         (run 'clj-test))
                       (binding [*command-line-args* (conj *command-line-args* "all")]
                         (run 'cljs-node-test))
                       auto-build.os.exit-codes/ok)
                   System/exit))}
-  clean
-  {:doc "Remove temporary build files"
-   :requires [[auto-build.tasks.clean :as task-clean] [auto-build.echo :refer [level1-header]]]
-   :task (-> (task-clean/clean
-              level1-header
-              "."
-              [".DS_Store"]
-              ["resources/public/js/compiled" "target" ".cpcache" ".shadow-cljs" "node_modules"]
-              (current-task))
-             exit)}
+  clean {:doc "Remove temporary build files"
+         :requires [[auto-build.tasks.clean :as task-clean]
+                    [auto-build.echo :refer [level1-header]]]
+         :task (-> (task-clean/clean level1-header
+                                     "."
+                                     [".DS_Store"]
+                                     ["resources/public/js/compiled"
+                                      ".cpcache"
+                                      ".shadow-cljs"
+                                      "target"
+                                      "node_modules"
+                                      ".clj-kondo/.cache"]
+                                     (current-task))
+                   exit)}
   clj-test {:doc "Test with clj"
             :requires [[auto-build.tasks.clj-test :as build-clj-test]
                        [auto-build.echo :refer [level1-header]]]
@@ -43,6 +49,9 @@
               [auto-build.echo :refer [level1-header]]]
    :task (-> (build-cljs-node-test/cljs-node-test level1-header "." (current-task) ["ltest"])
              exit)}
+  copy {:doc "Copy files from source projects (as defined in ext_src.edn)"
+        :requires [[auto-build.tasks.copy :as tc] [auto-build.echo :refer [level1-header]]]
+        :task (tc/run level1-header "ext_src.edn")}
   deploy
   {:doc "Build and deploy"
    :requires [[auto-build.tasks.frontend :as build-frontend]
@@ -55,14 +64,14 @@
       "app"
       "git+ssh://git@push-n3-par-clevercloud-customers.services.clever-cloud.com/app_310e3757-812b-4d7a-bd70-a58cfc181505.git")
      exit)}
-  deps {:doc "Update deps"
+  deps {:doc "Update deps clojure(script) and npm"
         :task (do (shell "clj -M:antq") (shell "npm upgrade"))}
-  format {:doc "Format"
+  format {:doc "Format source code"
           :requires [[auto-build.tasks.formatting :as task-format]
                      [auto-build.echo :refer [level1-header]]]
           :task (-> (task-format/format level1-header "." (current-task))
                     exit)}
-  gha {:doc "For github action tests"
+  gha {:doc "To be run by github action"
        :task (do (shell "bb clj-test test-clj -v") (shell "bb cljs-node-test all -v"))}
   heph-info {:doc "Hephaistox project info"
              :requires [[auto-build.tasks.heph-info :as heph-info]
@@ -79,7 +88,7 @@
                                             ["app" "app-admin"]
                                             "LANDING_LA_REPO"
                                             "target/la")}
-  lint {:doc "Lint"
+  lint {:doc "Lint source code"
         :requires [[auto-build.tasks.lint :as task-lint] [auto-build.echo :refer [level1-header]]]
         :task (-> (task-lint/lint level1-header ["src" "test"] "." (current-task))
                   exit)}
