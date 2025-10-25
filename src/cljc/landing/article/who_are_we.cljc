@@ -1,17 +1,17 @@
 (ns landing.article.who-are-we
   (:require
    [auto-web.components.img  :refer [cicon cimg]]
-   [auto-web.components.link :refer [clink cspan-link]]
+   [auto-web.components.link :refer [link-opts]]
    [landing.routes           :as lroutes]))
 
 (def images
-  (->> [{:url "/img/anthony.jpeg"
+  (->> [{:url "/images/anthony.jpeg"
          :alt "Portrait anthony"
          :img-id :anthony}
-        {:url "/img/mati.jpeg"
+        {:url "/images/mati.jpeg"
          :alt "Portrait mati"
          :img-id :mati}
-        {:url "/img/resume.jpg"
+        {:url "/images/resume.jpg"
          :alt "Resume"
          :img-id :resume}]
        (mapv (fn [link] [(:img-id link) link]))
@@ -23,7 +23,7 @@
        (mapv (fn [link] [(:link-id link) link]))
        (into {})))
 
-(def dic
+(def who-are-we-dic
   {:about-anthony
    {:en
     [:div
@@ -39,12 +39,16 @@
      [:p
       "My research position included a "
       [:b "teaching"]
-      " component , over 500 hours, because teaching is one of the best ways to understand a subject. I taught operations research, mathematics, software development, and supply chain. I have continued to teach regularly since then."]
+      " component, over 500 hours, because teaching is one of the best ways to understand a subject. I taught operations research, mathematics, software development, and supply chain. I have continued to teach regularly since then."]
      [:p
       "I have two decades of industrial experience in project management with an IT and "
       [:b "supply chain"]
       " component and software development, my main experience was at Michelin, where I worked extensively in a wide variety of industries (synthetic rubber, fabric, fibers, tires ...)."]
-     [:div.w3-center (clink {} (:resume links) (cimg {} :small (:resume images)))]]
+     [:p
+      "This experience in managing industrial issues and projects now helps me"
+      [:b "support the leaders of small and medium-sized businesses."]
+      "This allows me to combine my acquired skills, my desire to help people, to tackle problems in their entirety, and to work independently."]
+     [:div.w3-center [:a (link-opts (:resume links)) (cimg {} :small (:resume images))]]]
     :fr
     [:div
      [:p "Je suis Anthony, par nature, je suis un expert."]
@@ -55,16 +59,22 @@
      [:p
       "J'ai effectué mes 6 années de "
       [:b "recherche"]
-      " sur des problèmes de recherche opérationnelle sur des projets industriels (PSA, Michelin, Aubert & Duval, ...). Ces sujets pratiques ont été complété de deux revues scientifiques de haut niveau: (European Journal of Operational Research) and COR (Computer & Operations Research)."]
+      " sur des problèmes de recherche opérationnelle sur des projets industriels (PSA, Michelin, Aubert & Duval, ...). Ces sujets pratiques ont été complété de deux revues scientifiques de haut niveau : (European Journal of Operational Research) and COR (Computer & Operations Research)."]
      [:p
       "Mon poste de recherche contenait une partie "
       [:b "d'enseignement"]
       ", plus de 500 heures, car enseigner est un des meilleurs moyens de comprendre un sujet. J’ai enseigné de la recherche opérationnelle, des mathématiques, du développement informatique et de la chaîne logistique. Je continue régulièrement des enseignements depuis."]
      [:p
-      "J'ai deux décennies d’expérience industrielle dans la gestion des projets avec une composante informatique et "
+      "J'ai "
+      [:b "deux décennies d’expérience industrielle"]
+      " dans la gestion des projets avec une composante informatique et "
       [:b "chaîne logistique"]
       " et de développement logiciel, mon expérience principale a été chez Michelin, où j'ai travaillé en profondeur à une grande diversité d’industries (gomme synthétique, tissu, fibres, pneus ...)."]
-     [:div.w3-center (clink {} (:resume links) (cimg {} :small (:resume images)))]]}
+     [:p
+      "Cette expérience dans la gestion des problématiques industrielles et des projets me sert maintenant à "
+      [:b "accompagner les dirigeants de TPE/PMI."]
+      " Cela me permet d'allier mes compétences acquises, mon envie d'aider les gens, de prendre des problèmes dans leur entièreté, et de travailler comme indépendant."]
+     [:div.w3-center [:a (link-opts (:resume links)) (cimg {} :small (:resume images))]]]}
    :about-mati
    {:en
     [:p
@@ -84,32 +94,26 @@
                 :en "Who are we?"}
    :craftsman
    {:fr
-    "Nous sommes des artisans, fiers de notre art (l’informatique et la chaîne logistique). Nous avons passé des années à perfectionner notre art, à comprendre les gens, leur problème de chaînes logistiques, les résoudre (en incluant mais non limité à du logiciel)."
+    "Nous sommes des artisans en informatique et en chaîne logistique, et nous sommes fiers de cet art. Nous avons passé des années à le perfectionner, à comprendre les gens, leur problème de gestion, de chaînes logistiques, les résoudre."
     :en
-    "We are craftsmen, proud of our craft (IT and supply chain). We have spent years perfecting our craft, understanding people, their supply chain problems, and solving them (including but not limited to software)."}
-   :uniqueness
-   {:fr
-    "En travaillant comme consultant pendant deux décennies, nous avons remarqué que chaque entreprise est unique, et que les problèmes que les entreprises rencontrent - même s’ils sont similaires - nécessitent chacune une approche différente (à l’image des personnes qui les gèrent)."
-    :en
-    "Working as a consultant for two decades, we've noticed that every business is unique, and the problems they face—even if they're similar—each require a different approach (just like the people who run them)."}})
+    "We are craftsmen, proud of our craft (IT and supply chain). We have spent years perfecting our craft, understanding people, their supply chain problems, their management problems, and solving them."}})
 
 (defn who-are-we-body
   [_http-request l]
-  (let [tr #(get-in dic [% l])]
-    [:article.text
-     [:h1 "Qui sommes-nous?"]
-     [:p (tr :craftsman)]
-     [:p (tr :uniqueness)]
-     [:h2
-      "Anthony CAUMOND "
-      (cspan-link {} (:linkedin-anthony lroutes/links) (cicon {} "fa-linkedin fa-brands"))]
-     [:div.w3-center (cimg {} :medium (:anthony images))]
-     (tr :about-anthony)
-     [:h2
-      "Mati MAZURCZAK "
-      (cspan-link {} (:linkedin-mati lroutes/links) (cicon {} "fa-linkedin fa-brands"))]
-     [:div.w3-center (cimg {} :medium (:mati images))]
-     (tr :about-mati)]))
+  (let [tr #(get-in who-are-we-dic [% l])]
+    [[:div.w3-padding-large
+      [:h1 (tr :who-are-we)]
+      [:p (tr :craftsman)]
+      [:h2
+       "Anthony CAUMOND "
+       [:a (link-opts (:linkedin-anthony lroutes/links)) (cicon {} "fa-linkedin fa-brands")]]
+      [:div.w3-center (cimg {} :medium (:anthony images))]
+      (tr :about-anthony)
+      [:h2
+       "Mati MAZURCZAK "
+       [:a (link-opts (:linkedin-mati lroutes/links)) (cicon {} "fa-linkedin fa-brands")]]
+      [:div.w3-center (cimg {} :medium (:mati images))]
+      (tr :about-mati)]]))
 
 (def who-are-we-map
   {:title {:en "Who are we?"

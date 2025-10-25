@@ -4,7 +4,7 @@
       :cljs [cljs.pprint :refer [pprint]])
    [landing.pages.structure :refer [cfooter cheader csidebar]]))
 
-(def dic
+(def error-dic
   {:error-page {:fr "Erreur inattendue"
                 :en "Unexpected error"}
    :page-not-found {:fr "Page non trouvée"

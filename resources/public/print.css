@@ -11,6 +11,10 @@
     display: none !important;
 }
 
+#main-header {
+    display: none !important;
+}
+
 #left-menu-placeholder{
     display: none !important;
 }

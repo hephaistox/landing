@@ -7,6 +7,7 @@
                       :devtools {:preloads [re-frisk.preload]}
                       :modules {:app-admin {:init-fn landing.admin/init}}
                       :output-dir "resources/public/js/compiled"
+                      :release {:compiler-options {:closure-defines {landing.admin/ENV "release"}}}
                       :target :browser}
           :browser-test {:ns-regexp "-test$"
                          :runner-ns shadow.test.browser

@@ -1,21 +1,27 @@
 (ns landing.web-server
   (:require
-   [auto-core.log          :as core-log]
+   [auto-core.log                   :as core-log]
+   [landing.endpoints.html.error-be :refer [exception-response]]
    [landing.handler]
-   [landing.pages.error-be :refer [exception-response]]
-   [mount.core             :refer [defstate]]
-   [org.httpkit.server     :as http-kit]))
+   [mount.core                      :refer [defstate]]
+   [org.httpkit.server              :as http-kit]))
 
 ;; ********************************************************************************
 ;; Server
 ;; ********************************************************************************
 
 ;; Log uncaught exceptions in threads
-(Thread/setDefaultUncaughtExceptionHandler
- (reify
-  Thread$UncaughtExceptionHandler
-    (uncaughtException [_ thread ex]
-      (core-log/error-exception ex (str "Uncaught exception on" (.getName thread))))))
+(let [out *out*
+      err *err*]
+  (Thread/setDefaultUncaughtExceptionHandler (reify
+                                              Thread$UncaughtExceptionHandler
+                                                (uncaughtException [_ thread ex]
+                                                  (binding [*out* out
+                                                            *err* err]
+                                                    (println "Uncaught exception on "
+                                                             (.getName thread))
+                                                    (println "exception :" ex)
+                                                    (flush))))))
 
 (defn start-server
   "Generate an http-kit web server, listening at port `http-port` and serving `handler`."
@@ -36,7 +42,7 @@
 (defn app
   [http-req]
   (try
-    (landing.handler/handler http-req)
+    ((landing.handler/handler) http-req)
     (catch Exception e
       (let
         [e-msg

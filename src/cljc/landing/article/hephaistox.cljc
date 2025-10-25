@@ -1,7 +1,7 @@
 (ns landing.article.hephaistox
   (:require
    [auto-web.components.img  :refer [cimg images]]
-   [auto-web.components.link :refer [cspan-link]]))
+   [auto-web.components.link :refer [link-opts]]))
 
 (def links
   (->> [{:link-id :agile-manifesto
@@ -13,8 +13,7 @@
   [_http-request l]
   (case l
     :en
-    [:article.text
-     [:h1 "Hephaistox brand"]
+    [[:h1 "Hephaistox brand"]
      [:div.w3-center (cimg {:class "w3-center"} :medium (:hephaistox-logo images))]
      [:h2 "What is Hephaistox?"]
      [:p
@@ -49,8 +48,10 @@
       "We believe that the growth of a company is linked to the growth of its people. This is also reflected in the quality of its products and services. That's why we make sure we have time to grow our knowledge and set goals that are both company-wide and individual."]
      [:h2 "Agile manifesto"]
      [:p
-      "We endorse the Agile Manifesto "
-      (cspan-link {} (:agile-manifesto links) "manifeste agile")
+      "We endorse the "
+      [:a
+       (assoc-in (link-opts (:agile-manifesto links)) [:style :text-decoration] "underline")
+       "agile manifesto"]
       ". The following excerpts will be meaningful to our clients:"]
      [:ul
       [:li
@@ -68,8 +69,7 @@
       [:li
        "Simplicity – that is, the art of minimizing the amount of unnecessary work – is essential."]]]
     :fr
-    [:article.text
-     [:h1 "La marque Hephaistox"]
+    [[:h1 "La marque Hephaistox"]
      [:div.w3-center (cimg {:class "w3-center"} :medium (:hephaistox-logo images))]
      [:h2 "Qu'est-ce qu'Hephaistox?"]
      [:p
@@ -86,7 +86,7 @@
      [:h2 "Pas de foutaises"]
      [:p "Beaucoup d’entreprises affichent de grandes vertus mais peu les suivent réellement."]
      [:p
-      "Nous respectons nos promesses, et pour chaque valeur affiché sur cette page nous menons des actions concrètes pour les rendre réelles."]
+      "Nous respectons nos promesses, et pour chaque valeur affichée sur cette page nous menons des actions concrètes pour les rendre réelles."]
      [:p
       "Nous ne croyons pas les grands mots et les concepts fumeux, c’est pourquoi nous parlerons avec vous de faits et de choses possibles."]
      [:h2 "Partage de connaissance"]
@@ -101,15 +101,17 @@
       "Nous accordons de la valeur à la transparence et à la confiance, c’est pourquoi dès le début de notre travail ensemble, nous voulons être clair sur les coûts et valeurs attendues en retour à chaque étape du projet."]
      [:h2 "La culture du retour d’information"]
      [:p
-      "Nous sommes toujours content de donner et recevoir des retours d’information. Nous croyons que les retours d’informations sont les pierres angulaires de l’amélioration."]
+      "Nous sommes toujours contents de donner et recevoir des retours d’information. Nous croyons que les retours d’informations sont les pierres angulaires de l’amélioration."]
      [:h2 "Croissance"]
      [:p
       "Nous croyons que la croissance d’une entreprise est liée à la croissance des personnes qui la compose. Ce qui se reflète aussi sur la qualité de ses produits et services. C’est pourquoi nous nous assurons d’avoir du temps pour faire croître nos connaissances et de mettre en place des objectifs qui sont à la fois pour l’ensemble de l’entreprise et pour chacun."]
      [:h2 "Agile manifesto"]
      [:p
       "Nous approuvons le "
-      (cspan-link {} (:agile-manifesto links) "manifeste agile")
-      ". Les extraits suivants feront sens pour nos clients:"]
+      [:a
+       (assoc-in (link-opts (:agile-manifesto links)) [:style :text-decoration] "underline")
+       "manifeste agile"]
+      ". Les extraits suivants feront sens pour nos clients :"]
      [:ul
       [:li
        "Notre plus haute priorité est de satisfaire le client en livrant rapidement et régulièrement des fonctionnalités à grande valeur ajoutée."]
@@ -123,7 +125,7 @@
       [:li
        "Les processus Agiles encouragent un rythme de développement soutenable. Ensemble, les commanditaires, les développeurs et les utilisateurs devraient être capables de maintenir indéfiniment un rythme constant."]
       [:li
-       "Une attention continue à l'excellence technique età une bonne conception renforce l’Agilité."]
+       "Une attention continue à l'excellence technique et à une bonne conception renforce l’Agilité."]
       [:li
        "La simplicité – c’est-à-dire l’art de minimiser la quantité de travail inutile – est essentielle."]]]))
 

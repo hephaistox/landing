@@ -1,7 +1,10 @@
-{:deps {com.github.hephaistox/auto-build {:git/sha "cdf568f559c10f0263ba564f7cda1d98e706553c"}}
+{:deps {com.github.hephaistox/auto-build {:git/sha "bcc4cdfc2ca9befc7ffd13ce73f307050f0f2f5a"}}
  :paths []
  :tasks
- {:requires [[auto-build.os.exit-codes] [auto-build.os.exiting :refer [exit]]]
+ {:init (def pars
+          {:target-dir "target/uberjar"
+           :cljs-app ":app :app-admin"})
+  :requires [[auto-build.os.exit-codes] [auto-build.os.exiting :refer [exit]]]
   bp {:doc "To fail fast before git pushing a version"
       :requires [[auto-build.echo :refer [level1-header]] [auto-build.tasks.deps :as td]]
       :task (binding [exit (fn [exit-code & _] (when-not (zero? exit-code) exit-code))]
@@ -103,13 +106,16 @@
                                               "LANDING_PROD_REPO"
                                               "target/prod")}
   prod-local {:doc "Compile frontend and backend in production mode and start it locally"
-              :task (binding [exit (fn [exit-code & _] (when-not (zero? exit-code) exit-code))]
-                      (shell "bb clean")
-                      (shell "clj -X:env-prod"))}
+              :requires [[auto-build.tasks.frontend :as build-frontend]
+                         [auto-build.echo :refer [level1-header]]]
+              :task (do
+                      (build-frontend/uberjar level1-header "." (:target-dir pars) (:cljs-app pars))
+                      (shell (str "java -jar " (:target-dir pars) "/landing.jar"))
+                      exit)}
   repl {:doc "Clojure repl"
         :override-builtin true
         :requires [[auto-build.tasks.repl :as build-repl] [auto-build.echo :refer [level1-header]]]
-        :task (-> (build-repl/repl level1-header "." (current-task) [:env-dev] 7051)
+        :task (-> (build-repl/repl level1-header "." (current-task) [:env-dev :test-clj] 7051)
                   exit)}
   repl-fe {:doc "Clojure repl for frontend"
            :override-builtin true
@@ -121,9 +127,5 @@
            :override-builtin true
            :requires [[auto-build.tasks.frontend :as build-frontend]
                       [auto-build.echo :refer [level1-header]]]
-           :task (-> (build-frontend/uberjar level1-header
-                                             "."
-                                             (:target-dir pars)
-                                             (:cljs-app pars)
-                                             (:deployment-url pars))
+           :task (-> (build-frontend/uberjar level1-header "." (:target-dir pars) (:cljs-app pars))
                      exit)}}}

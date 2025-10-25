@@ -5,13 +5,14 @@
   "private": true,
   "scripts": {},
   "version": "1.0.0",
-  "author": "Hephaistox <info@hephaistox.com>",
+  "author": "Hephaistox <info@hephaistox.fr>",
   "dependencies": {
     "create-react-class": "^15.7.0",
     "highlight.js": "^11.10.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "snabbdom": "3.5.1"
   },
   "devDependencies": {
     "shadow-cljs": "^2.28.17",

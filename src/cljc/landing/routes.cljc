@@ -1,29 +1,33 @@
 (ns landing.routes
   "Defines the routes - all url internals and externals that are potential linked with the website itself.")
 
-(def dic
+(def ^:private info-mail "Local factorization" "info@hephaistox.fr")
+
+(def routes-dic
   {:disclaimer {:fr "Politique de confidentialité"
                 :en "Disclaimer"}
+   :rivalis {:fr "Conseil aux TPEs"
+             :en "Small entreprise coaching"}
    :contacts {:fr "Contact"
               :en "Contact"}
-   :projets {:fr "Projet"
-             :en "Projet"}
-   :digital-twin {:fr "Jumeau numérique"
-                  :en "Digital twin"}
-   :demo {:fr "Démonstrateur"
-          :en "Demo"}
+   :projets {:fr "Projets informatique"
+             :en "IT project"}
+   :advanced-industry {:fr "Industrie"
+                       :en "Industry"}
    :who-are-we {:fr "Qui nous sommes?"
                 :en "Who are we?"}
    :about-this-website {:fr "A propos de ce site"
                         :en "About this website"}
    :home {:fr "Accueil"
           :en "Home"}
+   :info-mail {:fr info-mail
+               :en info-mail}
    :admin {:fr "Admin"
            :en "Admin"}
    :hephaistox {:fr "Hephaistox"
                 :en "Hephaistox"}
-   :sasu-caumond {:fr "SASU caumond"
-                  :en "SASU caumond"}
+   :legal-notice {:fr "Mentions légales"
+                  :en "Legal notice"}
    :privacy {:fr "Clause de non responsabilité"
              :en "Privacy"}})
 
@@ -33,9 +37,6 @@
       :alt "Home link"
       :text :home
       :link-id :home}
-     {:link-id :demo
-      :text :demo
-      :url "/articles/js-example"}
      {:link-id :who-are-we
       :text :who-are-we
       :url "/articles/who-are-we"}
@@ -45,9 +46,12 @@
      {:link-id :hephaistox
       :text :hephaistox
       :url "/articles/hephaistox"}
-     {:link-id :sasu-caumond
-      :text :sasu-caumond
-      :url "/articles/sasu-caumond"}
+     {:link-id :rivalis
+      :text :rivalis
+      :url "/articles/rivalis"}
+     {:link-id :legal-notice
+      :text :legal-notice
+      :url "/articles/legal-notice"}
      {:url "/articles/contacts"
       :text :contacts
       :link-id :contacts}
@@ -60,26 +64,49 @@
      {:url "/articles/disclaimer"
       :text :disclaimer
       :link-id :disclaimer}
+     {:url "/articles/contact-validated"
+      :text :projets
+      :link-id :contact-validated}
      {:url "/articles/projets"
       :text :projets
       :link-id :projets}
      {:url "/all-kind-of-checks"
       :text :admin
       :link-id :admin}
-     {:url "/articles/digital-twin"
-      :text :digital-twin
-      :link-id :digital-twin}
+     {:url "/articles/advanced-solution-for-industries"
+      :text :advanced-industry
+      :link-id :advanced-industry}
      {:url "/articles/hephaistox"
       :text :hephaistox
       :link-id :hephaistox}
-     {:link-id :mail
-      :text :mail
-      :url
-      "https://outlook.office365.com/owa/calendar/MatiAnthony@hephaistox.com/bookings/s/jCJNJ2lYPUmwF_13sgEmng2"}
      {:url "https://github.com/hephaistox"
       :text :github
       :link-id :github}
-     {:url "mailto:anthony@hephaistox.com"
+     {:url "mailto:anthony@caumond.fr"
+      :link-id :mail-postmaster-caumond-fr}
+     {:url "mailto:management@caumond.fr"
+      :link-id :mail-management-caumond-fr}
+     {:url "mailto:postmaster@caumond.fr"
+      :link-id :mail-postmaster-caumond-fr}
+     {:url "mailto:abuse@caumond.fr"
+      :link-id :mail-abuse-caumond-fr}
+     {:url "mailto:management@caumond.com"
+      :link-id :mail-management-caumond.com}
+     {:url "mailto:postmaster@caumond.com"
+      :link-id :mail-postmaster-caumond.com}
+     {:url "mailto:abuse@caumond.com"
+      :link-id :mail-abuse-caumond.com}
+     {:url "mailto:anthony@hephaistox.fr"
+      :link-id :mail-anthony-hephaistox-fr}
+     {:url "mailto:mati@hephaistox.fr"
+      :link-id :mail-mati-hephaistox-fr}
+     {:url "mailto:abuse@hephaistox.fr"
+      :link-id :mail-abuse-hephaistox-fr}
+     {:url "mailto:info@hephaistox.fr"
+      :link-id :mail-info-hephaistox-fr}
+     {:url "mailto:postmaster@hephaistox.fr"
+      :link-id :mail-postmaster-com}
+     {:url (str "mailto:" info-mail)
       :skip-test? true
       :text :info-mail
       :link-id :info-mail}
@@ -93,7 +120,9 @@
       :link-id :linkedin-anthony}
      {:url "https://www.linkedin.com/company/hephaistox"
       :skip-test? true
-      :link-id :linkedin}]
+      :link-id :linkedin}
+     {:url "https://hephaistox.fr"
+      :link-id :production-fr}]
     (mapv (fn [link] [(:link-id link) link]))
     (into {})))
 
@@ -109,11 +138,6 @@
          :link :linkedin
          :social-id :linkedin
          :label "Linkedin"}
-        {:skip-test? true
-         :link :mail
-         :desc "To book a meeting with microsoft office"
-         :target "blank"
-         :social-id :meeting}
         {:fa-icon "fa-envelope-open"
          :link :info-mail
          :social-id :mail
@@ -130,3 +154,24 @@
                          (-> item
                              (update :link links))]))
        (into {})))
+
+(defn url-txt
+  [link-id]
+  (let [{:keys [url]} (get links link-id)
+        link (some-> link-id
+                     name)]
+    [:a {:href url
+         "data-link-name" link}
+     url]))
+
+(defn mail-txt
+  [link-id l]
+  (let [{:keys [link-id url]} (get links link-id)
+        link (some-> link-id
+                     name)
+        mail (-> (get routes-dic link-id)
+                 (get l))]
+    [:a {:href url
+         "data-link-name" link}
+     mail]))
+

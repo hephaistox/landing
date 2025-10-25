@@ -3,7 +3,7 @@
   (:require
    [auto-web.components.badge :refer [copyright-str]]
    [auto-web.components.img   :refer [cicon]]
-   [auto-web.components.link  :refer [clink]]
+   [auto-web.components.link  :refer [link-opts]]
    [auto-web.components.list  :refer [csmall-imgs]]
    [auto-web.components.menu  :refer [chorizontal-text-menu]]
    [landing.language          :refer [landing-lang-bar]]
@@ -56,7 +56,8 @@
    :X-profile-url ""
    :permanent-url "https://hephaistox.com"})
 
-(def footer-menu-items (vals (select-keys lroutes/links [:home :privacy :disclaimer])))
+(def footer-menu-items
+  (vals (select-keys lroutes/links [:home :legal-notice :privacy :disclaimer :who-are-we])))
 
 (defn- open-sidebar-menu [] "document.getElementById(\"menu-sidebar\").style.display = \"block\";")
 (defn- close-sidebar-menu [] "document.getElementById(\"menu-sidebar\").style.display = \"none\";")
@@ -83,33 +84,31 @@
   "A footer showing contacts and legal lnks, most suitable for public pages."
   [opts http-request]
   (let [l (:lang http-request)
-        tr #(get-in lroutes/dic [% l])]
+        tr #(get-in lroutes/routes-dic [% l])]
     [:footer#footer-section.w3-flat-midnight-blue.w3-row.w3-display-container.w3-padding.w3-small
      opts
      [:div.w3-center.w3-padding-small
       (chorizontal-text-menu {} (mapv #(update % :text tr) footer-menu-items))]
      [:div.w3-center.w3-padding-small
-      (csmall-imgs {} (vals (select-keys lroutes/social [:linkedin :mail :github :youtube])))]
+      (csmall-imgs {} (vals (select-keys lroutes/social [:linkedin :github :youtube])))]
      [:div.w3-center.w3-padding-small (copyright-str)]]))
 
 (defn csidebar
   [opt http-request]
   (let [l (:lang http-request)
-        opt-item {:class "w3-bar-item w3-button"}
-        tr #(get-in lroutes/dic [% l])]
+        tr #(get-in lroutes/routes-dic [% l])]
     [:div#menu-sidebar.w3-sidebar.w3-bar-block.w3-collapse.w3-padding.w3-animate-left.w3-small
      opt
-     (clink opt-item (:home lroutes/links) (tr :home))
+     [:a.w3-bar-item.w3-button (link-opts (:home lroutes/links)) (tr :home)]
      [:hr]
-     (clink opt-item (:digital-twin lroutes/links) (tr :digital-twin))
-     (clink opt-item (:projets lroutes/links) (tr :projets))
+     [:a.w3-bar-item.w3-button (link-opts (:rivalis lroutes/links)) (tr :rivalis)]
+     [:a.w3-bar-item.w3-button (link-opts (:projets lroutes/links)) (tr :projets)]
      [:hr]
-     (clink opt-item (:who-are-we lroutes/links) (tr :who-are-we))
-     (clink opt-item (:sasu-caumond lroutes/links) (tr :sasu-caumond))
-     (clink opt-item (:hephaistox lroutes/links) (tr :hephaistox))
-     [:hr]
-     (clink opt-item (:contacts lroutes/links) (tr :contacts))
-     (clink opt-item (:about-this-website lroutes/links) (tr :about-this-website))
+     [:a.w3-bar-item.w3-button (link-opts (:hephaistox lroutes/links)) (tr :hephaistox)]
+     [:a.w3-bar-item.w3-button (link-opts (:contacts lroutes/links)) (tr :contacts)]
+     [:a.w3-bar-item.w3-button
+      (link-opts (:about-this-website lroutes/links))
+      (tr :about-this-website)]
      [:button.w3-button.w3-large.w3-display-topright.w3-cell.w3-hide-large {:onclick
                                                                             (close-sidebar-menu)}
       [:i.fa.fa-times]]]))
