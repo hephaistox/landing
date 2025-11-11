@@ -92,6 +92,7 @@
           "Github" "https://github.com/hephaistox/landing"
           "Local acceptance"
           "https://app-77d00968-72be-45d9-a5d0-cd48de6f0bcf.cleverapps.io/all-kind-of-checks"
+          "404" "/non-existing-page"
           "Production"
           "https://app-310e3757-812b-4d7a-bd70-a58cfc181505.cleverapps.io/all-kind-of-checks"
           "Local env" "http://localhost:8080"}
