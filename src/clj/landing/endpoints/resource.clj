@@ -10,8 +10,4 @@
   [request]
   (let [h (-> (rring/create-resource-handler {:path "/"})
               ring-gzip/wrap-gzip)]
-    (-> request
-        h
-        (rr/header "Allow-Control-Allow-Origin" "*"))))
-
-
+    (when-let [response (h request)] (rr/header response "Allow-Control-Allow-Origin" "*"))))
