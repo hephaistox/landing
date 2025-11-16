@@ -12,6 +12,7 @@
    [landing.endpoints.plus            :refer [plus]]
    [landing.endpoints.resource        :refer [resource-handler]]
    [landing.endpoints.swagger         :refer [api-ep]]
+   [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
    [reitit.ring                       :as rring]))
 
 (defn router
@@ -24,7 +25,8 @@
                  (admin-route "/all-kind-of-checks")
                  (contact-route "/contact")
                  (check-url-route "/check-url")
-                 (api-ep "/api")]
+                 (api-ep "/api")
+                 (w3c-validate-route "/w3c-validate")]
                 {}))
 
 (defn handler [] (rring/ring-handler (router) (rring/routes resource-handler default-handler) {}))

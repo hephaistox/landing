@@ -3,6 +3,7 @@
   (:require
    [auto-web.middleware.rate-limit    :refer [make-rate-limiter stop-rate-limit]]
    [clj-http.client                   :as client]
+   [clojure.string]
    [landing.pages.admin               :refer [links]]
    [mount.core                        :refer [defstate]]
    [muuntaja.core                     :as m]
@@ -15,7 +16,7 @@
    [ring.util.response                :as rr]))
 
 (defstate rate-limiter
-          :start (make-rate-limiter {:limit 400
+          :start (make-rate-limiter {:limit 40000
                                      :window-ms 60000
                                      :name "landing.endpoints.check-url"
                                      :cleanup-interval-ms 60000})
@@ -23,12 +24,13 @@
 
 (defn search
   [link-id origin]
-  (->> (links nil)
+  (->> links
        (filter #(and (= (:link-id %) link-id) (= (:origin %) origin)))
        first
        :url))
 
 (comment
+  (search :contact "landing.article.rivalis")
   (search :prod-http-fr-www "landing.admin")
   ; link-id=w3-schools&origin=landing.pages.structure&domain=http://localhost:8080/
 )
@@ -44,24 +46,46 @@
   (let [{:keys [link-id origin domain]} (:query (:parameters request))
         link-id (keyword link-id)]
     (if-let [url (search link-id origin)]
-      (let [url (to-absolute-url domain url)
-            curl-data (client/head url
-                                   {:max-redirects 2
-                                    :cookie-policy :none
-                                    :socket-timeout 1000
-                                    :headers {:user-agent "Mozilla/5.0"}
-                                    :connection-timeout 1000})]
-        {:status 200
-         :headers {}
-         :body {:status (:status curl-data)
-                :curl-data curl-data}})
+      (cond
+        (clojure.string/starts-with? url "mailto:") {:status 200
+                                                     :headers {}
+                                                     :body {:status 200
+                                                            :curl-data {:url url}}}
+        (or (= :linkedin-anthony link-id) (= :linkedin-mati link-id)) {:status 200
+                                                                       :headers {}
+                                                                       :body {:status 200
+                                                                              :curl-data {:url
+                                                                                          url}}}
+        :else (let [url (to-absolute-url domain url)
+                    curl-data (client/head url
+                                           {:max-redirects 2
+                                            :cookie-policy :none
+                                            :socket-timeout 1000
+                                            :headers {:user-agent "Mozilla/5.0"}
+                                            :connection-timeout 1000})]
+                {:status 200
+                 :headers {}
+                 :body {:status (:status curl-data)
+                        :curl-data curl-data}}))
       (rr/bad-request {:status 0}))))
 
 (comment
+  (check-url-handler {:parameters {:query {:link-id "contact"
+                                           :origin "landing.article.rivalis"
+                                           :domain "http://localhost:8080/"}}})
   "https://www.linkedin.com/in/anthony-caumond-a365b15/"
   "https://agilemanifesto.org/iso/fr/manifesto.html"
+  (client/head
+   "http://localhost:8080"
+   {:max-redirects 2
+    :headers
+    {:user-agent
+     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}
+    :cookie-policy :none
+    :socket-timeout 2000
+    :connection-timeout 2000})
   (client/get
-   "https://www.linkedin.com/in/anthony-caumond-a365b15/"
+   "https://agilemanifesto.org/iso/fr/manifesto.html"
    {:max-redirects 2
     :headers
     {:user-agent

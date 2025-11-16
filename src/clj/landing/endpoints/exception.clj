@@ -11,6 +11,10 @@
   [prefix {:get {:handler exception-handler
                  :swagger {:tags #{:html}}
                  :middleware html-middlewares
-                 :summary "Trigger an exception to see what's displayed in that case"}}])
+                 :summary "Trigger an exception to see what's displayed in that case"}
+           :head {:handler exception-handler
+                  :swagger {:tags #{:html}}
+                  :middleware html-middlewares
+                  :summary "Trigger an exception to see what's displayed in that case"}}])
 
 
