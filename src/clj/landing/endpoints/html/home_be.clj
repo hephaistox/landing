@@ -17,16 +17,24 @@
                   [(print-css-meta (:print-css links))]))
      (body http-request)]))
 
-(defn home-response
-  [http-request]
+(defn home-response-wo-body
+  [_]
   {:status 200
    :headers {"content-type" "text/html"
-             "Access-Control-Allow-Origin" "*"}
-   :body (render-html (home-page http-request))})
+             "Access-Control-Allow-Origin" "*"}})
+
+(defn home-response
+  [http-request]
+  (-> (home-response-wo-body http-request)
+      (assoc :body (render-html (home-page http-request)))))
 
 (defn home-route
   [prefix]
   [prefix {:get {:handler home-response
                  :swagger {:tags #{:html}}
                  :summary "Home page"
-                 :middleware html-middlewares}}])
+                 :middleware html-middlewares}
+           :head {:handler home-response-wo-body
+                  :swagger {:tags #{:html}}
+                  :summary "Home page"
+                  :middleware html-middlewares}}])

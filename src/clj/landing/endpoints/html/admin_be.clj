@@ -17,18 +17,27 @@
    (admin-body http-request)
    (js-script-link (:reframe-admin links))])
 
-(defn admin-response
+(defn admin-response-wo-body
   "Admin page is a bit special as it is authorizing some external websites."
-  [http-request]
+  [_]
   {:status 200
    :headers {"content-type" "text/html"
              "access-control-allow-methods" [:get :put :post :delete]
-             "access-control-allow-origin" "*"}
-   :body (render-html (admin-page http-request))})
+             "access-control-allow-origin" "*"}})
+
+(defn admin-response
+  "Admin page is a bit special as it is authorizing some external websites."
+  [http-request]
+  (-> (admin-response-wo-body http-request)
+      (assoc :body (render-html (admin-page http-request)))))
 
 (defn admin-route
   [prefix]
   [prefix {:get {:swagger {:tags #{:html}}
                  :handler admin-response
                  :middleware html-middlewares
-                 :summary "Administration page"}}])
+                 :summary "Administration page"}
+           :head {:swagger {:tags #{:html}}
+                  :handler admin-response-wo-body
+                  :middleware html-middlewares
+                  :summary "Administration page"}}])

@@ -18,16 +18,12 @@
          :link-id :w3-schools}
         {:url "/css/w3_colors_flat.css"
          :link-id :w3-color-flat}
-        {:url "simulation/workshop.css"
-         :link-id :workshop}
         {:url "/css/components.css"
          :link-id :component-css}
         {:url "/print.css"
          :link-id :print-css}
         {:url "/custom.css"
          :link-id :custom-css}
-        {:url "/https://kit.fontawesome.com/4bcf978f75.js"
-         :link-id :fontawesomejs}
         {:url "/fontawesome/css/all.css"
          :link-id :local-fa-all}
         {:url "/fontawesome/css/fontawesome.css"
@@ -36,16 +32,10 @@
          :link-id :local-fa-brands}
         {:url "/fontawesome/css/solid.css"
          :link-id :local-fa-solid}
-        {:url "/fontawesome/css/sharp-thin.css"
-         :link-id :local-fa-sharp-thin}
-        {:url "/fontawesome/css/duotone-thin.css"
-         :link-id :local-fa-duotone-thin}
         {:url "js/compiled/app-admin.js"
          :link-id :reframe-admin}
         {:url "js/compiled/app.js"
-         :link-id :reframe}
-        {:url "/fontawesome/css/sharp-duotone-thin.css"
-         :link-id :local-fa-sharp-duotone-thin}]
+         :link-id :reframe}]
        (mapv (fn [link] [(:link-id link) link]))
        (into {})))
 

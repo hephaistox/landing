@@ -2,12 +2,13 @@
   "Start point for frontend"
   (:require
    [auto-core.schema    :refer [validate-data-humanize]]
+   [cljs.pprint         :refer [pprint]]
    [landing.article.digital-twin]
    [landing.article.hephaistox]
    [landing.article.project]
    [landing.article.rivalis]
    [landing.article.who-are-we]
-   [landing.pages.admin :refer [dics images links]]
+   [landing.pages.admin :refer [dics images links w3c-validate-css w3c-validate-htmls]]
    [landing.pages.home]
    [landing.pages.structure]
    [landing.routes]
@@ -21,203 +22,411 @@
    [reagent.dom         :as rdom]
    [superstructor.re-frame.fetch-fx]))
 
+;; ********************************************************************************
+;; Environment dependant values
+;; ********************************************************************************
+
 (goog-define ENV "dev")
-(if (= "dev" ENV)
-  (do (def pings-env
-        [{:link-id :local
-          :url "http://localhost:8080"}])
-      (def main-apps-entry-env
-        {"Shadow-cljs dashboard" "http://localhost:9551/dashboard"
-         "Browser test" "http://localhost:9651/"}))
-  (do (def pings-env []) (def main-apps-entry-env {})))
 
 ;; ********************************************************************************
 ;; Parameters
+;; ********************************************************************************
 
 (def default-db {::show-valid true})
 
-;; ********************************************************************************
-;; Events
-
-(defn- to-absolute-url
-  [url]
-  ;; If `url` is already absolute, return it unchanged.
-  ;; Otherwise, use the browser to resolve it relative to the current location.
-  (try (let [abs-url (js/URL. url js/window.location.href)] (.-href abs-url))
-       (catch :default _ url)))
-
-(comment
-  (to-absolute-url "/zea")
-  ;;
-)
-
 (reg-event-db ::initialize-db (fn [_ _] default-db))
 
-(reg-event-fx ::set-modal-text (fn [{:keys [db]} [_ text]] {:db (assoc db ::modal-text text)}))
-(reg-sub ::modal-text (fn [db _] (::modal-text db)))
-
+;; ********************************************************************************
+;; show-valid
+;; ********************************************************************************
 (reg-sub ::show-valid (fn [db _] (::show-valid db)))
 (reg-event-fx ::set-show-valid (fn [{:keys [db]} [_]] {:db (update db ::show-valid not)}))
 
-(reg-event-fx ::do-ping
-              (fn [{:keys [db]} [_ k-path link-id origin]]
+;; ********************************************************************************
+;; links
+;; ********************************************************************************
+(def main-apps-entry
+  (merge {}
+         (when (= "dev" ENV)
+           {"Shadow-cljs dashboard" "http://localhost:9551/dashboard"
+            "Browser test" "http://localhost:9651/"})))
+
+(defn- link-hiccup
+  [name-app-entry url]
+  [:div.w3-hover-grey.w3-padding {:key name-app-entry}
+   [:a {:href url
+        :target "blank"}
+    name-app-entry]])
+
+(defn- card
+  [title & content]
+  [:div {:style {:width "25%"}}
+   [:div.w3-cell [:div.w3-card-4 [:header.w3-container.w3-grey.w3-bold title] [:div content]]]])
+
+(defn card-with-link
+  [title links]
+  (card title
+        (->> links
+             (partition 2)
+             (map #(apply link-hiccup %)))))
+
+(defn links-hiccup
+  []
+  [:div.w3-flex.w3-small {:style {:gap "0.5em"
+                                  :width "100%"
+                                  :flex-wrap "wrap"}}
+   (card-with-link "Github"
+                   ["Landing"
+                    "https://github.com/hephaistox/landing"
+                    "Project"
+                    "https://github.com/orgs/hephaistox/projects/1/views/3"])
+   (card-with-link "Features"
+                   ["Main Page"
+                    "/"
+                    "Shadow-cljs repl"
+                    "http://localhost:9551/dashboard"
+                    "Admin"
+                    "/all-kind-of-checks"
+                    "Swagger"
+                    "/api/api-docs/"
+                    "Exception"
+                    "/exception"
+                    "404"
+                    "/non-existing-page"])
+   (card-with-link
+    "Environments"
+    ["Local acceptance"
+     "https://app-77d00968-72be-45d9-a5d0-cd48de6f0bcf.cleverapps.io/all-kind-of-checks"
+     "Production"
+     "https://app-310e3757-812b-4d7a-bd70-a58cfc181505.cleverapps.io/all-kind-of-checks"
+     (if (= "dev" ENV) [:u [:b "Local env"]] "Local env")
+     "http://localhost:8080"])])
+
+;; ********************************************************************************
+;; Ping urls
+;; ********************************************************************************
+
+(defn- to-absolute-url
+  "If `url` is already absolute, returns it unchanged.
+  Otherwise, use the browser to resolve it relative to the current location."
+  [url]
+  (-> (try (let [abs-url (js/URL. url js/window.location.href)] (.-href abs-url))
+           (catch :default _ url))
+      js/encodeURIComponent))
+
+(reg-event-fx ::do-check-url
+              (fn [{:keys [db]} [_ origin link-id]]
                 {:fetch {:method :get
                          :url (str "check-url?link-id=" (name link-id)
                                    "&origin=" origin
                                    "&domain=" (to-absolute-url "/"))
                          :mode :no-cors
                          :timeout 3000
-                         :on-success [::on-ping-response k-path :success]
-                         :on-failure [::on-ping-response k-path :failure]}
-                 :db (assoc-in db k-path {:status :in-progress})}))
+                         :on-success [::on-ping-response origin link-id :success]
+                         :on-failure [::on-ping-response origin link-id :failure]}
+                 :db (assoc-in db [:check-url-status origin link-id] {:status :in-progress})}))
+
+(doseq [{:keys [link-id origin]} links] (dispatch [::do-check-url origin link-id]))
 
 (reg-event-fx ::on-ping-response
-              (fn [{:keys [db]} [_ k-path status res]]
-                {:db (update-in db k-path assoc :status status :res res)}))
+              (fn [{:keys [db]} [_ origin link-id status res]]
+                {:db
+                 (update-in db [:check-url-status origin link-id] assoc :status status :res res)}))
 
-(reg-sub ::ping-response (fn [db [_ k-path]] (get-in db k-path)))
+(reg-sub ::ping-response
+         (fn [db [_ origin link-id]] (get-in db [:check-url-status origin link-id])))
+
+(comment
+  (to-absolute-url "/zea")
+  (group-by :origin links)
+  ;(dispatch [::do-check-url id link-id origin])
+  ;;
+)
+
+(defn- ping-card
+  [show-valid {:keys [link-id url origin]}]
+  (let [id (str (name origin) "/" (name link-id))
+        {:keys [status res]} @(subscribe [::ping-response origin link-id])]
+    (when (or (= :failure status) (= :in-progress status) (not show-valid))
+      [:a {:href url
+           :target "blank"
+           :id id
+           :key id}
+       [:div.w3-tooltip.w3-small.w3-padding-small {:class (case status
+                                                            :success "w3-green"
+                                                            :failure "w3-red"
+                                                            :in-progress "w3-grey"
+                                                            "w3-black")}
+        (name link-id)
+        [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
+                                                  :left "0px"
+                                                  :z-index 9999
+                                                  :width "500px"
+                                                  :top "2.5em"}}
+         [:table
+          [:tbody
+           [:tr [:td.w3-bold "origin"] [:td origin]]
+           [:tr [:td.w3-bold "link-id"] [:td link-id]]
+           [:tr [:td.w3-bold "domain"] [:td (to-absolute-url "/")]]
+           [:tr [:td.w3-bold "status"] [:td status]]
+           [:tr [:td.w3-bold "link"] [:td url]]
+           [:tr [:td.w3-bold "result"] [:td [:pre (with-out-str (pprint res))]]]]]]]])))
+
+(defn ping-card-by-origin
+  [show-valid title links]
+  [[:header.w3-container.w3-grey.w3-bold title] (doall (map (partial ping-card show-valid) links))])
+
+(defn domain-tld-hiccup
+  []
+  (let [show-valid @(subscribe [::show-valid])]
+    (-> [:div.w3-flex {:style {:gap "0.5em"
+                               :align-content "center"
+                               :width "100%"
+                               :flex-wrap "wrap"}}]
+        (concat (mapcat (fn [[origin links]] (ping-card-by-origin show-valid origin links))
+                 (group-by :origin links)))
+        vec)))
+
+;; ********************************************************************************
+;; Images
+;; ********************************************************************************
+
+(defn images-hiccup
+  []
+  (let [show-valid @(subscribe [::show-valid])]
+    [:div.w3-flex {:style {:gap "0.5em"
+                           :flex-wrap "wrap"
+                           :width "80%"}}
+     (doall
+      (for [{:keys [url alt img-id origin]
+             :as img-data}
+            images]
+        (let [id (str (name origin) "/" (name img-id))
+              img-valid? (validate-data-humanize [:map {:closed true}
+                                                  [:url :string]
+                                                  [:alt :string]
+                                                  [:origin :string]
+                                                  [:img-id :keyword]]
+                                                 img-data)]
+          (when (or (= :failure img-valid?) (not show-valid))
+            [:div.w3-tooltip.w3-small.w3-padding-small {:key id
+                                                        :id id
+                                                        :style (when img-valid?
+                                                                 {:border-width "0.4em"
+                                                                  :border-style "solid"
+                                                                  :border-color "red"})}
+             [:a {:href url
+                  :target "blank"}
+              [:img {:src url
+                     :width "30px"}]]
+             [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
+                                                       :left "0px"
+                                                       :z-index 9999
+                                                       :top "2.5em"}}
+              [:table
+               [:tbody
+                [:tr [:td "Origin"] [:td origin]]
+                [:tr [:td "Img-id"] [:td img-id]]
+                [:tr [:td "Alt"] [:td alt]]
+                [:tr [:td "Link"] [:td url]]
+                [:tr [:td "Img valid"] [:td img-valid?]]]]]]))))]))
+
+;; ********************************************************************************
+;; Validation
+;; ********************************************************************************
+
+(defn validation-event
+  [kw]
+  (fn [{:keys [db]} [_ id url]]
+    {:fetch {:method :get
+             :url "w3c-validate"
+             :headers {"Accept" "application/json"}
+             :mode :cors
+             :params {kw (name id)
+                      :domain "https://caumond.com"}
+             :timeout 3000
+             :redirect :follow
+             :on-success [::on-validation-response id :success]
+             :on-failure [::on-validation-response id :failure]}
+     :db (assoc-in db
+          [::validation-response id]
+          {:status :in-progress
+           :url url})}))
+
+(reg-event-fx ::do-css-validation (validation-event :css-id))
+(reg-event-fx ::do-html-validation (validation-event :html-id))
+
+(reg-sub ::validation-response (fn [db [_ id]] (get (::validation-response db) id)))
+
+(reg-event-fx ::on-validation-response
+              (fn [{:keys [db]} [_ css-id status res]]
+                {:db (update-in db [::validation-response css-id] assoc :status status :res res)}))
+
+(doseq [[css-id css-url] w3c-validate-css] (dispatch [::do-css-validation css-id css-url]))
+(doseq [[html-id html-url] w3c-validate-htmls] (dispatch [::do-html-validation html-id html-url]))
+
+(comment
+  (dispatch [::do-css-validation (ffirst w3c-validate-css) (second (first w3c-validate-css))])
+  (first @(subscribe [::validation-response]))
+  ;
+)
+
+(defn- validations
+  [ids show-valid validation-url]
+  (doall
+   (for [id ids]
+     (let [{:keys [status res url]} @(subscribe [::validation-response id])]
+       (when (or (= :failure status) (= :in-progress status) (not show-valid))
+         [:div.w3-cell.w3-tooltip.w3-small {:key (str "css/" id)}
+          [:div.w3-flex.w3-padding {:class (case status
+                                             :in-progress "w3-grey"
+                                             :success "w3-green"
+                                             :failure "w3-red"
+                                             "w3-grey")}
+           [:a {:href (str validation-url url)
+                :target "blank"}
+            (name id)]]
+          [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
+                                                    :left "0px"
+                                                    :z-index 9999
+                                                    :top "2.5em"}}
+           [:table
+            [:tbody
+             [:tr [:td.w3-bold "id"] [:td id]]
+             [:tr [:td.w3-bold "status"] [:td status]]
+             [:tr [:td.w3-bold "link"] [:td url]]
+             [:tr [:td.w3-bold "result"] [:td [:pre (with-out-str (pprint res))]]]]]]])))))
+
+(defn validation-hiccup
+  []
+  (let [show-valid @(subscribe [::show-valid])]
+    [:div.w3-flex {:style {:flex-direction "column"
+                           :gap "1em"}}
+     [:h2 "css"]
+     [:div.w3-flex {:style {:gap "0.4em"}}
+      (validations (keys w3c-validate-css)
+                   show-valid
+                   "https://jigsaw.w3.org/css-validator/validator?uri=https://caumond.com/")]
+     [:h2 "html"]
+     [:div.w3-flex {:style {:gap "0.4em"}}
+      (validations (keys w3c-validate-htmls)
+                   show-valid
+                   "https://validator.w3.org/nu/?doc=https://caumond.com/")]]))
+
+;; ********************************************************************************
+;; Dictionnary
+;; ********************************************************************************
+(defn dictionnary-hiccup
+  []
+  (let [show-valid @(subscribe [::show-valid])]
+    [:div.w3-flex {:style {:gap "0.5em"
+                           :flex-wrap "wrap"
+                           :width "80%"}}
+     (doall
+      (for [[prefix dic] dics]
+        (let [dic (update-vals dic
+                               (fn [dic-entry]
+                                 (let [langs (set (keys dic-entry))
+                                       schema-validation (validate-data-humanize [:map] dic-entry)
+                                       valid-schema? (not (:error schema-validation))
+                                       status (and valid-schema? (= #{:en :fr} langs))]
+                                   {:langs langs
+                                    :schema-validation schema-validation
+                                    :status status})))
+              invalid-dic (into (filter (comp not :status second) dic) {})]
+          [:div.w3-card {:key prefix
+                         :gap "8px"
+                         :class (when (or show-valid (seq invalid-dic)) "w3-hide")}
+           (cons [:p.w3-small.w3-center.w3-padding {:key prefix}
+                  prefix]
+                 (if (and (seq invalid-dic) show-valid)
+                   (list [:div.w3-small {:on-click #(dispatch [::set-show-valid [:show-valid]])
+                                         :style {:cursor "pointer"}}
+                          "..."])
+                   (doall
+                    (for [[dic-entry-id {:keys [langs status schema-validation]}]
+                          (if show-valid invalid-dic dic)]
+                      [:div.w3-tooltip.w3-small.w3-padding-small {:key dic-entry-id
+                                                                  :class
+                                                                  (if status "w3-green" "w3-red")
+                                                                  :id dic-entry-id}
+                       dic-entry-id
+                       [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
+                                                                 :left "0.4em"
+                                                                 :z-index 9999
+                                                                 :top "2.5em"}}
+                        [:table
+                         [:tr [:td "Ids"] [:td dic-entry-id]]
+                         [:tr [:td "Status:"] [:td (str status)]]
+                         [:tr [:td "Langs:"] [:td langs]]
+                         (when schema-validation
+                           [:tr [:td "Valid schema?:"] [:td schema-validation]])]]]))))])))]))
 
 ;; ********************************************************************************
 ;; Page
-
-(doseq [{:keys [link-id origin]} (links pings-env)]
-  (let [id (str (name origin) "/" (name link-id))]
-    (dispatch [::do-ping [:domain-check id] link-id origin])))
-
-(def main-apps-entry
-  (merge {"Main Page" "/"
-          "Admin" "/all-kind-of-checks"
-          "Swagger" "/api/api-docs/"
-          "Exception" "/exception"
-          "Github" "https://github.com/hephaistox/landing"
-          "Local acceptance"
-          "https://app-77d00968-72be-45d9-a5d0-cd48de6f0bcf.cleverapps.io/all-kind-of-checks"
-          "404" "/non-existing-page"
-          "Production"
-          "https://app-310e3757-812b-4d7a-bd70-a58cfc181505.cleverapps.io/all-kind-of-checks"
-          "Local env" "http://localhost:8080"}
-         main-apps-entry-env))
 
 (defn admin-rf-body
   []
   (let [show-valid @(subscribe [::show-valid])]
     [:div.w3-xlarge.w3-panel.text
-     [:div.w3-flex.w3-padding {:style {:position "absolute"
-                                       :right "0"}}
-      [:div.w3-card.w3-small.w3-padding {:on-click #(dispatch [::set-show-valid [:show-valid]])}
-       (if show-valid "Show all" "Show invalid only")]]
+     [:div {:style {:position "sticky"
+                    :top "0px"}}
+      [:div.w3-flex.w3-padding {:style {:position "absolute"
+                                        :cursor "pointer"
+                                        :right "0"}}
+       [:div.w3-card.w3-small.w3-padding.w3-cursor {:on-click #(dispatch [::set-show-valid
+                                                                          [:show-valid]])}
+        (if show-valid "Show all" "Show invalid only")]]]
      [:h1 "Administration page"]
      [:h1 "Links"]
-     [:div.w3-flex {:style {:gap "0.5em"
-                            :flex-wrap "wrap"}}
-      (doall (for [[name-app-entry url] main-apps-entry]
-               [:div.w3-card.w3-padding.w3-hover-opacity {:key name-app-entry}
-                [:a {:href url}
-                 name-app-entry]]))]
+     (links-hiccup)
      [:h1 "Domain, TLD and protocols"]
-     [:div.w3-flex {:style {:gap "0.5em"
-                            :flex-wrap "wrap"
-                            :width "80%"}}
-      (doall
-       (for [{:keys [url link-id origin]} (links pings-env)]
-         (let [id (str (name origin) "/" (name link-id))
-               {:keys [status res]} @(subscribe [::ping-response [:domain-check id]])]
-           (when (or (= :failure status) (= :in-progress status) (not show-valid))
-             [:a {:href url
-                  :id id
-                  :key id}
-              [:div.w3-tooltip.w3-small.w3-padding-small {:class (case status
-                                                                   :success "w3-green"
-                                                                   :failure "w3-red"
-                                                                   :in-progress "w3-grey"
-                                                                   "w3-black")}
-               (name link-id)
-               [:div.w3-text.w3-black.w3-padding {:style {:position "absolute"
-                                                          :left "0px"
-                                                          :z-index 9999
-                                                          :width "500px"
-                                                          :top "2.5em"}}
-                [:ul
-                 [:li "Id:" [:br] id]
-                 [:li "Status:" [:br] status]
-                 [:li "Link: " [:br] url]
-                 [:li "Result: " [:br] res]]]]]))))]
+     (domain-tld-hiccup)
      [:h1 "Images"]
-     [:div.w3-flex {:style {:gap "0.5em"
-                            :flex-wrap "wrap"
-                            :width "80%"}}
-      (doall
-       (for [{:keys [url alt img-id origin]
-              :as img-data}
-             images]
-         (let [id (str (name origin) "/" (name img-id))
-               img-valid? (validate-data-humanize [:map {:closed true}
-                                                   [:url :string]
-                                                   [:alt :string]
-                                                   [:origin :string]
-                                                   [:img-id :keyword]]
-                                                  img-data)]
-           (when (or (= :failure img-valid?) (not show-valid))
-             [:div.w3-tooltip.w3-small.w3-padding-small {:key id
-                                                         :id id
-                                                         :style (when img-valid?
-                                                                  {:border-width "0.4em"
-                                                                   :border-style "solid"
-                                                                   :border-color "red"})}
-              [:a {:href url}
-               [:img {:src url
-                      :width "30px"}]]
-              [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
-                                                        :left "0px"
-                                                        :z-index 9999
-                                                        :top "2.5em"}}
-               [:ul
-                [:li "Id" [:br] id]
-                [:li "Alt" [:br] alt]
-                [:li "Link:" [:br] url]
-                [:li "Img valid:" [:br] img-valid?]]]]))))]
+     (images-hiccup)
+     [:h1 "Validation"]
+     (validation-hiccup)
      [:h1 "Dictionnary"]
-     [:div.w3-flex {:style {:gap "0.5em"
-                            :flex-wrap "wrap"
-                            :width "80%"}}
-      (doall
-       (for [[prefix dic] dics]
-         (let [dic (update-vals dic
-                                (fn [dic-entry]
-                                  (let [langs (set (keys dic-entry))
-                                        schema-validation (validate-data-humanize [:map] dic-entry)
-                                        valid-schema? (not (:error schema-validation))
-                                        status (and valid-schema? (= #{:en :fr} langs))]
-                                    {:langs langs
-                                     :schema-validation schema-validation
-                                     :status status})))
-               invalid-dic (into (filter (comp not :status second) dic) {})]
-           [:div.w3-card {:key prefix
-                          :class (when (or show-valid (seq invalid-dic)) "w3-hide")}
-            (cons [:p.w3-small.w3-center.w3-padding {:key prefix}
-                   prefix]
-                  (if (and (seq invalid-dic) show-valid)
-                    (list [:div.w3-small {:on-click #(dispatch [::set-show-valid [:show-valid]])
-                                          :style {:cursor "pointer"}}
-                           "..."])
-                    (doall
-                     (for [[dic-entry-id {:keys [langs status schema-validation]}]
-                           (if show-valid invalid-dic dic)]
-                       [:div.w3-tooltip.w3-small.w3-padding-small {:key dic-entry-id
-                                                                   :class
-                                                                   (if status "w3-green" "w3-red")
-                                                                   :id dic-entry-id}
-                        dic-entry-id
-                        [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
-                                                                  :left "0.4em"
-                                                                  :z-index 9999
-                                                                  :top "2.5em"}}
-                         [:table
-                          [:tr [:td "Ids"] [:td dic-entry-id]]
-                          [:tr [:td "Status:"] [:td (str status)]]
-                          [:tr [:td "Langs:"] [:td langs]]
-                          (when schema-validation
-                            [:tr [:td "Valid schema?:"] [:td schema-validation]])]]]))))])))]]))
+     (dictionnary-hiccup)]))
+
+;; ********************************************************************************
+
+(defn adjust-tooltip
+  [^js tooltip]
+  (let [rect (.getBoundingClientRect tooltip)
+        win-w (.-innerWidth js/window)
+        win-h (.-innerHeight js/window)
+        style (.-style tooltip)]
+    ;; --- Horizontal handling ---
+    (when (> (.-right rect) win-w) (set! (.-left style) (str (- win-w (.-right rect) -5) "px")))
+    (when (< (.-left rect) 0) (set! (.-left style) (str (+ (- (.-left rect)) 5) "px")))
+    ;; --- Vertical handling ---
+    (when (> (.-bottom rect) win-h)
+      ;; Flip above
+      (set! (.-top style) "auto")
+      (set! (.-bottom style) "2.5em"))))
+
+(defn reset-tooltip
+  [^js tooltip original]
+  (let [style (.-style tooltip)]
+    ;; Restore original top/bottom
+    (set! (.-top style) (:top original))
+    (set! (.-bottom style) (:bottom original))
+    ;; Restore original horizontal position
+    (set! (.-left style) (:left original))
+    (set! (.-right style) (:right original))))
+
+(defn init-tooltips!
+  []
+  (doseq [container (array-seq (.querySelectorAll js/document ".w3-tooltip"))]
+    (let [tooltip (.querySelector container ".w3-text")
+          ;; Store original inline values
+          original {:top (.-top (.-style tooltip))
+                    :bottom (.-bottom (.-style tooltip))
+                    :right (.-right (.-style tooltip))
+                    :left (.-left (.-style tooltip))}]
+      (.addEventListener container "mouseenter" (fn [_] (adjust-tooltip tooltip)))
+      (.addEventListener container "mouseleave" (fn [_] (reset-tooltip tooltip original))))))
 
 ;; ********************************************************************************
 
@@ -230,6 +439,7 @@
 
 (defn init
   []
-  (js/console.log "Landing frontend started")
+  (js/console.log "Landing admin started")
   (dispatch-sync [::initialize-db])
-  (mount-root))
+  (mount-root)
+  (.addEventListener js/document "DOMContentLoaded" init-tooltips!))

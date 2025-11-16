@@ -40,6 +40,11 @@
        :body (render-html (article-page http-request title description handler))}
       (page-not-found-response http-request))))
 
+(defn article-response-wo-body
+  [http-request]
+  (-> (article-response http-request)
+      (dissoc :body)))
+
 (def article-middlewares
   "In addition to html common middlewares, the articles needs path parameter coercion"
   (concat html-middlewares
@@ -73,4 +78,26 @@
                                ;; coercing request parameters
                                rcoercion/coerce-request-middleware
                                wrap-keyword-params])
-          :summary "An article in the website blog"}}])
+          :summary "An article in the website blog"}
+    :head {:swagger {:tags #{:html}}
+           :handler article-response
+           :parameters {:path [:map [:article-id :string]]}
+           :muuntaja m/instance
+           :coercion coercion
+           :middleware (concat article-middlewares
+                               [;; query-params & form-params
+                                parameters/parameters-middleware
+                                ;; content-negotiation
+                                muuntaja/format-negotiate-middleware
+                                ;; encoding response body
+                                muuntaja/format-response-middleware
+                                ;; exception handling
+                                exception/exception-middleware
+                                ;; decoding request body
+                                muuntaja/format-request-middleware
+                                ;; coercing response bodys
+                                rcoercion/coerce-response-middleware
+                                ;; coercing request parameters
+                                rcoercion/coerce-request-middleware
+                                wrap-keyword-params])
+           :summary "An article in the website blog"}}])
