@@ -29,16 +29,21 @@ jobs:
         # See https://github.com/DeLaGuardo/setup-clojure/commits/main/
         uses: DeLaGuardo/setup-clojure@3fe9b3ae632c6758d0b7757b0838606ef4287b08 #v13.2
         with:
-          cli: 1.12.2.1565
-          bb: 1.12.208
-          clj-kondo: 2025.09.19
+          cli: 1.12.3.1577
+          bb: 1.12.209
+          clj-kondo: 2025.10.23
           zprint: 1.3.0
       - name: Lint
         run: bb lint -v
       - name: Setup zprint
         run: echo "{:search-config? true}" >> ~/.zprintrc
-      - name: Install fdfind
-        run: sudo rm /var/lib/man-db/auto-update && sudo apt-get install -y fd-find && mkdir -p ~/.local/bin/ && PATH=$PATH:~/.local/bin/ && ln -s $(which fdfind) ~/.local/bin/fd
+      - name: Install fd-find
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fd-find
+          mkdir -p ~/.local/bin
+          ln -s "$(which fdfind)" ~/.local/bin/fd
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Cache clojure dependencies
         uses: actions/cache@v4
         with:
