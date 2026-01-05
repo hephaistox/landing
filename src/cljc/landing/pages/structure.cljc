@@ -80,7 +80,7 @@
      [:div.w3-center.w3-padding-small
       (chorizontal-text-menu {} (mapv #(update % :text tr) footer-menu-items))]
      [:div.w3-center.w3-padding-small
-      (csmall-imgs {} (vals (select-keys lroutes/social [:linkedin :github :youtube])))]
+      (csmall-imgs {} (vals (select-keys lroutes/social [:linkedin :fb :youtube :github])))]
      [:div.w3-center.w3-padding-small (copyright-str)]]))
 
 (defn csidebar
