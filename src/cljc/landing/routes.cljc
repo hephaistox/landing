@@ -24,6 +24,8 @@
                :en info-mail}
    :admin {:fr "Admin"
            :en "Admin"}
+   :fb {:fr "FB"
+        :en "FB"}
    :hephaistox {:fr "Hephaistox"
                 :en "Hephaistox"}
    :legal-notice {:fr "Mentions légales"
@@ -82,6 +84,9 @@
      {:url "https://github.com/hephaistox"
       :text :github
       :link-id :github}
+     {:url "https://www.facebook.com/profile.php?id=61586135248424"
+      :text :fb
+      :link-id :fb}
      {:url "mailto:anthony@caumond.fr"
       :link-id :mail-postmaster-caumond-fr}
      {:url "mailto:management@caumond.fr"
@@ -142,6 +147,10 @@
          :link :info-mail
          :social-id :mail
          :label "Mail"}
+        {:fa-icon "fa-brands fa-facebook-f"
+         :link :fb
+         :social-id :fb
+         :label "Facebook"}
         {:fa-icon "fa-github fa-brands"
          :link :github
          :social-id :github
