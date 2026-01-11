@@ -333,7 +333,8 @@ Je me base pour cela sur ma maîtrise des détails techniques, la compréhension
         (chorizontal-text-menu {} (mapv #(update % :text tr) in-menu-items))]
        [:div.w3-right (landing-lang-bar {} http-request)]]
       [:div#section-container.w3-padding-64
-       [:div#title-section.w3-row {:style {:min-height "94vh"}}
+       [:div#title-section.w3-row {:style {:min-height "94vh"
+                                           :align-content "center"}}
         (tr :title-section)]
        [:div#rivalis-section.w3-row.w3-flat-midnight-blue (tr :rivalis-section)]
        [:div#architecture.w3-row.w3-padding (tr :architecture-section)]

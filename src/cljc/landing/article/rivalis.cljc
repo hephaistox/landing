@@ -302,7 +302,7 @@
           :referrerpolicy "strict-origin-when-cross-origin"
           :allow
           "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          :src "https://www.youtube.com/embed/2pdArs1er14?si=SIIgyRVyBtEEsETX"}]]
+          :src "https://www.youtube-nocookie.com/embed/2pdArs1er14?si=SIIgyRVyBtEEsETX"}]]
        [:div.w3-row
         [:h1 "Retrouvez nos avis, sur trustpilot"]
         [:div.w3-center
