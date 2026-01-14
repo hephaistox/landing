@@ -34,7 +34,7 @@
   [body]
   (safely (postal/send-message gmail-config
                                {:from "caumond@gmail.com"
-                                :to "anthony@caumond.fr"
+                                :to "anthony@hephaistox.fr"
                                 :subject "New contact"
                                 :body body})
           :on-error

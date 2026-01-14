@@ -87,7 +87,7 @@
      {:url "https://www.facebook.com/profile.php?id=61586135248424"
       :text :fb
       :link-id :fb}
-     {:url "mailto:anthony@caumond.fr"
+     {:url "mailto:anthony@hephaistox.fr"
       :link-id :mail-postmaster-caumond-fr}
      {:url "mailto:management@caumond.fr"
       :link-id :mail-management-caumond-fr}
