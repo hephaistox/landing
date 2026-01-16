@@ -87,30 +87,34 @@
      {:url "https://www.facebook.com/profile.php?id=61586135248424"
       :text :fb
       :link-id :fb}
-     {:url "mailto:anthony@hephaistox.fr"
-      :link-id :mail-postmaster-caumond-fr}
-     {:url "mailto:management@caumond.fr"
-      :link-id :mail-management-caumond-fr}
-     {:url "mailto:postmaster@caumond.fr"
-      :link-id :mail-postmaster-caumond-fr}
-     {:url "mailto:abuse@caumond.fr"
-      :link-id :mail-abuse-caumond-fr}
-     {:url "mailto:management@caumond.com"
-      :link-id :mail-management-caumond.com}
-     {:url "mailto:postmaster@caumond.com"
-      :link-id :mail-postmaster-caumond.com}
-     {:url "mailto:abuse@caumond.com"
-      :link-id :mail-abuse-caumond.com}
-     {:url "mailto:anthony@hephaistox.fr"
-      :link-id :mail-anthony-hephaistox-fr}
-     {:url "mailto:mati@hephaistox.fr"
-      :link-id :mail-mati-hephaistox-fr}
+     ;; hephaistox.fr
+     {:url "mailto:postmaster@hephaistox.fr"
+      :link-id :mail-postmaster-hephaistox-fr}
+     {:url "mailto:management@hephaistox.fr"
+      :link-id :mail-management-hephaistox-fr}
      {:url "mailto:abuse@hephaistox.fr"
       :link-id :mail-abuse-hephaistox-fr}
+     {:url "mailto:anthony@hephaistox.fr"
+      :link-id :mail-anthony-hephaistox-fr}
      {:url "mailto:info@hephaistox.fr"
       :link-id :mail-info-hephaistox-fr}
-     {:url "mailto:postmaster@hephaistox.fr"
-      :link-id :mail-postmaster-com}
+     ;; hephaistox.com
+     {:url "mailto:postmaster@hephaistox.com"
+      :link-id :mail-postmaster-hephaistox.com}
+     {:url "mailto:management@hephaistox.com"
+      :link-id :mail-management-hephaistox.com}
+     {:url "mailto:abuse@hephaistox.com"
+      :link-id :mail-abuse-hephaistox.com}
+     {:url "mailto:anthony@hephaistox.com"
+      :link-id :mail-anthony-hephaistox-com}
+     {:url "mailto:info@hephaistox.com"
+      :link-id :mail-info-hephaistox-com}
+     ;; Mati
+     {:url "mailto:mati@hephaistox.fr"
+      :link-id :mail-mati-hephaistox-fr}
+     {:url "mailto:mati@hephaistox.com"
+      :link-id :mail-mati-hephaistox-com}
+     ;; A faire
      {:url (str "mailto:" info-mail)
       :skip-test? true
       :text :info-mail

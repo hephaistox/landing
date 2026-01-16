@@ -50,7 +50,7 @@
              :content "/img/preview/en.png"}]
      [:meta {:name "og:url"
              :property "og:url"
-             :content "https://hephaistox.com"}]
+             :content "https://hephaistox.fr"}]
      [:meta {:name "twitter:site"
              :content ""}]
      [:meta {:name "twitter:image"

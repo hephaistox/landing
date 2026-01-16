@@ -6,7 +6,7 @@
 [[https://hephaistox.github.io/landing/][https://img.shields.io/badge/api-blue.svg]]
 
 * Goal
-This is a private project representing [[Hephaistox][www.hephaistox.com]].
+This is a private project representing [[Hephaistox][www.hephaistox.fr]].
 * Launch
 ** Locally dev
 #+BEGIN_SRC zsh

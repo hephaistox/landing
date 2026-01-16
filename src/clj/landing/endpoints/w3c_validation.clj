@@ -64,9 +64,9 @@
 
 (comment
   (w3c-validate-handler {:parameters {:query {:html-id "about"
-                                              :domain "https://caumond.com"}}})
+                                              :domain "https://hephaistox.fr"}}})
   (w3c-validate-handler {:parameters {:query {:css-id "colors-flat"
-                                              :domain "https://caumond.com"}}})
+                                              :domain "https://hephaistox.fr"}}})
   ;;
 )
 

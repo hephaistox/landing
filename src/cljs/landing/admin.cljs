@@ -243,7 +243,7 @@
              :headers {"Accept" "application/json"}
              :mode :cors
              :params {kw (name id)
-                      :domain "https://caumond.com"}
+                      :domain "https://hephaistox.fr"}
              :timeout 3000
              :redirect :follow
              :on-success [::on-validation-response id :success]
@@ -306,12 +306,12 @@
      [:div.w3-flex {:style {:gap "0.4em"}}
       (validations (keys w3c-validate-css)
                    show-valid
-                   "https://jigsaw.w3.org/css-validator/validator?uri=https://caumond.com/")]
+                   "https://jigsaw.w3.org/css-validator/validator?uri=https://hephaistox.fr/")]
      [:h2 "html"]
      [:div.w3-flex {:style {:gap "0.4em"}}
       (validations (keys w3c-validate-htmls)
                    show-valid
-                   "https://validator.w3.org/nu/?doc=https://caumond.com/")]]))
+                   "https://validator.w3.org/nu/?doc=https://hephaistox.fr/")]]))
 
 ;; ********************************************************************************
 ;; Dictionnary

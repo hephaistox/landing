@@ -44,7 +44,7 @@
    :icon "/favicon.ico"
    :author-name "Hephaistox"
    :X-profile-url ""
-   :permanent-url "https://hephaistox.com"})
+   :permanent-url "https://hephaistox.fr"})
 
 (def footer-menu-items
   (vals (select-keys lroutes/links [:home :legal-notice :privacy :disclaimer :who-are-we])))

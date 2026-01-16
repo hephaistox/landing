@@ -9,8 +9,8 @@
      [:h2 "Website publisher"]
      [:p
       "This website, accessible at "
-      [:a {:href "https://caumond.com"}
-       "https://caumond.com"]
+      [:a {:href "https://hephaistox.fr"}
+       "https://hephaistox.fr"]
       ", is published by:"]
      [:ul
       [:li [:strong "Nom : "] "Anthony Caumond"]
@@ -54,11 +54,14 @@
       [:h2 "Éditeur du site"]
       [:p
        "Le présent site, accessible à l’adresse "
-       [:a {:href "https://caumond.com"}
-        "https://caumond.com"]
+       [:a {:href "https://hephaistox.fr"}
+        "https://hephaistox.fr"]
        ", "
        [:a {:href "https://caumond.fr"}
         "https://caumond.fr"]
+       ", "
+       [:a {:href "https://caumond.com"}
+        "https://caumond.com"]
        ", "
        [:a {:href "https://hephaistox.com"}
         "https://hephaistox.com"]
