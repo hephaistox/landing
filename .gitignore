@@ -28,3 +28,7 @@ docs/codox/
 pom.properties
 
 resources/public/js/compiled
+
+### Claude
+logs/
+tasks.md

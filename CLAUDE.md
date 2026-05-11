@@ -40,27 +40,32 @@ bb copy              # Copy files from ext_src.edn sources
 ## Architecture
 
 ### Source Structure
+
 - `src/clj/` - Backend Clojure (server, handlers, endpoints)
 - `src/cljs/` - Frontend ClojureScript (re-frame/reagent SPAs)
 - `src/cljc/` - Shared code (routes, pages, articles)
 
 ### Frontend Builds (shadow-cljs)
+
 - `:app` - Main public frontend (`landing.fe/init`)
 - `:app-admin` - Admin frontend (`landing.admin/init`)
 - Output: `resources/public/js/compiled/`
 - Dev server: port 9551, nREPL: 7151
 
 ### Backend
+
 - Entry point: `landing.server/-main` (uses Mount for state management)
 - HTTP handler: `landing.handler/handler` with Reitit router
 - Routes: `/`, `/articles/*`, `/all-kind-of-checks`, `/api`, `/ping`, `/contact`
 
 ### Shared Code (cljc)
+
 - `landing.routes` - URL definitions, links, and i18n route labels (French/English)
 - `landing.pages.*` - Page components (home, article, admin, error)
 - `landing.article.*` - Content modules (contacts, privacy, legal-notice, etc.)
 
 ### Dependencies
+
 - Backend: Ring, Reitit, Mount, next.jdbc, MySQL
 - Frontend: Reagent, Re-frame, Pushy (routing)
 - Shared: auto-web libraries from hephaistox/auto-web

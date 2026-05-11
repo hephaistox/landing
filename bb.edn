@@ -17,6 +17,9 @@
                         (run 'cljs-node-test))
                       auto-build.os.exit-codes/ok)
                   System/exit))}
+  claude {:doc "Claude run"
+          :requires [run-task]
+          :task (run-task.run)}
   clean {:doc "Remove temporary build files"
          :requires [[auto-build.tasks.clean :as task-clean]
                     [auto-build.echo :refer [level1-header]]]
@@ -128,4 +131,6 @@
            :requires [[auto-build.tasks.frontend :as build-frontend]
                       [auto-build.echo :refer [level1-header]]]
            :task (-> (build-frontend/uberjar level1-header "." (:target-dir pars) (:cljs-app pars))
-                     exit)}}}
+                     exit)}
+  update-website {:doc "Re-inject fragments into resources/public/<lang>/*.html"
+                  :task (load-file "scripts/fragments.bb")}}}

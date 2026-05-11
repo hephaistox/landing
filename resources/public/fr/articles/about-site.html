@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <link href="../../css/w3_schools.css" rel="stylesheet" type="text/css">
+  <link href="../../css/w3_colors_flat.css" rel="stylesheet" type="text/css">
+  <link href="../../css/components.css" rel="stylesheet" type="text/css">
+  <link href="../../fontawesome/css/fontawesome.css" rel="stylesheet" type="text/css">
+  <link href="../../fontawesome/css/brands.css" rel="stylesheet" type="text/css">
+  <link href="../../fontawesome/css/solid.css" rel="stylesheet" type="text/css">
+  <meta content="width=device-width,initial-scale=1" name="viewport">
+  <meta name="description" content="A propos de ce site">
+  <meta property="og:title" content="A propos de ce site">
+  <meta property="og:description" content="A propos de ce site">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hephaistox.fr/fr/articles/about-site">
+  <meta property="og:image" content="https://hephaistox.fr/images/preview/fr.png">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:site_name" content="Hephaistox">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="A propos de ce site">
+  <meta name="twitter:description" content="A propos de ce site">
+  <meta name="twitter:image" content="https://hephaistox.fr/images/preview/fr.png">
+  <title>A propos de ce site</title>
+  <link href="../../favicon.ico" rel="icon">
+  <meta content="Hephaistox" name="author">
+  <link href="../../custom.css" rel="stylesheet" type="text/css">
+  <link href="../../print.css" media="print" rel="stylesheet" type="text/css">
+</head>
+<body class="w3-large w3-row">
+  <div class="w3-col m3 l2" id="left-menu-placeholder">
+    <!-- BEGIN:LEFT-MENU -->
+    <p class="w3-hide-small w3-hide-medium" style="height:1px;margin-bottom:1px;margin-top:1px;"></p>
+    <div class="w3-sidebar w3-bar-block w3-collapse w3-padding w3-animate-left w3-small l2" id="menu-sidebar" style="z-index:0;">
+      <a class="w3-bar-item w3-button" data-link-name="home" href="../index.html">Accueil</a>
+      <hr>
+      <a class="w3-bar-item w3-button" data-link-name="rivalis" href="../articles/rivalis.html">Conseil aux TPEs</a><a class="w3-bar-item w3-button" data-link-name="projets" href="../articles/projets.html">Projets informatique</a>
+      <hr>
+      <a class="w3-bar-item w3-button" data-link-name="hephaistox" href="../articles/hephaistox.html">Hephaistox</a><a class="w3-bar-item w3-button" data-link-name="contacts" href="../articles/contacts.html">Contact</a><a class="w3-bar-item w3-button" data-link-name="about-this-website" href="../articles/about-site.html">A propos de ce site</a><button class="w3-button w3-large w3-display-topright w3-cell w3-hide-large" onclick="document.getElementById(&quot;menu-sidebar&quot;).style.display = &quot;none&quot;;"><i class="fa fa-times"></i></button>
+    </div>
+<!-- END:LEFT-MENU -->
+  </div>
+  <div class="w3-col s12 m12 l10" id="article-content">
+    <header class="w3-panel w3-display-container w3-margin" id="header">
+      <div class="w3-display-left">
+        <div class="w3-bar">
+          <i class="fa w3-xlarge w3-hide-large w3-margin fa-bars" onclick="document.getElementById(&quot;menu-sidebar&quot;).style.display = &quot;block&quot;;" style="cursor:pointer;"></i>
+        </div>
+      </div>
+      <div class="w3-right">
+        <div class="w3-bar">
+          <button class="w3-button w3-right" onclick="switchLang(&apos;en&apos;)">en</button><button class="w3-button w3-right" onclick="switchLang(&apos;fr&apos;)"><u>fr</u></button>
+        </div>
+      </div>
+    </header>
+    <div>
+      <article class="text w3-main w3-row" style="min-height:100vh;">
+        <h1>A propos de ce site</h1>
+        <p>Pour nous, être un artisan implique d'utiliser choisir utiliser et entretenir ses outils avec soin. Comme toutes nos applications, ce site a les propriétés suivantes</p>
+        <h2>Les bibliothèques / dépendances</h2>
+        <p>Peu de bibliothèques sont utilisées pour réaliser ce site, et ce sont de toutes petites bibliothèques. C'est un choix délibéré qui implique :</p>
+        <ul>
+          <li>Une surface d'attaque aux intrusions diminuée.</li>
+          <li>Une liberté complète.</li>
+          <li>Une maîtrise complète.</li>
+        </ul>
+        <p>Notre bibliothèque <a href="https://github.com/Heph-archive/automaton-web">`automaton-web`</a>utilise 15 dépendances, alors que <a href="https://github.com/Heph-archive/automaton-core">automaton-core</a> en compte 13.</p>
+        <h2>L'emprunte de ce site</h2>
+        <p>Le poids du site web est sensiblement moins d'1 Méga octets pour la page d'accueil, tout compris. Cette taille est très modérée, elle rends le chargement de la page très rapide.</p>
+        <h2>Mode sombre</h2>
+        <p>Le site s'affiche en mode sombre si vos paramètres systèmes le spécifie.</p>
+        <h2>Impression</h2>
+        <p>L'impression d'une page du site supprime les informations de navigation non nécessaires, adapte la mise en page.</p>
+        <h2>Le multi-langue</h2>
+        <p>Deux versions sont disponibles, Anglais et Français. Les préférences de votre navigateur sont utilisées pour choisir la langue par défaut du site. L'utilisateur peut contourner ce choix en cliquant sur la langue qu'il désire</p>
+        <h2>Robustesse</h2>
+        <p>La définition de tous les liens est centralisée. Ainsi, ils sont testables, et régulièrement testés.</p>
+        <h2>Responsive</h2>
+        <p>Du téléphone portable, la tablette au grand écran, le site adapte sa typographie, son contenu, pour qu'il soit adapté à n'importe quelle taille d'écran, résolution, orientation...</p>
+        <h2>Code source</h2>
+        <p>Pour des raisons de sécurité, le code n'est pas visible sur github, mais les bibliothèques utilisées le sont : <a data-link-name="github" href="https://github.com/hephaistox"><i class="fa fa-github fa-brands"></i></a></p>
+      </article>
+    </div>
+  </div>
+  <footer class="w3-flat-midnight-blue w3-row w3-display-container w3-padding w3-small w3-col" id="footer-section" style="height:10em;">
+    <!-- BEGIN:FOOTER -->
+    <div class="w3-center w3-padding-small">
+      <div class="w3-flex" style="justify-content:center;">
+        <a class="w3-bar-item w3-button w3-mobile" data-link-name="home" href="../index.html">Accueil</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="legal-notice" href="../articles/legal-notice.html">Mentions légales</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="privacy" href="../articles/privacy.html">Clause de non responsabilité</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="disclaimer" href="../articles/disclaimer.html">Politique de confidentialité</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="who-are-we" href="../articles/who-are-we.html">Qui nous sommes?</a>
+      </div>
+    </div>
+    <div class="w3-center w3-padding-small">
+      <div class="w3-container w3-content w3-flex" style="justify-content:center;">
+        <a data-link-name="linkedin" href="https://www.linkedin.com/company/hephaistox">
+        <div class="w3-tooltip w3-button" style="overflow:visible;">
+          <div class="w3-hover-opacity">
+            <i class="fa fa-linkedin fa-brands"></i>
+          </div>
+          <div class="w3-text w3-tag" style="bottom:-2em;left:0em;position:absolute;">
+            Linkedin
+          </div>
+        </div></a><a data-link-name="fb" href="https://www.facebook.com/profile.php?id=61586135248424">
+        <div class="w3-tooltip w3-button" style="overflow:visible;">
+          <div class="w3-hover-opacity">
+            <i class="fa fa-brands fa-facebook-f"></i>
+          </div>
+          <div class="w3-text w3-tag" style="bottom:-2em;left:0em;position:absolute;">
+            Facebook
+          </div>
+        </div></a><a data-link-name="youtube" href="https://www.youtube.com/@HephaistoxSC">
+        <div class="w3-tooltip w3-button" style="overflow:visible;">
+          <div class="w3-hover-opacity">
+            <i class="fa fa-youtube fa-brands"></i>
+          </div>
+          <div class="w3-text w3-tag" style="bottom:-2em;left:0em;position:absolute;">
+            Youtube
+          </div>
+        </div></a><a data-link-name="github" href="https://github.com/hephaistox">
+        <div class="w3-tooltip w3-button" style="overflow:visible;">
+          <div class="w3-hover-opacity">
+            <i class="fa fa-github fa-brands"></i>
+          </div>
+          <div class="w3-text w3-tag" style="bottom:-2em;left:0em;position:absolute;">
+            Github
+          </div>
+        </div></a>
+      </div>
+    </div>
+    <div class="w3-center w3-padding-small">
+      Hephaistox © 2026
+    </div>
+<!-- END:FOOTER -->
+  </footer>
+<script src="/js/lang.js"></script>
+</body>
+</html>

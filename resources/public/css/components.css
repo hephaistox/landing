@@ -1,0 +1,40 @@
+@font-face{
+  font-family: 'plus-jakarta-sans';
+  src: url('../font/PlusJakartaSans-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face{
+  font-family: 'plus-jakarta-sans';
+  src: url('../font/PlusJakartaSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+body, h1, h2, h3, h4, h5, h6, p {
+  font-family: ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+}
+
+h1,h2,h3,h4,h5,h6,p,div,li,ul{
+  user-select: none;
+}
+
+.text *, .text, .detailed-list li, .detailed-list p{
+  user-select: text;
+}
+
+body
+{
+  min-height: 100vh;
+}
+
+a:link, a:visited, a:hover, a:active {text-decoration: none;}
+
+.hidden-light{display: none;}
+.hidden-dark{display: block;}
+
+@media (prefers-color-scheme: dark) {
+ .hidden-light{display: block;}
+ .hidden-dark{display: none;}
+ }
