@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /api
+Disallow: /check-url
+Disallow: /w3c-validate
 
-Sitemap: https://www.hephaistox.fr/sitemap.xml
+Sitemap: https://hephaistox.fr/sitemap.xml

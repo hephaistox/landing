@@ -26,6 +26,9 @@
   <meta content="Hephaistox" name="author">
   <link href="../../custom.css" rel="stylesheet" type="text/css">
   <link href="../../print.css" media="print" rel="stylesheet" type="text/css">
+  <link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/rivalis.html"/>
+  <link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/rivalis.html"/>
+  <link rel="alternate" hreflang="x-default" href="https://hephaistox.fr/fr/articles/rivalis.html"/>
 </head>
 <body class="w3-large w3-row">
   <div class="w3-col m3 l2" id="left-menu-placeholder">
@@ -40,8 +43,7 @@
     </div>
 <!-- END:LEFT-MENU -->
   </div>
-  <div class="w3-col s12 m12 l10" id="article-content">
-    <header class="w3-panel w3-display-container w3-margin" id="header">
+  <div class="w3-col s12 m12 l10" id="article-content">    <header class="w3-panel w3-display-container w3-margin" id="header">
       <div class="w3-display-left">
         <div class="w3-bar">
           <i class="fa w3-xlarge w3-hide-large w3-margin fa-bars" onclick="document.getElementById(&quot;menu-sidebar&quot;).style.display = &quot;block&quot;;" style="cursor:pointer;"></i>
@@ -470,9 +472,7 @@
               <div class="w3-clear"></div>
               <p class="w3-content">Je viendrais dans votre commerce, atelier, dépôt ou bureau, et j'établirais un diagnostic gratuit - un rendez-vous de deux heures - à l'issue duquel vous déciderez si nous travaillerons ensemble.</p>
               <div class="w3-mobile">
-                <form action="/contact" class="w3-container w3-flex" method="post" onkeydown="return event.key != 'Enter';" style="flex-direction:column;gap:1em;">
-                  <input autocomplete="organization" class="w3-input w3-animate-input" name="company" placeholder="Société" style="max-width:30em;width:100%;" type="text"><input autocomplete="family-name" class="w3-input w3-animate-input" name="name" placeholder="Nom" style="max-width:30em;width:100%;" type="text"><input autocomplete="given-name" class="w3-input w3-animate-input" name="firstname" placeholder="Prénom" style="max-width:30em;width:100%;" type="text"><input autocomplete="email" class="w3-input w3-animate-input" name="mail" placeholder="Mail" style="max-width:30em;width:100%;" type="email"><input autocomplete="tel" class="w3-input w3-animate-input" name="phone" pattern="^(?:0|\+33)[0-9]{9}" placeholder="Téléphone 0601010101" style="max-width:30em;width:100%;" type="tel"><input autocomplete="tel" class="w3-input w3-animate-input" name="adress" style="display:none;max-width:30em;width:100%;" type="text"><input class="w3-button w3-orange w3-ripple w3-text-white w3-large w3-bold" onclick="document.getElementById(&quot;contact&quot;).style.cursor = &quot;wait&quot;;" style="max-width:30em;width:100%;" type="submit" value="Envoyer">
-                </form>
+                <a class="w3-button w3-orange w3-ripple w3-text-white w3-large w3-bold" data-link-name="contacts" href="contacts.html" style="max-width:30em;width:100%;">Contactez-moi</a>
               </div>
             </div>
           </div>
@@ -483,7 +483,7 @@
   <footer class="w3-flat-midnight-blue w3-row w3-display-container w3-padding w3-small w3-col" id="footer-section" style="height:10em;">
     <!-- BEGIN:FOOTER -->
     <div class="w3-center w3-padding-small">
-      <div class="w3-flex" style="justify-content:center;">
+      <div class="w3-flex" style="justify-content:center;flex-wrap:wrap;">
         <a class="w3-bar-item w3-button w3-mobile" data-link-name="home" href="../index.html">Accueil</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="legal-notice" href="../articles/legal-notice.html">Mentions légales</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="privacy" href="../articles/privacy.html">Clause de non responsabilité</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="disclaimer" href="../articles/disclaimer.html">Politique de confidentialité</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="who-are-we" href="../articles/who-are-we.html">Qui nous sommes?</a>
       </div>
     </div>

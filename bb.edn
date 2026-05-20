@@ -3,7 +3,7 @@
  :tasks
  {:init (def pars
           {:target-dir "target/uberjar"
-           :cljs-app ":app :app-admin"})
+           :cljs-app ":app-admin"})
   :requires [[auto-build.os.exit-codes] [auto-build.os.exiting :refer [exit]]]
   bp {:doc "To fail fast before git pushing a version"
       :requires [[auto-build.echo :refer [level1-header]] [auto-build.tasks.deps :as td]]

@@ -1,6 +1,7 @@
 (ns landing.handler
   "Handler turns an http http-request into a response"
   (:require
+   [clojure.string                    :as str]
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
    [landing.endpoints.default-handler :refer [default-handler]]
@@ -13,23 +14,69 @@
    [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
    [reitit.ring                       :as rring]))
 
-(defn- cookie-lang
-  "Return \"fr\" or \"en\" if a `lang` cookie is present, else nil."
+(def supported-langs #{"fr" "en"})
+(def default-lang "fr")
+
+(defn- cookie-header
+  "Case-insensitive lookup of the Cookie header."
   [req]
-  (some-> req
-          :headers
-          (get "cookie")
-          (->> (re-find #"lang=:?(en|fr)"))
-          second))
+  (some (fn [[k v]] (when (= "cookie" (str/lower-case (name k))) v)) (:headers req)))
+
+(defn- cookie-lang
+  "Return the `lang` cookie value if present and recognized. Accepts the
+  legacy `:en`/`:fr` form (URL-encoded as `%3Aen` or raw) for back-compat."
+  [req]
+  (some-> (cookie-header req)
+          (->> (re-find #"(?i)\blang=(?:%3A|:)?(en|fr)\b"))
+          second
+          str/lower-case))
+
+(defn- accept-lang
+  "Pick the first supported language from `Accept-Language`."
+  [req]
+  (some->> (some-> req
+                   :headers
+                   (get "accept-language"))
+           (re-seq #"(?i)\b(en|fr)\b")
+           first
+           second
+           str/lower-case))
+
+(defn- pick-lang [req] (or (cookie-lang req) (accept-lang req) default-lang))
 
 (defn root-redirect-route
   "Redirect `/` to the language-specific static index page.
-  Honors a `lang` cookie; defaults to `fr`."
+  Honors `lang` cookie, then `Accept-Language`, then defaults to `fr`."
   [prefix]
   [prefix {:get {:handler (fn [req]
                             {:status 302
-                             :headers {"Location"
-                                       (str "/" (or (cookie-lang req) "fr") "/index.html")}})}}])
+                             :headers {"Location" (str "/" (pick-lang req) "/index.html")}})}}])
+
+(defn lang-page-redirect-route
+  "Redirect a top-level static page (e.g. `/index.html`, `/404.html`) to its
+  language-prefixed location."
+  [path]
+  [path {:get {:handler (fn [req]
+                          {:status 302
+                           :headers {"Location" (str "/" (pick-lang req) path)}})}}])
+
+(defn legacy-articles-route
+  "Rewrite legacy `/articles/<slug>` URLs (no language prefix) to
+  `/<lang>/articles/<slug>.html`. Only matches a single path segment
+  so `/articles/foo/bar` is *not* silently rewritten to a non-existent
+  resource."
+  [prefix]
+  [(str prefix "/:slug")
+   {:get {:handler (fn [{:keys [path-params]
+                         :as req}]
+                     {:status 301
+                      :headers {"Location" (str "/"
+                                                (pick-lang req)
+                                                "/articles/"
+                                                (:slug path-params)
+                                                (when-not (str/ends-with? (:slug path-params)
+                                                                          ".html")
+                                                  ".html"))}})}}])
 
 (defn lang-fallback-handler
   "If the request path is `/fr/...` or `/en/...` and no resource matched,
@@ -44,6 +91,9 @@
   (rring/router [(ping-route "/ping")
                  (exception-route "/exception")
                  (root-redirect-route "/")
+                 (lang-page-redirect-route "/index.html")
+                 (lang-page-redirect-route "/404.html")
+                 (legacy-articles-route "/articles")
                  (plus "/plus")
                  (admin-route "/all-kind-of-checks")
                  (contact-route "/contact")

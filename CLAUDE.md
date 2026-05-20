@@ -64,6 +64,24 @@ bb copy              # Copy files from ext_src.edn sources
 - `landing.pages.*` - Page components (home, article, admin, error)
 - `landing.article.*` - Content modules (contacts, privacy, legal-notice, etc.)
 
+**Note:** the public-facing site is now served as **static HTML** from `resources/public/{fr,en}/...`, generated and maintained outside the Clojure render pipeline. The `cljc` modules above are consumed only by:
+- the admin SPA (`src/cljs/landing/admin.cljs`, route `/all-kind-of-checks`)
+- `landing.endpoints.contact` (uses `landing.routes/links` for the success redirect target)
+
+The backend's role is now: serve static resources, host the REST API (`/contact`, `/api`, `/check-url`, etc.), and host the admin SPA. Page-rendering Clojure has been removed.
+
+### Static-site assets and fragments
+
+- `resources/public/{fr,en}/index.html` and `articles/*.html` — actual pages.
+- `resources/public/{fr,en}/404.html`, `articles/contact-validated.html` — error/confirmation pages.
+- `resources/fragments/{header,footer,left-menu}.{fr,en}.html` — reusable fragments. `bb update-website` injects them between `<!-- BEGIN:NAME -->` / `<!-- END:NAME -->` markers. **Article pages have their own inline `<header>` (different from the index header) so HEADER markers live only in `index.html` files.**
+- `resources/public/js/lang.js` — language-switch helper, included on every page.
+- `resources/public/js/contact-form.js` — contact form submit handler with retries / timeout. Loaded only by `articles/contacts.html`.
+
+### Per-widget JS convention
+
+Interactive bits on the static site are **plain JS files under `resources/public/js/`**, named after their purpose (`lang.js`, `contact-form.js`, ...), each included only on the pages that need them. ClojureScript is reserved for the admin SPA and for future complex widgets (simulation/optimization demos), each as its own shadow-cljs build.
+
 ### Dependencies
 
 - Backend: Ring, Reitit, Mount, next.jdbc, MySQL

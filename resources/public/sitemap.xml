@@ -1,51 +1,146 @@
 <?xml version="1.0" encoding="utf-8"?>
-<urlset>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://hephaistox.fr/</loc>
-    <lastmod>2026-01-14T00:00:00</lastmod>
+    <loc>https://hephaistox.fr/fr/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/index.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/index.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://hephaistox.fr/fr/index.html"/>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://hephaistox.fr/articles/rivalis</loc>
-    <lastmod>2026-01-14T00:00:00</lastmod>
+    <loc>https://hephaistox.fr/en/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/index.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/index.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://hephaistox.fr/fr/index.html"/>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://hephaistox.fr/articles/projets</loc>
-    <lastmod>2026-01-14T00:00:00</lastmod>
+    <loc>https://hephaistox.fr/fr/articles/rivalis.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/rivalis.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/rivalis.html"/>
     <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/en/articles/rivalis.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/rivalis.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/rivalis.html"/>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/fr/articles/projets.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/projets.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/projets.html"/>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/en/articles/projets.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/projets.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/projets.html"/>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/fr/articles/hephaistox.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/hephaistox.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/hephaistox.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/en/articles/hephaistox.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/hephaistox.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/hephaistox.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/fr/articles/who-are-we.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/who-are-we.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/who-are-we.html"/>
+    <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://hephaistox.fr/articles/hephaistox</loc>
-    <lastmod>2026-01-14T00:00:00</lastmod>
+    <loc>https://hephaistox.fr/en/articles/who-are-we.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/who-are-we.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/who-are-we.html"/>
     <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
+    <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://hephaistox.fr/articles/about-site</loc>
-    <lastmod>2026-01-14T00:00:00</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://hephaistox.fr/articles/legal-notice</loc>
-    <lastmod>2026-01-14T00:00:00</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://hephaistox.fr/articles/privacy</loc>
-    <lastmod>2026-01-14T00:00:00</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://hephaistox.fr/articles/who-are-we</loc>
-    <lastmod>2026-01-14T00:00:00</lastmod>
+    <loc>https://hephaistox.fr/fr/articles/contacts.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/contacts.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/contacts.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/en/articles/contacts.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/contacts.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/contacts.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/fr/articles/about-site.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/about-site.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/about-site.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/en/articles/about-site.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/about-site.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/about-site.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/fr/articles/legal-notice.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/legal-notice.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/legal-notice.html"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/en/articles/legal-notice.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/legal-notice.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/legal-notice.html"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/fr/articles/privacy.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/privacy.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/privacy.html"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/en/articles/privacy.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/privacy.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/privacy.html"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/fr/articles/disclaimer.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/disclaimer.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/disclaimer.html"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  <url>
+    <loc>https://hephaistox.fr/en/articles/disclaimer.html</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/disclaimer.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/disclaimer.html"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
   </url>
 </urlset>

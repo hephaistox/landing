@@ -67,7 +67,7 @@
       :text :disclaimer
       :link-id :disclaimer}
      {:url "/articles/contact-validated"
-      :text :projets
+      :text :contact-validated
       :link-id :contact-validated}
      {:url "/articles/projets"
       :text :projets

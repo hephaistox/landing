@@ -13,7 +13,9 @@
   [http-request]
   [:html {:lang (:lang http-request)}
    (vec (concat [:head]
-                (public-page-header http-request "Hephaistox error page" "This should not happen")))
+                (public-page-header http-request "Hephaistox error page" "This should not happen")
+                [[:meta {:name "robots"
+                         :content "noindex,nofollow"}]]))
    (admin-body http-request)
    (js-script-link (:reframe-admin links))])
 

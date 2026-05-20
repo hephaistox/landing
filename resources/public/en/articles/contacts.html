@@ -26,6 +26,9 @@
   <meta content="Hephaistox" name="author">
   <link href="../../custom.css" rel="stylesheet" type="text/css">
   <link href="../../print.css" media="print" rel="stylesheet" type="text/css">
+  <link rel="alternate" hreflang="fr" href="https://hephaistox.fr/fr/articles/contacts.html"/>
+  <link rel="alternate" hreflang="en" href="https://hephaistox.fr/en/articles/contacts.html"/>
+  <link rel="alternate" hreflang="x-default" href="https://hephaistox.fr/fr/articles/contacts.html"/>
 </head>
 <body class="w3-large w3-row">
   <div class="w3-col m3 l2" id="left-menu-placeholder">
@@ -62,13 +65,33 @@
           <li class="text w3-tooltip" style="overflow:visible;"><i class="fa fa-github fa-brands w3-center" style="width:1em;"></i><b class="w3-margin w3-button w3-hover-opacity"><a data-link-name="github" href="https://github.com/hephaistox">Github:</a></b> As developers you can see and interact with us on Github</li>
           <li class="text w3-tooltip" style="overflow:visible;"><i class="fa fa-envelope-open w3-center" style="width:1em;"></i><b class="w3-margin w3-button w3-hover-opacity"><a data-link-name="info-mail" href="mailto:info@hephaistox.fr">Mail:</a></b> Send an email</li>
         </ul>
+        <section class="w3-margin-top">
+          <h2>Write to us</h2>
+          <form id="contact-form" action="/contact" method="post" class="w3-container w3-card w3-padding" style="max-width:32rem;margin-left:auto;margin-right:auto;text-align:left;">
+            <p><label class="w3-text-grey" for="cf-company">Company</label>
+              <input class="w3-input w3-border" id="cf-company" name="company" type="text" required></p>
+            <p><label class="w3-text-grey" for="cf-firstname">First name</label>
+              <input class="w3-input w3-border" id="cf-firstname" name="firstname" type="text" required></p>
+            <p><label class="w3-text-grey" for="cf-name">Last name</label>
+              <input class="w3-input w3-border" id="cf-name" name="name" type="text" required></p>
+            <p><label class="w3-text-grey" for="cf-mail">Email</label>
+              <input class="w3-input w3-border" id="cf-mail" name="mail" type="email" required></p>
+            <p><label class="w3-text-grey" for="cf-phone">Phone</label>
+              <input class="w3-input w3-border" id="cf-phone" name="phone" type="tel" pattern="(?:0|\+33)[0-9]{9}" placeholder="0601020304" required></p>
+            <p style="position:absolute;left:-9999px;" aria-hidden="true">
+              <label for="cf-adress">Address</label>
+              <input id="cf-adress" name="adress" type="text" tabindex="-1" autocomplete="off" value=""></p>
+            <p><button class="w3-button w3-blue" type="submit">Send</button></p>
+            <div id="contact-status" role="status" aria-live="polite" class="w3-margin-top"></div>
+          </form>
+        </section>
       </article>
     </div>
   </div>
   <footer class="w3-flat-midnight-blue w3-row w3-display-container w3-padding w3-small w3-col" id="footer-section" style="height:10em;">
     <!-- BEGIN:FOOTER -->
     <div class="w3-center w3-padding-small">
-      <div class="w3-flex" style="justify-content:center;">
+      <div class="w3-flex" style="justify-content:center;flex-wrap:wrap;">
         <a class="w3-bar-item w3-button w3-mobile" data-link-name="home" href="../index.html">Home</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="legal-notice" href="../articles/legal-notice.html">Legal notice</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="privacy" href="../articles/privacy.html">Privacy</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="disclaimer" href="../articles/disclaimer.html">Disclaimer</a><a class="w3-bar-item w3-button w3-mobile" data-link-name="who-are-we" href="../articles/who-are-we.html">Who are we?</a>
       </div>
     </div>
@@ -115,5 +138,6 @@
 <!-- END:FOOTER -->
   </footer>
 <script src="/js/lang.js"></script>
+<script src="/js/contact-form.js" defer></script>
 </body>
 </html>

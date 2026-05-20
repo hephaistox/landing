@@ -93,11 +93,11 @@
            :muuntaja m/instance
            :operationId "contactForm"
            :parameters {:form [:map
-                               [:company :string]
-                               [:name :string]
-                               [:firstname :string]
-                               [:mail :string]
-                               [:phone :string]
+                               [:company [:string {:min 1}]]
+                               [:name [:string {:min 1}]]
+                               [:firstname [:string {:min 1}]]
+                               [:mail [:re #"^[^@\s]+@[^@\s]+\.[^@\s]+$"]]
+                               [:phone [:re #"^(?:0|\+33)[0-9]{9}$"]]
                                [:adress [:maybe :string]]]}
            :summary "Post contact data"
            :swagger {:tags #{:public-website}}}}])
