@@ -130,6 +130,29 @@
   (-> (try (.-href (js/URL. url js/window.location.href)) (catch :default _ url))
       js/encodeURIComponent))
 
+(defn- current-origin
+  "Origin of the page being viewed (e.g. the la/prod deployment, or localhost),
+  so checks validate the deployment you are actually looking at rather than a
+  hardcoded host."
+  []
+  js/window.location.origin)
+
+(def ^:private cache-bust-manifest
+  "Original-path -> fingerprinted-path map injected into the admin shell's
+  `<script id=\"cache-bust-manifest\">` by `cache-bust/fingerprint-jar!` at
+  deploy time. Empty `{}` in dev (no fingerprinting)."
+  (or (some-> (.getElementById js/document "cache-bust-manifest")
+              .-textContent
+              js/JSON.parse
+              js->clj)
+      {}))
+
+(defn- fingerprint-path
+  "Resolve `path` (relative to the site root, e.g. \"css/custom.css\") to its
+  fingerprinted name on la/prod, else return it unchanged."
+  [path]
+  (get cache-bust-manifest path path))
+
 (reg-event-fx ::do-check-url
               (fn [{:keys [db]} [_ origin link-id]]
                 {:fetch {:method :get
@@ -167,7 +190,7 @@
              :headers {"Accept" "application/json"}
              :mode :cors
              :params {kw (name id)
-                      :domain "https://hephaistox.fr"}
+                      :domain (current-origin)}
              :timeout 3000
              :redirect :follow
              :on-success [::on-validation-response id :success]
@@ -418,7 +441,11 @@
     (for [[id path] (sort-by first id->path)
           :let [row-id (str kind "/" (name id))
                 {:keys [status res url]} @(subscribe [::validation-response id])
-                ext (str validator-url url-prefix url)]
+                ;; Resolve the asset through the cache-bust manifest injected
+                ;; into the shell (e.g. css/custom.css → css/custom.34f0a84f.css)
+                ;; so the external validator link points at the file that
+                ;; actually exists on the deployment — no round-trip needed.
+                ext (str validator-url url-prefix (fingerprint-path url))]
           :when (visible-under-filter? filter-mode status)]
       ^{:key row-id}
       [row {:row-id row-id
@@ -442,14 +469,14 @@
               :description
               "Each page sent to validator.w3.org/nu; rows expand to show the W3C report."
               :count-info [counts-chip (count-by-status (filter some? statuses))]
-              :rows (validation-rows "html" "https://hephaistox.fr/"
+              :rows (validation-rows "html" (str (current-origin) "/")
                                      "https://validator.w3.org/nu/?doc=" w3c-validate-htmls)}]))
 
 (defn- css-validation-section
   []
   [section {:title "CSS validation"
             :description "Each stylesheet sent to jigsaw.w3.org/css-validator."
-            :rows (validation-rows "css" "https://hephaistox.fr/"
+            :rows (validation-rows "css" (str (current-origin) "/")
                                    "https://jigsaw.w3.org/css-validator/validator?uri="
                                    w3c-validate-css)}])
 

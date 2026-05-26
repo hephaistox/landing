@@ -1,4 +1,4 @@
-{:deps {com.github.hephaistox/auto-build {:git/sha "bcc4cdfc2ca9befc7ffd13ce73f307050f0f2f5a"}}
+{:deps {com.github.hephaistox/auto-build {:git/sha "1116cf94d491b1649ce47a5abc545aaeeb3b7691"}}
  :paths ["scripts"]
  :tasks
  {:init (def pars

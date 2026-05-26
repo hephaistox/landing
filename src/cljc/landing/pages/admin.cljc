@@ -12,21 +12,21 @@
 (def links
   "Every link the admin page should reachability-check."
   (concat (add-origin [{:link-id :prod-https-com
-                        :url "https://hephaistox.com"}
+                        :url "https://hephaistox.com/fr/index.html"}
                        {:link-id :prod-https-fr
-                        :url "https://hephaistox.fr"}
+                        :url "https://hephaistox.fr/fr/index.html"}
                        {:link-id :prod-http-com
-                        :url "http://hephaistox.com"}
+                        :url "http://hephaistox.com/fr/index.html"}
                        {:link-id :prod-http-fr
-                        :url "http://hephaistox.fr"}
+                        :url "http://hephaistox.fr/fr/index.html"}
                        {:link-id :prod-https-com-www
-                        :url "https://www.hephaistox.com"}
+                        :url "https://www.hephaistox.com/fr/index.html"}
                        {:link-id :prod-https-fr-www
-                        :url "https://www.hephaistox.fr"}
+                        :url "https://www.hephaistox.fr/fr/index.html"}
                        {:link-id :prod-http-com-www
-                        :url "http://www.hephaistox.com"}
+                        :url "http://www.hephaistox.com/fr/index.html"}
                        {:link-id :prod-http-fr-www
-                        :url "http://www.hephaistox.fr"}]
+                        :url "http://www.hephaistox.fr/fr/index.html"}]
                       "landing.admin")
           (add-origin (vals landing.article.rivalis/links) "landing.article.rivalis")
           (add-origin (vals landing.article.who-are-we/links) "landing.article.who-are-we")

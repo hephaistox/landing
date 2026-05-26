@@ -95,7 +95,7 @@
      {:url "https://www.linkedin.com/company/hephaistox"
       :skip-test? true
       :link-id :linkedin}
-     {:url "https://hephaistox.fr"
+     {:url "https://hephaistox.fr/fr/index.html"
       :link-id :production-fr}]
     (mapv (fn [link] [(:link-id link) link]))
     (into {})))

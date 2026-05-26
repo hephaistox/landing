@@ -16,7 +16,7 @@
       (is (= "public, max-age=31536000, immutable" (#'sut/cache-control uri))
           (str "Static asset " uri " gets a long, immutable cache"))))
   (testing "Short cache for HTML so static updates ship quickly"
-    (is (= "public, max-age=300" (#'sut/cache-control "/fr/index.html"))))
+    (is (= "no-cache" (#'sut/cache-control "/fr/index.html"))))
   (testing "Default cache for everything else"
     (is (= "public, max-age=600" (#'sut/cache-control "/robots.txt")))
     (is (= "public, max-age=600" (#'sut/cache-control nil)))))

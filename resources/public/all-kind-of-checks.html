@@ -18,6 +18,9 @@
   <div id="admin-panel">
     <i class="fa fa-spinner fa-spin fa-3x"></i>
   </div>
+  <!-- Cache-bust manifest (original-path -> fingerprinted-path). Stays "{}" in
+       dev; `cache-bust/fingerprint-jar!` fills it on la/prod deploys. -->
+  <script id="cache-bust-manifest" type="application/json">{}</script>
   <script src="/js/compiled/app-admin.js"></script>
 </body>
 </html>

@@ -41,7 +41,7 @@
                     landing.db/execute-query (fn [_ _] (swap! queries-executed inc))]
         (let [resp (post-form valid-form)]
           (is (= 302 (:status resp)))
-          (is (= "/articles/contact-validated" (get-in resp [:headers "Location"])))
+          (is (= "/fr/articles/contact-validated.html" (get-in resp [:headers "Location"])))
           ;; send-email is fired in a future — give it a moment to land
           (Thread/sleep 100)
           (is (= 1 (count @emails-sent)) "exactly one email is sent")

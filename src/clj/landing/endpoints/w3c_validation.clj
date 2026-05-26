@@ -3,6 +3,8 @@
   (:require
    [auto-web.middleware.rate-limit    :refer [make-rate-limiter stop-rate-limit]]
    [clj-http.client                   :as client]
+   [clojure.edn                       :as edn]
+   [clojure.java.io                   :as io]
    [clojure.string]
    [landing.pages.admin               :refer [w3c-validate-css w3c-validate-htmls]]
    [mount.core                        :refer [defstate]]
@@ -22,12 +24,26 @@
                                      :cleanup-interval-ms 60000})
           :stop (stop-rate-limit rate-limiter))
 
+(def cache-bust-manifest
+  "Original-path -> fingerprinted-path map written into the jar by
+  `cache-bust/fingerprint-jar!` at deploy time. Absent in dev (no
+  fingerprinting), so resolving falls back to the original path."
+  (delay (some-> (io/resource "cache_bust_manifest.edn")
+                 slurp
+                 edn/read-string)))
+
+(defn fingerprinted
+  "Resolve `path` to its fingerprinted name on la/prod, else return it unchanged."
+  [path]
+  (get @cache-bust-manifest path path))
+
 (defn w3c-validate-handler
   [request]
   (let [{:keys [css-id html-id domain]} (:query (:parameters request))]
-    (if-let [css (->> css-id
-                      keyword
-                      (get w3c-validate-css))]
+    (if-let [css (some-> css-id
+                         keyword
+                         (->> (get w3c-validate-css))
+                         fingerprinted)]
       (let [curl-data (client/get "https://jigsaw.w3.org/css-validator/validator/"
                                   {:max-redirects 2
                                    :cookie-policy :none

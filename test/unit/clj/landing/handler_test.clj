@@ -169,7 +169,7 @@
         (is (= "public, max-age=31536000, immutable" (get-in resp [:headers "Cache-Control"])))))
     (testing "HTML gets a short Cache-Control"
       (let [resp (h (mock/request :get "/fr/index.html"))]
-        (is (= "public, max-age=300" (get-in resp [:headers "Cache-Control"])))))
+        (is (= "no-cache" (get-in resp [:headers "Cache-Control"])))))
     (testing "Other files get the default Cache-Control"
       (let [resp (h (mock/request :get "/robots.txt"))]
         (is (= "public, max-age=600" (get-in resp [:headers "Cache-Control"])))))))
