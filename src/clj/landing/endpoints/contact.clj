@@ -47,7 +47,8 @@
   ;
 )
 
-(defn handle-contact-handler
+(defn contact-handler
+  "Handle a server side request for contact"
   [req]
   (let [{:keys [company name firstname mail phone adress]} (:params req)]
     (if (= "" adress)
@@ -76,7 +77,7 @@
   [prefix
    {:post {:coercion coercion
            :description "Use by the contact form"
-           :handler handle-contact-handler
+           :handler contact-handler
            :middleware [(:middleware-fn rate-limiter)
                         ;; content-negotiation
                         parameters/parameters-middleware

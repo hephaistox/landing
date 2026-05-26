@@ -1,13 +1,8 @@
 (ns landing.pages.admin
   (:require
    [auto-web.components.badge :refer [cspinner]]
-   [landing.article.digital-twin]
-   [landing.article.hephaistox]
-   [landing.article.project]
    [landing.article.rivalis]
    [landing.article.who-are-we]
-   [landing.pages.error]
-   [landing.pages.home]
    [landing.pages.structure]
    [landing.routes]))
 
@@ -38,25 +33,11 @@
                         :url "http://www.hephaistox.fr"}]
                       "landing.admin")
           (add-origin (vals landing.article.rivalis/links) "landing.article.rivalis")
-          (add-origin (vals landing.article.hephaistox/links) "landing.article.hephaistox")
           (add-origin (vals landing.article.who-are-we/links) "landing.article.who-are-we")
-          (add-origin (vals landing.article.project/links) "landing.article.project")
           (add-origin (vals landing.routes/links) "landing.routes")
           (add-origin (vals landing.pages.structure/links) "landing.pages.structure")))
 
-(def images
-  (concat (add-origin (vals landing.article.rivalis/images) "landing.article.rivalis")
-          (add-origin (vals landing.routes/images) "landing.routes")
-          (add-origin (vals landing.pages.home/images) "landing.pages.home")
-          (add-origin (vals landing.article.project/images) "landing.article.project")
-          (add-origin (vals landing.article.digital-twin/images) "landing.article.digital-twin")
-          (add-origin (vals landing.article.who-are-we/images) "landing.article.who-are-we")))
-
-(def dics
-  {"landing.pages.home" landing.pages.home/home-dic
-   "landing.article.who-are-we" landing.article.who-are-we/who-are-we-dic
-   "landing.routes" landing.routes/routes-dic
-   "landing.pages.error" landing.pages.error/error-dic})
+(def images (concat (add-origin (vals landing.routes/images) "landing.routes")))
 
 (def w3c-validate-htmls
   {:privacy "articles/privacy"

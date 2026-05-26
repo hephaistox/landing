@@ -47,3 +47,11 @@ html { scroll-behavior: smooth;}
 .heartbeat:hover {
   animation: heartbeat 1.2s ease-in-out infinite;
 }
+
+/* w3-sidebar is position:fixed at 200px, but w3-col.l2 only reserves 16.66%,
+   so between 993px and ~1200px the sidebar overlaps the content column. Pin
+   the in-flow column to match the sidebar width. */
+@media (min-width: 993px) {
+  #left-menu-placeholder { width: 200px; }
+  #article-content       { width: calc(100% - 200px); }
+}

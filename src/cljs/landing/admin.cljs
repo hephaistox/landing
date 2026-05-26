@@ -1,15 +1,9 @@
 (ns landing.admin
   "Start point for frontend"
   (:require
-   [auto-core.schema    :refer [validate-data-humanize]]
    [cljs.pprint         :refer [pprint]]
-   [landing.article.digital-twin]
-   [landing.article.hephaistox]
-   [landing.article.project]
    [landing.article.rivalis]
-   [landing.article.who-are-we]
-   [landing.pages.admin :refer [dics images links w3c-validate-css w3c-validate-htmls]]
-   [landing.pages.home]
+   [landing.pages.admin :refer [links w3c-validate-css w3c-validate-htmls]]
    [landing.pages.structure]
    [landing.routes]
    [re-frame.core       :refer [clear-subscription-cache!
@@ -188,50 +182,6 @@
         vec)))
 
 ;; ********************************************************************************
-;; Images
-;; ********************************************************************************
-
-(defn images-hiccup
-  []
-  (let [show-valid @(subscribe [::show-valid])]
-    [:div.w3-flex {:style {:gap "0.5em"
-                           :flex-wrap "wrap"
-                           :width "80%"}}
-     (doall
-      (for [{:keys [url alt img-id origin]
-             :as img-data}
-            images]
-        (let [id (str (name origin) "/" (name img-id))
-              img-valid? (validate-data-humanize [:map {:closed true}
-                                                  [:url :string]
-                                                  [:alt :string]
-                                                  [:origin :string]
-                                                  [:img-id :keyword]]
-                                                 img-data)]
-          (when (or (= :failure img-valid?) (not show-valid))
-            [:div.w3-tooltip.w3-small.w3-padding-small {:key id
-                                                        :id id
-                                                        :style (when img-valid?
-                                                                 {:border-width "0.4em"
-                                                                  :border-style "solid"
-                                                                  :border-color "red"})}
-             [:a {:href url
-                  :target "blank"}
-              [:img {:src url
-                     :width "30px"}]]
-             [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
-                                                       :left "0px"
-                                                       :z-index 9999
-                                                       :top "2.5em"}}
-              [:table
-               [:tbody
-                [:tr [:td "Origin"] [:td origin]]
-                [:tr [:td "Img-id"] [:td img-id]]
-                [:tr [:td "Alt"] [:td alt]]
-                [:tr [:td "Link"] [:td url]]
-                [:tr [:td "Img valid"] [:td img-valid?]]]]]]))))]))
-
-;; ********************************************************************************
 ;; Validation
 ;; ********************************************************************************
 
@@ -314,55 +264,6 @@
                    "https://validator.w3.org/nu/?doc=https://hephaistox.fr/")]]))
 
 ;; ********************************************************************************
-;; Dictionnary
-;; ********************************************************************************
-(defn dictionnary-hiccup
-  []
-  (let [show-valid @(subscribe [::show-valid])]
-    [:div.w3-flex {:style {:gap "0.5em"
-                           :flex-wrap "wrap"
-                           :width "80%"}}
-     (doall
-      (for [[prefix dic] dics]
-        (let [dic (update-vals dic
-                               (fn [dic-entry]
-                                 (let [langs (set (keys dic-entry))
-                                       schema-validation (validate-data-humanize [:map] dic-entry)
-                                       valid-schema? (not (:error schema-validation))
-                                       status (and valid-schema? (= #{:en :fr} langs))]
-                                   {:langs langs
-                                    :schema-validation schema-validation
-                                    :status status})))
-              invalid-dic (into (filter (comp not :status second) dic) {})]
-          [:div.w3-card {:key prefix
-                         :gap "8px"
-                         :class (when (or show-valid (seq invalid-dic)) "w3-hide")}
-           (cons [:p.w3-small.w3-center.w3-padding {:key prefix}
-                  prefix]
-                 (if (and (seq invalid-dic) show-valid)
-                   (list [:div.w3-small {:on-click #(dispatch [::set-show-valid [:show-valid]])
-                                         :style {:cursor "pointer"}}
-                          "..."])
-                   (doall
-                    (for [[dic-entry-id {:keys [langs status schema-validation]}]
-                          (if show-valid invalid-dic dic)]
-                      [:div.w3-tooltip.w3-small.w3-padding-small {:key dic-entry-id
-                                                                  :class
-                                                                  (if status "w3-green" "w3-red")
-                                                                  :id dic-entry-id}
-                       dic-entry-id
-                       [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
-                                                                 :left "0.4em"
-                                                                 :z-index 9999
-                                                                 :top "2.5em"}}
-                        [:table
-                         [:tr [:td "Ids"] [:td dic-entry-id]]
-                         [:tr [:td "Status:"] [:td (str status)]]
-                         [:tr [:td "Langs:"] [:td langs]]
-                         (when schema-validation
-                           [:tr [:td "Valid schema?:"] [:td schema-validation]])]]]))))])))]))
-
-;; ********************************************************************************
 ;; Page
 
 (defn admin-rf-body
@@ -382,12 +283,8 @@
      (links-hiccup)
      [:h1 "Domain, TLD and protocols"]
      (domain-tld-hiccup)
-     [:h1 "Images"]
-     (images-hiccup)
      [:h1 "Validation"]
-     (validation-hiccup)
-     [:h1 "Dictionnary"]
-     (dictionnary-hiccup)]))
+     (validation-hiccup)]))
 
 ;; ********************************************************************************
 

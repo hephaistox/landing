@@ -16,9 +16,9 @@ bb repl              # Start REPL with dev environment (set LANDING_PORT=8080 fi
 bb repl-fe           # Start frontend REPL (shadow-cljs for :app and :app-admin builds)
 
 # Testing
-bb clj-test test-clj        # Run Clojure tests
-bb cljs-node-test all       # Run ClojureScript tests (Node.js)
-bb cljs-browser-test        # Run ClojureScript tests in browser (port 9651)
+bb clj-test          # Run Clojure tests
+bb cljs-node-test all # Run ClojureScript tests (Node.js)
+bb cljs-browser-test  # Run ClojureScript tests in browser (port 9651)
 
 # Code Quality
 bb format            # Format source code with zprint
@@ -47,8 +47,9 @@ bb copy              # Copy files from ext_src.edn sources
 
 ### Frontend Builds (shadow-cljs)
 
-- `:app` - Main public frontend (`landing.fe/init`)
 - `:app-admin` - Admin frontend (`landing.admin/init`)
+- `:browser-test` - Browser test
+- `:ltest` - for local tests
 - Output: `resources/public/js/compiled/`
 - Dev server: port 9551, nREPL: 7151
 
