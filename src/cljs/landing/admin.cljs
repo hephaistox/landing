@@ -4,7 +4,6 @@
    [cljs.pprint         :refer [pprint]]
    [landing.article.rivalis]
    [landing.pages.admin :refer [links w3c-validate-css w3c-validate-htmls]]
-   [landing.pages.structure]
    [landing.routes]
    [re-frame.core       :refer [clear-subscription-cache!
                                 dispatch

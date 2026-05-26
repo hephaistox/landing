@@ -42,8 +42,8 @@ bb copy              # Copy files from ext_src.edn sources
 ### Source Structure
 
 - `src/clj/` - Backend Clojure (server, handlers, endpoints)
-- `src/cljs/` - Frontend ClojureScript (re-frame/reagent SPAs)
-- `src/cljc/` - Shared code (routes, pages, articles)
+- `src/cljs/` - Frontend ClojureScript (admin SPA)
+- `src/cljc/` - Shared code (routes + admin/article URL manifests). No page-rendering code lives here anymore.
 
 ### Frontend Builds (shadow-cljs)
 
@@ -61,21 +61,24 @@ bb copy              # Copy files from ext_src.edn sources
 
 ### Shared Code (cljc)
 
-- `landing.routes` - URL definitions, links, and i18n route labels (French/English)
-- `landing.pages.*` - Page components (home, article, admin, error)
-- `landing.article.*` - Content modules (contacts, privacy, legal-notice, etc.)
+All page-rendering Clojure has been removed. Only pure-data modules remain:
 
-**Note:** the public-facing site is now served as **static HTML** from `resources/public/{fr,en}/...`, generated and maintained outside the Clojure render pipeline. The `cljc` modules above are consumed only by:
-- the admin SPA (`src/cljs/landing/admin.cljs`, route `/all-kind-of-checks`)
-- `landing.endpoints.contact` (uses `landing.routes/links` for the success redirect target)
+- `landing.routes` — URL definitions, link maps, and i18n route labels (French/English).
+- `landing.pages.admin` — manifests aggregated for the admin SPA: every URL the site should expose (reachability checks) and every page/CSS file to W3C-validate. **Despite the namespace name, no hiccup/page-rendering code lives here.**
+- `landing.article.{rivalis,who-are-we}` — external-link manifests for those articles, aggregated by `landing.pages.admin`.
 
-The backend's role is now: serve static resources, host the REST API (`/contact`, `/api`, `/check-url`, etc.), and host the admin SPA. Page-rendering Clojure has been removed.
+The cljc modules are consumed only by:
+- the admin SPA (`src/cljs/landing/admin.cljs`, mounted from the static page at `/all-kind-of-checks`)
+- `landing.endpoints.{contact,check-url,w3c-validation}` (use the manifests + `landing.routes/links`)
+
+The backend's role is: serve static resources, host the REST API (`/contact`, `/api`, `/check-url`, `/w3c-validate`, etc.), serve the admin SPA shell, and serve language-resolved 404/500 pages via `landing.endpoints.default-handler`.
 
 ### Static-site assets and fragments
 
-- `resources/public/{fr,en}/index.html` and `articles/*.html` — actual pages.
-- `resources/public/{fr,en}/404.html`, `articles/contact-validated.html` — error/confirmation pages.
-- `resources/fragments/{header,footer,left-menu}.{fr,en}.html` — reusable fragments. `bb update-website` injects them between `<!-- BEGIN:NAME -->` / `<!-- END:NAME -->` markers. **Article pages have their own inline `<header>` (different from the index header) so HEADER markers live only in `index.html` files.**
+- `resources/public/{fr,en}/index.html` and `articles/*.html` — actual public pages.
+- `resources/public/{fr,en}/404.html`, `500.html`, `articles/contact-validated.html` — error/confirmation pages. `404.html` and `500.html` are served by `landing.endpoints.default-handler` (`static-404-response` / `exception-response`) with the right HTTP status and language picked from the `lang` cookie.
+- `resources/public/all-kind-of-checks.html` — static shell for the admin SPA; `app-admin.js` mounts on `#admin-panel`. Served by `landing.endpoints.html.admin-be/admin-route` with CORS headers.
+- `resources/fragments/{header,footer,left-menu}.{fr,en}.html` — reusable fragments. `bb update-website` injects them between `<!-- BEGIN:NAME -->` / `<!-- END:NAME -->` markers in every page under `resources/public/{fr,en}/**.html`. **Article pages have their own inline `<header>` (different from the index header) so HEADER markers live only in `index.html`, `404.html`, and `500.html`.**
 - `resources/public/js/lang.js` — language-switch helper, included on every page.
 - `resources/public/js/contact-form.js` — contact form submit handler with retries / timeout. Loaded only by `articles/contacts.html`.
 

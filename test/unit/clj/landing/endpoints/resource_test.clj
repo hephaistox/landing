@@ -21,25 +21,26 @@
     (is (= "public, max-age=600" (#'sut/cache-control "/robots.txt")))
     (is (= "public, max-age=600" (#'sut/cache-control nil)))))
 
+(def ^:private byte-array-class (Class/forName "[B"))
+
 (deftest resource-handler-test
-  (is (= [[:status :headers :body] 200 "text/css"]
-         ((juxt keys :status #(get-in % [:headers "Content-Type"]))
-          ((rring/ring-handler (rring/router [] {}) sut/resource-handler)
-           {:request-method :get
-            :uri "/custom.css"})))
-      "A simple resource query")
-  (is (->> ((rring/ring-handler (rring/router [] {}) sut/resource-handler)
-            {:request-method :get
-             :uri "/print.css"})
-           :body
-           (instance? java.io.File))
-      "Is the returned body a simple file")
-  (is (= "gzip"
-         (-> ((rring/ring-handler (rring/router [] {}) sut/resource-handler)
-              (-> (mock/request :get "/cv_caumond.pdf")
-                  (mock/header "accept-encoding" "gzip")))
-             (get-in [:headers "Content-Encoding"])))
-      "When the file is big enough, it should be compressed"))
+  (let [h (rring/ring-handler (rring/router [] {}) sut/resource-handler)]
+    (testing "A simple resource query"
+      (let [resp (h {:request-method :get :uri "/custom.css"})]
+        (is (= 200 (:status resp)))
+        (is (= "text/css" (get-in resp [:headers "Content-Type"])))))
+    (testing "Bodies are realized to byte arrays for in-memory caching"
+      (let [resp (h {:request-method :get :uri "/print.css"})]
+        (is (instance? byte-array-class (:body resp)))))
+    (testing "Gzippable types are pre-compressed when the client asks for gzip"
+      (let [resp (h (-> (mock/request :get "/custom.css")
+                        (mock/header "accept-encoding" "gzip")))]
+        (is (= "gzip" (get-in resp [:headers "Content-Encoding"])))
+        (is (= "Accept-Encoding" (get-in resp [:headers "Vary"])))))
+    (testing "Already-compressed binaries (PDF) are not gzipped"
+      (let [resp (h (-> (mock/request :get "/cv_caumond.pdf")
+                        (mock/header "accept-encoding" "gzip")))]
+        (is (nil? (get-in resp [:headers "Content-Encoding"])))))))
 
 (deftest response-headers-test
   (let [resp ((rring/ring-handler (rring/router [] {}) sut/resource-handler)

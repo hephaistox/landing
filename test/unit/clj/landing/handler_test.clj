@@ -169,6 +169,7 @@
   [body]
   (cond
     (string? body) body
+    (instance? (Class/forName "[B") body) (String. ^bytes body "UTF-8")
     (instance? java.io.File body) (slurp body)
     (instance? java.io.InputStream body) (slurp body)
     :else (str body)))
@@ -234,3 +235,26 @@
     (testing "JS carries application/javascript or text/javascript"
       (let [resp (h (mock/request :get "/js/lang.js"))]
         (is (re-find #"(application|text)/javascript" (get-in resp [:headers "Content-Type"])))))))
+
+(deftest default-handler-status-codes-test
+  (let [h (sut/handler)]
+    (testing "404 for unknown path returns 404 with the static page body"
+      (let [resp (h (mock/request :get "/this-route-does-not-exist"))
+            body (body-string (:body resp))]
+        (is (= 404 (:status resp)))
+        (is (str/includes? body "Page introuvable")
+            "default language is fr and 404.html has 'Page introuvable'")))
+    (testing "405 for wrong method returns 405 with a distinct body"
+      (let [resp (h (mock/request :put "/ping"))
+            body (body-string (:body resp))]
+        (is (= 405 (:status resp)))
+        (is (str/includes? body "Méthode")
+            "fr default body mentions 'Méthode'")
+        (is (not (str/includes? body "Page introuvable"))
+            "405 must NOT show the 404 page body")))
+    (testing "Language selection works for inline 405 too"
+      (let [resp (h (-> (mock/request :put "/ping")
+                        (mock/header "accept-language" "en-US,en;q=0.9")))
+            body (body-string (:body resp))]
+        (is (= 405 (:status resp)))
+        (is (str/includes? body "Method not allowed"))))))

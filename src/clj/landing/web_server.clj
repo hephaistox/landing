@@ -1,7 +1,7 @@
 (ns landing.web-server
   (:require
-   [auto-core.log                   :as core-log]
-   [landing.endpoints.html.error-be :refer [exception-response]]
+   [auto-core.log                     :as core-log]
+   [landing.endpoints.default-handler :refer [exception-response]]
    [landing.handler]
    [mount.core                      :refer [defstate]]
    [org.httpkit.server              :as http-kit]))

@@ -1,37 +1,35 @@
 (ns landing.endpoints.html.admin-be
-  "Backend endpoint for an administration page"
+  "Backend endpoint for the administration SPA. Serves a static HTML shell that
+  loads `app-admin.js`; the SPA mounts itself on `#admin-panel`. In :prod, the
+  shell (raw + gzipped) is cached after first read."
   (:require
-   [auto-web.page.builder                  :refer [js-script-link]]
-   [landing.endpoints.html                 :refer [html-middlewares]]
-   [landing.endpoints.html.public-pages-be :refer [public-page-header]]
-   [landing.hiccup                         :refer [render-html]]
-   [landing.pages.admin                    :refer [admin-body]]
-   [landing.pages.structure                :refer [links]]))
+   [clojure.java.io                   :as io]
+   [landing.endpoints.cached-response :as cr]
+   [landing.endpoints.html            :refer [html-middlewares]]))
 
-(defn admin-page
-  "The page is a regular html page with javascript"
-  [http-request]
-  [:html {:lang (:lang http-request)}
-   (vec (concat [:head]
-                (public-page-header http-request "Hephaistox error page" "This should not happen")
-                [[:meta {:name "robots"
-                         :content "noindex,nofollow"}]]))
-   (admin-body http-request)
-   (js-script-link (:reframe-admin links))])
+(def ^:private admin-headers
+  {"Content-Type" "text/html; charset=utf-8"
+   "Access-Control-Allow-Methods" "GET, PUT, POST, DELETE"
+   "Access-Control-Allow-Origin" "*"})
+
+(defn- build-shell
+  []
+  (cr/prepare {:status 200
+               :headers admin-headers
+               :body (some-> (io/resource "public/all-kind-of-checks.html")
+                             slurp)}))
+
+(def ^:private prepared-shell (cr/cache-fn build-shell))
 
 (defn admin-response-wo-body
-  "Admin page is a bit special as it is authorizing some external websites."
   [_]
   {:status 200
-   :headers {"content-type" "text/html"
-             "access-control-allow-methods" [:get :put :post :delete]
-             "access-control-allow-origin" "*"}})
+   :headers admin-headers})
 
 (defn admin-response
-  "Admin page is a bit special as it is authorizing some external websites."
-  [http-request]
-  (-> (admin-response-wo-body http-request)
-      (assoc :body (render-html (admin-page http-request)))))
+  [req]
+  (-> (prepared-shell)
+      (cr/serve req)))
 
 (defn admin-route
   [prefix]

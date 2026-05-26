@@ -1,20 +1,16 @@
 (ns landing.pages.admin
+  "Pure-data manifests aggregated for the admin SPA: every URL the site should
+  expose (for reachability checks) and every page/CSS file the SPA should
+  W3C-validate. Not a rendered page."
   (:require
-   [auto-web.components.badge :refer [cspinner]]
    [landing.article.rivalis]
    [landing.article.who-are-we]
-   [landing.pages.structure]
    [landing.routes]))
-
-(defn admin-body
-  [_http-request]
-  [:body.w3-xlarge.w3-panel {:style {:user-select "none"}}
-   [:div#admin-panel (cspinner {})]])
 
 (defn add-origin [links origin] (map #(assoc % :origin origin) links))
 
 (def links
-  "Gather all links that should be checked in the admin page"
+  "Every link the admin page should reachability-check."
   (concat (add-origin [{:link-id :prod-https-com
                         :url "https://hephaistox.com"}
                        {:link-id :prod-https-fr
@@ -34,10 +30,7 @@
                       "landing.admin")
           (add-origin (vals landing.article.rivalis/links) "landing.article.rivalis")
           (add-origin (vals landing.article.who-are-we/links) "landing.article.who-are-we")
-          (add-origin (vals landing.routes/links) "landing.routes")
-          (add-origin (vals landing.pages.structure/links) "landing.pages.structure")))
-
-(def images (concat (add-origin (vals landing.routes/images) "landing.routes")))
+          (add-origin (vals landing.routes/links) "landing.routes")))
 
 (def w3c-validate-htmls
   {:privacy "articles/privacy"

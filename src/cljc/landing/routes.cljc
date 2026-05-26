@@ -1,38 +1,6 @@
 (ns landing.routes
   "Defines the routes - all url internals and externals that are potential linked with the website itself.")
 
-(def ^:private info-mail "Local factorization" "info@hephaistox.fr")
-
-(def routes-dic
-  {:disclaimer {:fr "Politique de confidentialité"
-                :en "Disclaimer"}
-   :rivalis {:fr "Conseil aux TPEs"
-             :en "Small entreprise coaching"}
-   :contacts {:fr "Contact"
-              :en "Contact"}
-   :projets {:fr "Projets informatique"
-             :en "IT project"}
-   :advanced-industry {:fr "Industrie"
-                       :en "Industry"}
-   :who-are-we {:fr "Qui nous sommes?"
-                :en "Who are we?"}
-   :about-this-website {:fr "A propos de ce site"
-                        :en "About this website"}
-   :home {:fr "Accueil"
-          :en "Home"}
-   :info-mail {:fr info-mail
-               :en info-mail}
-   :admin {:fr "Admin"
-           :en "Admin"}
-   :fb {:fr "FB"
-        :en "FB"}
-   :hephaistox {:fr "Hephaistox"
-                :en "Hephaistox"}
-   :legal-notice {:fr "Mentions légales"
-                  :en "Legal notice"}
-   :privacy {:fr "Clause de non responsabilité"
-             :en "Privacy"}})
-
 (def links
   (->>
     [{:url "/"
@@ -115,7 +83,7 @@
      {:url "mailto:mati@hephaistox.com"
       :link-id :mail-mati-hephaistox-com}
      ;; A faire
-     {:url (str "mailto:" info-mail)
+     {:url "mailto:info@hephaistox.fr"
       :skip-test? true
       :text :info-mail
       :link-id :info-mail}
@@ -134,57 +102,4 @@
       :link-id :production-fr}]
     (mapv (fn [link] [(:link-id link) link]))
     (into {})))
-
-(def images
-  (->> [{:url "/images/logos/hephaistox_logo.png"
-         :alt "Logo hephaistox"
-         :img-id :hephaistox-logo}]
-       (mapv (fn [link] [(:img-id link) link]))
-       (into {})))
-
-(def social
-  (->> [{:fa-icon "fa-linkedin fa-brands"
-         :link :linkedin
-         :social-id :linkedin
-         :label "Linkedin"}
-        {:fa-icon "fa-envelope-open"
-         :link :info-mail
-         :social-id :mail
-         :label "Mail"}
-        {:fa-icon "fa-brands fa-facebook-f"
-         :link :fb
-         :social-id :fb
-         :label "Facebook"}
-        {:fa-icon "fa-github fa-brands"
-         :link :github
-         :social-id :github
-         :label "Github"}
-        {:fa-icon "fa-youtube fa-brands"
-         :social-id :youtube
-         :link :youtube
-         :label "Youtube"}]
-       (mapv (fn [item] [(:social-id item)
-                         (-> item
-                             (update :link links))]))
-       (into {})))
-
-(defn url-txt
-  [link-id]
-  (let [{:keys [url]} (get links link-id)
-        link (some-> link-id
-                     name)]
-    [:a {:href url
-         "data-link-name" link}
-     url]))
-
-(defn mail-txt
-  [link-id l]
-  (let [{:keys [link-id url]} (get links link-id)
-        link (some-> link-id
-                     name)
-        mail (-> (get routes-dic link-id)
-                 (get l))]
-    [:a {:href url
-         "data-link-name" link}
-     mail]))
 

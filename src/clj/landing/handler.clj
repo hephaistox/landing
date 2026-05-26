@@ -12,37 +12,8 @@
    [landing.endpoints.resource        :refer [resource-handler]]
    [landing.endpoints.swagger         :refer [api-ep]]
    [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
+   [landing.language                  :refer [pick-lang]]
    [reitit.ring                       :as rring]))
-
-(def supported-langs #{"fr" "en"})
-(def default-lang "fr")
-
-(defn- cookie-header
-  "Case-insensitive lookup of the Cookie header."
-  [req]
-  (some (fn [[k v]] (when (= "cookie" (str/lower-case (name k))) v)) (:headers req)))
-
-(defn- cookie-lang
-  "Return the `lang` cookie value if present and recognized. Accepts the
-  legacy `:en`/`:fr` form (URL-encoded as `%3Aen` or raw) for back-compat."
-  [req]
-  (some-> (cookie-header req)
-          (->> (re-find #"(?i)\blang=(?:%3A|:)?(en|fr)\b"))
-          second
-          str/lower-case))
-
-(defn- accept-lang
-  "Pick the first supported language from `Accept-Language`."
-  [req]
-  (some->> (some-> req
-                   :headers
-                   (get "accept-language"))
-           (re-seq #"(?i)\b(en|fr)\b")
-           first
-           second
-           str/lower-case))
-
-(defn- pick-lang [req] (or (cookie-lang req) (accept-lang req) default-lang))
 
 (defn root-redirect-route
   "Redirect `/` to the language-specific static index page.
