@@ -27,10 +27,18 @@
   "Colour / icon / one-word label for a re-frame fetch status."
   [status]
   (case status
-    :success     {:cls "w3-green"  :icon "✓" :label "OK"}
-    :failure     {:cls "w3-red"    :icon "✕" :label "Fail"}
-    :in-progress {:cls "w3-amber"  :icon "…" :label "Pending"}
-    {:cls "w3-light-grey" :icon "?" :label "?"}))
+    :success {:cls "w3-green"
+              :icon "✓"
+              :label "OK"}
+    :failure {:cls "w3-red"
+              :icon "✕"
+              :label "Fail"}
+    :in-progress {:cls "w3-amber"
+                  :icon "…"
+                  :label "Pending"}
+    {:cls "w3-light-grey"
+     :icon "?"
+     :label "?"}))
 
 (defn- count-by-status
   "Returns {:ok n :fail n :pending n :other n} for a coll of status keywords."
@@ -42,20 +50,47 @@
                            :in-progress :pending
                            :other)]
               (update acc bucket inc)))
-          {:ok 0 :fail 0 :pending 0 :other 0}
+          {:ok 0
+           :fail 0
+           :pending 0
+           :other 0}
           statuses))
+
+(defn- validation-errors
+  "Number of blocking errors reported in the W3C validator body (`curl-data`,
+  a JSON string). Returns nil when the body can't be parsed. Covers both the
+  Nu HTML validator (`messages` with type \"error\") and the Jigsaw CSS
+  validator (`cssvalidation.errors`)."
+  [res]
+  (when-let [raw (:curl-data res)]
+    (try (let [data (js->clj (js/JSON.parse raw) :keywordize-keys true)
+               html-errors (->> (:messages data)
+                                (filter #(= "error" (:type %)))
+                                count)
+               css-errors (count (get-in data [:cssvalidation :errors]))]
+           (+ html-errors css-errors))
+         (catch :default _ nil))))
 
 (defn- summarize
   "Short, one-line summary of a fetch response for the collapsed row."
   [status res]
   (case status
     :in-progress "pending…"
-    :success     (or (some-> res :status str) "ok")
-    :failure     (cond
-                   (:status res)      (str "HTTP " (:status res))
-                   (:problem res)     (name (:problem res))
-                   (:error res)       (str (:error res))
-                   :else              "error")
+    :success (or (some-> res
+                         :status
+                         str)
+                 "ok")
+    :failure (cond
+               (:curl-data res) (let [n (validation-errors res)]
+                                  (if (number? n)
+                                    (if (and n (pos? n))
+                                      (str n " validation error" (when (> n 1) "s"))
+                                      "validation failed")
+                                    "validation failed"))
+               (:status res) (str "HTTP " (:status res))
+               (:problem res) (name (:problem res))
+               (:error res) (str (:error res))
+               :else "error")
     "—"))
 
 ;; ********************************************************************************
@@ -63,8 +98,8 @@
 ;; ********************************************************************************
 
 (def default-db
-  {::filter-mode :all
-   ::expanded    #{}})
+  {::filter-mode :failing
+   ::expanded #{}})
 
 (reg-event-db ::initialize-db (fn [_ _] default-db))
 
@@ -73,10 +108,10 @@
 
 (reg-sub ::expanded? (fn [db [_ row-id]] (contains? (::expanded db) row-id)))
 
-(reg-event-db ::toggle-expanded
-              (fn [db [_ row-id]]
-                (update db ::expanded
-                        (fn [s] (if (contains? s row-id) (disj s row-id) (conj s row-id))))))
+(reg-event-db
+ ::toggle-expanded
+ (fn [db [_ row-id]]
+   (update db ::expanded (fn [s] (if (contains? s row-id) (disj s row-id) (conj s row-id))))))
 
 (defn- visible-under-filter?
   [mode status]
@@ -111,17 +146,14 @@
 
 (reg-event-fx ::on-ping-response
               (fn [{:keys [db]} [_ origin link-id status res]]
-                {:db (update-in db [:check-url-status origin link-id]
-                                assoc :status status :res res)}))
+                {:db
+                 (update-in db [:check-url-status origin link-id] assoc :status status :res res)}))
 
 (reg-sub ::ping-response
          (fn [db [_ origin link-id]] (get-in db [:check-url-status origin link-id])))
 
 (reg-sub ::all-ping-statuses
-         (fn [db _]
-           (for [[_ by-id] (:check-url-status db)
-                 [_ {:keys [status]}] by-id]
-             status)))
+         (fn [db _] (for [[_ by-id] (:check-url-status db) [_ {:keys [status]}] by-id] status)))
 
 ;; ********************************************************************************
 ;; W3C validation (CSS + HTML)
@@ -134,12 +166,16 @@
              :url "w3c-validate"
              :headers {"Accept" "application/json"}
              :mode :cors
-             :params {kw (name id) :domain "https://hephaistox.fr"}
+             :params {kw (name id)
+                      :domain "https://hephaistox.fr"}
              :timeout 3000
              :redirect :follow
              :on-success [::on-validation-response id :success]
              :on-failure [::on-validation-response id :failure]}
-     :db (assoc-in db [::validation-response id] {:status :in-progress :url url})}))
+     :db (assoc-in db
+          [::validation-response id]
+          {:status :in-progress
+           :url url})}))
 
 (reg-event-fx ::do-css-validation (validation-event :css-id))
 (reg-event-fx ::do-html-validation (validation-event :html-id))
@@ -148,11 +184,15 @@
 
 (reg-event-fx ::on-validation-response
               (fn [{:keys [db]} [_ id status res]]
-                {:db (update-in db [::validation-response id] assoc :status status :res res)}))
+                ;; The endpoint returns HTTP 200 even when a page fails
+                ;; validation, so a fetch :success only means the validator
+                ;; was reached — inspect its body to decide pass/fail.
+                (let [status (if (and (= status :success) (pos? (or (validation-errors res) 0)))
+                               :failure
+                               status)]
+                  {:db (update-in db [::validation-response id] assoc :status status :res res)})))
 
-(reg-sub ::all-validation-statuses
-         (fn [db _]
-           (map (comp :status val) (::validation-response db))))
+(reg-sub ::all-validation-statuses (fn [db _] (map (comp :status val) (::validation-response db))))
 
 (doseq [[css-id css-url] w3c-validate-css] (dispatch [::do-css-validation css-id css-url]))
 (doseq [[html-id html-url] w3c-validate-htmls] (dispatch [::do-html-validation html-id html-url]))
@@ -191,10 +231,10 @@
   [{:keys [row-id status name target summary detail-rows external-url]}]
   (let [expanded? @(subscribe [::expanded? row-id])
         chevron (if expanded? "▾" "▸")]
-    [:div.w3-border-bottom {:key row-id
-                            :style {:padding "0.3em 0.4em"
-                                    :cursor "pointer"}
-                            :on-click #(dispatch [::toggle-expanded row-id])}
+    [:div.w3-border-bottom.w3-hover-light-grey {:key row-id
+                                                :style {:padding "0.3em 0.4em"
+                                                        :cursor "pointer"}
+                                                :on-click #(dispatch [::toggle-expanded row-id])}
      [:div.w3-flex {:style {:align-items "center"
                             :gap "0.6em"}}
       [status-dot status]
@@ -202,7 +242,8 @@
                       :font-weight 600
                       :overflow "hidden"
                       :text-overflow "ellipsis"
-                      :white-space "nowrap"}} name]
+                      :white-space "nowrap"}}
+       name]
       [:span {:style {:flex "1 1 auto"
                       :color "#666"
                       :font-family "monospace"
@@ -214,9 +255,11 @@
       [:span {:style {:flex "0 0 8em"
                       :text-align "right"
                       :font-size "0.85em"
-                      :color "#444"}} summary]
+                      :color "#444"}}
+       summary]
       [:span {:style {:flex "0 0 1em"
-                      :color "#888"}} chevron]]
+                      :color "#888"}}
+       chevron]]
      (when expanded?
        [:div {:style {:padding "0.6em 0.6em 0.6em 2.5em"
                       :background "#fafafa"
@@ -228,10 +271,12 @@
           (for [[label v] detail-rows
                 :when (some? v)]
             ^{:key label}
-            [:tr [:td {:style {:padding "0.1em 0.8em 0.1em 0"
-                               :vertical-align "top"
-                               :color "#666"
-                               :font-weight 600}} label]
+            [:tr
+             [:td {:style {:padding "0.1em 0.8em 0.1em 0"
+                           :vertical-align "top"
+                           :color "#666"
+                           :font-weight 600}}
+              label]
              [:td {:style {:vertical-align "top"
                            :font-family "monospace"
                            :font-size "0.9em"}}
@@ -239,7 +284,8 @@
         (when external-url
           [:a {:href external-url
                :target "_blank"
-               :rel "noopener"} "↗ open externally"])])]))
+               :rel "noopener"}
+           "↗ open externally"])])]))
 
 (defn- section
   "Heading + short description + a stack of rows. `count-info` is shown next
@@ -253,13 +299,16 @@
                           :border-bottom "2px solid #ddd"}}
     [:h2 {:style {:font-size "1em"
                   :margin "0"
-                  :flex "0 0 auto"}} title]
+                  :flex "0 0 auto"}}
+     title]
     [:span {:style {:flex "1 1 auto"
                     :font-size "0.85em"
-                    :color "#666"}} description]
+                    :color "#666"}}
+     description]
     (when count-info
       [:span {:style {:font-size "0.85em"
-                      :font-family "monospace"}} count-info])]
+                      :font-family "monospace"}}
+       count-info])]
    (if (seq rows)
      (into [:div] rows)
      [:div {:style {:padding "0.6em"
@@ -271,9 +320,15 @@
   [{:keys [ok fail pending]}]
   [:span {:style {:font-family "monospace"
                   :font-size "0.85em"}}
-   [:span {:style {:color "#178c4b"}} "✓ " ok] "  "
-   [:span {:style {:color "#c0392b"}} "✕ " fail] "  "
-   [:span {:style {:color "#b9770e"}} "… " pending]])
+   [:span {:style {:color "#178c4b"}}
+    "✓ "
+    ok]
+   "  " [:span {:style {:color "#c0392b"}}
+         "✕ "
+         fail]
+   "  " [:span {:style {:color "#b9770e"}}
+         "… "
+         pending]])
 
 ;; ********************************************************************************
 ;; Sections — quick links, reachability, html validation, css validation
@@ -285,20 +340,20 @@
    {:title "Quick links"
     :description "Local dashboards, deployed environments, and feature pages."
     :rows
-    [(let [items (concat
-                  [["Main page" "/"]
-                   ["Swagger" "/api/api-docs/"]
-                   ["Exception" "/exception"]
-                   ["Trigger 404" "/non-existing-page"]
-                   ["Github project" "https://github.com/hephaistox/landing"]
-                   ["Project board" "https://github.com/orgs/hephaistox/projects/1/views/3"]
-                   ["Local acceptance"
-                    "https://app-77d00968-72be-45d9-a5d0-cd48de6f0bcf.cleverapps.io/all-kind-of-checks"]
-                   ["Production"
-                    "https://app-310e3757-812b-4d7a-bd70-a58cfc181505.cleverapps.io/all-kind-of-checks"]]
-                  (when (= "dev" ENV)
-                    [["Shadow-cljs" "http://localhost:9551/dashboard"]
-                     ["Browser test" "http://localhost:9651/"]]))]
+    [(let [items
+           (concat
+            [["Main page" "/"]
+             ["Swagger" "/api/api-docs/"]
+             ["Exception" "/exception"]
+             ["Trigger 404" "/non-existing-page"]
+             ["Github project" "https://github.com/hephaistox/landing"]
+             ["Project board" "https://github.com/orgs/hephaistox/projects/1/views/3"]
+             ["Local acceptance"
+              "https://app-e8b6e958-4eeb-4d93-b14e-a13a256c0e37.cleverapps.io/all-kind-of-checks"]
+             ["Production" "https://www.hephaistox.fr/all-kind-of-checks"]]
+            (when (= "dev" ENV)
+              [["Shadow-cljs" "http://localhost:9551/dashboard"]
+               ["Browser test" "http://localhost:9651/"]]))]
        [:div {:style {:padding "0.6em"
                       :display "grid"
                       :grid-template-columns "repeat(auto-fill, minmax(14em, 1fr))"
@@ -308,7 +363,9 @@
           [:a {:href url
                :target "_blank"
                :rel "noopener"
-               :style {:font-size "0.9em"}} label])])]}])
+               :class "w3-hover-light-grey"
+               :style {:font-size "0.9em"}}
+           label])])]}])
 
 (defn- ping-rows
   [filter-mode]
@@ -329,7 +386,9 @@
                                     ["link-id" (name link-id)]
                                     ["target" url]
                                     ["domain (probe)" (js/decodeURIComponent (to-absolute-url "/"))]
-                                    ["status" (some-> status name)]
+                                    ["status"
+                                     (some-> status
+                                             name)]
                                     ["result" res]]}])]
         :when (seq origin-rows)]
     ^{:key origin}
@@ -346,12 +405,12 @@
   []
   (let [filter-mode @(subscribe [::filter-mode])
         statuses @(subscribe [::all-ping-statuses])]
-    [section
-     {:title "Reachability"
-      :description (str "Server-side GET against every external URL the site links to "
-                        "(via the /check-url backend endpoint). Grouped by source namespace.")
-      :count-info [counts-chip (count-by-status statuses)]
-      :rows (ping-rows filter-mode)}]))
+    [section {:title "Reachability"
+              :description (str
+                            "Server-side GET against every external URL the site links to "
+                            "(via the /check-url backend endpoint). Grouped by source namespace.")
+              :count-info [counts-chip (count-by-status statuses)]
+              :rows (ping-rows filter-mode)}]))
 
 (defn- validation-rows
   [kind url-prefix validator-url id->path]
@@ -370,29 +429,29 @@
             :external-url ext
             :detail-rows [["id" (name id)]
                           ["path" path]
-                          ["status" (some-> status name)]
+                          ["status"
+                           (some-> status
+                                   name)]
                           ["validator" ext]
                           ["result" res]]}])))
 
 (defn- html-validation-section
   []
   (let [statuses @(subscribe [::all-validation-statuses])]
-    [section
-     {:title "HTML validation"
-      :description "Each page sent to validator.w3.org/nu; rows expand to show the W3C report."
-      :count-info [counts-chip (count-by-status (filter some? statuses))]
-      :rows (validation-rows "html" "https://hephaistox.fr/"
-                             "https://validator.w3.org/nu/?doc="
-                             w3c-validate-htmls)}]))
+    [section {:title "HTML validation"
+              :description
+              "Each page sent to validator.w3.org/nu; rows expand to show the W3C report."
+              :count-info [counts-chip (count-by-status (filter some? statuses))]
+              :rows (validation-rows "html" "https://hephaistox.fr/"
+                                     "https://validator.w3.org/nu/?doc=" w3c-validate-htmls)}]))
 
 (defn- css-validation-section
   []
-  [section
-   {:title "CSS validation"
-    :description "Each stylesheet sent to jigsaw.w3.org/css-validator."
-    :rows (validation-rows "css" "https://hephaistox.fr/"
-                           "https://jigsaw.w3.org/css-validator/validator?uri="
-                           w3c-validate-css)}])
+  [section {:title "CSS validation"
+            :description "Each stylesheet sent to jigsaw.w3.org/css-validator."
+            :rows (validation-rows "css" "https://hephaistox.fr/"
+                                   "https://jigsaw.w3.org/css-validator/validator?uri="
+                                   w3c-validate-css)}])
 
 ;; ********************************************************************************
 ;; Top bar
@@ -402,26 +461,26 @@
   [mode label]
   (let [current @(subscribe [::filter-mode])
         active? (= current mode)]
-    [:button.w3-button
-     {:on-click #(dispatch [::set-filter-mode mode])
-      :style (merge {:padding "0.2em 0.7em"
-                     :margin-right "0.2em"
-                     :font-size "0.85em"
-                     :border "1px solid #bbb"
-                     :border-radius "0.3em"
-                     :background "#fff"}
-                    (when active? {:background "#2c3e50"
-                                   :color "#fff"
-                                   :border-color "#2c3e50"
-                                   :font-weight 600}))}
+    [:button.w3-button {:on-click #(dispatch [::set-filter-mode mode])
+                        :style (merge {:padding "0.2em 0.7em"
+                                       :margin-right "0.2em"
+                                       :font-size "0.85em"
+                                       :border "1px solid #bbb"
+                                       :border-radius "0.3em"
+                                       :background "#fff"}
+                                      (when active?
+                                        {:background "#2c3e50"
+                                         :color "#fff"
+                                         :border-color "#2c3e50"
+                                         :font-weight 600}))}
      label]))
 
 (defn- top-bar
   []
   (let [ping (count-by-status @(subscribe [::all-ping-statuses]))
         valid (count-by-status (filter some? @(subscribe [::all-validation-statuses])))
-        total {:ok      (+ (:ok ping) (:ok valid))
-               :fail    (+ (:fail ping) (:fail valid))
+        total {:ok (+ (:ok ping) (:ok valid))
+               :fail (+ (:fail ping) (:fail valid))
                :pending (+ (:pending ping) (:pending valid))}]
     [:div.w3-card {:style {:position "sticky"
                            :top "0"
@@ -433,7 +492,8 @@
      [:div.w3-flex {:style {:align-items "center"
                             :gap "1em"
                             :flex-wrap "wrap"}}
-      [:strong {:style {:font-size "1.1em"}} "Hephaistox · checks"]
+      [:strong {:style {:font-size "1.1em"}}
+       "Hephaistox · checks"]
       [:span.w3-tag {:style {:background (if (= "dev" ENV) "#8e44ad" "#16a085")
                              :color "#fff"
                              :padding "0.1em 0.5em"

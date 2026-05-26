@@ -7,7 +7,7 @@
 
 (deftest cache-control-test
   (testing "Long-lived immutable cache for static assets"
-    (doseq [uri ["/custom.css"
+    (doseq [uri ["/css/custom.css"
                  "/js/lang.js"
                  "/fontawesome/css/brands.css"
                  "/font/Roboto.woff2"
@@ -26,14 +26,16 @@
 (deftest resource-handler-test
   (let [h (rring/ring-handler (rring/router [] {}) sut/resource-handler)]
     (testing "A simple resource query"
-      (let [resp (h {:request-method :get :uri "/custom.css"})]
+      (let [resp (h {:request-method :get
+                     :uri "/css/custom.css"})]
         (is (= 200 (:status resp)))
         (is (= "text/css" (get-in resp [:headers "Content-Type"])))))
     (testing "Bodies are realized to byte arrays for in-memory caching"
-      (let [resp (h {:request-method :get :uri "/print.css"})]
+      (let [resp (h {:request-method :get
+                     :uri "/css/print.css"})]
         (is (instance? byte-array-class (:body resp)))))
     (testing "Gzippable types are pre-compressed when the client asks for gzip"
-      (let [resp (h (-> (mock/request :get "/custom.css")
+      (let [resp (h (-> (mock/request :get "/css/custom.css")
                         (mock/header "accept-encoding" "gzip")))]
         (is (= "gzip" (get-in resp [:headers "Content-Encoding"])))
         (is (= "Accept-Encoding" (get-in resp [:headers "Vary"])))))
@@ -45,7 +47,7 @@
 (deftest response-headers-test
   (let [resp ((rring/ring-handler (rring/router [] {}) sut/resource-handler)
               {:request-method :get
-               :uri "/custom.css"})]
+               :uri "/css/custom.css"})]
     (is (= "public, max-age=31536000, immutable" (get-in resp [:headers "Cache-Control"]))
         "CSS files are served with a long, immutable Cache-Control")
     (is (= "*" (get-in resp [:headers "Access-Control-Allow-Origin"]))

@@ -17,8 +17,7 @@
 (defn- header
   "Case-insensitive lookup of a Ring header."
   [req header-name]
-  (some (fn [[k v]] (when (= header-name (str/lower-case (name k))) v))
-        (:headers req)))
+  (some (fn [[k v]] (when (= header-name (str/lower-case (name k))) v)) (:headers req)))
 
 (defn cookie-lang
   "Return the `lang` cookie value if present and recognized. Accepts both the

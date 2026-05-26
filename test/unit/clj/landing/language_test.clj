@@ -29,11 +29,13 @@
 
 (deftest pick-lang-precedence-test
   (testing "Cookie wins over Accept-Language"
-    (is (= "fr" (sut/pick-lang (req {"cookie" "lang=fr"
-                                     "accept-language" "en"})))))
+    (is (= "fr"
+           (sut/pick-lang (req {"cookie" "lang=fr"
+                                "accept-language" "en"})))))
   (testing "Accept-Language is used when no cookie"
     (is (= "en" (sut/pick-lang (req {"accept-language" "en-US,en;q=0.9"})))))
   (testing "Default falls back to `fr` when neither header is informative"
     (is (= "fr" (sut/pick-lang (req {}))))
-    (is (= "fr" (sut/pick-lang (req {"cookie" "lang=de"
-                                     "accept-language" "de-DE"}))))))
+    (is (= "fr"
+           (sut/pick-lang (req {"cookie" "lang=de"
+                                "accept-language" "de-DE"}))))))

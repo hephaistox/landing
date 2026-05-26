@@ -29,7 +29,9 @@ For complex components, react component will be factorized and developped in pur
 # Backend
 
 * backend is used to serve REST API.
-* for a start, landing pages are served as resources of the web server. They should be servable like a static website, compatible with cdn.
+* landing pages are served as resources of the web server.
+* In production, data are cached so there is no reading of file and zipping for each request
+* Choosing the language is a factorized namespace to keep the same logic whatever page is displayed (html, resource, 404, 500, ...)
 
 # Structure
   

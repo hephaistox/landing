@@ -2,10 +2,11 @@
 #+PROPERTY: header-args:bash :results output :exports both :var BASE="http://localhost:8080"
 
 Most server-side behavior — routing, redirects, static-page serving,
-cache headers, CORS, SEO artifacts, contacts-page wiring — is covered
-automatically by =test/unit/clj/landing/handler_test.clj= (26 tests,
-161 assertions) plus a happy-path POST /contact integration test in
-=test/unit/clj/landing/endpoints/contact_test.clj=. Run those first;
+cache headers, CORS, SEO artifacts, contacts-page wiring, language
+detection, in-memory + gzip response caching — is covered automatically
+by the clj suite under =test/unit/clj/= (including =handler_test.clj=,
+=cached_response_test.clj=, =language_test.clj=, and a happy-path
+=POST /contact= test in =endpoints/contact_test.clj=). Run that first;
 only the items below need a human.
 
 Walk through *A → B → C → D* in order. =BASE= can be rebound at the
@@ -20,9 +21,10 @@ bb lint   2>&1 | tail -2
 bb clj-test test-clj 2>&1 | tail -3
 bb cljs-node-test all 2>&1 | tail -3
 #+end_src
-All four should end with =successful=. The clj suite currently runs
-=26 tests / 161 assertions=; if it drops below that, a regression
-was introduced.
+
+All four should end with =successful=. If the clj suite count drops
+between runs, a regression was introduced — check the diff against the
+last passing baseline.
 
 ** A2. Server boots on the requested port
 Run in a separate terminal:
@@ -52,10 +54,12 @@ Expected log: =Webserver started on http://localhost:8081= (env var must overrid
 - [ ] =curl -sI $BASE/articles/projets.html= → 301 to the same =.html= URL, no double suffix
 - [ ] =curl -sI -b 'lang=en' $BASE/articles/rivalis= → 301 to =/en/articles/rivalis.html=
 
-** B4. Missing page falls back to the language-specific index
-- [ ] =curl -sI $BASE/fr/articles/does-not-exist.html= → 302 =/fr/index.html=
-- [ ] =curl -sI $BASE/en/some/random/path= → 302 =/en/index.html=
-- [ ] =curl -sI $BASE/this-route-does-not-exist= → 404 (default handler) and *no* =Set-Cookie: lang= header
+** B4. Missing pages return a real 404 (no silent redirect)
+- [ ] =curl -sI $BASE/fr/articles/does-not-exist.html= → 404, body =Page introuvable=
+- [ ] =curl -sI $BASE/en/some/random/path= → 404, body =Page not found= (path-derived language overrides any =lang= cookie)
+- [ ] =curl -sI $BASE/this-route-does-not-exist= → 404 (cookie / Accept-Language picks the body's language) and *no* =Set-Cookie: lang= header
+- [ ] Open =$BASE/random/path/aze= in a browser → 404 page renders *styled* (the page injects =<base href="/<lang>/">= so deep paths still resolve relative assets)
+- [ ] =curl -sI -X PUT $BASE/ping= → 405, body mentions =Méthode= / =Method not allowed=
 
 * C. Browser-only — contact form
 
@@ -74,7 +78,8 @@ Expected log: =Webserver started on http://localhost:8081= (env var must overrid
 - [ ] Invalid email format → same; first invalid field receives focus
 
 ** C4. Network resilience (DevTools → Network → Throttling)
-- [ ] "Offline" mode → red error after ~16 s (2 attempts × 8 s); button re-enabled
+- [ ] "Offline" mode → red error almost immediately (~300 ms — backoff between the two attempts). =fetch()= rejects synchronously when the browser is offline, so the 8 s =AbortController= timeout never fires. Button re-enabled.
+- [ ] Server-hang scenario (e.g. point at an unresponsive host or pause the JVM in the REPL) → red error after ~16 s (2 attempts × 8 s timeout + 300 ms backoff). This is the only path that exercises the full timeout budget.
 - [ ] "Slow 3G" → either succeeds or shows a clean error; no UI hang
 - [ ] (Default retries is 1 / 2 attempts to stay inside the 2-req/6-s server rate limit)
 

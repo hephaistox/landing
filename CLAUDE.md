@@ -61,7 +61,7 @@ bb copy              # Copy files from ext_src.edn sources
 
 ### Shared Code (cljc)
 
-All page-rendering Clojure has been removed. Only pure-data modules remain:
+Only pure-data modules :
 
 - `landing.routes` — URL definitions, link maps, and i18n route labels (French/English).
 - `landing.pages.admin` — manifests aggregated for the admin SPA: every URL the site should expose (reachability checks) and every page/CSS file to W3C-validate. **Despite the namespace name, no hiccup/page-rendering code lives here.**
@@ -81,6 +81,12 @@ The backend's role is: serve static resources, host the REST API (`/contact`, `/
 - `resources/fragments/{header,footer,left-menu}.{fr,en}.html` — reusable fragments. `bb update-website` injects them between `<!-- BEGIN:NAME -->` / `<!-- END:NAME -->` markers in every page under `resources/public/{fr,en}/**.html`. **Article pages have their own inline `<header>` (different from the index header) so HEADER markers live only in `index.html`, `404.html`, and `500.html`.**
 - `resources/public/js/lang.js` — language-switch helper, included on every page.
 - `resources/public/js/contact-form.js` — contact form submit handler with retries / timeout. Loaded only by `articles/contacts.html`.
+
+### Cache-busting (asset fingerprinting)
+
+CSS/JS are served `Cache-Control: max-age=31536000, immutable` (`landing.endpoints.resource`), so returning visitors would otherwise keep stale files for a year after a deploy. `scripts/cache_bust.clj` solves this **on the built jar, never the source tree**. `bb la` / `bb prod` call `cache-bust/deploy!`, which: (1) runs the auto-build `build` step (shadow release + uberjar, no push), (2) opens the resulting `target/{la,prod}/landing.jar` via Java's zip filesystem and renames each referenced asset to embed an 8-char SHA-256 of its contents (`custom.css` → `custom.34f0a84f.css`), rewriting every matching link in the bundled `public/**.html`, then (3) amends the build's commit and `git push --force clever master`. Only changed files get a new hash, so unchanged assets stay cached. Idempotent (already-fingerprinted files are skipped) and the working tree is never modified.
+
+**Scope:** referenced CSS/JS only — `public/css/*.css`, `public/fontawesome/css/*.css`, `public/js/*.js`, and `public/js/compiled/app-admin.js` (fingerprinted too, since shadow has already built it into the jar by then). Unreferenced files (e.g. the unused fontawesome `*.min.css` variants) are left alone. Fonts/images referenced from inside CSS via relative `url(...)` are unaffected because fingerprinting keeps each file's directory and only changes the basename.
 
 ### Per-widget JS convention
 

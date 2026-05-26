@@ -89,9 +89,24 @@
             (dissoc :gzipped))))))
 
 
-(if prod?
-  (defn cache-fn
-    "Wraps a builder in a `swap!`-based in-memory cache, but only in `:prod`.
+(defmacro cache-body
+  "Expand at *compile time* to the prod or dev caching body based on `prod?`.
+  In `:prod`, returns an atom-backed cache keyed by `(key-fn args)`; in `:dev`,
+  returns a passthrough that calls the builder every time so file edits are
+  seen live. Picking the branch here means only one body is ever compiled."
+  [build-fn key-fn]
+  (if prod?
+    `(let [cache# (atom {})]
+       (fn [& args#]
+         (let [k# (apply ~key-fn args#)]
+           (or (get @cache# k#)
+               (let [v# (apply ~build-fn args#)]
+                 (when v# (swap! cache# assoc k# v#))
+                 v#)))))
+    `(fn [& args#] (apply ~build-fn args#))))
+
+(defn cache-fn
+  "Wraps a builder in a `swap!`-based in-memory cache, but only in `:prod`.
   In `:dev` the builder is called every time, so file edits are seen live.
   The builder must already return a prepared response.
 
@@ -99,23 +114,5 @@
   (defaults to the args vector itself). Pass a more selective `key-fn` when
   the builder takes a value (e.g. a Ring request) that contains volatile
   pieces irrelevant to identity."
-    ([build-fn] (cache-fn build-fn vector))
-    ([build-fn key-fn]
-     (let [cache (atom {})]
-       (fn [& args]
-         (let [k (apply key-fn args)]
-           (or (get @cache k)
-               (let [v (apply build-fn args)]
-                 (when v (swap! cache assoc k v))
-                 v)))))))
-  (defn cache-fn
-    "Wraps a builder in a `swap!`-based in-memory cache, but only in `:prod`.
-  In `:dev` the builder is called every time, so file edits are seen live.
-  The builder must already return a prepared response.
-
-  `key-fn` is applied to the builder's arguments to compute the cache key
-  (defaults to the args vector itself). Pass a more selective `key-fn` when
-  the builder takes a value (e.g. a Ring request) that contains volatile
-  pieces irrelevant to identity."
-    ([build-fn] (cache-fn build-fn vector))
-    ([build-fn _] (fn [& args] (apply build-fn args)))))
+  ([build-fn] (cache-fn build-fn vector))
+  ([build-fn key-fn] (cache-body build-fn key-fn)))

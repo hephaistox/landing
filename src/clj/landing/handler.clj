@@ -55,8 +55,7 @@
   language intent, so we use it instead of the cookie/Accept-Language
   heuristic used by `default-handler`."
   [req]
-  (when-let [lang (second (re-find #"^/(fr|en)/" (str (:uri req))))]
-    (not-found-for-lang req lang)))
+  (when-let [lang (second (re-find #"^/(fr|en)/" (str (:uri req))))] (not-found-for-lang req lang)))
 
 (defn router
   []

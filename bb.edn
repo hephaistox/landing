@@ -1,5 +1,5 @@
 {:deps {com.github.hephaistox/auto-build {:git/sha "bcc4cdfc2ca9befc7ffd13ce73f307050f0f2f5a"}}
- :paths []
+ :paths ["scripts"]
  :tasks
  {:init (def pars
           {:target-dir "target/uberjar"
@@ -8,7 +8,8 @@
   bp {:doc "To fail fast before git pushing a version"
       :requires [[auto-build.echo :refer [level1-header]] [auto-build.tasks.deps :as td]]
       :task (binding [exit (fn [exit-code & _] (when-not (zero? exit-code) exit-code))]
-              (-> (or (run 'format)
+              (-> (or (do (run 'update-website) nil)
+                      (run 'format)
                       (run 'lint)
                       (td/task level1-header ".")
                       (binding [*command-line-args* (conj *command-line-args* "all")]
@@ -27,6 +28,7 @@
                                      "."
                                      [".DS_Store"]
                                      ["resources/public/js/compiled"
+                                      "logs"
                                       ".cpcache"
                                       ".shadow-cljs"
                                       "target"
@@ -67,7 +69,7 @@
      (build-frontend/deploy
       level1-header
       "." "target/production"
-      "app"
+      "app-admin"
       "git+ssh://git@push-n3-par-clevercloud-customers.services.clever-cloud.com/app_310e3757-812b-4d7a-bd70-a58cfc181505.git")
      exit)}
   deps {:doc "Update deps clojure(script) and npm"
@@ -86,33 +88,33 @@
                        exit)}
   la {:doc "Deploy current codebase to local acceptance"
       :requires [[auto-build.tasks.web.prod-build :as task-prod-build]
-                 [auto-build.echo :refer [level1-header]]]
-      :task (task-prod-build/build-and-push level1-header
-                                            "."
-                                            (current-task)
-                                            [:env-prod :uberjar]
-                                            ["app" "app-admin"]
-                                            "LANDING_LA_REPO"
-                                            "target/la")}
+                 [auto-build.echo :refer [level1-header]]
+                 [cache-bust]]
+      :task (cache-bust/deploy! task-prod-build/build
+                                level1-header
+                                (current-task)
+                                "LANDING_LA_REPO"
+                                "target/la")}
   lint {:doc "Lint source code"
         :requires [[auto-build.tasks.lint :as task-lint] [auto-build.echo :refer [level1-header]]]
         :task (-> (task-lint/lint level1-header ["src" "test"] "." (current-task))
                   exit)}
   prod {:doc "Deploy current codebase to production"
         :requires [[auto-build.tasks.web.prod-build :as task-prod-build]
-                   [auto-build.echo :refer [level1-header]]]
-        :task (task-prod-build/build-and-push level1-header
-                                              "."
-                                              (current-task)
-                                              [:env-prod :uberjar]
-                                              ["app" "app-admin"]
-                                              "LANDING_PROD_REPO"
-                                              "target/prod")}
+                   [auto-build.echo :refer [level1-header]]
+                   [cache-bust]]
+        :task (cache-bust/deploy! task-prod-build/build
+                                  level1-header
+                                  (current-task)
+                                  "LANDING_PROD_REPO"
+                                  "target/prod")}
   prod-local {:doc "Compile frontend and backend in production mode and start it locally"
               :requires [[auto-build.tasks.frontend :as build-frontend]
-                         [auto-build.echo :refer [level1-header]]]
+                         [auto-build.echo :refer [level1-header]]
+                         [cache-bust]]
               :task (do
                       (build-frontend/uberjar level1-header "." (:target-dir pars) (:cljs-app pars))
+                      (cache-bust/fingerprint-jar! (str (:target-dir pars) "/landing.jar"))
                       (shell (str "java -jar " (:target-dir pars) "/landing.jar"))
                       exit)}
   repl {:doc "Clojure repl"
@@ -124,7 +126,7 @@
            :override-builtin true
            :requires [[auto-build.tasks.repl-fe :as build-repl-fe]
                       [auto-build.echo :refer [level1-header]]]
-           :task (-> (build-repl-fe/repl-fe level1-header "." (current-task) ["app" "app-admin"])
+           :task (-> (build-repl-fe/repl-fe level1-header "." (current-task) ["app-admin"])
                      exit)}
   uberjar {:doc "Uberjar"
            :override-builtin true

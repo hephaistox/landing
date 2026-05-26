@@ -161,7 +161,7 @@
 (deftest cache-and-cors-test
   (let [h (sut/handler)]
     (testing "Static asset gets a long immutable Cache-Control"
-      (let [resp (h (mock/request :get "/custom.css"))]
+      (let [resp (h (mock/request :get "/css/custom.css"))]
         (is (= "public, max-age=31536000, immutable" (get-in resp [:headers "Cache-Control"])))
         (is (= "*" (get-in resp [:headers "Access-Control-Allow-Origin"])))))
     (testing "JS asset gets a long immutable Cache-Control"
@@ -230,7 +230,7 @@
       (let [resp (h (mock/request :get "/fr/index.html"))]
         (is (re-find #"text/html" (get-in resp [:headers "Content-Type"])))))
     (testing "CSS carries text/css"
-      (let [resp (h (mock/request :get "/custom.css"))]
+      (let [resp (h (mock/request :get "/css/custom.css"))]
         (is (re-find #"text/css" (get-in resp [:headers "Content-Type"])))))
     (testing "JS carries application/javascript or text/javascript"
       (let [resp (h (mock/request :get "/js/lang.js"))]
@@ -268,10 +268,8 @@
       (let [resp (h (mock/request :put "/ping"))
             body (body-string (:body resp))]
         (is (= 405 (:status resp)))
-        (is (str/includes? body "Méthode")
-            "fr default body mentions 'Méthode'")
-        (is (not (str/includes? body "Page introuvable"))
-            "405 must NOT show the 404 page body")))
+        (is (str/includes? body "Méthode") "fr default body mentions 'Méthode'")
+        (is (not (str/includes? body "Page introuvable")) "405 must NOT show the 404 page body")))
     (testing "Language selection works for inline 405 too"
       (let [resp (h (-> (mock/request :put "/ping")
                         (mock/header "accept-language" "en-US,en;q=0.9")))

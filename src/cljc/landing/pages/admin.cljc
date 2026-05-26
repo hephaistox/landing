@@ -37,16 +37,16 @@
   expanded into one fr and one en check below, hitting the real static
   file directly (no /articles/<slug> → /<lang>/articles/<slug>.html
   redirect to depend on)."
-  [[:home              "index.html"]
-   [:rivalis           "articles/rivalis.html"]
-   [:projets           "articles/projets.html"]
-   [:hephaistox        "articles/hephaistox.html"]
-   [:contacts          "articles/contacts.html"]
-   [:about-site        "articles/about-site.html"]
-   [:legal-notice      "articles/legal-notice.html"]
-   [:privacy           "articles/privacy.html"]
-   [:disclaimer        "articles/disclaimer.html"]
-   [:who-are-we        "articles/who-are-we.html"]])
+  [[:home "index.html"]
+   [:rivalis "articles/rivalis.html"]
+   [:projets "articles/projets.html"]
+   [:hephaistox "articles/hephaistox.html"]
+   [:contacts "articles/contacts.html"]
+   [:about-site "articles/about-site.html"]
+   [:legal-notice "articles/legal-notice.html"]
+   [:privacy "articles/privacy.html"]
+   [:disclaimer "articles/disclaimer.html"]
+   [:who-are-we "articles/who-are-we.html"]])
 
 (def w3c-validate-htmls
   "Flat map of `:<slug>-<lang>` → absolute static path under the site root.
@@ -54,8 +54,7 @@
   (into {}
         (for [[slug path] html-slugs
               lang ["fr" "en"]]
-          [(keyword (str (name slug) "-" lang))
-           (str lang "/" path)])))
+          [(keyword (str (name slug) "-" lang)) (str lang "/" path)])))
 
 (def w3c-validate-css
   {:w3-school "css/w3_schools.css"
@@ -64,5 +63,5 @@
    :fontawesome "fontawesome/css/fontawesome.css"
    :brand "fontawesome/css/brands.css"
    :solid "fontawesome/css/solid.css"
-   :print "print.css"
-   :custom "custom.css"})
+   :print "css/print.css"
+   :custom "css/custom.css"})

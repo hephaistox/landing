@@ -8,7 +8,8 @@
 (def router
   (rring/ring-handler (rring/router (sut/admin-route "/") {:data {:middleware html-middlewares}})))
 
-(defn- body->string [body]
+(defn- body->string
+  [body]
   (cond
     (string? body) body
     (instance? (Class/forName "[B") body) (String. ^bytes body "UTF-8")

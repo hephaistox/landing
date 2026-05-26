@@ -29,8 +29,7 @@
 
 (def ^:private prepared-error-page
   "[status lang filename fallback] → prepared response."
-  (cr/cache-fn build-error-response
-               (fn [status lang filename _] [status lang filename])))
+  (cr/cache-fn build-error-response (fn [status lang filename _] [status lang filename])))
 
 (defn- static-error-response
   [req status filename fallback-html]
@@ -39,16 +38,15 @@
 
 (defn- static-404-response
   [req]
-  (static-error-response req 404 "404.html"
-                         "<!doctype html><title>404</title><h1>Not found</h1>"))
+  (static-error-response req 404 "404.html" "<!doctype html><title>404</title><h1>Not found</h1>"))
 
 (defn not-found-for-lang
   "Public 404 response that ignores cookie/Accept-Language and forces the
   given language. Useful when the URL path itself signals language intent
   (e.g. an unknown resource under `/en/...`)."
   [req lang]
-  (-> (prepared-error-page 404 lang "404.html"
-                           "<!doctype html><title>404</title><h1>Not found</h1>")
+  (-> (prepared-error-page 404 lang
+                           "404.html" "<!doctype html><title>404</title><h1>Not found</h1>")
       (cr/serve req)))
 
 (defn exception-response
@@ -56,7 +54,9 @@
   with a 500 status. Never echoes exception details to the client."
   [req e]
   (core-log/error-exception e "Unhandled exception while serving request")
-  (static-error-response req 500 "500.html"
+  (static-error-response req
+                         500
+                         "500.html"
                          "<!doctype html><title>500</title><h1>Unexpected error</h1>"))
 
 ;; ---------------------------------------------------------------------------
@@ -77,10 +77,22 @@
   [status lang]
   (let [{:keys [title detail]} (get-in inline-messages [status lang])]
     (str "<!doctype html>"
-         "<html lang=\"" lang "\">"
-         "<head><meta charset=\"utf-8\"><title>" status " — " title "</title>"
+         "<html lang=\""
+         lang
+         "\">"
+         "<head><meta charset=\"utf-8\"><title>"
+         status
+         " — "
+         title
+         "</title>"
          "<meta name=\"robots\" content=\"noindex\"></head>"
-         "<body><h1>" status " — " title "</h1><p>" detail "</p></body></html>")))
+         "<body><h1>"
+         status
+         " — "
+         title
+         "</h1><p>"
+         detail
+         "</p></body></html>")))
 
 (defn- build-inline-response
   [status lang]
@@ -98,7 +110,7 @@
       (cr/serve req)))
 
 (defn- method-not-allowed-response [req] (inline-error-response req 405))
-(defn- not-acceptable-response    [req] (inline-error-response req 406))
+(defn- not-acceptable-response [req] (inline-error-response req 406))
 
 ;; ---------------------------------------------------------------------------
 ;; Default handler

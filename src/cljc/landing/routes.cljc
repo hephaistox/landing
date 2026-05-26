@@ -3,50 +3,47 @@
 
 (def links
   (->>
-    [{:url "/"
+    [{:url "/fr/index.html"
       :alt "Home link"
       :text :home
       :link-id :home}
      {:link-id :who-are-we
       :text :who-are-we
-      :url "/articles/who-are-we"}
+      :url "/fr/articles/who-are-we.html"}
      {:link-id :projets
       :text :projets
-      :url "/articles/projets"}
+      :url "/fr/articles/projets.html"}
      {:link-id :hephaistox
       :text :hephaistox
-      :url "/articles/hephaistox"}
+      :url "/fr/articles/hephaistox.html"}
      {:link-id :rivalis
       :text :rivalis
-      :url "/articles/rivalis"}
+      :url "/fr/articles/rivalis.html"}
      {:link-id :legal-notice
       :text :legal-notice
-      :url "/articles/legal-notice"}
-     {:url "/articles/contacts"
+      :url "/fr/articles/legal-notice.html"}
+     {:url "/fr/articles/contacts.html"
       :text :contacts
       :link-id :contacts}
-     {:url "/articles/about-site"
+     {:url "/fr/articles/about-site.html"
       :text :about-this-website
       :link-id :about-this-website}
-     {:url "/articles/privacy"
+     {:url "/fr/articles/privacy.html"
       :text :privacy
       :link-id :privacy}
-     {:url "/articles/disclaimer"
+     {:url "/fr/articles/disclaimer.html"
       :text :disclaimer
       :link-id :disclaimer}
-     {:url "/articles/contact-validated"
+     {:url "/fr/articles/contact-validated.html"
       :text :contact-validated
       :link-id :contact-validated}
-     {:url "/articles/projets"
+     {:url "/fr/articles/projets.html"
       :text :projets
       :link-id :projets}
-     {:url "/all-kind-of-checks"
+     {:url "/all-kind-of-checks.html"
       :text :admin
       :link-id :admin}
-     {:url "/articles/advanced-solution-for-industries"
-      :text :advanced-industry
-      :link-id :advanced-industry}
-     {:url "/articles/hephaistox"
+     {:url "/fr/articles/hephaistox.html"
       :text :hephaistox
       :link-id :hephaistox}
      {:url "https://github.com/hephaistox"

@@ -3,8 +3,8 @@
    [auto-core.log                     :as core-log]
    [landing.endpoints.default-handler :refer [exception-response]]
    [landing.handler]
-   [mount.core                      :refer [defstate]]
-   [org.httpkit.server              :as http-kit]))
+   [mount.core                        :refer [defstate]]
+   [org.httpkit.server                :as http-kit]))
 
 ;; ********************************************************************************
 ;; Server
