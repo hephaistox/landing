@@ -32,17 +32,30 @@
           (add-origin (vals landing.article.who-are-we/links) "landing.article.who-are-we")
           (add-origin (vals landing.routes/links) "landing.routes")))
 
+(def ^:private html-slugs
+  "Pages to W3C-validate, named in a stable display form. Each entry is
+  expanded into one fr and one en check below, hitting the real static
+  file directly (no /articles/<slug> → /<lang>/articles/<slug>.html
+  redirect to depend on)."
+  [[:home              "index.html"]
+   [:rivalis           "articles/rivalis.html"]
+   [:projets           "articles/projets.html"]
+   [:hephaistox        "articles/hephaistox.html"]
+   [:contacts          "articles/contacts.html"]
+   [:about-site        "articles/about-site.html"]
+   [:legal-notice      "articles/legal-notice.html"]
+   [:privacy           "articles/privacy.html"]
+   [:disclaimer        "articles/disclaimer.html"]
+   [:who-are-we        "articles/who-are-we.html"]])
+
 (def w3c-validate-htmls
-  {:privacy "articles/privacy"
-   :home ""
-   :rivalis "articles/rivalis"
-   :projets "articles/projets"
-   :hephaistox "articles/hephaistox"
-   :contact "articles/contacts"
-   :about "articles/about-site"
-   :legal-notice "articles/legal-notice"
-   :disclaimer "articles/disclaimer"
-   :who-are-we "articles/who-are-we"})
+  "Flat map of `:<slug>-<lang>` → absolute static path under the site root.
+  Both languages are checked for every public page."
+  (into {}
+        (for [[slug path] html-slugs
+              lang ["fr" "en"]]
+          [(keyword (str (name slug) "-" lang))
+           (str lang "/" path)])))
 
 (def w3c-validate-css
   {:w3-school "css/w3_schools.css"

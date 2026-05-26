@@ -1,5 +1,7 @@
 (ns landing.admin
-  "Start point for frontend"
+  "Admin SPA — at-a-glance status of every reachability ping, HTML page, and
+  CSS file the site cares about. Rendered into the static
+  `resources/public/all-kind-of-checks.html` shell."
   (:require
    [cljs.pprint         :refer [pprint]]
    [landing.article.rivalis]
@@ -15,96 +17,82 @@
    [reagent.dom         :as rdom]
    [superstructor.re-frame.fetch-fx]))
 
-;; ********************************************************************************
-;; Environment dependant values
-;; ********************************************************************************
-
 (goog-define ENV "dev")
 
 ;; ********************************************************************************
-;; Parameters
+;; Status helpers — used by every row
 ;; ********************************************************************************
 
-(def default-db {::show-valid true})
+(defn- status-info
+  "Colour / icon / one-word label for a re-frame fetch status."
+  [status]
+  (case status
+    :success     {:cls "w3-green"  :icon "✓" :label "OK"}
+    :failure     {:cls "w3-red"    :icon "✕" :label "Fail"}
+    :in-progress {:cls "w3-amber"  :icon "…" :label "Pending"}
+    {:cls "w3-light-grey" :icon "?" :label "?"}))
+
+(defn- count-by-status
+  "Returns {:ok n :fail n :pending n :other n} for a coll of status keywords."
+  [statuses]
+  (reduce (fn [acc s]
+            (let [bucket (case s
+                           :success :ok
+                           :failure :fail
+                           :in-progress :pending
+                           :other)]
+              (update acc bucket inc)))
+          {:ok 0 :fail 0 :pending 0 :other 0}
+          statuses))
+
+(defn- summarize
+  "Short, one-line summary of a fetch response for the collapsed row."
+  [status res]
+  (case status
+    :in-progress "pending…"
+    :success     (or (some-> res :status str) "ok")
+    :failure     (cond
+                   (:status res)      (str "HTTP " (:status res))
+                   (:problem res)     (name (:problem res))
+                   (:error res)       (str (:error res))
+                   :else              "error")
+    "—"))
+
+;; ********************************************************************************
+;; Filter + expand state
+;; ********************************************************************************
+
+(def default-db
+  {::filter-mode :all
+   ::expanded    #{}})
 
 (reg-event-db ::initialize-db (fn [_ _] default-db))
 
-;; ********************************************************************************
-;; show-valid
-;; ********************************************************************************
-(reg-sub ::show-valid (fn [db _] (::show-valid db)))
-(reg-event-fx ::set-show-valid (fn [{:keys [db]} [_]] {:db (update db ::show-valid not)}))
+(reg-sub ::filter-mode (fn [db _] (::filter-mode db)))
+(reg-event-db ::set-filter-mode (fn [db [_ mode]] (assoc db ::filter-mode mode)))
+
+(reg-sub ::expanded? (fn [db [_ row-id]] (contains? (::expanded db) row-id)))
+
+(reg-event-db ::toggle-expanded
+              (fn [db [_ row-id]]
+                (update db ::expanded
+                        (fn [s] (if (contains? s row-id) (disj s row-id) (conj s row-id))))))
+
+(defn- visible-under-filter?
+  [mode status]
+  (case mode
+    :all true
+    :failing (= status :failure)
+    :pending (= status :in-progress)
+    true))
 
 ;; ********************************************************************************
-;; links
-;; ********************************************************************************
-(def main-apps-entry
-  (merge {}
-         (when (= "dev" ENV)
-           {"Shadow-cljs dashboard" "http://localhost:9551/dashboard"
-            "Browser test" "http://localhost:9651/"})))
-
-(defn- link-hiccup
-  [name-app-entry url]
-  [:div.w3-hover-grey.w3-padding {:key name-app-entry}
-   [:a {:href url
-        :target "blank"}
-    name-app-entry]])
-
-(defn- card
-  [title & content]
-  [:div {:style {:width "25%"}}
-   [:div.w3-cell [:div.w3-card-4 [:header.w3-container.w3-grey.w3-bold title] [:div content]]]])
-
-(defn card-with-link
-  [title links]
-  (card title
-        (->> links
-             (partition 2)
-             (map #(apply link-hiccup %)))))
-
-(defn links-hiccup
-  []
-  [:div.w3-flex.w3-small {:style {:gap "0.5em"
-                                  :width "100%"
-                                  :flex-wrap "wrap"}}
-   (card-with-link "Github"
-                   ["Landing"
-                    "https://github.com/hephaistox/landing"
-                    "Project"
-                    "https://github.com/orgs/hephaistox/projects/1/views/3"])
-   (card-with-link "Features"
-                   ["Main Page"
-                    "/"
-                    "Shadow-cljs repl"
-                    "http://localhost:9551/dashboard"
-                    "Admin"
-                    "/all-kind-of-checks"
-                    "Swagger"
-                    "/api/api-docs/"
-                    "Exception"
-                    "/exception"
-                    "404"
-                    "/non-existing-page"])
-   (card-with-link
-    "Environments"
-    ["Local acceptance"
-     "https://app-77d00968-72be-45d9-a5d0-cd48de6f0bcf.cleverapps.io/all-kind-of-checks"
-     "Production"
-     "https://app-310e3757-812b-4d7a-bd70-a58cfc181505.cleverapps.io/all-kind-of-checks"
-     (if (= "dev" ENV) [:u [:b "Local env"]] "Local env")
-     "http://localhost:8080"])])
-
-;; ********************************************************************************
-;; Ping urls
+;; Reachability checks (server-side ping)
 ;; ********************************************************************************
 
 (defn- to-absolute-url
-  "If `url` is already absolute, returns it unchanged.
-  Otherwise, use the browser to resolve it relative to the current location."
   [url]
-  (-> (try (let [abs-url (js/URL. url js/window.location.href)] (.-href abs-url))
-           (catch :default _ url))
+  (-> (try (.-href (js/URL. url js/window.location.href)) (catch :default _ url))
       js/encodeURIComponent))
 
 (reg-event-fx ::do-check-url
@@ -123,84 +111,35 @@
 
 (reg-event-fx ::on-ping-response
               (fn [{:keys [db]} [_ origin link-id status res]]
-                {:db
-                 (update-in db [:check-url-status origin link-id] assoc :status status :res res)}))
+                {:db (update-in db [:check-url-status origin link-id]
+                                assoc :status status :res res)}))
 
 (reg-sub ::ping-response
          (fn [db [_ origin link-id]] (get-in db [:check-url-status origin link-id])))
 
-(comment
-  (to-absolute-url "/zea")
-  (group-by :origin links)
-  ;(dispatch [::do-check-url id link-id origin])
-  ;;
-)
-
-(defn- ping-card
-  [show-valid {:keys [link-id url origin]}]
-  (let [id (str (name origin) "/" (name link-id))
-        {:keys [status res]} @(subscribe [::ping-response origin link-id])]
-    (when (or (= :failure status) (= :in-progress status) (not show-valid))
-      [:a {:href url
-           :target "blank"
-           :id id
-           :key id}
-       [:div.w3-tooltip.w3-small.w3-padding-small {:class (case status
-                                                            :success "w3-green"
-                                                            :failure "w3-red"
-                                                            :in-progress "w3-grey"
-                                                            "w3-black")}
-        (name link-id)
-        [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
-                                                  :left "0px"
-                                                  :z-index 9999
-                                                  :width "500px"
-                                                  :top "2.5em"}}
-         [:table
-          [:tbody
-           [:tr [:td.w3-bold "origin"] [:td origin]]
-           [:tr [:td.w3-bold "link-id"] [:td link-id]]
-           [:tr [:td.w3-bold "domain"] [:td (to-absolute-url "/")]]
-           [:tr [:td.w3-bold "status"] [:td status]]
-           [:tr [:td.w3-bold "link"] [:td url]]
-           [:tr [:td.w3-bold "result"] [:td [:pre (with-out-str (pprint res))]]]]]]]])))
-
-(defn ping-card-by-origin
-  [show-valid title links]
-  [[:header.w3-container.w3-grey.w3-bold title] (doall (map (partial ping-card show-valid) links))])
-
-(defn domain-tld-hiccup
-  []
-  (let [show-valid @(subscribe [::show-valid])]
-    (-> [:div.w3-flex {:style {:gap "0.5em"
-                               :align-content "center"
-                               :width "100%"
-                               :flex-wrap "wrap"}}]
-        (concat (mapcat (fn [[origin links]] (ping-card-by-origin show-valid origin links))
-                 (group-by :origin links)))
-        vec)))
+(reg-sub ::all-ping-statuses
+         (fn [db _]
+           (for [[_ by-id] (:check-url-status db)
+                 [_ {:keys [status]}] by-id]
+             status)))
 
 ;; ********************************************************************************
-;; Validation
+;; W3C validation (CSS + HTML)
 ;; ********************************************************************************
 
-(defn validation-event
+(defn- validation-event
   [kw]
   (fn [{:keys [db]} [_ id url]]
     {:fetch {:method :get
              :url "w3c-validate"
              :headers {"Accept" "application/json"}
              :mode :cors
-             :params {kw (name id)
-                      :domain "https://hephaistox.fr"}
+             :params {kw (name id) :domain "https://hephaistox.fr"}
              :timeout 3000
              :redirect :follow
              :on-success [::on-validation-response id :success]
              :on-failure [::on-validation-response id :failure]}
-     :db (assoc-in db
-          [::validation-response id]
-          {:status :in-progress
-           :url url})}))
+     :db (assoc-in db [::validation-response id] {:status :in-progress :url url})}))
 
 (reg-event-fx ::do-css-validation (validation-event :css-id))
 (reg-event-fx ::do-html-validation (validation-event :html-id))
@@ -208,123 +147,322 @@
 (reg-sub ::validation-response (fn [db [_ id]] (get (::validation-response db) id)))
 
 (reg-event-fx ::on-validation-response
-              (fn [{:keys [db]} [_ css-id status res]]
-                {:db (update-in db [::validation-response css-id] assoc :status status :res res)}))
+              (fn [{:keys [db]} [_ id status res]]
+                {:db (update-in db [::validation-response id] assoc :status status :res res)}))
+
+(reg-sub ::all-validation-statuses
+         (fn [db _]
+           (map (comp :status val) (::validation-response db))))
 
 (doseq [[css-id css-url] w3c-validate-css] (dispatch [::do-css-validation css-id css-url]))
 (doseq [[html-id html-url] w3c-validate-htmls] (dispatch [::do-html-validation html-id html-url]))
 
-(comment
-  (dispatch [::do-css-validation (ffirst w3c-validate-css) (second (first w3c-validate-css))])
-  (first @(subscribe [::validation-response]))
-  ;
-)
+;; ********************************************************************************
+;; Generic row + section components
+;; ********************************************************************************
 
-(defn- validations
-  [ids show-valid validation-url]
-  (doall
-   (for [id ids]
-     (let [{:keys [status res url]} @(subscribe [::validation-response id])]
-       (when (or (= :failure status) (= :in-progress status) (not show-valid))
-         [:div.w3-cell.w3-tooltip.w3-small {:key (str "css/" id)}
-          [:div.w3-flex.w3-padding {:class (case status
-                                             :in-progress "w3-grey"
-                                             :success "w3-green"
-                                             :failure "w3-red"
-                                             "w3-grey")}
-           [:a {:href (str validation-url url)
-                :target "blank"}
-            (name id)]]
-          [:div.w3-text.w3-grey.w3-padding {:style {:position "absolute"
-                                                    :left "0px"
-                                                    :z-index 9999
-                                                    :top "2.5em"}}
-           [:table
-            [:tbody
-             [:tr [:td.w3-bold "id"] [:td id]]
-             [:tr [:td.w3-bold "status"] [:td status]]
-             [:tr [:td.w3-bold "link"] [:td url]]
-             [:tr [:td.w3-bold "result"] [:td [:pre (with-out-str (pprint res))]]]]]]])))))
+(defn- pre-block
+  [v]
+  [:pre {:style {:margin 0
+                 :white-space "pre-wrap"
+                 :word-break "break-word"
+                 :font-size "0.85em"
+                 :max-height "20em"
+                 :overflow "auto"
+                 :background "#f5f5f5"
+                 :padding "0.5em"
+                 :border-left "3px solid #bbb"}}
+   (with-out-str (pprint v))])
 
-(defn validation-hiccup
-  []
-  (let [show-valid @(subscribe [::show-valid])]
-    [:div.w3-flex {:style {:flex-direction "column"
-                           :gap "1em"}}
-     [:h2 "css"]
-     [:div.w3-flex {:style {:gap "0.4em"}}
-      (validations (keys w3c-validate-css)
-                   show-valid
-                   "https://jigsaw.w3.org/css-validator/validator?uri=https://hephaistox.fr/")]
-     [:h2 "html"]
-     [:div.w3-flex {:style {:gap "0.4em"}}
-      (validations (keys w3c-validate-htmls)
-                   show-valid
-                   "https://validator.w3.org/nu/?doc=https://hephaistox.fr/")]]))
+(defn- status-dot
+  [status]
+  (let [{:keys [cls icon]} (status-info status)]
+    [:span.w3-tag {:style {:width "1.6em"
+                           :text-align "center"
+                           :padding "0 0.3em"
+                           :line-height "1.4em"
+                           :font-family "monospace"}
+                   :class cls}
+     icon]))
+
+(defn- row
+  "One status row — clicking the row toggles an inline detail panel.
+  `detail-rows` is a map of label → value rendered as a small definition list."
+  [{:keys [row-id status name target summary detail-rows external-url]}]
+  (let [expanded? @(subscribe [::expanded? row-id])
+        chevron (if expanded? "▾" "▸")]
+    [:div.w3-border-bottom {:key row-id
+                            :style {:padding "0.3em 0.4em"
+                                    :cursor "pointer"}
+                            :on-click #(dispatch [::toggle-expanded row-id])}
+     [:div.w3-flex {:style {:align-items "center"
+                            :gap "0.6em"}}
+      [status-dot status]
+      [:span {:style {:flex "0 0 14em"
+                      :font-weight 600
+                      :overflow "hidden"
+                      :text-overflow "ellipsis"
+                      :white-space "nowrap"}} name]
+      [:span {:style {:flex "1 1 auto"
+                      :color "#666"
+                      :font-family "monospace"
+                      :font-size "0.85em"
+                      :overflow "hidden"
+                      :text-overflow "ellipsis"
+                      :white-space "nowrap"}}
+       target]
+      [:span {:style {:flex "0 0 8em"
+                      :text-align "right"
+                      :font-size "0.85em"
+                      :color "#444"}} summary]
+      [:span {:style {:flex "0 0 1em"
+                      :color "#888"}} chevron]]
+     (when expanded?
+       [:div {:style {:padding "0.6em 0.6em 0.6em 2.5em"
+                      :background "#fafafa"
+                      :font-size "0.9em"}
+              :on-click #(.stopPropagation %)}
+        [:table {:style {:border-collapse "collapse"
+                         :margin-bottom "0.4em"}}
+         [:tbody
+          (for [[label v] detail-rows
+                :when (some? v)]
+            ^{:key label}
+            [:tr [:td {:style {:padding "0.1em 0.8em 0.1em 0"
+                               :vertical-align "top"
+                               :color "#666"
+                               :font-weight 600}} label]
+             [:td {:style {:vertical-align "top"
+                           :font-family "monospace"
+                           :font-size "0.9em"}}
+              (if (or (map? v) (sequential? v)) [pre-block v] (str v))]])]]
+        (when external-url
+          [:a {:href external-url
+               :target "_blank"
+               :rel "noopener"} "↗ open externally"])])]))
+
+(defn- section
+  "Heading + short description + a stack of rows. `count-info` is shown next
+  to the title."
+  [{:keys [title description rows count-info]}]
+  [:section {:style {:margin-bottom "1.5em"}}
+   [:div.w3-flex {:style {:align-items "baseline"
+                          :gap "0.8em"
+                          :padding "0.4em 0.6em"
+                          :background "#fafafa"
+                          :border-bottom "2px solid #ddd"}}
+    [:h2 {:style {:font-size "1em"
+                  :margin "0"
+                  :flex "0 0 auto"}} title]
+    [:span {:style {:flex "1 1 auto"
+                    :font-size "0.85em"
+                    :color "#666"}} description]
+    (when count-info
+      [:span {:style {:font-size "0.85em"
+                      :font-family "monospace"}} count-info])]
+   (if (seq rows)
+     (into [:div] rows)
+     [:div {:style {:padding "0.6em"
+                    :font-style "italic"
+                    :color "#888"}}
+      "Nothing to show under the current filter."])])
+
+(defn- counts-chip
+  [{:keys [ok fail pending]}]
+  [:span {:style {:font-family "monospace"
+                  :font-size "0.85em"}}
+   [:span {:style {:color "#178c4b"}} "✓ " ok] "  "
+   [:span {:style {:color "#c0392b"}} "✕ " fail] "  "
+   [:span {:style {:color "#b9770e"}} "… " pending]])
 
 ;; ********************************************************************************
-;; Page
+;; Sections — quick links, reachability, html validation, css validation
+;; ********************************************************************************
+
+(defn- quick-links-section
+  []
+  [section
+   {:title "Quick links"
+    :description "Local dashboards, deployed environments, and feature pages."
+    :rows
+    [(let [items (concat
+                  [["Main page" "/"]
+                   ["Swagger" "/api/api-docs/"]
+                   ["Exception" "/exception"]
+                   ["Trigger 404" "/non-existing-page"]
+                   ["Github project" "https://github.com/hephaistox/landing"]
+                   ["Project board" "https://github.com/orgs/hephaistox/projects/1/views/3"]
+                   ["Local acceptance"
+                    "https://app-77d00968-72be-45d9-a5d0-cd48de6f0bcf.cleverapps.io/all-kind-of-checks"]
+                   ["Production"
+                    "https://app-310e3757-812b-4d7a-bd70-a58cfc181505.cleverapps.io/all-kind-of-checks"]]
+                  (when (= "dev" ENV)
+                    [["Shadow-cljs" "http://localhost:9551/dashboard"]
+                     ["Browser test" "http://localhost:9651/"]]))]
+       [:div {:style {:padding "0.6em"
+                      :display "grid"
+                      :grid-template-columns "repeat(auto-fill, minmax(14em, 1fr))"
+                      :gap "0.3em 1em"}}
+        (for [[label url] items]
+          ^{:key url}
+          [:a {:href url
+               :target "_blank"
+               :rel "noopener"
+               :style {:font-size "0.9em"}} label])])]}])
+
+(defn- ping-rows
+  [filter-mode]
+  (for [[origin grouped] (sort-by first (group-by :origin links))
+        :let [origin-rows
+              (for [{:keys [link-id url]} grouped
+                    :let [row-id (str "ping/" origin "/" (name link-id))
+                          {:keys [status res]} @(subscribe [::ping-response origin link-id])]
+                    :when (visible-under-filter? filter-mode status)]
+                ^{:key row-id}
+                [row {:row-id row-id
+                      :status status
+                      :name (name link-id)
+                      :target url
+                      :summary (summarize status res)
+                      :external-url url
+                      :detail-rows [["origin" origin]
+                                    ["link-id" (name link-id)]
+                                    ["target" url]
+                                    ["domain (probe)" (js/decodeURIComponent (to-absolute-url "/"))]
+                                    ["status" (some-> status name)]
+                                    ["result" res]]}])]
+        :when (seq origin-rows)]
+    ^{:key origin}
+    [:div {:style {:margin "0.4em 0"}}
+     [:div {:style {:padding "0.3em 0.6em"
+                    :background "#f0f0f0"
+                    :font-family "monospace"
+                    :font-size "0.8em"
+                    :color "#444"}}
+      origin]
+     (into [:div] origin-rows)]))
+
+(defn- reachability-section
+  []
+  (let [filter-mode @(subscribe [::filter-mode])
+        statuses @(subscribe [::all-ping-statuses])]
+    [section
+     {:title "Reachability"
+      :description (str "Server-side GET against every external URL the site links to "
+                        "(via the /check-url backend endpoint). Grouped by source namespace.")
+      :count-info [counts-chip (count-by-status statuses)]
+      :rows (ping-rows filter-mode)}]))
+
+(defn- validation-rows
+  [kind url-prefix validator-url id->path]
+  (let [filter-mode @(subscribe [::filter-mode])]
+    (for [[id path] (sort-by first id->path)
+          :let [row-id (str kind "/" (name id))
+                {:keys [status res url]} @(subscribe [::validation-response id])
+                ext (str validator-url url-prefix url)]
+          :when (visible-under-filter? filter-mode status)]
+      ^{:key row-id}
+      [row {:row-id row-id
+            :status status
+            :name (name id)
+            :target path
+            :summary (summarize status res)
+            :external-url ext
+            :detail-rows [["id" (name id)]
+                          ["path" path]
+                          ["status" (some-> status name)]
+                          ["validator" ext]
+                          ["result" res]]}])))
+
+(defn- html-validation-section
+  []
+  (let [statuses @(subscribe [::all-validation-statuses])]
+    [section
+     {:title "HTML validation"
+      :description "Each page sent to validator.w3.org/nu; rows expand to show the W3C report."
+      :count-info [counts-chip (count-by-status (filter some? statuses))]
+      :rows (validation-rows "html" "https://hephaistox.fr/"
+                             "https://validator.w3.org/nu/?doc="
+                             w3c-validate-htmls)}]))
+
+(defn- css-validation-section
+  []
+  [section
+   {:title "CSS validation"
+    :description "Each stylesheet sent to jigsaw.w3.org/css-validator."
+    :rows (validation-rows "css" "https://hephaistox.fr/"
+                           "https://jigsaw.w3.org/css-validator/validator?uri="
+                           w3c-validate-css)}])
+
+;; ********************************************************************************
+;; Top bar
+;; ********************************************************************************
+
+(defn- filter-chip
+  [mode label]
+  (let [current @(subscribe [::filter-mode])
+        active? (= current mode)]
+    [:button.w3-button
+     {:on-click #(dispatch [::set-filter-mode mode])
+      :style (merge {:padding "0.2em 0.7em"
+                     :margin-right "0.2em"
+                     :font-size "0.85em"
+                     :border "1px solid #bbb"
+                     :border-radius "0.3em"
+                     :background "#fff"}
+                    (when active? {:background "#2c3e50"
+                                   :color "#fff"
+                                   :border-color "#2c3e50"
+                                   :font-weight 600}))}
+     label]))
+
+(defn- top-bar
+  []
+  (let [ping (count-by-status @(subscribe [::all-ping-statuses]))
+        valid (count-by-status (filter some? @(subscribe [::all-validation-statuses])))
+        total {:ok      (+ (:ok ping) (:ok valid))
+               :fail    (+ (:fail ping) (:fail valid))
+               :pending (+ (:pending ping) (:pending valid))}]
+    [:div.w3-card {:style {:position "sticky"
+                           :top "0"
+                           :z-index 10
+                           :background "#fff"
+                           :padding "0.5em 0.8em"
+                           :margin-bottom "0.8em"
+                           :border-bottom "2px solid #2c3e50"}}
+     [:div.w3-flex {:style {:align-items "center"
+                            :gap "1em"
+                            :flex-wrap "wrap"}}
+      [:strong {:style {:font-size "1.1em"}} "Hephaistox · checks"]
+      [:span.w3-tag {:style {:background (if (= "dev" ENV) "#8e44ad" "#16a085")
+                             :color "#fff"
+                             :padding "0.1em 0.5em"
+                             :font-size "0.75em"
+                             :border-radius "0.2em"}}
+       ENV]
+      [:span {:style {:flex "1 1 auto"}}]
+      [counts-chip total]
+      [:span {:style {:width "1em"}}]
+      [filter-chip :all "All"]
+      [filter-chip :failing "Failing"]
+      [filter-chip :pending "Pending"]]]))
+
+;; ********************************************************************************
+;; Root
+;; ********************************************************************************
 
 (defn admin-rf-body
   []
-  (let [show-valid @(subscribe [::show-valid])]
-    [:div.w3-xlarge.w3-panel.text
-     [:div {:style {:position "sticky"
-                    :top "0px"}}
-      [:div.w3-flex.w3-padding {:style {:position "absolute"
-                                        :cursor "pointer"
-                                        :right "0"}}
-       [:div.w3-card.w3-small.w3-padding.w3-cursor {:on-click #(dispatch [::set-show-valid
-                                                                          [:show-valid]])}
-        (if show-valid "Show all" "Show invalid only")]]]
-     [:h1 "Administration page"]
-     [:h1 "Links"]
-     (links-hiccup)
-     [:h1 "Domain, TLD and protocols"]
-     (domain-tld-hiccup)
-     [:h1 "Validation"]
-     (validation-hiccup)]))
-
-;; ********************************************************************************
-
-(defn adjust-tooltip
-  [^js tooltip]
-  (let [rect (.getBoundingClientRect tooltip)
-        win-w (.-innerWidth js/window)
-        win-h (.-innerHeight js/window)
-        style (.-style tooltip)]
-    ;; --- Horizontal handling ---
-    (when (> (.-right rect) win-w) (set! (.-left style) (str (- win-w (.-right rect) -5) "px")))
-    (when (< (.-left rect) 0) (set! (.-left style) (str (+ (- (.-left rect)) 5) "px")))
-    ;; --- Vertical handling ---
-    (when (> (.-bottom rect) win-h)
-      ;; Flip above
-      (set! (.-top style) "auto")
-      (set! (.-bottom style) "2.5em"))))
-
-(defn reset-tooltip
-  [^js tooltip original]
-  (let [style (.-style tooltip)]
-    ;; Restore original top/bottom
-    (set! (.-top style) (:top original))
-    (set! (.-bottom style) (:bottom original))
-    ;; Restore original horizontal position
-    (set! (.-left style) (:left original))
-    (set! (.-right style) (:right original))))
-
-(defn init-tooltips!
-  []
-  (doseq [container (array-seq (.querySelectorAll js/document ".w3-tooltip"))]
-    (let [tooltip (.querySelector container ".w3-text")
-          ;; Store original inline values
-          original {:top (.-top (.-style tooltip))
-                    :bottom (.-bottom (.-style tooltip))
-                    :right (.-right (.-style tooltip))
-                    :left (.-left (.-style tooltip))}]
-      (.addEventListener container "mouseenter" (fn [_] (adjust-tooltip tooltip)))
-      (.addEventListener container "mouseleave" (fn [_] (reset-tooltip tooltip original))))))
-
-;; ********************************************************************************
+  [:div {:style {:max-width "70em"
+                 :margin "0 auto"
+                 :padding "0 0.6em 2em"
+                 :font-family "system-ui, sans-serif"
+                 :font-size "0.95em"}}
+   [top-bar]
+   [quick-links-section]
+   [reachability-section]
+   [html-validation-section]
+   [css-validation-section]])
 
 (defn ^:dev/after-load mount-root
   []
@@ -337,5 +475,4 @@
   []
   (js/console.log "Landing admin started")
   (dispatch-sync [::initialize-db])
-  (mount-root)
-  (.addEventListener js/document "DOMContentLoaded" init-tooltips!))
+  (mount-root))
