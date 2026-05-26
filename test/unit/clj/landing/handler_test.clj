@@ -10,6 +10,16 @@
   [route req]
   (let [h (get-in (second route) [:get :handler])] (h req)))
 
+(defn- body-string
+  "Coerce a ring response body to a string regardless of the underlying type."
+  [body]
+  (cond
+    (string? body) body
+    (instance? (Class/forName "[B") body) (String. ^bytes body "UTF-8")
+    (instance? java.io.File body) (slurp body)
+    (instance? java.io.InputStream body) (slurp body)
+    :else (str body)))
+
 (deftest root-redirect-test
   (testing "defaults to French when no cookie nor Accept-Language"
     (is (= "/fr/index.html"
@@ -71,15 +81,15 @@
                (get-in [:headers "Location"]))))))
 
 (deftest lang-fallback-handler-test
-  (testing "redirects missing /fr/... to /fr/index.html"
-    (is (= {:status 302
-            :headers {"Location" "/fr/index.html"}}
-           (sut/lang-fallback-handler {:uri "/fr/articles/does-not-exist.html"}))))
-  (testing "redirects missing /en/... to /en/index.html"
-    (is (= {:status 302
-            :headers {"Location" "/en/index.html"}}
-           (sut/lang-fallback-handler {:uri "/en/missing"}))))
-  (testing "ignores paths outside /fr/ or /en/"
+  (testing "Missing /fr/... returns a real 404 in French"
+    (let [resp (sut/lang-fallback-handler {:uri "/fr/articles/does-not-exist.html"})]
+      (is (= 404 (:status resp)))
+      (is (str/includes? (body-string (:body resp)) "Page introuvable"))))
+  (testing "Missing /en/... returns a real 404 in English"
+    (let [resp (sut/lang-fallback-handler {:uri "/en/missing"})]
+      (is (= 404 (:status resp)))
+      (is (str/includes? (body-string (:body resp)) "Page not found"))))
+  (testing "Paths outside /fr/ or /en/ are not handled here"
     (is (nil? (sut/lang-fallback-handler {:uri "/something"})))))
 
 ;; ----------------------------------------------------------------------------
@@ -135,10 +145,10 @@
     (testing "Legacy /articles/<slug>.html doesn't double the suffix"
       (let [resp (h (mock/request :get "/articles/rivalis.html"))]
         (is (= "/fr/articles/rivalis.html" (get-in resp [:headers "Location"])))))
-    (testing "Missing /fr/... falls back to /fr/index.html"
+    (testing "Missing /fr/... returns a real 404 (no silent redirect)"
       (let [resp (h (mock/request :get "/fr/articles/missing.html"))]
-        (is (= 302 (:status resp)))
-        (is (= "/fr/index.html" (get-in resp [:headers "Location"])))))
+        (is (= 404 (:status resp)))
+        (is (str/includes? (body-string (:body resp)) "Page introuvable"))))
     (testing "Legacy article route only matches a single segment"
       (let [resp (h (mock/request :get "/articles/foo/bar"))]
         ;; nested path is not rewritten — falls through to default 404
@@ -163,16 +173,6 @@
     (testing "Other files get the default Cache-Control"
       (let [resp (h (mock/request :get "/robots.txt"))]
         (is (= "public, max-age=600" (get-in resp [:headers "Cache-Control"])))))))
-
-(defn- body-string
-  "Coerce a ring response body to a string regardless of the underlying type."
-  [body]
-  (cond
-    (string? body) body
-    (instance? (Class/forName "[B") body) (String. ^bytes body "UTF-8")
-    (instance? java.io.File body) (slurp body)
-    (instance? java.io.InputStream body) (slurp body)
-    :else (str body)))
 
 (deftest seo-artifacts-test
   (let [h (sut/handler)]
@@ -235,6 +235,26 @@
     (testing "JS carries application/javascript or text/javascript"
       (let [resp (h (mock/request :get "/js/lang.js"))]
         (is (re-find #"(application|text)/javascript" (get-in resp [:headers "Content-Type"])))))))
+
+(deftest lang-prefixed-unknown-path-test
+  (let [h (sut/handler)]
+    (testing "Unknown path under /en/ returns the English 404, not a redirect"
+      (let [resp (h (mock/request :get "/en/not-existing-page"))
+            body (body-string (:body resp))]
+        (is (= 404 (:status resp)))
+        (is (str/includes? body "Page not found"))))
+    (testing "Unknown path under /fr/ returns the French 404"
+      (let [resp (h (mock/request :get "/fr/not-existing-page"))
+            body (body-string (:body resp))]
+        (is (= 404 (:status resp)))
+        (is (str/includes? body "Page introuvable"))))
+    (testing "Path-derived language overrides a conflicting cookie"
+      (let [resp (h (-> (mock/request :get "/en/not-existing-page")
+                        (mock/header "cookie" "lang=fr")))
+            body (body-string (:body resp))]
+        (is (= 404 (:status resp)))
+        (is (str/includes? body "Page not found")
+            "URL path wins over cookie for language selection on 404")))))
 
 (deftest default-handler-status-codes-test
   (let [h (sut/handler)]

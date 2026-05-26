@@ -4,7 +4,7 @@
    [clojure.string                    :as str]
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
-   [landing.endpoints.default-handler :refer [default-handler]]
+   [landing.endpoints.default-handler :refer [default-handler not-found-for-lang]]
    [landing.endpoints.exception       :refer [exception-route]]
    [landing.endpoints.html.admin-be   :refer [admin-route]]
    [landing.endpoints.ping            :refer [ping-route]]
@@ -50,12 +50,13 @@
                                                   ".html"))}})}}])
 
 (defn lang-fallback-handler
-  "If the request path is `/fr/...` or `/en/...` and no resource matched,
-  redirect to that language's index page instead of returning a generic 404."
+  "When the request path is `/fr/...` or `/en/...` but no resource matched,
+  serve the language-appropriate 404 directly. The path itself signals
+  language intent, so we use it instead of the cookie/Accept-Language
+  heuristic used by `default-handler`."
   [req]
   (when-let [lang (second (re-find #"^/(fr|en)/" (str (:uri req))))]
-    {:status 302
-     :headers {"Location" (str "/" lang "/index.html")}}))
+    (not-found-for-lang req lang)))
 
 (defn router
   []

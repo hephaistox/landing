@@ -42,6 +42,15 @@
   (static-error-response req 404 "404.html"
                          "<!doctype html><title>404</title><h1>Not found</h1>"))
 
+(defn not-found-for-lang
+  "Public 404 response that ignores cookie/Accept-Language and forces the
+  given language. Useful when the URL path itself signals language intent
+  (e.g. an unknown resource under `/en/...`)."
+  [req lang]
+  (-> (prepared-error-page 404 lang "404.html"
+                           "<!doctype html><title>404</title><h1>Not found</h1>")
+      (cr/serve req)))
+
 (defn exception-response
   "Log the exception server-side and return the static `/<lang>/500.html` page
   with a 500 status. Never echoes exception details to the client."
