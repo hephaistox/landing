@@ -56,20 +56,30 @@
            :other 0}
           statuses))
 
-(defn- validation-errors
-  "Number of blocking errors reported in the W3C validator body (`curl-data`,
-  a JSON string). Returns nil when the body can't be parsed. Covers both the
-  Nu HTML validator (`messages` with type \"error\") and the Jigsaw CSS
-  validator (`cssvalidation.errors`)."
+(defn- validator-result
+  "Parsed W3C validator report for a `w3c-validate` fetch response, or nil when
+  this isn't a validator response (e.g. a reachability failure) or the body
+  can't be parsed. fetch-fx delivers the endpoint's JSON body as a *text
+  string* under `:body` (no `:response-content-types` is configured), and the
+  validator's own JSON lives inside that body's `:curl-data` field."
   [res]
-  (when-let [raw (:curl-data res)]
-    (try (let [data (js->clj (js/JSON.parse raw) :keywordize-keys true)
-               html-errors (->> (:messages data)
-                                (filter #(= "error" (:type %)))
-                                count)
-               css-errors (count (get-in data [:cssvalidation :errors]))]
-           (+ html-errors css-errors))
+  (when-let [raw (:body res)]
+    (try (let [curl (:curl-data (js->clj (js/JSON.parse raw) :keywordize-keys true))]
+           (when curl (js->clj (js/JSON.parse curl) :keywordize-keys true)))
          (catch :default _ nil))))
+
+(defn- validation-errors
+  "Number of blocking errors reported by the W3C validator. Returns nil when
+  `res` isn't a validator response. Covers both the Nu HTML validator
+  (`messages` with type \"error\") and the Jigsaw CSS validator
+  (`cssvalidation.errors`)."
+  [res]
+  (when-let [data (validator-result res)]
+    (let [html-errors (->> (:messages data)
+                           (filter #(= "error" (:type %)))
+                           count)
+          css-errors (count (get-in data [:cssvalidation :errors]))]
+      (+ html-errors css-errors))))
 
 (defn- summarize
   "Short, one-line summary of a fetch response for the collapsed row."
@@ -80,17 +90,14 @@
                          :status
                          str)
                  "ok")
-    :failure (cond
-               (:curl-data res) (let [n (validation-errors res)]
-                                  (if (number? n)
-                                    (if (and n (pos? n))
-                                      (str n " validation error" (when (> n 1) "s"))
-                                      "validation failed")
-                                    "validation failed"))
-               (:status res) (str "HTTP " (:status res))
-               (:problem res) (name (:problem res))
-               (:error res) (str (:error res))
-               :else "error")
+    :failure (let [n (validation-errors res)]
+               (cond
+                 (number? n)
+                 (if (pos? n) (str n " validation error" (when (> n 1) "s")) "validation failed")
+                 (:status res) (str "HTTP " (:status res))
+                 (:problem res) (name (:problem res))
+                 (:error res) (str (:error res))
+                 :else "error"))
     "—"))
 
 ;; ********************************************************************************
@@ -216,6 +223,12 @@
                   {:db (update-in db [::validation-response id] assoc :status status :res res)})))
 
 (reg-sub ::all-validation-statuses (fn [db _] (map (comp :status val) (::validation-response db))))
+
+;; Statuses for a specific set of validation ids (one section's manifest), so a
+;; section header counts exactly the rows rendered below it. `::all-validation-
+;; statuses` mixes HTML + CSS and is only correct for the grand total.
+(reg-sub ::validation-statuses-for
+         (fn [db [_ ids]] (map #(get-in db [::validation-response % :status]) ids)))
 
 (doseq [[css-id css-url] w3c-validate-css] (dispatch [::do-css-validation css-id css-url]))
 (doseq [[html-id html-url] w3c-validate-htmls] (dispatch [::do-html-validation html-id html-url]))
@@ -464,7 +477,7 @@
 
 (defn- html-validation-section
   []
-  (let [statuses @(subscribe [::all-validation-statuses])]
+  (let [statuses @(subscribe [::validation-statuses-for (keys w3c-validate-htmls)])]
     [section {:title "HTML validation"
               :description
               "Each page sent to validator.w3.org/nu; rows expand to show the W3C report."
@@ -474,11 +487,13 @@
 
 (defn- css-validation-section
   []
-  [section {:title "CSS validation"
-            :description "Each stylesheet sent to jigsaw.w3.org/css-validator."
-            :rows (validation-rows "css" (str (current-origin) "/")
-                                   "https://jigsaw.w3.org/css-validator/validator?uri="
-                                   w3c-validate-css)}])
+  (let [statuses @(subscribe [::validation-statuses-for (keys w3c-validate-css)])]
+    [section {:title "CSS validation"
+              :description "Each stylesheet sent to jigsaw.w3.org/css-validator."
+              :count-info [counts-chip (count-by-status (filter some? statuses))]
+              :rows (validation-rows "css" (str (current-origin) "/")
+                                     "https://jigsaw.w3.org/css-validator/validator?uri="
+                                     w3c-validate-css)}]))
 
 ;; ********************************************************************************
 ;; Top bar
