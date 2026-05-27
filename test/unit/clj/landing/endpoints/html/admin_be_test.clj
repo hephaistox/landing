@@ -8,6 +8,13 @@
 (def router
   (rring/ring-handler (rring/router (sut/admin-route "/") {:data {:middleware html-middlewares}})))
 
+(defn- body->string
+  [body]
+  (cond
+    (string? body) body
+    (instance? (Class/forName "[B") body) (String. ^bytes body "UTF-8")
+    :else (str body)))
+
 (deftest router-test
   (is (= 200
          (-> (router {:request-method :get
@@ -18,6 +25,7 @@
          (-> (router {:request-method :get
                       :uri "/"})
              :body
+             body->string
              (subs 1 9)))
       "Returns the html string")
   (is (= "gzip"

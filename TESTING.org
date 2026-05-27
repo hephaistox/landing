@@ -1,0 +1,151 @@
+#+TITLE: Manual testing checklist
+#+PROPERTY: header-args:bash :results output :exports both :var BASE="http://localhost:8080"
+
+Most server-side behavior — routing, redirects, static-page serving,
+cache headers, CORS, SEO artifacts, contacts-page wiring, language
+detection, in-memory + gzip response caching — is covered automatically
+by the clj suite under =test/unit/clj/= (including =handler_test.clj=,
+=cached_response_test.clj=, =language_test.clj=, and a happy-path
+=POST /contact= test in =endpoints/contact_test.clj=). Run that first;
+only the items below need a human.
+
+Walk through *A → B → C → D* in order. =BASE= can be rebound at the
+top of the file to point at a local-acceptance URL.
+
+* A. Tooling
+
+** A1. Pre-flight
+#+begin_src bash
+bb format 2>&1 | tail -2
+bb lint   2>&1 | tail -2
+bb clj-test test-clj 2>&1 | tail -3
+bb cljs-node-test all 2>&1 | tail -3
+#+end_src
+
+All four should end with =successful=. If the clj suite count drops
+between runs, a regression was introduced — check the diff against the
+last passing baseline.
+
+** A2. Server boots on the requested port
+Run in a separate terminal:
+#+begin_src bash :eval no
+LANDING_PORT=8081 bb repl
+#+end_src
+Expected log: =Webserver started on http://localhost:8081= (env var must override the default 8080).
+
+* B. Browser-only — language switch
+
+** B1. Buttons swap the URL
+- [X] On =/fr/index.html=, click =en= → URL becomes =/en/index.html=, page renders in English
+- [X] On =/fr/index.html=, =fr= button shows =<u>fr</u>= as current
+- [X] On a FR article (e.g. =/fr/articles/rivalis.html=), click =en= → the matching EN article loads
+- [X] DevTools → Application → Cookies → =lang= is set to =:en= (or =:fr=)
+- [X] After visiting =/=, the chosen language is remembered (cookie redirect)
+
+** B2. Cross-page navigation
+- [ ] Top-menu links on home go to =/fr/articles/...= via relative paths
+- [ ] Left-menu links on articles return to =/fr/index.html=
+- [ ] Footer links resolve on every page
+- [ ] Anchors on home (=#about-us=, =#advanced=, =#archi=, =#rivalis=) scroll
+- [ ] External social links open in their respective sites
+
+** B3. Legacy =/articles/<slug>= URLs still work
+- [ ] =curl -sI $BASE/articles/rivalis= → 301 to =/fr/articles/rivalis.html= (or =/en/...= depending on cookie)
+- [ ] =curl -sI $BASE/articles/projets.html= → 301 to the same =.html= URL, no double suffix
+- [ ] =curl -sI -b 'lang=en' $BASE/articles/rivalis= → 301 to =/en/articles/rivalis.html=
+
+** B4. Missing pages return a real 404 (no silent redirect)
+- [ ] =curl -sI $BASE/fr/articles/does-not-exist.html= → 404, body =Page introuvable=
+- [ ] =curl -sI $BASE/en/some/random/path= → 404, body =Page not found= (path-derived language overrides any =lang= cookie)
+- [ ] =curl -sI $BASE/this-route-does-not-exist= → 404 (cookie / Accept-Language picks the body's language) and *no* =Set-Cookie: lang= header
+- [ ] Open =$BASE/random/path/aze= in a browser → 404 page renders *styled* (the page injects =<base href="/<lang>/">= so deep paths still resolve relative assets)
+- [ ] =curl -sI -X PUT $BASE/ping= → 405, body mentions =Méthode= / =Method not allowed=
+
+* C. Browser-only — contact form
+
+** C1. Happy path
+- [ ] Open =/fr/articles/contacts.html=, fill all fields, leave the off-screen honeypot empty
+- [ ] Submit → status "Envoi…" then "Merci — nous vous recontacterons rapidement." (green)
+- [ ] Submit button disabled while in-flight, re-enabled after
+- [ ] Form fields cleared after success
+- [ ] Backend log shows ~Nouveau contact ...~
+
+** C2. EN page
+- [ ] Repeat C1 from =/en/articles/contacts.html=; status text is in English
+
+** C3. Browser validation
+- [ ] Empty required field → browser validation fires, no request in Network tab
+- [ ] Invalid email format → same; first invalid field receives focus
+
+** C4. Network resilience (DevTools → Network → Throttling)
+- [ ] "Offline" mode → red error almost immediately (~300 ms — backoff between the two attempts). =fetch()= rejects synchronously when the browser is offline, so the 8 s =AbortController= timeout never fires. Button re-enabled.
+- [ ] Server-hang scenario (e.g. point at an unresponsive host or pause the JVM in the REPL) → red error after ~16 s (2 attempts × 8 s timeout + 300 ms backoff). This is the only path that exercises the full timeout budget.
+- [ ] "Slow 3G" → either succeeds or shows a clean error; no UI hang
+- [ ] (Default retries is 1 / 2 attempts to stay inside the 2-req/6-s server rate limit)
+
+** C5. Double-submit prevention
+- [ ] Click submit twice quickly → only one network request fires
+
+** C6. No-JS fallback
+- [ ] DevTools → disable JS, reload contacts page, submit
+- [ ] Backend 302 → =/articles/contact-validated= → 301 → =/<lang>/articles/contact-validated.html= renders
+
+** C7. Honeypot (covered by integration test, but easy to spot-check)
+#+begin_src bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -X POST "$BASE/contact" \
+  -F company=X -F firstname=Y -F name=Z -F mail=a@b.c -F phone=1 \
+  -F adress=spam
+#+end_src
+Expected: ~400~.
+
+* D. Browser-only — admin SPA & visuals
+
+** D1. Admin SPA
+- [ ] Open =/all-kind-of-checks= → admin SPA boots, audit tables render, no console errors
+- [ ] With =bb repl-fe= running, editing =src/cljs/landing/admin.cljs= hot-reloads
+
+** D2. SEO & static-asset spot-checks
+#+begin_src bash
+# Cache-Control buckets — set by landing.endpoints.resource/cache-control
+curl -sI "$BASE/custom.css"       | grep -i cache-control   # max-age=31536000, immutable
+curl -sI "$BASE/js/lang.js"       | grep -i cache-control   # max-age=31536000, immutable
+curl -sI "$BASE/fr/index.html"    | grep -i cache-control   # max-age=300
+curl -sI "$BASE/robots.txt"       | grep -i cache-control   # max-age=600
+
+# robots.txt should now disallow the four non-public routes
+curl -s  "$BASE/robots.txt"
+
+# sitemap.xml uses the xhtml namespace for hreflang alternates
+curl -s  "$BASE/sitemap.xml" | grep -E 'xmlns:xhtml|<xhtml:link' | head
+#+end_src
+
+** D3. Visual sanity
+- [ ] No console errors in DevTools on any static page
+- [ ] No 404s in Network panel when loading any page (css/fonts/images resolve)
+- [ ] Print stylesheet works (=Cmd/Ctrl-P=) on home and an article
+- [ ] Mobile viewport: hamburger toggles the left-menu on articles
+- [ ] Lighthouse on =/fr/index.html=: Performance ≥ 90, SEO ≥ 95, no Accessibility regressions
+
+* E. Build & deploy smoke (once before deploying)
+
+** E1. Uberjar
+#+begin_src bash
+bb clean   2>&1 | tail -2
+bb uberjar 2>&1 | tail -5
+ls -lh target/uberjar/landing.jar
+#+end_src
+
+** E2. Run uberjar in isolation
+#+begin_src bash :eval no
+LANDING_PORT=8081 java -jar target/uberjar/landing.jar
+#+end_src
+Then rebind =BASE="http://localhost:8081"= and rerun a couple of
+=curl= sanity checks (any of the existing blocks). Or rerun the clj
+test suite against the live jar by hitting the routes manually.
+
+** E3. Local acceptance push
+#+begin_src bash :eval no
+bb la
+#+end_src
+Visit the local-acceptance URL and run a smoke sample (B1, B2, C1, D1).

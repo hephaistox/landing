@@ -1,9 +1,4 @@
-{:builds {:app {:asset-path "/js/compiled"
-                :devtools {:preloads [re-frisk.preload]}
-                :modules {:app {:init-fn landing.fe/init}}
-                :output-dir "resources/public/js/compiled"
-                :target :browser}
-          :app-admin {:asset-path "/js/compiled"
+{:builds {:app-admin {:asset-path "/js/compiled"
                       :devtools {:preloads [re-frisk.preload]}
                       :modules {:app-admin {:init-fn landing.admin/init}}
                       :output-dir "resources/public/js/compiled"

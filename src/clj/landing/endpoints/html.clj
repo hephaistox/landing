@@ -1,13 +1,13 @@
 (ns landing.endpoints.html
   "Helpers for html endpoint"
   (:require
-   [auto-web.middleware             :refer [wrap-add-language wrap-exception-handling]]
-   [env                             :refer [env-dep-middlewares]]
-   [landing.endpoints.html.error-be :refer [exception-response]]
-   [landing.language                :refer [default-language]]
-   [ring.middleware.cookies         :as ring-cookies]
-   [ring.middleware.gzip            :as ring-gzip]
-   [ring.middleware.x-headers       :refer [wrap-frame-options]]))
+   [auto-web.middleware               :refer [wrap-add-language wrap-exception-handling]]
+   [env                               :refer [env-dep-middlewares]]
+   [landing.endpoints.default-handler :refer [exception-response]]
+   [landing.language                  :refer [default-language]]
+   [ring.middleware.cookies           :as ring-cookies]
+   [ring.middleware.gzip              :as ring-gzip]
+   [ring.middleware.x-headers         :refer [wrap-frame-options]]))
 
 (def html-middlewares
   "Middlewares to display an html endpoint.

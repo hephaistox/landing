@@ -47,7 +47,8 @@
   ;
 )
 
-(defn handle-contact-handler
+(defn contact-handler
+  "Handle a server side request for contact"
   [req]
   (let [{:keys [company name firstname mail phone adress]} (:params req)]
     (if (= "" adress)
@@ -76,7 +77,7 @@
   [prefix
    {:post {:coercion coercion
            :description "Use by the contact form"
-           :handler handle-contact-handler
+           :handler contact-handler
            :middleware [(:middleware-fn rate-limiter)
                         ;; content-negotiation
                         parameters/parameters-middleware
@@ -93,11 +94,11 @@
            :muuntaja m/instance
            :operationId "contactForm"
            :parameters {:form [:map
-                               [:company :string]
-                               [:name :string]
-                               [:firstname :string]
-                               [:mail :string]
-                               [:phone :string]
+                               [:company [:string {:min 1}]]
+                               [:name [:string {:min 1}]]
+                               [:firstname [:string {:min 1}]]
+                               [:mail [:re #"^[^@\s]+@[^@\s]+\.[^@\s]+$"]]
+                               [:phone [:re #"^(?:0|\+33)[0-9]{9}$"]]
                                [:adress [:maybe :string]]]}
            :summary "Post contact data"
            :swagger {:tags #{:public-website}}}}])

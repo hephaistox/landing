@@ -1,0 +1,57 @@
+body, h1, h2, h3, h4, h5, h6, p {
+  /* font-family: 'plus-jakarta-sans', ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji; */
+}
+
+html { scroll-behavior: smooth;}
+
+@media (prefers-color-scheme: dark) {
+  body, .w3-sidebar, .force-bg{
+    color: #FFFFFF !important;
+    background-color: #111111 !important;}
+  input {background-color: #444444 !important;}
+  .fill-bg-color{
+    fill: #111111 !important;}}
+
+@media (prefers-color-scheme: light) {
+  body, .w3-sidebar, .force-bg{
+    color: #111111 !important;
+    background-color: #FFFFFF !important;}
+  .fill-bg-color {
+    fill: #FFFFFF !important;}}
+
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  25% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+  75% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+.heartbeat {
+  animation: heartbeat 1.8s ease-in-out infinite;
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.heartbeat:hover {
+  animation: heartbeat 1.2s ease-in-out infinite;
+}
+
+/* w3-sidebar is position:fixed at 200px, but w3-col.l2 only reserves 16.66%,
+   so between 993px and ~1200px the sidebar overlaps the content column. Pin
+   the in-flow column to match the sidebar width. */
+@media (min-width: 993px) {
+  #left-menu-placeholder { width: 200px; }
+  #article-content       { width: calc(100% - 200px); }
+}

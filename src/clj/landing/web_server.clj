@@ -1,10 +1,10 @@
 (ns landing.web-server
   (:require
-   [auto-core.log                   :as core-log]
-   [landing.endpoints.html.error-be :refer [exception-response]]
+   [auto-core.log                     :as core-log]
+   [landing.endpoints.default-handler :refer [exception-response]]
    [landing.handler]
-   [mount.core                      :refer [defstate]]
-   [org.httpkit.server              :as http-kit]))
+   [mount.core                        :refer [defstate]]
+   [org.httpkit.server                :as http-kit]))
 
 ;; ********************************************************************************
 ;; Server
@@ -55,12 +55,18 @@
        "While running app routes an error has happened, look into :error to find more information")
       (exception-response http-req e))))
 
+(defn- resolve-port
+  "Look up `LANDING_PORT` as an env var first, then JVM system property, else 8080."
+  []
+  (or (some-> (System/getenv "LANDING_PORT")
+              Integer/parseInt)
+      (some-> (System/getProperty "LANDING_PORT")
+              Integer/parseInt)
+      8080))
+
 (defstate http-server
           :start (try (core-log/info "Starting http-server")
-                      (start-server app
-                                    (or (some-> (System/getProperty "LANDING_PORT")
-                                                Integer/parseInt)
-                                        8080))
+                      (start-server app (resolve-port))
                       (catch Throwable e
                         (core-log/fatal-exception e "Unexpected error during web server starting")))
           :stop (try (stop-server #'http-server)

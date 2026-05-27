@@ -1,74 +1,60 @@
 (ns landing.pages.admin
+  "Pure-data manifests aggregated for the admin SPA: every URL the site should
+  expose (for reachability checks) and every page/CSS file the SPA should
+  W3C-validate. Not a rendered page."
   (:require
-   [auto-web.components.badge :refer [cspinner]]
-   [landing.article.digital-twin]
-   [landing.article.hephaistox]
-   [landing.article.project]
    [landing.article.rivalis]
    [landing.article.who-are-we]
-   [landing.pages.error]
-   [landing.pages.home]
-   [landing.pages.structure]
    [landing.routes]))
-
-(defn admin-body
-  [_http-request]
-  [:body.w3-xlarge.w3-panel {:style {:user-select "none"}}
-   [:div#admin-panel (cspinner {})]])
 
 (defn add-origin [links origin] (map #(assoc % :origin origin) links))
 
 (def links
-  "Gather all links that should be checked in the admin page"
+  "Every link the admin page should reachability-check."
   (concat (add-origin [{:link-id :prod-https-com
-                        :url "https://hephaistox.com"}
+                        :url "https://hephaistox.com/fr/index.html"}
                        {:link-id :prod-https-fr
-                        :url "https://hephaistox.fr"}
+                        :url "https://hephaistox.fr/fr/index.html"}
                        {:link-id :prod-http-com
-                        :url "http://hephaistox.com"}
+                        :url "http://hephaistox.com/fr/index.html"}
                        {:link-id :prod-http-fr
-                        :url "http://hephaistox.fr"}
+                        :url "http://hephaistox.fr/fr/index.html"}
                        {:link-id :prod-https-com-www
-                        :url "https://www.hephaistox.com"}
+                        :url "https://www.hephaistox.com/fr/index.html"}
                        {:link-id :prod-https-fr-www
-                        :url "https://www.hephaistox.fr"}
+                        :url "https://www.hephaistox.fr/fr/index.html"}
                        {:link-id :prod-http-com-www
-                        :url "http://www.hephaistox.com"}
+                        :url "http://www.hephaistox.com/fr/index.html"}
                        {:link-id :prod-http-fr-www
-                        :url "http://www.hephaistox.fr"}]
+                        :url "http://www.hephaistox.fr/fr/index.html"}]
                       "landing.admin")
           (add-origin (vals landing.article.rivalis/links) "landing.article.rivalis")
-          (add-origin (vals landing.article.hephaistox/links) "landing.article.hephaistox")
           (add-origin (vals landing.article.who-are-we/links) "landing.article.who-are-we")
-          (add-origin (vals landing.article.project/links) "landing.article.project")
-          (add-origin (vals landing.routes/links) "landing.routes")
-          (add-origin (vals landing.pages.structure/links) "landing.pages.structure")))
+          (add-origin (vals landing.routes/links) "landing.routes")))
 
-(def images
-  (concat (add-origin (vals landing.article.rivalis/images) "landing.article.rivalis")
-          (add-origin (vals landing.routes/images) "landing.routes")
-          (add-origin (vals landing.pages.home/images) "landing.pages.home")
-          (add-origin (vals landing.article.project/images) "landing.article.project")
-          (add-origin (vals landing.article.digital-twin/images) "landing.article.digital-twin")
-          (add-origin (vals landing.article.who-are-we/images) "landing.article.who-are-we")))
-
-(def dics
-  {"landing.pages.home" landing.pages.home/home-dic
-   "landing.article.who-are-we" landing.article.who-are-we/who-are-we-dic
-   "landing.routes" landing.routes/routes-dic
-   "landing.pages.error" landing.pages.error/error-dic})
+(def ^:private html-slugs
+  "Pages to W3C-validate, named in a stable display form. Each entry is
+  expanded into one fr and one en check below, hitting the real static
+  file directly (no /articles/<slug> → /<lang>/articles/<slug>.html
+  redirect to depend on)."
+  [[:home "index.html"]
+   [:rivalis "articles/rivalis.html"]
+   [:projets "articles/projets.html"]
+   [:hephaistox "articles/hephaistox.html"]
+   [:contacts "articles/contacts.html"]
+   [:about-site "articles/about-site.html"]
+   [:legal-notice "articles/legal-notice.html"]
+   [:privacy "articles/privacy.html"]
+   [:disclaimer "articles/disclaimer.html"]
+   [:who-are-we "articles/who-are-we.html"]])
 
 (def w3c-validate-htmls
-  {:privacy "articles/privacy"
-   :home ""
-   :rivalis "articles/rivalis"
-   :projets "articles/projets"
-   :hephaistox "articles/hephaistox"
-   :contact "articles/contacts"
-   :about "articles/about-site"
-   :legal-notice "articles/legal-notice"
-   :disclaimer "articles/disclaimer"
-   :who-are-we "articles/who-are-we"})
+  "Flat map of `:<slug>-<lang>` → absolute static path under the site root.
+  Both languages are checked for every public page."
+  (into {}
+        (for [[slug path] html-slugs
+              lang ["fr" "en"]]
+          [(keyword (str (name slug) "-" lang)) (str lang "/" path)])))
 
 (def w3c-validate-css
   {:w3-school "css/w3_schools.css"
@@ -77,5 +63,5 @@
    :fontawesome "fontawesome/css/fontawesome.css"
    :brand "fontawesome/css/brands.css"
    :solid "fontawesome/css/solid.css"
-   :print "print.css"
-   :custom "custom.css"})
+   :print "css/print.css"
+   :custom "css/custom.css"})
