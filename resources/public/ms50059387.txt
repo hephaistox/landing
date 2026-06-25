@@ -1,0 +1,5 @@
+﻿{
+  "Description": "Fichier de vérification de la propriété du domaine pour Microsoft 365 : placer dans la racine du site web",
+  "Domain": "hephaistox.fr",
+  "Id": "830c8567-36cb-4a95-ad1b-d6d69f1b9f0e"
+}
