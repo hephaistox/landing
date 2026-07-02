@@ -7,6 +7,7 @@
   #46 and the hidden route is #47."
   (:require
    [cljs.pprint :refer [pprint]]
+   [landing.agora.frontend.ki-view :as ki-view]
    [re-frame.core :as rf]
    [reagent.dom :as rdom]
    [superstructor.re-frame.fetch-fx]))
@@ -54,29 +55,36 @@
 (rf/reg-sub ::error (fn [db _] (:error db)))
 
 ;; ---------------------------------------------------------------------------
-;; Raw view (no real UI — just proves the data arrived)
+;; View — renders the KI display component (#46) once loaded
 ;; ---------------------------------------------------------------------------
 
-(defn raw-view
+(defn- error-view
+  [error]
+  [:pre {:style {:font-family "monospace"
+                 :font-size "0.9em"
+                 :white-space "pre-wrap"
+                 :background "#f5f5f5"
+                 :padding "1em"
+                 :border-left "3px solid #c92a2a"}}
+   (str "KI fetch failed:\n\n" (with-out-str (pprint error)))])
+
+(defn app-view
   []
   (let [status @(rf/subscribe [::status])
         ki @(rf/subscribe [::ki])
         error @(rf/subscribe [::error])]
-    [:pre {:style {:font-family "monospace"
-                   :font-size "0.9em"
-                   :white-space "pre-wrap"
-                   :background "#f5f5f5"
-                   :padding "1em"
-                   :border-left "3px solid #b9770e"}}
-     (str "status: " (name status) "\n\n"
-          (with-out-str (pprint (or ki error {}))))]))
+    (case status
+      :loading [:p {:style {:color "#888"}} "Loading KI…"]
+      :failed [error-view error]
+      :loaded [ki-view/ki-card ki]
+      nil)))
 
 (defn ^:dev/after-load mount-root
   []
   (rf/clear-subscription-cache!)
   (when-let [el (.getElementById js/document "agora-app")]
     (rdom/unmount-component-at-node el)
-    (rdom/render [raw-view] el)))
+    (rdom/render [app-view] el)))
 
 (defn init
   []
