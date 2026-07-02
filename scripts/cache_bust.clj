@@ -153,7 +153,7 @@
                             "."
                             current-task
                             [:env-prod :uberjar]
-                            ["app-admin"]
+                            ["app-admin" "agora"]
                             env-varname
                             target-dir)]
     (if (and (number? exit-code) (zero? exit-code))

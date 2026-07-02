@@ -15,8 +15,19 @@
 (goog-define ENV "dev")
 
 (def seeded-ki-id
-  "The KI seeded in #40; hardcoded here until navigation/routing exists."
+  "The KI seeded in #40; used as a fallback when no id is given in the URL."
   "00000000-0000-0000-0000-000000000001")
+
+(defn ki-id-from-url
+  "Resolve the KI id to fetch from the current URL: the path segment after
+  `/lab/ki/`, else the `?id=` query param, else the seeded id."
+  []
+  (let [path (.-pathname js/window.location)
+        m (re-find #"/lab/ki/([^/?#]+)" path)
+        query-id (.get (js/URLSearchParams. (.-search js/window.location)) "id")]
+    (or (some-> (second m) js/decodeURIComponent)
+        query-id
+        seeded-ki-id)))
 
 ;; ---------------------------------------------------------------------------
 ;; State
@@ -90,5 +101,5 @@
   []
   (js/console.log "[agora] frontend started")
   (rf/dispatch-sync [::init-db])
-  (rf/dispatch [::fetch-ki seeded-ki-id])
+  (rf/dispatch [::fetch-ki (ki-id-from-url)])
   (mount-root))
