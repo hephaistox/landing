@@ -2,6 +2,7 @@
   "Handler turns an http http-request into a response"
   (:require
    [clojure.string                    :as str]
+   [landing.agora.endpoints.ki        :refer [ki-route]]
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
    [landing.endpoints.default-handler :refer [default-handler not-found-for-lang]]
@@ -69,6 +70,7 @@
                  (admin-route "/all-kind-of-checks")
                  (contact-route "/contact")
                  (check-url-route "/check-url")
+                 (ki-route "/api/ki/:id")
                  (api-ep "/api")
                  (w3c-validate-route "/w3c-validate")]
                 {}))

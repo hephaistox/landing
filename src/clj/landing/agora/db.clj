@@ -9,7 +9,10 @@
    [next.jdbc :as jdbc]))
 
 (def ^:private jdbc-url
-  (format "jdbc:mysql://%s:%s/%s"
+  ;; connectionTimeZone=UTC + forceConnectionTimeZoneToSet pin the session to UTC
+  ;; so DATETIME values are stored and read as UTC regardless of the server/JVM
+  ;; timezone. All Agora timestamps are UTC by convention.
+  (format "jdbc:mysql://%s:%s/%s?connectionTimeZone=UTC&forceConnectionTimeZoneToSet=true"
           (System/getenv "MYSQL_ADDON_HOST")
           (System/getenv "MYSQL_ADDON_PORT")
           (System/getenv "MYSQL_ADDON_DB")))
