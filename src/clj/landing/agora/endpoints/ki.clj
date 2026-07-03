@@ -132,6 +132,38 @@
                           :body input-ref-schema}
              :summary "Drop an input link from a KI"}}])
 
+(def by-major-handler
+  "Return the latest-minor KI of a (name, major) lineage — the permanent public
+  identity — or 404."
+  (fn [req]
+    (let [{ki-name :name
+           ki-major :major}
+          (get-in req [:parameters :path])]
+      (if-let [ki (ki/fetch-ki-by-major ki-name ki-major)]
+        {:status 200
+         :body ki}
+        {:status 404
+         :body {:error "KI not found"
+                :name ki-name
+                :major ki-major}}))))
+
+(defn by-major-route
+  "Public permanent identity: GET /api/ki/by/:name/:major → latest minor."
+  [prefix]
+  [prefix {:get {:coercion coercion
+                 :handler by-major-handler
+                 :muuntaja m/instance
+                 :operationId "agora-ki-by-major"
+                 :parameters {:path [:map [:name :string] [:major :int]]}
+                 :summary "Fetch a KI's latest minor by (name, major)"
+                 :swagger {:tags #{:agora}}
+                 :middleware [parameters/parameters-middleware
+                              muuntaja/format-negotiate-middleware
+                              muuntaja/format-response-middleware
+                              exception/exception-middleware
+                              muuntaja/format-request-middleware
+                              rcoercion/coerce-request-middleware]}}])
+
 (defn edit-ki-route
   [prefix]
   [prefix

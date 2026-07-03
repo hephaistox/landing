@@ -39,6 +39,11 @@
   lets the browser handle the click normally)."
   [path]
   (cond
+    (re-find #"^/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)
+    (let [[_ n mj] (re-find #"^/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)]
+      {:kind :ki-public
+       :name (js/decodeURIComponent n)
+       :major (js/parseInt mj)})
     (re-find #"^/lab/ki/new/?(?:[?#].*)?$" path) {:kind :new}
     (re-find #"^/lab/article/([^/?#]+)" path)
     {:kind :article
@@ -119,16 +124,48 @@
                :on-success [::fetch-ok kind id]
                :on-failure [::fetch-failed]}})))
 
+(defn- route-changed-fetch-public
+  "Cache-or-fetch the public permalink /ki/{name}/{major} — latest minor."
+  [db ki-name ki-major]
+  (let [ck [:ki-public ki-name ki-major]
+        entry (get-in db [:cache ck])
+        fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
+    (if fresh?
+      {:db (assoc db
+                  :view {:kind :ki-public
+                         :data (:data entry)}
+                  :loading? false
+                  :error nil)}
+      {:db (assoc db :loading? true :error nil)
+       :fetch {:method :get
+               :url (str "/api/ki/by/" (js/encodeURIComponent ki-name) "/" ki-major)
+               :headers {"Accept" "application/json"}
+               :response-content-types {#"application/json" :json}
+               :on-success [::fetch-public-ok ck]
+               :on-failure [::fetch-failed]}})))
+
+(rf/reg-event-db ::fetch-public-ok
+                 (fn [db [_ ck response]]
+                   (let [ki (:body response)]
+                     (-> db
+                         (assoc :view {:kind :ki-public
+                                       :data ki}
+                                :loading? false)
+                         (assoc-in [:cache ck]
+                                   {:data ki
+                                    :at (js/Date.now)})
+                         (update :latest index-ki ki)))))
+
 (rf/reg-event-fx ::route-changed
-                 (fn [{:keys [db]} [_ {:keys [kind id]}]]
+                 (fn [{:keys [db]} [_ {:keys [kind id name major]}]]
                    (let [db (ki-view/close-panels db)]
-                     (if (= kind :new)
-                       ;; The creation form — nothing to fetch.
-                       {:db (assoc db
-                                   :view {:kind :new
-                                          :data nil}
-                                   :loading? false
-                                   :error nil)}
+                     (case kind
+                       :new {:db (assoc db
+                                        :view {:kind :new
+                                               :data nil}
+                                        :loading? false
+                                        :error nil)}
+                       :ki-public (route-changed-fetch-public db name major)
                        (route-changed-fetch db kind id)))))
 
 (rf/reg-event-db ::fetch-ok
@@ -218,6 +255,7 @@
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind
              :ki [ki-view/ki-page data]
+             :ki-public [ki-view/public-ki-page data]
              :article [article-view/article-card data]
              nil)
       error [error-view error]

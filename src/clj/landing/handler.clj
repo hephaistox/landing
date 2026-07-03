@@ -3,9 +3,12 @@
   (:require
    [clojure.string                    :as str]
    [landing.agora.endpoints.article   :refer [article-route]]
-   [landing.agora.endpoints.ki        :refer
-                                      [edit-ki-route inputs-route ki-collection-route ki-route]]
-   [landing.agora.endpoints.lab       :refer [lab-shell-route]]
+   [landing.agora.endpoints.ki        :refer [by-major-route
+                                              edit-ki-route
+                                              inputs-route
+                                              ki-collection-route
+                                              ki-route]]
+   [landing.agora.endpoints.lab       :refer [lab-shell-route public-ki-route]]
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
    [landing.endpoints.default-handler :refer [default-handler not-found-for-lang]]
@@ -74,9 +77,11 @@
                  (contact-route "/contact")
                  (check-url-route "/check-url")
                  (ki-collection-route "/api/ki")
+                 (by-major-route "/api/ki/by/:name/:major")
                  (ki-route "/api/ki/:id")
                  (edit-ki-route "/api/ki/:id/edit")
                  (inputs-route "/api/ki/:id/inputs")
+                 (public-ki-route "/ki/:name/:major")
                  (article-route "/api/article/:id")
                  (lab-shell-route "/lab/ki")
                  (lab-shell-route "/lab/ki/:id")

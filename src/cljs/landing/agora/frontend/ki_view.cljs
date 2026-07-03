@@ -299,17 +299,17 @@
                (str "v" major "." (:minor v))])))]))
 
 (defn- mini-card
-  "A compact neighbour card linking to its own page. When `on-drop` is given, a ✕
-  removes the link (used for input links)."
-  [{c-id :id
-    c-name :name
+  "A compact neighbour card linking to `link`. When `on-drop` is given, a ✕
+  removes the link (used for input links in the lab)."
+  [{c-name :name
     c-type :type
     :keys [major minor]}
+   link
    on-drop]
   [:div {:style {:position "relative"
                  :width "16em"
                  :max-width "100%"}}
-   [:a {:href (str "/lab/ki/" c-id)
+   [:a {:href link
         :style {:display "block"
                 :box-sizing "border-box"
                 :text-decoration "none"
@@ -556,27 +556,30 @@
      "Cancel"]]])
 
 (defn- static-card
-  "The card in read mode, with a pencil that switches to in-place editing."
+  "The card in read mode. In the lab (`edit?` true) a pencil switches to in-place
+  editing; on the public page it is omitted."
   [{ki-name :name
     ki-type :type
     :keys [major minor published-at output-statement versions]
-    :as ki}]
+    :as ki}
+   edit?]
   [:article {:style card-style}
-   [:button {:on-click #(rf/dispatch [::edit-open ki])
-             :title "Edit — create a new version"
-             :style {:position "absolute"
-                     :top "0.7em"
-                     :right "0.8em"
-                     :border "1px solid #ddd"
-                     :background "#fff"
-                     :color "#b9770e"
-                     :border-radius "0.3em"
-                     :width "2em"
-                     :height "2em"
-                     :cursor "pointer"
-                     :font-size "0.95em"
-                     :line-height 1}}
-    "✎"]
+   (when edit?
+     [:button {:on-click #(rf/dispatch [::edit-open ki])
+               :title "Edit — create a new version"
+               :style {:position "absolute"
+                       :top "0.7em"
+                       :right "0.8em"
+                       :border "1px solid #ddd"
+                       :background "#fff"
+                       :color "#b9770e"
+                       :border-radius "0.3em"
+                       :width "2em"
+                       :height "2em"
+                       :cursor "pointer"
+                       :font-size "0.95em"
+                       :line-height 1}}
+      "✎"])
    [:div {:style {:display "flex"
                   :align-items "center"
                   :gap "0.75em"
@@ -600,7 +603,8 @@
 
 (defn- ki-card
   [ki]
-  (let [edit @(rf/subscribe [::edit])] (if (:open? edit) [edit-card ki edit] [static-card ki])))
+  (let [edit @(rf/subscribe [::edit])]
+    (if (:open? edit) [edit-card ki edit] [static-card ki true])))
 
 (defn creation-form
   "Standalone form to create a new KI (#34). On save it POSTs /api/ki and
@@ -695,11 +699,13 @@
                         :gap "0.5em"
                         :justify-content "center"
                         :align-items "center"}}]
-         (concat
-          (for [inp inputs]
-            ^{:key (:id inp)}
-            [mini-card inp #(rf/dispatch [::drop-input id (select-keys inp [:name :major])])])
-          [^{:key "add"} [add-input-control ki]]))
+         (concat (for [inp inputs]
+                   ^{:key (:id inp)}
+                   [mini-card
+                    inp
+                    (str "/lab/ki/" (:id inp))
+                    #(rf/dispatch [::drop-input id (select-keys inp [:name :major])])])
+                 [^{:key "add"} [add-input-control ki]]))
    [connector]
    [ki-card ki]
    (when (seq successors)
@@ -709,4 +715,36 @@
                            :flex-wrap "wrap"
                            :gap "0.5em"
                            :justify-content "center"}}]
-            (for [s successors] ^{:key (:id s)} [mini-card s nil]))])])
+            (for [s successors] ^{:key (:id s)} [mini-card s (str "/lab/ki/" (:id s)) nil]))])])
+
+(defn- permalink
+  "The public permanent URL of a KI ref: /ki/{name}/{major}."
+  [{:keys [name major]}]
+  (str "/ki/" (js/encodeURIComponent name) "/" major))
+
+(defn public-ki-page
+  "Read-only public KI page (#35): inputs above, the card (no edit controls) in the
+  middle, successors below. Neighbour links point at other public permalinks."
+  [{:keys [inputs successors]
+    :as ki}]
+  [:div {:style {:display "flex"
+                 :flex-direction "column"
+                 :align-items "center"
+                 :padding "1em 0.6em 2em"}}
+   (when (seq inputs)
+     [:<>
+      (into [:div {:style {:display "flex"
+                           :flex-wrap "wrap"
+                           :gap "0.5em"
+                           :justify-content "center"}}]
+            (for [inp inputs] ^{:key (:id inp)} [mini-card inp (permalink inp) nil]))
+      [connector]])
+   [static-card ki false]
+   (when (seq successors)
+     [:<>
+      [connector]
+      (into [:div {:style {:display "flex"
+                           :flex-wrap "wrap"
+                           :gap "0.5em"
+                           :justify-content "center"}}]
+            (for [s successors] ^{:key (:id s)} [mini-card s (permalink s) nil]))])])

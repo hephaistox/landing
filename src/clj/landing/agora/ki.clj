@@ -105,6 +105,12 @@
           (assoc :successors (neighbours :successors ki-name ki-major))
           (assoc :versions (versions ki-name ki-major))))))
 
+(defn fetch-ki-by-major
+  "Fetch the latest-minor KI of the (name, major) lineage — the permanent public
+  identity behind /ki/{name}/{major} — or nil if no such lineage exists."
+  [ki-name ki-major]
+  (when-let [{:keys [id]} (resolve-major ki-name ki-major)] (fetch-ki id)))
+
 (defn- next-minor
   "The next minor number for the (`ki-name`, `ki-major`) lineage: one past the
   current highest minor, or 0 if none exists yet."

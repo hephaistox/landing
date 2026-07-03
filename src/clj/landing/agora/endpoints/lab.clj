@@ -33,3 +33,27 @@
                  :handler lab-shell-response
                  :middleware html-middlewares
                  :summary "Hidden lab page — Agora KI/article display (resource from URL)"}}])
+
+(defn- build-public-shell
+  []
+  (cr/prepare {:status 200
+               :headers {"Content-Type" "text/html; charset=utf-8"}
+               :body (some-> (io/resource "public/agora/ki.html")
+                             slurp)}))
+
+(def ^:private prepared-public-shell (cr/cache-fn build-public-shell))
+
+(defn public-ki-response
+  [req]
+  (-> (prepared-public-shell)
+      (cr/serve req)))
+
+(defn public-ki-route
+  "Serve the public KI shell at `prefix` (e.g. /ki/:name/:major). Unlike the lab
+  shell it is indexable; the frontend fetches the latest minor and renders it
+  read-only."
+  [prefix]
+  [prefix {:get {:swagger {:tags #{:agora}}
+                 :handler public-ki-response
+                 :middleware html-middlewares
+                 :summary "Public KI page — permanent URL /ki/:name/:major"}}])
