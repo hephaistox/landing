@@ -20,6 +20,6 @@
 (def ds
   "next.jdbc datasource for the shared MySQL DB. Building it does not open a
   connection, so it is safe at load time even without live credentials."
-  (jdbc/get-datasource {:jdbcUrl  jdbc-url
-                        :user     (System/getenv "MYSQL_ADDON_USER")
+  (jdbc/get-datasource {:jdbcUrl jdbc-url
+                        :user (System/getenv "MYSQL_ADDON_USER")
                         :password (System/getenv "MYSQL_ADDON_PASSWORD")}))

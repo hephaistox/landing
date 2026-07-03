@@ -2,8 +2,9 @@
   "Handler turns an http http-request into a response"
   (:require
    [clojure.string                    :as str]
-   [landing.agora.endpoints.ki        :refer [ki-route]]
-   [landing.agora.endpoints.lab       :refer [lab-ki-route]]
+   [landing.agora.endpoints.article   :refer [article-route]]
+   [landing.agora.endpoints.ki        :refer [edit-ki-route ki-route]]
+   [landing.agora.endpoints.lab       :refer [lab-shell-route]]
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
    [landing.endpoints.default-handler :refer [default-handler not-found-for-lang]]
@@ -72,8 +73,11 @@
                  (contact-route "/contact")
                  (check-url-route "/check-url")
                  (ki-route "/api/ki/:id")
-                 (lab-ki-route "/lab/ki")
-                 (lab-ki-route "/lab/ki/:id")
+                 (edit-ki-route "/api/ki/:id/edit")
+                 (article-route "/api/article/:id")
+                 (lab-shell-route "/lab/ki")
+                 (lab-shell-route "/lab/ki/:id")
+                 (lab-shell-route "/lab/article/:id")
                  (api-ep "/api")
                  (w3c-validate-route "/w3c-validate")]
                 {}))

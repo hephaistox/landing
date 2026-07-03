@@ -114,7 +114,7 @@
   repl-fe {:doc "Clojure repl for frontend"
            :override-builtin true
            :requires [[auto-build.tasks.repl-fe :as build-repl-fe]]
-           :task (-> (build-repl-fe/repl-fe level1-header "." (current-task) ["app-admin"])
+           :task (-> (build-repl-fe/repl-fe level1-header "." (current-task) ["app-admin" "agora"])
                      exit)}
   uberjar {:doc "Uberjar"
            :override-builtin true

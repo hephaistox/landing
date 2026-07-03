@@ -10,18 +10,20 @@
 (require '[next.jdbc :as jdbc])
 
 (def ds
-  (jdbc/get-datasource
-   {:jdbcUrl  (format "jdbc:mysql://%s:%s/%s?allowMultiQueries=true"
-                      (System/getenv "MYSQL_ADDON_HOST")
-                      (System/getenv "MYSQL_ADDON_PORT")
-                      (System/getenv "MYSQL_ADDON_DB"))
-    :user     (System/getenv "MYSQL_ADDON_USER")
-    :password (System/getenv "MYSQL_ADDON_PASSWORD")}))
+  (jdbc/get-datasource {:jdbcUrl (format "jdbc:mysql://%s:%s/%s?allowMultiQueries=true"
+                                         (System/getenv "MYSQL_ADDON_HOST")
+                                         (System/getenv "MYSQL_ADDON_PORT")
+                                         (System/getenv "MYSQL_ADDON_DB"))
+                        :user (System/getenv "MYSQL_ADDON_USER")
+                        :password (System/getenv "MYSQL_ADDON_PASSWORD")}))
 
 (doseq [f *command-line-args*]
   (println "applying" f)
   (jdbc/execute! ds [(slurp f)]))
 
 (println "AGORA_KI rows:")
-(doseq [row (jdbc/execute! ds ["SELECT id, name, type, major, minor, output_statement_hash, published_at FROM AGORA_KI"])]
+(doseq
+  [row (jdbc/execute!
+        ds
+        ["SELECT id, name, type, major, minor, output_statement_hash, published_at FROM AGORA_KI"])]
   (prn row))

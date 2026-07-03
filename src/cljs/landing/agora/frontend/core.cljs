@@ -1,15 +1,24 @@
 (ns landing.agora.frontend.core
-  "Agora frontend bootstrap (#45).
+  "Agora frontend entry point — a small single-page app over the hidden lab
+  routes.
 
-  Minimal ClojureScript + React entry point. On init it fetches the seeded KI
-  from GET /api/ki/:id, logs the result to the console, and dumps the raw data
-  into the #agora-app mount point. No real UI yet — the KI display component is
-  #46 and the hidden route is #47."
+  Pushy (HTML5 history) intercepts in-app links and programmatic navigation, so
+  moving between KIs/articles and landing on a freshly edited version updates the
+  view via re-frame without a full page reload. The backend still serves the same
+  shell for every `/lab/...` path, so direct URLs and refresh keep working.
+
+  Fetched resources are cached by [kind id] with a time-to-live; the displayed
+  view only swaps once data is available, so navigation never flashes a Loading
+  state. A local latest-minor index lets neighbour links auto-resolve to the
+  newest known version (e.g. right after an edit) without hitting the server."
   (:require
-   [cljs.pprint :refer [pprint]]
-   [landing.agora.frontend.ki-view :as ki-view]
-   [re-frame.core :as rf]
-   [reagent.dom :as rdom]
+   [cljs.pprint                         :refer [pprint]]
+   [landing.agora.frontend.article-view :as article-view]
+   [landing.agora.frontend.ki-edit      :as ki-edit]
+   [landing.agora.frontend.ki-view      :as ki-view]
+   [pushy.core                          :as pushy]
+   [re-frame.core                       :as rf]
+   [reagent.dom                         :as rdom]
    [superstructor.re-frame.fetch-fx]))
 
 (goog-define ENV "dev")
@@ -18,55 +27,147 @@
   "The KI seeded in #40; used as a fallback when no id is given in the URL."
   "00000000-0000-0000-0000-000000000001")
 
-(defn ki-id-from-url
-  "Resolve the KI id to fetch from the current URL: the path segment after
-  `/lab/ki/`, else the `?id=` query param, else the seeded id."
-  []
-  (let [path (.-pathname js/window.location)
-        m (re-find #"/lab/ki/([^/?#]+)" path)
-        query-id (.get (js/URLSearchParams. (.-search js/window.location)) "id")]
-    (or (some-> (second m) js/decodeURIComponent)
-        query-id
-        seeded-ki-id)))
+(def ^:private api-path
+  {:ki "/api/ki/"
+   :article "/api/article/"})
+
+(def ^:private cache-ttl-ms
+  "How long a cached resource stays fresh before it is refetched (4 hours)."
+  (* 4 60 60 1000))
+
+(defn path->route
+  "Parse a lab path into {:kind :id}, or nil when it is not a lab route (Pushy
+  then lets the browser handle the click normally)."
+  [path]
+  (if-let [m (re-find #"^/lab/article/([^/?#]+)" path)]
+    {:kind :article
+     :id (js/decodeURIComponent (second m))}
+    (when-let [m (re-find #"^/lab/ki(?:/([^/?#]+))?/?(?:[?#].*)?$" path)]
+      {:kind :ki
+       :id (or (some-> (second m)
+                       js/decodeURIComponent)
+               seeded-ki-id)})))
+
+(defonce ^:private history (atom nil))
+
+;; ---------------------------------------------------------------------------
+;; Local latest-minor index
+;;
+;; :latest {[type name major] {:id id :minor minor}} — the newest KI version we
+;; know about for each major lineage, learned from fetched/edited data. Neighbour
+;; links resolve through it, mirroring the server's resolve-major, so an edit is
+;; reflected everywhere immediately.
+;; ---------------------------------------------------------------------------
+
+(defn- note-latest
+  "Fold a KI-ish ref {:type :name :major :minor :id} into the latest-minor index."
+  [latest {:keys [type name major minor id]}]
+  (if (and type name major id (some? minor))
+    (let [k [type name major]
+          cur (get latest k)]
+      (if (or (nil? cur) (> minor (:minor cur)))
+        (assoc latest
+               k
+               {:id id
+                :minor minor})
+        latest))
+    latest))
+
+(defn- index-ki
+  "Index a KI and its neighbours into the latest-minor map."
+  [latest ki]
+  (reduce note-latest latest (concat [ki] (:inputs ki) (:successors ki))))
+
+(defn- resolve-neighbour
+  "Point a neighbour ref at the newest known minor of its major lineage."
+  [latest
+   {:keys [type name major minor]
+    :as n}]
+  (let [newer (get latest [type name major])]
+    (if (and newer (> (:minor newer) minor)) (assoc n :id (:id newer) :minor (:minor newer)) n)))
+
+(defn- resolve-ki-neighbours
+  [latest ki]
+  (-> ki
+      (update :inputs #(mapv (partial resolve-neighbour latest) %))
+      (update :successors #(mapv (partial resolve-neighbour latest) %))))
 
 ;; ---------------------------------------------------------------------------
 ;; State
 ;; ---------------------------------------------------------------------------
 
-(rf/reg-event-db ::init-db (fn [_ _] {:status :loading :ki nil :error nil}))
+(rf/reg-event-fx ::route-changed
+                 (fn [{:keys [db]} [_ {:keys [kind id]}]]
+                   (let [db (ki-edit/close-form db)
+                         entry (get-in db [:cache [kind id]])
+                         fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
+                     (if fresh?
+                       ;; Fresh cache hit — swap instantly, no request.
+                       {:db (assoc db
+                                   :view {:kind kind
+                                          :data (:data entry)}
+                                   :loading? false
+                                   :error nil)}
+                       ;; Miss/stale — fetch, but keep the current :view on screen until it lands.
+                       {:db (assoc db :loading? true :error nil)
+                        :fetch {:method :get
+                                :url (str (api-path kind) id)
+                                :headers {"Accept" "application/json"}
+                                :response-content-types {#"application/json" :json}
+                                :on-success [::fetch-ok kind id]
+                                :on-failure [::fetch-failed]}}))))
 
-(rf/reg-event-fx
- ::fetch-ki
- (fn [{:keys [db]} [_ id]]
-   {:db (assoc db :status :loading)
-    ;; :response-content-types makes fetch-fx parse the JSON body into data
-    ;; (otherwise :body arrives as a raw text string).
-    :fetch {:method :get
-            :url (str "/api/ki/" id)
-            :headers {"Accept" "application/json"}
-            :response-content-types {#"application/json" :json}
-            :on-success [::fetch-ki-ok]
-            :on-failure [::fetch-ki-failed]}}))
+(rf/reg-event-db ::fetch-ok
+                 (fn [db [_ kind id response]]
+                   (let [data (:body response)]
+                     (cond-> (-> db
+                                 (assoc :view {:kind kind
+                                               :data data}
+                                        :loading? false)
+                                 (assoc-in [:cache [kind id]]
+                                           {:data data
+                                            :at (js/Date.now)}))
+                       (= kind :ki) (update :latest index-ki data)))))
 
-(rf/reg-event-db
- ::fetch-ki-ok
- (fn [db [_ response]]
-   (let [ki (js->clj (:body response) :keywordize-keys true)]
-     (js/console.log "[agora] KI fetched:" (clj->js ki))
-     (assoc db :status :loaded :ki ki))))
+(rf/reg-event-db ::fetch-failed
+                 (fn [db [_ response]]
+                   (js/console.error "[agora] fetch failed:" (clj->js response))
+                   (assoc db :loading? false :error response)))
 
-(rf/reg-event-db
- ::fetch-ki-failed
- (fn [db [_ response]]
-   (js/console.error "[agora] KI fetch failed:" (clj->js response))
-   (assoc db :status :failed :error response)))
+;; Called after a successful edit: ingest the new version locally (cache + latest
+;; index) and navigate to it — no refetch, and references resolve to it at once.
+(rf/reg-event-fx :agora/edited
+                 (fn [{:keys [db]} [_ ki]]
+                   (let [id (:id ki)]
+                     {:db (-> db
+                              (ki-edit/close-form)
+                              (assoc-in [:cache [:ki id]]
+                                        {:data ki
+                                         :at (js/Date.now)})
+                              (update :latest index-ki ki))
+                      :agora/navigate (str "/lab/ki/" id)})))
 
-(rf/reg-sub ::status (fn [db _] (:status db)))
-(rf/reg-sub ::ki (fn [db _] (:ki db)))
+;; Programmatic navigation: drive Pushy so it pushState's and dispatches the
+;; route change, same as an intercepted link click.
+(rf/reg-fx :agora/navigate (fn [url] (pushy/set-token! @history url)))
+
+(rf/reg-sub ::view (fn [db _] (:view db)))
+(rf/reg-sub ::latest (fn [db _] (:latest db)))
+(rf/reg-sub ::loading? (fn [db _] (:loading? db)))
 (rf/reg-sub ::error (fn [db _] (:error db)))
 
+;; The view with KI neighbours re-resolved through the local latest-minor index,
+;; so links always point at the newest known version.
+(rf/reg-sub ::resolved-view
+            :<-
+            [::view]
+            :<-
+            [::latest]
+            (fn [[view latest] _]
+              (if (= :ki (:kind view)) (update view :data #(resolve-ki-neighbours latest %)) view)))
+
 ;; ---------------------------------------------------------------------------
-;; View — renders the KI display component (#46) once loaded
+;; View
 ;; ---------------------------------------------------------------------------
 
 (defn- error-view
@@ -77,18 +178,24 @@
                  :background "#f5f5f5"
                  :padding "1em"
                  :border-left "3px solid #c92a2a"}}
-   (str "KI fetch failed:\n\n" (with-out-str (pprint error)))])
+   (str "fetch failed:\n\n" (with-out-str (pprint error)))])
 
 (defn app-view
   []
-  (let [status @(rf/subscribe [::status])
-        ki @(rf/subscribe [::ki])
+  (let [{:keys [kind data]} @(rf/subscribe [::resolved-view])
+        loading? @(rf/subscribe [::loading?])
         error @(rf/subscribe [::error])]
-    (case status
-      :loading [:p {:style {:color "#888"}} "Loading KI…"]
-      :failed [error-view error]
-      :loaded [ki-view/ki-page ki]
-      nil)))
+    (cond
+      ;; Keep showing the current resource whenever we have one — even while the
+      ;; next is being fetched. The view swaps only on data arrival.
+      data (case kind
+             :ki [:div [ki-view/ki-page data] [ki-edit/edit-panel data]]
+             :article [article-view/article-card data]
+             nil)
+      error [error-view error]
+      loading? [:p {:style {:color "#888"}}
+                "Loading…"]
+      :else nil)))
 
 (defn ^:dev/after-load mount-root
   []
@@ -100,6 +207,10 @@
 (defn init
   []
   (js/console.log "[agora] frontend started")
-  (rf/dispatch-sync [::init-db])
-  (rf/dispatch [::fetch-ki (ki-id-from-url)])
+  (reset! history (pushy/pushy #(rf/dispatch [::route-changed %]) path->route))
+  (pushy/start! @history)
+  ;; Dispatch the initial route explicitly so the first paint is correct
+  ;; regardless of whether start! replays the current URL.
+  (when-let [route (path->route (.. js/window -location -pathname))]
+    (rf/dispatch [::route-changed route]))
   (mount-root))

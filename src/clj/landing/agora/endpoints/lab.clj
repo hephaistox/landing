@@ -1,11 +1,11 @@
 (ns landing.agora.endpoints.lab
   "Hidden lab route for the Agora vertical slice (#47).
 
-  Serves a static HTML shell that loads the `agora` build; the frontend mounts
-  on `#agora-app`, reads the KI id from the URL (`/lab/ki/<id>`, or the seeded id
-  by default) and renders the KI display component. Not linked from anywhere —
-  reachable only by direct URL. Both `/lab/ki` and `/lab/ki/:id` serve the same
-  shell. In :prod the shell (raw + gzipped) is cached after first read."
+  Serves a static HTML shell that loads the `agora` build; the frontend mounts on
+  `#agora-app` and, from the URL, renders either a KI (`/lab/ki[/<id>]`) or an
+  article (`/lab/article/<id>`). Not linked from anywhere — reachable only by
+  direct URL; every lab path serves the same shell. In :prod the shell (raw +
+  gzipped) is cached after first read."
   (:require
    [clojure.java.io                   :as io]
    [landing.endpoints.cached-response :as cr]
@@ -20,14 +20,16 @@
 
 (def ^:private prepared-shell (cr/cache-fn build-shell))
 
-(defn lab-ki-response
+(defn lab-shell-response
   [req]
   (-> (prepared-shell)
       (cr/serve req)))
 
-(defn lab-ki-route
+(defn lab-shell-route
+  "Serve the Agora lab shell at `prefix`. The frontend decides what to render from
+  the URL, so the same shell backs every lab path (KI and article)."
   [prefix]
   [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler lab-ki-response
+                 :handler lab-shell-response
                  :middleware html-middlewares
-                 :summary "Hidden lab page — KI display (id from URL, seeded by default)"}}])
+                 :summary "Hidden lab page — Agora KI/article display (resource from URL)"}}])

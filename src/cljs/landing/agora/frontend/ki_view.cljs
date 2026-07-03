@@ -3,26 +3,32 @@
   neighbourhood. Layout mirrors the flow of implication vertically: input KIs as
   mini cards above, a directed connector, the full KI card in the middle, another
   directed connector, and successor KIs as mini cards below. Each mini card links
-  to that KI's own page.")
+  to that KI's own page."
+  (:require
+   [landing.agora.frontend.fmt :as fmt]
+   [reagent.core               :as r]))
 
 (def ^:private type-badge
   "Display label + accent colour per KI type."
-  {"derived"          {:label "Derived"          :bg "#2c5aa0"}
-   "verifiable-claim" {:label "Verifiable claim" :bg "#0b7285"}
-   "postulate"        {:label "Postulate"        :bg "#6741d9"}
-   "stance"           {:label "Stance"           :bg "#b9770e"}
-   "belief"           {:label "Belief"           :bg "#2b8a3e"}
-   "credo"            {:label "Credo"            :bg "#c92a2a"}})
-
-(defn- format-utc
-  "ISO-8601 UTC string (e.g. \"2026-07-02T00:00:00Z\") -> \"2026-07-02 00:00 UTC\"."
-  [iso]
-  (when (and (string? iso) (>= (count iso) 16))
-    (str (subs iso 0 10) " " (subs iso 11 16) " UTC")))
+  {"derived" {:label "Derived"
+              :bg "#2c5aa0"}
+   "verifiable-claim" {:label "Verifiable claim"
+                       :bg "#0b7285"}
+   "postulate" {:label "Postulate"
+                :bg "#6741d9"}
+   "stance" {:label "Stance"
+             :bg "#b9770e"}
+   "belief" {:label "Belief"
+             :bg "#2b8a3e"}
+   "credo" {:label "Credo"
+            :bg "#c92a2a"}})
 
 (defn type-badge-view
   [ki-type]
-  (let [{:keys [label bg]} (get type-badge ki-type {:label (or ki-type "?") :bg "#666"})]
+  (let [{:keys [label bg]} (get type-badge
+                                ki-type
+                                {:label (or ki-type "?")
+                                 :bg "#666"})]
     [:span {:style {:display "inline-block"
                     :background bg
                     :color "#fff"
@@ -37,7 +43,10 @@
 (defn- mini-card
   "A compact, clickable card for a neighbour KI: type badge, version and name.
   Links to that KI's own lab page."
-  [{ki-id :id ki-name :name ki-type :type :keys [major minor]}]
+  [{ki-id :id
+    ki-name :name
+    ki-type :type
+    :keys [major minor]}]
   [:a {:href (str "/lab/ki/" ki-id)
        :style {:display "block"
                :box-sizing "border-box"
@@ -69,8 +78,7 @@
                        :flex-wrap "wrap"
                        :gap "0.6em"
                        :justify-content "center"}}]
-        (for [n neighbours]
-          ^{:key (:id n)} [mini-card n])))
+        (for [n neighbours] ^{:key (:id n)} [mini-card n])))
 
 (defn- connector
   "A short vertical directed link (arrow points down, the direction implication
@@ -88,10 +96,55 @@
                   :line-height "1"}}
     "▼"]])
 
+(defn version-picker
+  "Shows the current version; clicking it reveals a horizontal, in-order strip
+  (carousel) of every version of this lineage, current one highlighted, each a
+  link to that version's page."
+  [{:keys [major minor versions]}]
+  (r/with-let
+   [open? (r/atom false)]
+   [:span {:style {:display "inline-flex"
+                   :align-items "center"
+                   :gap "0.4em"
+                   :font-family "monospace"
+                   :font-size "0.8em"}}
+    [:button {:on-click #(swap! open? not)
+              :title "Show all versions"
+              :style {:font-family "inherit"
+                      :font-size "inherit"
+                      :color "#888"
+                      :background "transparent"
+                      :border "1px solid #ddd"
+                      :border-radius "0.3em"
+                      :padding "0.1em 0.5em"
+                      :cursor "pointer"}}
+     (str "v" major "." minor " " (if @open? "▴" "▾"))]
+    (when @open?
+      (into [:span {:style {:display "inline-flex"
+                            :gap "0.3em"
+                            :max-width "22em"
+                            :overflow-x "auto"
+                            :padding "0.1em"}}]
+            (for [v (sort-by :minor versions)
+                  :let [current? (= (:minor v) minor)]]
+              ^{:key (:id v)}
+              [:a {:href (str "/lab/ki/" (:id v))
+                   :on-click #(reset! open? false)
+                   :title (str "Go to v" major "." (:minor v))
+                   :style {:flex "0 0 auto"
+                           :text-decoration "none"
+                           :padding "0.1em 0.5em"
+                           :border-radius "0.3em"
+                           :border (str "1px solid " (if current? "#b9770e" "#ddd"))
+                           :background (if current? "#b9770e" "#fff")
+                           :color (if current? "#fff" "#b9770e")}}
+               (str "v" major "." (:minor v))])))]))
+
 (defn ki-card
   "The main Knowledge Item card: type badge, version, name, timestamp, statement."
-  [{ki-name :name ki-type :type
-    :keys [major minor published-at output-statement]}]
+  [{ki-name :name
+    ki-type :type
+    :keys [major minor published-at output-statement versions]}]
   [:article {:style {:width "40em"
                      :max-width "100%"
                      :box-sizing "border-box"
@@ -106,17 +159,16 @@
                   :gap "0.75em"
                   :margin-bottom "0.5em"}}
     [type-badge-view ki-type]
-    [:span {:style {:color "#888"
-                    :font-size "0.8em"
-                    :font-family "monospace"}}
-     (str "v" major "." minor)]]
+    [version-picker {:major major
+                     :minor minor
+                     :versions versions}]]
    [:h1 {:style {:font-size "1.3em"
                  :margin "0.2em 0 0.1em"}}
     ki-name]
    [:div {:style {:color "#888"
                   :font-size "0.8em"
                   :margin-bottom "0.9em"}}
-    (or (format-utc published-at) "—")]
+    (or (fmt/utc published-at) "—")]
    [:p {:style {:font-size "1.05em"
                 :line-height "1.5"
                 :color "#222"
@@ -126,17 +178,12 @@
 (defn ki-page
   "The KI card with its inputs as mini cards above and successors as mini cards
   below, joined by directed connectors."
-  [{:keys [inputs successors] :as ki}]
+  [{:keys [inputs successors]
+    :as ki}]
   [:div {:style {:display "flex"
                  :flex-direction "column"
                  :align-items "center"
                  :padding "1em 0.6em 2em"}}
-   (when (seq inputs)
-     [:<>
-      [mini-card-row inputs]
-      [connector]])
+   (when (seq inputs) [:<> [mini-card-row inputs] [connector]])
    [ki-card ki]
-   (when (seq successors)
-     [:<>
-      [connector]
-      [mini-card-row successors]])])
+   (when (seq successors) [:<> [connector] [mini-card-row successors]])])

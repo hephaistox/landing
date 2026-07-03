@@ -1,16 +1,16 @@
-{:builds {:app-admin {:asset-path "/js/compiled"
-                      :devtools {:preloads [re-frisk.preload]}
-                      :modules {:app-admin {:init-fn landing.admin/init}}
-                      :output-dir "resources/public/js/compiled"
-                      :release {:compiler-options {:closure-defines {landing.admin/ENV "release"}}}
-                      :target :browser}
-          :agora {:asset-path "/js/compiled/agora"
+{:builds {:agora {:asset-path "/js/compiled/agora"
                   :devtools {:preloads [re-frisk.preload]}
                   :modules {:agora {:init-fn landing.agora.frontend.core/init}}
                   :output-dir "resources/public/js/compiled/agora"
                   :release {:compiler-options {:closure-defines
                                                {landing.agora.frontend.core/ENV "release"}}}
                   :target :browser}
+          :app-admin {:asset-path "/js/compiled"
+                      :devtools {:preloads [re-frisk.preload]}
+                      :modules {:app-admin {:init-fn landing.admin/init}}
+                      :output-dir "resources/public/js/compiled"
+                      :release {:compiler-options {:closure-defines {landing.admin/ENV "release"}}}
+                      :target :browser}
           :browser-test {:ns-regexp "-test$"
                          :runner-ns shadow.test.browser
                          :target :browser-test
