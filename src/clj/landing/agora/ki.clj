@@ -17,30 +17,46 @@
   [^LocalDateTime ldt]
   (some-> ldt (.atOffset ZoneOffset/UTC) .toInstant .toString))
 
-(defn- neighbours
-  "Light KI refs (id, name, type, major, minor) reachable from the KI identified
-  by (`ki-type`, `ki-name`, `ki-major`) across one edge.
+(defn resolve-major
+  "Versioning-in-links utility (#30). Connections store a KI reference at Major
+  granularity only (type, name, major); this resolves such a reference to its
+  concrete latest-minor row {:id :name :type :major :minor}, or nil when no KI
+  with that major exists. Auto-resolution to the newest minor means a link
+  follows clarifications of its target without being rewritten."
+  [ki-type ki-name ki-major]
+  (jdbc/execute-one!
+   db/ds
+   ["SELECT id, name, type, major, minor FROM AGORA_KI
+     WHERE type = ? AND name = ? AND major = ? ORDER BY minor DESC LIMIT 1"
+    ki-type ki-name ki-major]
+   {:builder-fn rs/as-unqualified-kebab-maps}))
 
-  `direction` is :inputs (KIs that imply this one) or :successors (KIs this one
-  implies). Edges store Major only, so each reference is resolved to its concrete
-  latest-minor row — Slice 3 (#30) factors that resolution into a named utility."
+(defn- edge-refs
+  "The Major-only KI references (type, name, major) on the `wanted` side of edges
+  whose `known` side is the given KI. `direction` :inputs looks at edges whose
+  output is this KI (wanting their input); :successors is the mirror."
   [direction ki-type ki-name ki-major]
   (let [[known wanted] (case direction
                          :inputs     ["output" "input"]
                          :successors ["input" "output"])
-        sql (str "SELECT k.id, k.name, k.type, k.major, k.minor "
-                 "FROM AGORA_KI_EDGE e "
-                 "JOIN AGORA_KI k ON k.type = e." wanted "_type "
-                 "               AND k.name = e." wanted "_name "
-                 "               AND k.major = e." wanted "_major "
-                 "WHERE e." known "_type = ? AND e." known "_name = ? AND e." known "_major = ? "
-                 "AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_KI k2 "
-                 "               WHERE k2.type = k.type AND k2.name = k.name AND k2.major = k.major) "
-                 "ORDER BY k.type, k.name, k.major")]
-    ;; `known`/`wanted` are fixed literals ("input"/"output"), never user input.
+        ;; `known`/`wanted` are fixed literals ("input"/"output"), never user input.
+        sql (str "SELECT " wanted "_type AS type, " wanted "_name AS name, " wanted "_major AS major "
+                 "FROM AGORA_KI_EDGE "
+                 "WHERE " known "_type = ? AND " known "_name = ? AND " known "_major = ? "
+                 "ORDER BY " wanted "_type, " wanted "_name, " wanted "_major")]
     (jdbc/execute! db/ds
                    [sql ki-type ki-name ki-major]
                    {:builder-fn rs/as-unqualified-kebab-maps})))
+
+(defn- neighbours
+  "Light KI refs reachable from the given KI across one edge, each Major-only
+  reference resolved to its latest-minor row via `resolve-major`. `direction` is
+  :inputs (KIs that imply this one) or :successors (KIs this one implies)."
+  [direction ki-type ki-name ki-major]
+  (->> (edge-refs direction ki-type ki-name ki-major)
+       (keep (fn [{ref-type :type ref-name :name ref-major :major}]
+               (resolve-major ref-type ref-name ref-major)))
+       vec))
 
 (defn fetch-ki
   "Fetch the KI identified by `id`, resolving its output statement text from the
