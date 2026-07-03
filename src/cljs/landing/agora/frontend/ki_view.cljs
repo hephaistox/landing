@@ -225,6 +225,29 @@
                                 :results []})
                     :dispatch [:agora/ki-updated (:body resp)]}))
 
+;; ---- Create a new KI (standalone form, #34) ----
+
+(rf/reg-sub ::new (fn [db _] (::new db)))
+(rf/reg-event-db ::new-set (fn [db [_ k v]] (assoc-in db [::new k] v)))
+
+(rf/reg-event-fx ::new-submit
+                 (fn [{:keys [db]} _]
+                   (let [{:keys [name type output-statement]} (::new db)]
+                     {:db (assoc-in db [::new :submitting?] true)
+                      :fetch (json-req :post
+                                       "/api/ki"
+                                       {:name name
+                                        :type (or type "derived")
+                                        :output-statement output-statement}
+                                       [::new-created])})))
+
+(rf/reg-event-fx ::new-created
+                 (fn [{:keys [db]} [_ resp]]
+                   ;; :agora/edited caches the new KI and navigates to its page (where inputs can
+                   ;; then be added). Clear the form.
+                   {:db (dissoc db ::new)
+                    :dispatch [:agora/edited (:body resp)]}))
+
 ;; ===========================================================================
 ;; Components
 ;; ===========================================================================
@@ -579,15 +602,94 @@
   [ki]
   (let [edit @(rf/subscribe [::edit])] (if (:open? edit) [edit-card ki edit] [static-card ki])))
 
+(defn creation-form
+  "Standalone form to create a new KI (#34). On save it POSTs /api/ki and
+  navigates to the new KI's page, where inputs can then be linked."
+  []
+  (let [{:keys [name type output-statement submitting?]} @(rf/subscribe [::new])
+        blank? (or (str/blank? name) (str/blank? output-statement))]
+    [:div {:style (assoc card-style :margin "1.5em auto")}
+     [:h1 {:style {:font-size "1.3em"
+                   :margin "0 0 0.8em"}}
+      "New Knowledge Item"]
+     [:div {:style {:font-size "0.8em"
+                    :color "#555"
+                    :margin-bottom "0.3em"}}
+      "Name"]
+     [:input {:type "text"
+              :placeholder "a short identity slug"
+              :value (or name "")
+              :on-change #(rf/dispatch [::new-set :name (.. % -target -value)])
+              :style {:width "100%"
+                      :box-sizing "border-box"
+                      :padding "0.5em"
+                      :font-family "inherit"
+                      :font-size "0.95em"
+                      :border "1px solid #ccc"
+                      :border-radius "0.3em"
+                      :margin-bottom "0.8em"}}]
+     [:div {:style {:font-size "0.8em"
+                    :color "#555"
+                    :margin-bottom "0.3em"}}
+      "Type"]
+     [:div {:style {:margin-bottom "0.8em"}}
+      [type-selector (or type "derived") #(rf/dispatch [::new-set :type %])]]
+     [:div {:style {:font-size "0.8em"
+                    :color "#555"
+                    :margin-bottom "0.3em"}}
+      "Output statement"]
+     [:textarea {:rows 4
+                 :placeholder "the claim this KI asserts"
+                 :value (or output-statement "")
+                 :on-change #(rf/dispatch [::new-set :output-statement (.. % -target -value)])
+                 :style {:width "100%"
+                         :box-sizing "border-box"
+                         :padding "0.5em"
+                         :font-family "inherit"
+                         :font-size "1.02em"
+                         :line-height "1.5"
+                         :border "1px solid #ccc"
+                         :border-radius "0.3em"}}]
+     [:div {:style {:display "flex"
+                    :gap "0.5em"
+                    :margin-top "0.9em"}}
+      [:button {:on-click #(rf/dispatch [::new-submit])
+                :disabled (or blank? (boolean submitting?))
+                :style {:padding "0.4em 0.9em"
+                        :border "none"
+                        :background "#b9770e"
+                        :color "#fff"
+                        :border-radius "0.3em"
+                        :cursor (if (or blank? submitting?) "default" "pointer")}}
+       (if submitting? "Creating…" "Create KI")]
+      [:a {:href "/lab/ki"
+           :style {:padding "0.4em 0.9em"
+                   :border "1px solid #ccc"
+                   :background "#fff"
+                   :border-radius "0.3em"
+                   :text-decoration "none"
+                   :color "#444"}}
+       "Cancel"]]]))
+
 (defn ki-page
   "The KI page: inputs (removable) + add-input control above, the editable card in
-  the middle, successors below, joined by directed connectors."
+  the middle, successors below, joined by directed connectors. A `+ New KI` link
+  sits at the top."
   [{:keys [id inputs successors]
     :as ki}]
   [:div {:style {:display "flex"
                  :flex-direction "column"
                  :align-items "center"
                  :padding "1em 0.6em 2em"}}
+   [:div {:style {:width "40em"
+                  :max-width "100%"
+                  :text-align "right"
+                  :margin-bottom "0.3em"}}
+    [:a {:href "/lab/ki/new"
+         :style {:font-size "0.85em"
+                 :color "#b9770e"
+                 :text-decoration "none"}}
+     "+ New KI"]]
    (into [:div {:style {:display "flex"
                         :flex-wrap "wrap"
                         :gap "0.5em"

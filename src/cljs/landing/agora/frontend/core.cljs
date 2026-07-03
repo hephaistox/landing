@@ -35,17 +35,19 @@
   (* 4 60 60 1000))
 
 (defn path->route
-  "Parse a lab path into {:kind :id}, or nil when it is not a lab route (Pushy
-  then lets the browser handle the click normally)."
+  "Parse a lab path into {:kind …}, or nil when it is not a lab route (Pushy then
+  lets the browser handle the click normally)."
   [path]
-  (if-let [m (re-find #"^/lab/article/([^/?#]+)" path)]
+  (cond
+    (re-find #"^/lab/ki/new/?(?:[?#].*)?$" path) {:kind :new}
+    (re-find #"^/lab/article/([^/?#]+)" path)
     {:kind :article
-     :id (js/decodeURIComponent (second m))}
-    (when-let [m (re-find #"^/lab/ki(?:/([^/?#]+))?/?(?:[?#].*)?$" path)]
-      {:kind :ki
-       :id (or (some-> (second m)
-                       js/decodeURIComponent)
-               seeded-ki-id)})))
+     :id (js/decodeURIComponent (second (re-find #"^/lab/article/([^/?#]+)" path)))}
+    :else (when-let [m (re-find #"^/lab/ki(?:/([^/?#]+))?/?(?:[?#].*)?$" path)]
+            {:kind :ki
+             :id (or (some-> (second m)
+                             js/decodeURIComponent)
+                     seeded-ki-id)})))
 
 (defonce ^:private history (atom nil))
 
@@ -96,26 +98,38 @@
 ;; State
 ;; ---------------------------------------------------------------------------
 
+(defn- route-changed-fetch
+  "Cache-or-fetch a :ki/:article route."
+  [db kind id]
+  (let [entry (get-in db [:cache [kind id]])
+        fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
+    (if fresh?
+      ;; Fresh cache hit — swap instantly, no request.
+      {:db (assoc db
+                  :view {:kind kind
+                         :data (:data entry)}
+                  :loading? false
+                  :error nil)}
+      ;; Miss/stale — fetch, but keep the current :view on screen until it lands.
+      {:db (assoc db :loading? true :error nil)
+       :fetch {:method :get
+               :url (str (api-path kind) id)
+               :headers {"Accept" "application/json"}
+               :response-content-types {#"application/json" :json}
+               :on-success [::fetch-ok kind id]
+               :on-failure [::fetch-failed]}})))
+
 (rf/reg-event-fx ::route-changed
                  (fn [{:keys [db]} [_ {:keys [kind id]}]]
-                   (let [db (ki-view/close-panels db)
-                         entry (get-in db [:cache [kind id]])
-                         fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
-                     (if fresh?
-                       ;; Fresh cache hit — swap instantly, no request.
+                   (let [db (ki-view/close-panels db)]
+                     (if (= kind :new)
+                       ;; The creation form — nothing to fetch.
                        {:db (assoc db
-                                   :view {:kind kind
-                                          :data (:data entry)}
+                                   :view {:kind :new
+                                          :data nil}
                                    :loading? false
                                    :error nil)}
-                       ;; Miss/stale — fetch, but keep the current :view on screen until it lands.
-                       {:db (assoc db :loading? true :error nil)
-                        :fetch {:method :get
-                                :url (str (api-path kind) id)
-                                :headers {"Accept" "application/json"}
-                                :response-content-types {#"application/json" :json}
-                                :on-success [::fetch-ok kind id]
-                                :on-failure [::fetch-failed]}}))))
+                       (route-changed-fetch db kind id)))))
 
 (rf/reg-event-db ::fetch-ok
                  (fn [db [_ kind id response]]
@@ -199,6 +213,7 @@
         loading? @(rf/subscribe [::loading?])
         error @(rf/subscribe [::error])]
     (cond
+      (= kind :new) [ki-view/creation-form]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind
