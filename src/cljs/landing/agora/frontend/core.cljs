@@ -87,7 +87,7 @@
     (case status
       :loading [:p {:style {:color "#888"}} "Loading KI…"]
       :failed [error-view error]
-      :loaded [ki-view/ki-card ki]
+      :loaded [ki-view/ki-page ki]
       nil)))
 
 (defn ^:dev/after-load mount-root
