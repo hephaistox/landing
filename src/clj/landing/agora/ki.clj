@@ -157,21 +157,27 @@
       (fetch-ki new-id))))
 
 (defn search-kis
-  "KIs whose name contains `q` (case-insensitive), one light ref per lineage
-  (latest minor). Blank `q` returns []. Used to pick an existing KI as an input."
+  "KIs matching `q` (case-insensitive) in either their name OR their latest
+  output-statement text, one light ref per lineage (latest minor). Blank `q`
+  returns []. The statement text lives in the blob store, joined by hash. Used by
+  the search UI (#37) and to pick an existing KI as an input (#33)."
   [q]
   (if (str/blank? q)
     []
-    (jdbc/execute!
-     db/ds
-     ["SELECT k.id, k.name, k.type, k.major, k.minor FROM AGORA_KI k
-       WHERE k.object_type = 'ki' AND k.name LIKE ?
-         AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_KI k2
-                        WHERE k2.object_type = 'ki' AND k2.name = k.name AND k2.major = k.major)
-       ORDER BY k.name, k.major
-       LIMIT 50"
-      (str "%" q "%")]
-     {:builder-fn rs/as-unqualified-kebab-maps})))
+    (let [like (str "%" q "%")]
+      (jdbc/execute!
+       db/ds
+       ["SELECT k.id, k.name, k.type, k.major, k.minor FROM AGORA_KI k
+         LEFT JOIN AGORA_BLOB b ON b.hash = k.output_statement_hash
+         WHERE k.object_type = 'ki'
+           AND (k.name LIKE ? OR b.content LIKE ?)
+           AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_KI k2
+                          WHERE k2.object_type = 'ki' AND k2.name = k.name AND k2.major = k.major)
+         ORDER BY k.name, k.major
+         LIMIT 50"
+        like
+        like]
+       {:builder-fn rs/as-unqualified-kebab-maps}))))
 
 (defn record-visit
   "Increment the public-page visit counter for the (name, major) lineage."

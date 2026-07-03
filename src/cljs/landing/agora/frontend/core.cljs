@@ -285,12 +285,17 @@
                 "Loading…"]
       :else nil)))
 
+(defn root-view
+  "The shared header on top of the current page."
+  []
+  [:div [ki-view/header] [app-view]])
+
 (defn ^:dev/after-load mount-root
   []
   (rf/clear-subscription-cache!)
   (when-let [el (.getElementById js/document "agora-app")]
     (rdom/unmount-component-at-node el)
-    (rdom/render [app-view] el)))
+    (rdom/render [root-view] el)))
 
 (defn init
   []

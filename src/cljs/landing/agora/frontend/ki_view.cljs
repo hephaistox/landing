@@ -257,6 +257,127 @@
    :font-size "0.72em"
    :font-family "monospace"})
 
+(defn permalink
+  "The public permanent URL of a KI ref: /ki/{name}/{major}."
+  [{:keys [name major]}]
+  (str "/ki/" (js/encodeURIComponent name) "/" major))
+
+;; ---- Full-text search box (#37) — searches name + statement, links to pages ----
+
+(rf/reg-sub ::search (fn [db _] (::search db)))
+(rf/reg-event-db ::search-clear (fn [db _] (dissoc db ::search)))
+
+(rf/reg-event-fx ::search-input
+                 (fn [{:keys [db]} [_ q]]
+                   (if (str/blank? q)
+                     {:db (assoc db
+                                 ::search
+                                 {:q q
+                                  :results []})}
+                     {:db (assoc-in db [::search :q] q)
+                      :fetch {:method :get
+                              :url (str "/api/ki?q=" (js/encodeURIComponent q))
+                              :headers {"Accept" "application/json"}
+                              :response-content-types {#"application/json" :json}
+                              :on-success [::search-ok]
+                              :on-failure [::op-failed]}})))
+
+(rf/reg-event-db ::search-ok (fn [db [_ resp]] (assoc-in db [::search :results] (:body resp))))
+
+(defn search-box
+  "A search input that queries name + output statement and shows matches as a
+  dropdown of links to public KI pages."
+  []
+  (let [{:keys [q results]} @(rf/subscribe [::search])]
+    [:div {:style {:position "relative"
+                   :width "100%"}}
+     [:input {:type "text"
+              :placeholder "Search knowledge items…"
+              :value (or q "")
+              :on-change #(rf/dispatch [::search-input (.. % -target -value)])
+              :style {:width "100%"
+                      :box-sizing "border-box"
+                      :padding "0.55em"
+                      :font-size "1em"
+                      :border "1px solid #ccc"
+                      :border-radius "0.4em"}}]
+     (when (and (not (str/blank? q)) (seq results))
+       (into [:div {:style {:position "absolute"
+                            :z-index 20
+                            :left 0
+                            :right 0
+                            :margin-top "0.2em"
+                            :background "#fff"
+                            :border "1px solid #ddd"
+                            :border-radius "0.4em"
+                            :box-shadow "0 4px 12px rgba(0,0,0,0.1)"
+                            :max-height "20em"
+                            :overflow-y "auto"}}]
+             (for [k results]
+               ^{:key (:id k)}
+               [:a {:href (permalink k)
+                    :on-click #(rf/dispatch [::search-clear])
+                    :style {:display "flex"
+                            :align-items "center"
+                            :gap "0.5em"
+                            :padding "0.5em 0.7em"
+                            :text-decoration "none"
+                            :color "inherit"
+                            :border-bottom "1px solid #f0f0f0"}}
+                [type-badge-view (:type k)]
+                [:span {:style {:font-weight 600}}
+                 (:name k)]
+                [:span {:style version-tag-style}
+                 (str "v" (:major k) "." (:minor k))]])))
+     (when (and (not (str/blank? q)) (empty? results))
+       [:div {:style {:position "absolute"
+                      :z-index 20
+                      :left 0
+                      :right 0
+                      :margin-top "0.2em"
+                      :background "#fff"
+                      :border "1px solid #ddd"
+                      :border-radius "0.4em"
+                      :padding "0.5em 0.7em"
+                      :color "#aaa"
+                      :font-size "0.9em"}}
+        "No matches."])]))
+
+(defn header
+  "Shared Agora header (Hephaistox dark/copper theme) linking every page. The lab
+  links are included for now and will be dropped once the lab is retired."
+  []
+  [:header {:style {:display "flex"
+                    :align-items "center"
+                    :gap "1.2em"
+                    :flex-wrap "wrap"
+                    :padding "0.6em 1.2em"
+                    :background "#1b1a17"
+                    :color "#e8e2d6"
+                    :border-bottom "2px solid #b9770e"}}
+   [:a {:href "/discover"
+        :style {:font-family "Georgia, 'Cormorant Garamond', serif"
+                :font-size "1.4em"
+                :font-weight 700
+                :letter-spacing "0.03em"
+                :color "#d99a2b"
+                :text-decoration "none"}}
+    "Agora"]
+   (into [:nav {:style {:display "flex"
+                        :gap "1em"
+                        :font-size "0.9em"}}]
+         (for [[label href] [["Discover" "/discover"] ["New KI" "/lab/ki/new"] ["Lab" "/lab/ki"]]]
+           ^{:key href}
+           [:a {:href href
+                :style {:color "#e8e2d6"
+                        :text-decoration "none"
+                        :opacity 0.85}}
+            label]))
+   [:div {:style {:flex "1 1 16em"
+                  :max-width "26em"
+                  :margin-left "auto"}}
+    [search-box]]])
+
 (defn version-picker
   "Current version; clicking reveals an in-order strip of every version."
   [{:keys [major minor versions]}]
@@ -717,11 +838,6 @@
                            :justify-content "center"}}]
             (for [s successors] ^{:key (:id s)} [mini-card s (str "/lab/ki/" (:id s)) nil]))])])
 
-(defn- permalink
-  "The public permanent URL of a KI ref: /ki/{name}/{major}."
-  [{:keys [name major]}]
-  (str "/ki/" (js/encodeURIComponent name) "/" major))
-
 (defn public-ki-page
   "Read-only public KI page (#35): inputs above, the card (no edit controls) in the
   middle, successors below. Neighbour links point at other public permalinks."
@@ -753,72 +869,42 @@
 ;; Discoverability page (#36)
 ;; ===========================================================================
 
-(rf/reg-sub ::discover-q (fn [db _] (::discover-q db)))
-(rf/reg-event-db ::discover-set-q (fn [db [_ q]] (assoc db ::discover-q q)))
-
 (defn discover-page
-  "Public homepage: a searchable, curated list of KIs, each linking to its
-  permanent public page."
+  "Public homepage: a visit-weighted sample of KIs, each linking to its permanent
+  public page. Navigation and search live in the shared header."
   [kis]
-  (let [q @(rf/subscribe [::discover-q])
-        shown (if (str/blank? q)
-                kis
-                (filter #(str/includes? (str/lower-case (str (:name %))) (str/lower-case q)) kis))]
-    [:div {:style {:max-width "44em"
-                   :margin "1.5em auto"
-                   :padding "0 0.8em"
-                   :font-family "system-ui, sans-serif"}}
-     [:div {:style {:display "flex"
-                    :align-items "baseline"
-                    :justify-content "space-between"
-                    :margin-bottom "0.6em"}}
-      [:h1 {:style {:font-size "1.6em"
-                    :margin 0}}
-       "Agora"]
-      [:a {:href "/lab/ki/new"
-           :style {:font-size "0.9em"
-                   :color "#b9770e"
-                   :text-decoration "none"}}
-       "+ New KI"]]
-     [:p {:style {:color "#666"
-                  :margin "0 0 1em"}}
-      "Knowledge Items — reasoning made legible."]
-     [:input {:type "text"
-              :placeholder "Search by name…"
-              :value (or q "")
-              :on-change #(rf/dispatch [::discover-set-q (.. % -target -value)])
-              :style {:width "100%"
-                      :box-sizing "border-box"
-                      :padding "0.55em"
-                      :font-size "1em"
-                      :border "1px solid #ccc"
-                      :border-radius "0.4em"
-                      :margin-bottom "1em"}}]
-     (if (seq shown)
-       (into [:div {:style {:display "flex"
-                            :flex-direction "column"
-                            :gap "0.5em"}}]
-             (for [k shown]
-               ^{:key (:id k)}
-               [:a {:href (permalink k)
-                    :style {:display "flex"
-                            :align-items "center"
-                            :gap "0.6em"
-                            :padding "0.6em 0.8em"
-                            :border "1px solid #ddd"
-                            :border-radius "0.4em"
-                            :text-decoration "none"
-                            :color "inherit"
-                            :background "#fff"}}
-                [type-badge-view (:type k)]
-                [:span {:style {:font-weight 600}}
-                 (:name k)]
-                [:span {:style version-tag-style}
-                 (str "v" (:major k) "." (:minor k))]
-                [:span {:style {:flex "1 1 auto"}}]
-                [:span {:style {:color "#aaa"
-                                :font-size "0.75em"}}
-                 (str (:visits k) " view" (when (not= 1 (:visits k)) "s"))]]))
-       [:div {:style {:color "#aaa"
-                      :font-style "italic"}}
-        "No knowledge items yet."])]))
+  [:div {:style {:max-width "44em"
+                 :margin "1.5em auto"
+                 :padding "0 0.8em"
+                 :font-family "system-ui, sans-serif"}}
+   [:p {:style {:color "#666"
+                :margin "0 0 1em"}}
+    "Knowledge Items — reasoning made legible."]
+   (if (seq kis)
+     (into [:div {:style {:display "flex"
+                          :flex-direction "column"
+                          :gap "0.5em"}}]
+           (for [k kis]
+             ^{:key (:id k)}
+             [:a {:href (permalink k)
+                  :style {:display "flex"
+                          :align-items "center"
+                          :gap "0.6em"
+                          :padding "0.6em 0.8em"
+                          :border "1px solid #ddd"
+                          :border-radius "0.4em"
+                          :text-decoration "none"
+                          :color "inherit"
+                          :background "#fff"}}
+              [type-badge-view (:type k)]
+              [:span {:style {:font-weight 600}}
+               (:name k)]
+              [:span {:style version-tag-style}
+               (str "v" (:major k) "." (:minor k))]
+              [:span {:style {:flex "1 1 auto"}}]
+              [:span {:style {:color "#aaa"
+                              :font-size "0.75em"}}
+               (str (:visits k) " view" (when (not= 1 (:visits k)) "s"))]]))
+     [:div {:style {:color "#aaa"
+                    :font-style "italic"}}
+      "No knowledge items yet."])])
