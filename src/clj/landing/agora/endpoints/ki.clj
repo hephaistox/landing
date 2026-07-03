@@ -16,6 +16,11 @@
 (def ^:private ki-type-enum
   [:enum "derived" "verifiable-claim" "postulate" "stance" "belief" "credo"])
 
+(def ^:private input-ref-schema
+  "Body for add/drop input: a Major-level KI reference (name + major; identity's
+  T is the object type `ki`)."
+  [:map [:name :string] [:major :int]])
+
 (def ki-handler
   "Return the KI identified by the :id path param, or 404 if it does not exist."
   (fn [req]
@@ -40,6 +45,92 @@
         {:status 404
          :body {:error "KI not found"
                 :id id}}))))
+
+(def search-ki-handler
+  "Return light refs of KIs whose name matches the ?q= query param."
+  (fn [req]
+    {:status 200
+     :body (ki/search-kis (get-in req [:parameters :query :q]))}))
+
+(def create-ki-handler
+  "Create a new KI (major 1, minor 0) from the request body. 201 with the KI."
+  (fn [req]
+    {:status 201
+     :body (ki/create-ki (get-in req [:parameters :body]))}))
+
+(defn ki-collection-route
+  "The KI collection: GET searches by name (?q=), POST creates a new KI."
+  [prefix]
+  [prefix
+   {:coercion coercion
+    :muuntaja m/instance
+    :swagger {:tags #{:agora}}
+    :middleware [parameters/parameters-middleware
+                 muuntaja/format-negotiate-middleware
+                 muuntaja/format-response-middleware
+                 exception/exception-middleware
+                 muuntaja/format-request-middleware
+                 rcoercion/coerce-request-middleware]
+    :get {:handler search-ki-handler
+          :operationId "agora-search-kis"
+          :parameters {:query [:map
+                               [:q {:optional true}
+                                :string]]}
+          :summary "Search KIs by name"}
+    :post {:handler create-ki-handler
+           :operationId "agora-create-ki"
+           :parameters {:body
+                        [:map [:name :string] [:type ki-type-enum] [:output-statement :string]]}
+           :summary "Create a new KI (major 1, minor 0)"}}])
+
+(def add-input-handler
+  "Add an input link to the KI :id from the body ref. 200 with the updated KI."
+  (fn [req]
+    (let [id (get-in req [:parameters :path :id])
+          input (get-in req [:parameters :body])]
+      (if-let [ki (ki/add-input id input)]
+        {:status 200
+         :body ki}
+        {:status 404
+         :body {:error "KI not found"
+                :id id}}))))
+
+(def drop-input-handler
+  "Drop an input link from the KI :id given the body ref. 200 with the updated KI."
+  (fn [req]
+    (let [id (get-in req [:parameters :path :id])
+          input (get-in req [:parameters :body])]
+      (if-let [ki (ki/drop-input id input)]
+        {:status 200
+         :body ki}
+        {:status 404
+         :body {:error "KI not found"
+                :id id}}))))
+
+(defn inputs-route
+  "Manage a KI's input links: POST adds one, DELETE removes one. Body is a
+  Major-level KI reference {:name :major}."
+  [prefix]
+  [prefix
+   {:coercion coercion
+    :muuntaja m/instance
+    :swagger {:tags #{:agora}}
+    :middleware [parameters/parameters-middleware
+                 muuntaja/format-negotiate-middleware
+                 muuntaja/format-response-middleware
+                 exception/exception-middleware
+                 muuntaja/format-request-middleware
+                 rcoercion/coerce-request-middleware]
+    :post {:handler add-input-handler
+           :operationId "agora-add-input"
+           :parameters {:path [:map [:id :string]]
+                        :body input-ref-schema}
+           :summary "Add an input link to a KI"}
+    :delete {:handler drop-input-handler
+             :operationId "agora-drop-input"
+             :parameters {:path [:map [:id :string]]
+                          :body input-ref-schema}
+             :summary "Drop an input link from a KI"}}])
 
 (defn edit-ki-route
   [prefix]

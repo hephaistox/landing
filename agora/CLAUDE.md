@@ -56,6 +56,14 @@ A KI is typed at creation by the claimer. The type determines the lifecycle proc
 
 All four are processed identically by the system at MVP. In advanced layers, the challenge process may differ by variation — a postulate invites logical challenge, a credo invites value confrontation — and the system may route challenges accordingly. The vocabulary choice is also a signal to readers and challengers about what kind of response is appropriate, guiding behaviour naturally even before the system enforces it.
 
+### Identity: object type vs epistemic type
+
+The `T` in the identity tuple is the **object type**, not the epistemic type above. The store is single-table and polymorphic (PLM-style): it holds **KIs** and, from Layer 2, **Objections** (the PLM "change" analog) — different object types with their own `Name + Major + Minor` lineages, standing in the same table. So identity is **ObjectType + Name + Major + Minor**, with `object_type = "ki"` today and `"objection"` later.
+
+The **epistemic type** (`derived / verifiable-claim / postulate / stance / belief / credo`) is a **mutable attribute of a KI**, deliberately *not* part of identity. People revise how they classify a claim — often *in response to a challenge* (e.g. a "postulate" is shown to actually follow from other KIs and becomes "derived"). Reclassifying is therefore an ordinary **edit → new minor**, never a new object, and edges (which reference `Name + Major`) follow automatically. Putting the epistemic type in the identity would fork the lineage and break edges on every reclassification, contradicting "KIs are immutable, evolving nodes."
+
+(Name uniqueness is thus carried by `Name + Major` within an object type; owner-scoped names / slugs are a later refinement.)
+
 ### Timestamp & Provenance
 
 Every KI carries an immutable timestamp of first publication. This is a proof of intellectual antecedence — the claimer can establish that they formulated this reasoning before it became mainstream, before an academic paper covered it, before the fact resolved. The timestamp is public, indexed by Google, and incontestable. A forked version carries its own timestamp; antecedence belongs to the original branch. This is a strong claimer motivation: beyond convincing others, they are protecting their intellectual authorship.
@@ -320,7 +328,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 - KI page navigation — follow edges to connected KIs
 
 **Slice 3 — Versioning in links**
-- KI identity model enforced — Type + Name + Major + Minor
+- KI identity model enforced — ObjectType + Name + Major + Minor (object_type = "ki"; epistemic type is a mutable attribute, see "Identity: object type vs epistemic type")
 - Auto-resolution to latest minor within referenced major — implemented as DB query utility
 - Navigation reflects versioned links correctly
 

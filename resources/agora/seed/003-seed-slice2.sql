@@ -20,10 +20,12 @@ VALUES
    NULL,
    '2026-07-02 00:00:00');
 
--- 3. Edge: postulate confidence-is-partial (input) implies derived confidence-over-binary (output).
+-- 3. Edge: confidence-is-partial (input) implies confidence-over-binary (output).
+--    Edges reference (name, major) only — object type / epistemic type are not
+--    part of the edge (see migration 005).
 INSERT INTO `AGORA_KI_EDGE`
-  (`id`, `input_type`, `input_name`, `input_major`, `output_type`, `output_name`, `output_major`)
+  (`id`, `input_name`, `input_major`, `output_name`, `output_major`)
 VALUES
   ('00000000-0000-0000-0000-0000000000e1',
-   'postulate', 'confidence-is-partial',  1,
-   'derived',   'confidence-over-binary', 1);
+   'confidence-is-partial',  1,
+   'confidence-over-binary', 1);

@@ -14,7 +14,6 @@
   (:require
    [cljs.pprint                         :refer [pprint]]
    [landing.agora.frontend.article-view :as article-view]
-   [landing.agora.frontend.ki-edit      :as ki-edit]
    [landing.agora.frontend.ki-view      :as ki-view]
    [pushy.core                          :as pushy]
    [re-frame.core                       :as rf]
@@ -53,17 +52,18 @@
 ;; ---------------------------------------------------------------------------
 ;; Local latest-minor index
 ;;
-;; :latest {[type name major] {:id id :minor minor}} — the newest KI version we
+;; :latest {[name major] {:id id :minor minor}} — the newest KI version we
 ;; know about for each major lineage, learned from fetched/edited data. Neighbour
 ;; links resolve through it, mirroring the server's resolve-major, so an edit is
 ;; reflected everywhere immediately.
 ;; ---------------------------------------------------------------------------
 
 (defn- note-latest
-  "Fold a KI-ish ref {:type :name :major :minor :id} into the latest-minor index."
-  [latest {:keys [type name major minor id]}]
-  (if (and type name major id (some? minor))
-    (let [k [type name major]
+  "Fold a KI-ish ref {:name :major :minor :id} into the latest-minor index. Keyed
+  on (name, major) — identity's T is the object type `ki`."
+  [latest {:keys [name major minor id]}]
+  (if (and name major id (some? minor))
+    (let [k [name major]
           cur (get latest k)]
       (if (or (nil? cur) (> minor (:minor cur)))
         (assoc latest
@@ -79,11 +79,11 @@
   (reduce note-latest latest (concat [ki] (:inputs ki) (:successors ki))))
 
 (defn- resolve-neighbour
-  "Point a neighbour ref at the newest known minor of its major lineage."
+  "Point a neighbour ref at the newest known minor of its (name, major) lineage."
   [latest
-   {:keys [type name major minor]
+   {:keys [name major minor]
     :as n}]
-  (let [newer (get latest [type name major])]
+  (let [newer (get latest [name major])]
     (if (and newer (> (:minor newer) minor)) (assoc n :id (:id newer) :minor (:minor newer)) n)))
 
 (defn- resolve-ki-neighbours
@@ -98,7 +98,7 @@
 
 (rf/reg-event-fx ::route-changed
                  (fn [{:keys [db]} [_ {:keys [kind id]}]]
-                   (let [db (ki-edit/close-form db)
+                   (let [db (ki-view/close-panels db)
                          entry (get-in db [:cache [kind id]])
                          fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
                      (if fresh?
@@ -140,12 +140,25 @@
                  (fn [{:keys [db]} [_ ki]]
                    (let [id (:id ki)]
                      {:db (-> db
-                              (ki-edit/close-form)
+                              (ki-view/close-panels)
                               (assoc-in [:cache [:ki id]]
                                         {:data ki
                                          :at (js/Date.now)})
                               (update :latest index-ki ki))
                       :agora/navigate (str "/lab/ki/" id)})))
+
+;; Called after a link change (add/drop input): the same KI id is refreshed in
+;; place — update the view, cache and latest index, no navigation.
+(rf/reg-event-db :agora/ki-updated
+                 (fn [db [_ ki]]
+                   (-> db
+                       (assoc :view
+                              {:kind :ki
+                               :data ki})
+                       (assoc-in [:cache [:ki (:id ki)]]
+                                 {:data ki
+                                  :at (js/Date.now)})
+                       (update :latest index-ki ki))))
 
 ;; Programmatic navigation: drive Pushy so it pushState's and dispatches the
 ;; route change, same as an intercepted link click.
@@ -189,7 +202,7 @@
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind
-             :ki [:div [ki-view/ki-page data] [ki-edit/edit-panel data]]
+             :ki [ki-view/ki-page data]
              :article [article-view/article-card data]
              nil)
       error [error-view error]
