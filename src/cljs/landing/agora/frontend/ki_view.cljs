@@ -34,9 +34,50 @@
                     :border-radius "0.25em"}}
      label]))
 
+(defn- neighbour-link
+  "A link to another KI's lab page, showing its type badge, name and version."
+  [{ki-id :id ki-name :name ki-type :type :keys [major minor]}]
+  [:a {:href (str "/lab/ki/" ki-id)
+       :style {:display "inline-flex"
+               :align-items "center"
+               :gap "0.4em"
+               :text-decoration "none"
+               :color "inherit"
+               :padding "0.25em 0.55em"
+               :border "1px solid #ddd"
+               :border-radius "0.3em"}}
+   [type-badge-view ki-type]
+   [:span ki-name]
+   [:span {:style {:color "#aaa"
+                   :font-size "0.75em"
+                   :font-family "monospace"}}
+    (str "v" major "." minor)]])
+
+(defn- neighbour-section
+  "Labelled row of neighbour links, or a muted 'none' when empty."
+  [label items]
+  [:div {:style {:margin-top "1em"}}
+   [:div {:style {:font-size "0.72em"
+                  :text-transform "uppercase"
+                  :letter-spacing "0.06em"
+                  :color "#888"
+                  :margin-bottom "0.4em"}}
+    label]
+   (if (seq items)
+     (into [:div {:style {:display "flex"
+                          :flex-wrap "wrap"
+                          :gap "0.4em"}}]
+           (for [n items]
+             ^{:key (:id n)} [neighbour-link n]))
+     [:span {:style {:color "#bbb"
+                     :font-style "italic"
+                     :font-size "0.85em"}}
+      "none"])])
+
 (defn ki-card
-  "Render one Knowledge Item."
-  [{ki-name :name ki-type :type :keys [major minor published-at output-statement]}]
+  "Render one Knowledge Item with its input and successor links."
+  [{ki-name :name ki-type :type
+    :keys [major minor published-at output-statement inputs successors]}]
   [:article {:style {:max-width "40em"
                      :margin "1em 0"
                      :padding "1.25em 1.5em"
@@ -64,4 +105,6 @@
                 :line-height "1.5"
                 :color "#222"
                 :margin 0}}
-    output-statement]])
+    output-statement]
+   [neighbour-section "Inputs — KIs that imply this" inputs]
+   [neighbour-section "Successors — KIs this implies" successors]])

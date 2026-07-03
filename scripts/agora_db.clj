@@ -1,8 +1,9 @@
 ;; Agora dev helper — apply raw SQL files to the shared Clever Cloud MySQL DB.
 ;;
 ;; There is no migration runner yet (see #40), so migrations/seeds are applied
-;; manually. Each file must contain a single SQL statement (line `-- comments`
-;; are fine). After applying, prints the current AGORA_KI rows.
+;; manually. Files may contain multiple `;`-separated statements (allowMultiQueries
+;; is enabled below; `;` inside quoted string literals is handled by MySQL, not us).
+;; After applying, prints the current AGORA_KI rows.
 ;;
 ;;   clojure -M scripts/agora_db.clj resources/agora/migrations/001-ki-identity.up.sql \
 ;;                                   resources/agora/seed/001-seed-ki.sql
@@ -10,7 +11,7 @@
 
 (def ds
   (jdbc/get-datasource
-   {:jdbcUrl  (format "jdbc:mysql://%s:%s/%s"
+   {:jdbcUrl  (format "jdbc:mysql://%s:%s/%s?allowMultiQueries=true"
                       (System/getenv "MYSQL_ADDON_HOST")
                       (System/getenv "MYSQL_ADDON_PORT")
                       (System/getenv "MYSQL_ADDON_DB"))
