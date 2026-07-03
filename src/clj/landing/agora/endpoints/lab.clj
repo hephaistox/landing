@@ -48,12 +48,12 @@
   (-> (prepared-public-shell)
       (cr/serve req)))
 
-(defn public-ki-route
-  "Serve the public KI shell at `prefix` (e.g. /ki/:name/:major). Unlike the lab
-  shell it is indexable; the frontend fetches the latest minor and renders it
-  read-only."
+(defn public-shell-route
+  "Serve the public (indexable) shell at `prefix` — backs the permanent KI page
+  (/ki/:name/:major) and the discoverability page (/discover). The frontend
+  decides what to render from the URL."
   [prefix]
   [prefix {:get {:swagger {:tags #{:agora}}
                  :handler public-ki-response
                  :middleware html-middlewares
-                 :summary "Public KI page — permanent URL /ki/:name/:major"}}])
+                 :summary "Public Agora page (KI permalink or discoverability)"}}])

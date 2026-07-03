@@ -47,10 +47,12 @@
                 :id id}}))))
 
 (def search-ki-handler
-  "Return light refs of KIs whose name matches the ?q= query param."
+  "With ?q= present, search KIs by name; otherwise return the discoverability
+  list (recent KIs, latest minor)."
   (fn [req]
-    {:status 200
-     :body (ki/search-kis (get-in req [:parameters :query :q]))}))
+    (let [q (get-in req [:parameters :query :q])]
+      {:status 200
+       :body (if (seq q) (ki/search-kis q) (ki/list-kis))})))
 
 (def create-ki-handler
   "Create a new KI (major 1, minor 0) from the request body. 201 with the KI."
@@ -134,14 +136,15 @@
 
 (def by-major-handler
   "Return the latest-minor KI of a (name, major) lineage — the permanent public
-  identity — or 404."
+  identity — or 404. Records a visit (drives discoverability weighting, #36)."
   (fn [req]
     (let [{ki-name :name
            ki-major :major}
           (get-in req [:parameters :path])]
       (if-let [ki (ki/fetch-ki-by-major ki-name ki-major)]
-        {:status 200
-         :body ki}
+        (do (ki/record-visit ki-name ki-major)
+            {:status 200
+             :body ki})
         {:status 404
          :body {:error "KI not found"
                 :name ki-name

@@ -39,6 +39,7 @@
   lets the browser handle the click normally)."
   [path]
   (cond
+    (re-find #"^/discover/?(?:[?#].*)?$" path) {:kind :discover}
     (re-find #"^/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)
     (let [[_ n mj] (re-find #"^/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)]
       {:kind :ki-public
@@ -156,6 +157,25 @@
                                     :at (js/Date.now)})
                          (update :latest index-ki ki)))))
 
+(defn- route-changed-fetch-list
+  "Fetch the discoverability KI list (GET /api/ki, no query). Not cached — each
+  visit re-fetches so the visit-weighted random order refreshes."
+  [db]
+  {:db (assoc db :loading? true :error nil)
+   :fetch {:method :get
+           :url "/api/ki"
+           :headers {"Accept" "application/json"}
+           :response-content-types {#"application/json" :json}
+           :on-success [::fetch-list-ok]
+           :on-failure [::fetch-failed]}})
+
+(rf/reg-event-db ::fetch-list-ok
+                 (fn [db [_ response]]
+                   (assoc db
+                          :view {:kind :discover
+                                 :data (:body response)}
+                          :loading? false)))
+
 (rf/reg-event-fx ::route-changed
                  (fn [{:keys [db]} [_ {:keys [kind id name major]}]]
                    (let [db (ki-view/close-panels db)]
@@ -166,6 +186,7 @@
                                         :loading? false
                                         :error nil)}
                        :ki-public (route-changed-fetch-public db name major)
+                       :discover (route-changed-fetch-list db)
                        (route-changed-fetch db kind id)))))
 
 (rf/reg-event-db ::fetch-ok
@@ -256,6 +277,7 @@
       data (case kind
              :ki [ki-view/ki-page data]
              :ki-public [ki-view/public-ki-page data]
+             :discover [ki-view/discover-page data]
              :article [article-view/article-card data]
              nil)
       error [error-view error]

@@ -8,7 +8,7 @@
                                               inputs-route
                                               ki-collection-route
                                               ki-route]]
-   [landing.agora.endpoints.lab       :refer [lab-shell-route public-ki-route]]
+   [landing.agora.endpoints.lab       :refer [lab-shell-route public-shell-route]]
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
    [landing.endpoints.default-handler :refer [default-handler not-found-for-lang]]
@@ -81,7 +81,8 @@
                  (ki-route "/api/ki/:id")
                  (edit-ki-route "/api/ki/:id/edit")
                  (inputs-route "/api/ki/:id/inputs")
-                 (public-ki-route "/ki/:name/:major")
+                 (public-shell-route "/ki/:name/:major")
+                 (public-shell-route "/discover")
                  (article-route "/api/article/:id")
                  (lab-shell-route "/lab/ki")
                  (lab-shell-route "/lab/ki/:id")

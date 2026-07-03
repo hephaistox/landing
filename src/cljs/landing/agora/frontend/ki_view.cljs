@@ -748,3 +748,77 @@
                            :gap "0.5em"
                            :justify-content "center"}}]
             (for [s successors] ^{:key (:id s)} [mini-card s (permalink s) nil]))])])
+
+;; ===========================================================================
+;; Discoverability page (#36)
+;; ===========================================================================
+
+(rf/reg-sub ::discover-q (fn [db _] (::discover-q db)))
+(rf/reg-event-db ::discover-set-q (fn [db [_ q]] (assoc db ::discover-q q)))
+
+(defn discover-page
+  "Public homepage: a searchable, curated list of KIs, each linking to its
+  permanent public page."
+  [kis]
+  (let [q @(rf/subscribe [::discover-q])
+        shown (if (str/blank? q)
+                kis
+                (filter #(str/includes? (str/lower-case (str (:name %))) (str/lower-case q)) kis))]
+    [:div {:style {:max-width "44em"
+                   :margin "1.5em auto"
+                   :padding "0 0.8em"
+                   :font-family "system-ui, sans-serif"}}
+     [:div {:style {:display "flex"
+                    :align-items "baseline"
+                    :justify-content "space-between"
+                    :margin-bottom "0.6em"}}
+      [:h1 {:style {:font-size "1.6em"
+                    :margin 0}}
+       "Agora"]
+      [:a {:href "/lab/ki/new"
+           :style {:font-size "0.9em"
+                   :color "#b9770e"
+                   :text-decoration "none"}}
+       "+ New KI"]]
+     [:p {:style {:color "#666"
+                  :margin "0 0 1em"}}
+      "Knowledge Items — reasoning made legible."]
+     [:input {:type "text"
+              :placeholder "Search by name…"
+              :value (or q "")
+              :on-change #(rf/dispatch [::discover-set-q (.. % -target -value)])
+              :style {:width "100%"
+                      :box-sizing "border-box"
+                      :padding "0.55em"
+                      :font-size "1em"
+                      :border "1px solid #ccc"
+                      :border-radius "0.4em"
+                      :margin-bottom "1em"}}]
+     (if (seq shown)
+       (into [:div {:style {:display "flex"
+                            :flex-direction "column"
+                            :gap "0.5em"}}]
+             (for [k shown]
+               ^{:key (:id k)}
+               [:a {:href (permalink k)
+                    :style {:display "flex"
+                            :align-items "center"
+                            :gap "0.6em"
+                            :padding "0.6em 0.8em"
+                            :border "1px solid #ddd"
+                            :border-radius "0.4em"
+                            :text-decoration "none"
+                            :color "inherit"
+                            :background "#fff"}}
+                [type-badge-view (:type k)]
+                [:span {:style {:font-weight 600}}
+                 (:name k)]
+                [:span {:style version-tag-style}
+                 (str "v" (:major k) "." (:minor k))]
+                [:span {:style {:flex "1 1 auto"}}]
+                [:span {:style {:color "#aaa"
+                                :font-size "0.75em"}}
+                 (str (:visits k) " view" (when (not= 1 (:visits k)) "s"))]]))
+       [:div {:style {:color "#aaa"
+                      :font-style "italic"}}
+        "No knowledge items yet."])]))

@@ -173,6 +173,35 @@
       (str "%" q "%")]
      {:builder-fn rs/as-unqualified-kebab-maps})))
 
+(defn record-visit
+  "Increment the public-page visit counter for the (name, major) lineage."
+  [ki-name ki-major]
+  (jdbc/execute!
+   db/ds
+   ["INSERT INTO AGORA_KI_VISIT (name, major, visits) VALUES (?, ?, 1)
+     ON DUPLICATE KEY UPDATE visits = visits + 1"
+    ki-name
+    ki-major]))
+
+(defn list-kis
+  "Up to 10 KIs, one light ref per lineage (latest minor, plus :visits), sampled
+  at random weighted toward the most-visited (#36). The weight is (visits + 1) so
+  never-visited KIs can still appear; ordering uses the Efraimidis–Spirakis
+  weighted key POW(RAND(), 1/weight), so higher visits ⇒ higher chance of being
+  in the top 10."
+  []
+  (jdbc/execute!
+   db/ds
+   ["SELECT k.id, k.name, k.type, k.major, k.minor, COALESCE(v.visits, 0) AS visits
+     FROM AGORA_KI k
+     LEFT JOIN AGORA_KI_VISIT v ON v.name = k.name AND v.major = k.major
+     WHERE k.object_type = 'ki'
+       AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_KI k2
+                      WHERE k2.object_type = 'ki' AND k2.name = k.name AND k2.major = k.major)
+     ORDER BY POW(RAND(), 1.0 / (COALESCE(v.visits, 0) + 1)) DESC
+     LIMIT 10"]
+   {:builder-fn rs/as-unqualified-kebab-maps}))
+
 (defn create-ki
   "Create a brand-new KI (major 1, minor 0) from `name`, `type` and output
   `statement`, and return it via fetch-ki. Used to create an input inflight while
