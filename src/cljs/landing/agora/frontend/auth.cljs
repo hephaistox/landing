@@ -179,18 +179,24 @@
              [:div {:style {:font-size "0.8em"
                             :color "#888"}}
               (:email user)])]
-          [:a {:href (i18n/preferences lang)
-               :on-click #(rf/dispatch [::toggle-menu])
-               :style {:display "block"
-                       :padding "0.4em"
-                       :margin-bottom "0.4em"
-                       :border "1px solid #ccc"
-                       :border-radius "0.3em"
-                       :background "#fff"
-                       :color "#333"
-                       :text-align "center"
-                       :text-decoration "none"}}
-           (i18n/t lang :nav/preferences)]
+          (let [menu-link {:display "block"
+                           :padding "0.4em"
+                           :margin-bottom "0.4em"
+                           :border "1px solid #ccc"
+                           :border-radius "0.3em"
+                           :background "#fff"
+                           :color "#333"
+                           :text-align "center"
+                           :text-decoration "none"}]
+            [:<>
+             [:a {:href (i18n/preferences lang)
+                  :on-click #(rf/dispatch [::toggle-menu])
+                  :style menu-link}
+              (i18n/t lang :nav/preferences)]
+             [:a {:href (i18n/admin lang)
+                  :on-click #(rf/dispatch [::toggle-menu])
+                  :style menu-link}
+              (i18n/t lang :nav/admin)]])
           [:button {:on-click #(rf/dispatch [::logout])
                     :style {:width "100%"
                             :padding "0.4em"

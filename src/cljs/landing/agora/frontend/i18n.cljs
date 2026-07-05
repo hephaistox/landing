@@ -36,7 +36,18 @@
 (def ^:private dict
   {"fr" {:nav/new-ki "Nouveau"
          :nav/preferences "Préférences"
+         :nav/admin "Admin"
          :prefs/title "Préférences"
+         :admin/title "Administration"
+         :admin/major "Majeur"
+         :admin/languages "Langues"
+         :admin/versions "Versions"
+         :admin/latest "Dernier"
+         :admin/drop "Tout supprimer"
+         :admin/compact "Garder le dernier"
+         :admin/confirm "Confirmer ?"
+         :admin/empty "Aucun élément de connaissance."
+         :admin/login-required "Connectez-vous pour administrer."
          :prefs/account "Compte"
          :prefs/connection "Méthode de connexion"
          :prefs/via-password "E-mail et mot de passe"
@@ -110,7 +121,18 @@
          :footer/who-are-we "Qui sommes-nous ?"}
    "en" {:nav/new-ki "New"
          :nav/preferences "Preferences"
+         :nav/admin "Admin"
          :prefs/title "Preferences"
+         :admin/title "Administration"
+         :admin/major "Major"
+         :admin/languages "Languages"
+         :admin/versions "Versions"
+         :admin/latest "Latest"
+         :admin/drop "Drop all"
+         :admin/compact "Keep latest only"
+         :admin/confirm "Confirm?"
+         :admin/empty "No knowledge items."
+         :admin/login-required "Log in to administer."
          :prefs/account "Account"
          :prefs/connection "Sign-in method"
          :prefs/via-password "Email & password"
@@ -205,6 +227,7 @@
 (defn lab-ki [lang id] (str (base lang) "/lab/ki/" id))
 (defn lab-article [lang id] (str (base lang) "/lab/article/" id))
 (defn preferences [lang] (str (base lang) "/preferences"))
+(defn admin [lang] (str (base lang) "/admin"))
 (defn ki
   "Public permalink of a KI (name + major) in `lang`."
   [lang {:keys [name major]}]

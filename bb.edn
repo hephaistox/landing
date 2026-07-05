@@ -56,24 +56,6 @@
   copy {:doc "Copy files from source projects (as defined in ext_src.edn)"
         :requires [[auto-build.tasks.copy :as tc]]
         :task (tc/run level1-header "ext_src.edn")}
-  deploy
-  {:doc
-   "Build (app-admin + agora) + push to production. NOTE: no asset
-         fingerprinting — prefer `bb prod`, which cache-busts."
-   :task
-   (let
-     [td "target/production"
-      repo
-      "git+ssh://git@push-n3-par-clevercloud-customers.services.clever-cloud.com/app_310e3757-812b-4d7a-bd70-a58cfc181505.git"]
-     (shell "rm -rf resources/public/js/compiled" td)
-     (shell "npm install")
-     (apply shell "npx shadow-cljs release" (:fe-builds pars))
-     (shell "clojure -T:uberjar :target-dir" td)
-     (shell {:dir td} "git init -b master")
-     (shell {:dir td} "git remote add clever" repo)
-     (shell {:dir td} "git add .")
-     (shell {:dir td} "git commit -m auto")
-     (shell {:dir td} "git push --force -u clever master"))}
   deps {:doc "Update deps clojure(script) and npm"
         :task (do (shell "clj -M:antq") (shell "npm upgrade"))}
   format {:doc "Format source code"

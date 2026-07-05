@@ -1525,3 +1525,117 @@
      [:h2 {:style section-title}
       (i18n/t lang :form/language)]
      [language-selector lang #(rf/dispatch [:agora/set-lang %])]]))
+
+;; ===========================================================================
+;; Admin page — prune KI lineages (TNRs)
+;; ===========================================================================
+
+(rf/reg-sub ::admin-tnrs (fn [db _] (:admin-tnrs db)))
+
+(def ^:private admin-btn
+  {:font-size "0.8em"
+   :padding "0.25em 0.7em"
+   :border-radius "0.3em"
+   :cursor "pointer"
+   :border "1px solid #ccc"
+   :background "#fff"})
+
+(defn- admin-actions
+  "The action cell for one TNR row: Compact / Drop, with a two-step inline confirm
+  (no native dialog)."
+  [lang confirm t]
+  (let [c @confirm
+        pending? (and c (= (:name c) (:name t)) (= (:major c) (:major t)))]
+    (if pending?
+      [:span {:style {:display "inline-flex"
+                      :gap "0.3em"
+                      :align-items "center"}}
+       [:span {:style {:font-size "0.8em"
+                       :color "#c92a2a"}}
+        (i18n/t lang :admin/confirm)]
+       [:button {:on-click (fn []
+                             (rf/dispatch
+                              [(if (= :drop (:action c)) :agora/admin-drop :agora/admin-compact)
+                               (:name t)
+                               (:major t)])
+                             (reset! confirm nil))
+                 :style (assoc admin-btn :border "1px solid #c92a2a" :color "#c92a2a")}
+        "✓"]
+       [:button {:on-click #(reset! confirm nil)
+                 :style admin-btn}
+        "✕"]]
+      [:span {:style {:display "inline-flex"
+                      :gap "0.4em"}}
+       [:button {:on-click #(reset! confirm {:name (:name t)
+                                             :major (:major t)
+                                             :action :compact})
+                 :style admin-btn}
+        (i18n/t lang :admin/compact)]
+       [:button {:on-click #(reset! confirm {:name (:name t)
+                                             :major (:major t)
+                                             :action :drop})
+                 :style (assoc admin-btn :border "1px solid #c92a2a" :color "#c92a2a")}
+        (i18n/t lang :admin/drop)]])))
+
+(defn admin-page
+  "Maintenance page: every KI lineage (TNR = name + major) with counts, and
+  per-row actions to keep only the latest minor (per language) or drop it entirely.
+  Logged-in only."
+  []
+  (r/with-let
+   [confirm (r/atom nil)]
+   (let [lang @(rf/subscribe [::i18n/lang])
+         user @(rf/subscribe [::auth/user])
+         tnrs @(rf/subscribe [::admin-tnrs])
+         th {:text-align "left"
+             :padding "0.4em 0.6em"
+             :border-bottom "2px solid #e2ddd2"
+             :color "#888"
+             :font-size "0.8em"}
+         td {:padding "0.4em 0.6em"
+             :border-bottom "1px solid #f0eee8"}]
+     [:div {:style {:max-width "56em"
+                    :margin "1.5em auto"
+                    :padding "0 0.8em"
+                    :font-family "system-ui, sans-serif"}}
+      [:h1 {:style {:font-size "1.3em"
+                    :margin "0 0 0.8em"}}
+       (i18n/t lang :admin/title)]
+      (cond
+        (not user) [:div {:style {:color "#888"
+                                  :font-style "italic"}}
+                    (i18n/t lang :admin/login-required)]
+        (empty? tnrs) [:div {:style {:color "#aaa"
+                                     :font-style "italic"}}
+                       (i18n/t lang :admin/empty)]
+        :else [:table {:style {:width "100%"
+                               :border-collapse "collapse"}}
+               [:thead
+                [:tr
+                 [:th {:style th}
+                  (i18n/t lang :form/name)]
+                 [:th {:style th}
+                  (i18n/t lang :admin/major)]
+                 [:th {:style th}
+                  (i18n/t lang :admin/languages)]
+                 [:th {:style th}
+                  (i18n/t lang :admin/versions)]
+                 [:th {:style th}
+                  (i18n/t lang :admin/latest)]
+                 [:th {:style th}]]]
+               (into [:tbody]
+                     (for [t tnrs]
+                       ^{:key (str (:name t) "/" (:major t))}
+                       [:tr
+                        [:td {:style (assoc td :font-weight 600)}
+                         (:name t)]
+                        [:td {:style td}
+                         (:major t)]
+                        [:td {:style td}
+                         (:langs t)]
+                        [:td {:style td}
+                         (:versions t)]
+                        [:td {:style td}
+                         (str "v" (:major t) "." (:latest t))]
+                        [:td {:style (assoc td :text-align "right")}
+                         [admin-actions lang confirm t]]]))])])))

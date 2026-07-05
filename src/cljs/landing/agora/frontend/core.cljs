@@ -47,6 +47,9 @@
     (re-find #"^/agora/([a-z]{2})/preferences/?(?:[?#].*)?$" path)
     {:kind :preferences
      :lang (second (re-find #"^/agora/([a-z]{2})/preferences" path))}
+    (re-find #"^/agora/([a-z]{2})/admin/?(?:[?#].*)?$" path)
+    {:kind :admin
+     :lang (second (re-find #"^/agora/([a-z]{2})/admin" path))}
     (re-find #"^/agora/([a-z]{2})/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)
     (let [[_ lang n mj] (re-find #"^/agora/([a-z]{2})/ki/([^/?#]+)/([0-9]+)" path)]
       {:kind :ki-public
@@ -211,6 +214,12 @@
                                                        :data nil}
                                                 :loading? false
                                                 :error nil)}
+                       :admin {:db (assoc db
+                                          :view {:kind :admin
+                                                 :data nil}
+                                          :loading? false
+                                          :error nil)
+                               :dispatch [:agora/admin-fetch]}
                        :ki-public (route-changed-fetch-public db name major lang)
                        :discover (route-changed-fetch-list db (i18n/current db))
                        (route-changed-fetch db kind id)))))
@@ -300,6 +309,41 @@
                    (i18n/write-stored! (i18n/normalize lang))
                    {:db (i18n/set-lang db lang)}))
 
+;; ---------------------------------------------------------------------------
+;; Admin — list / prune KI lineages (TNRs)
+;; ---------------------------------------------------------------------------
+
+(rf/reg-event-db ::admin-tnrs-ok (fn [db [_ resp]] (assoc db :admin-tnrs (:body resp))))
+
+(rf/reg-event-fx :agora/admin-fetch
+                 (fn [_ _]
+                   {:fetch {:method :get
+                            :url "/agora/api/admin/tnrs"
+                            :headers {"Accept" "application/json"}
+                            :response-content-types {#"application/json" :json}
+                            :on-success [::admin-tnrs-ok]
+                            :on-failure [::admin-tnrs-ok]}}))
+
+(defn- admin-post
+  [url ki-name ki-major]
+  {:method :post
+   :url url
+   :headers {"Content-Type" "application/json"
+             "Accept" "application/json"}
+   :body (js/JSON.stringify (clj->js {:name ki-name
+                                      :major ki-major}))
+   :response-content-types {#"application/json" :json}
+   :on-success [:agora/admin-fetch]
+   :on-failure [:agora/admin-fetch]})
+
+(rf/reg-event-fx :agora/admin-drop
+                 (fn [_ [_ ki-name ki-major]]
+                   {:fetch (admin-post "/agora/api/admin/drop-tnr" ki-name ki-major)}))
+
+(rf/reg-event-fx :agora/admin-compact
+                 (fn [_ [_ ki-name ki-major]]
+                   {:fetch (admin-post "/agora/api/admin/compact-tnr" ki-name ki-major)}))
+
 (rf/reg-sub ::view (fn [db _] (:view db)))
 (rf/reg-sub ::latest (fn [db _] (:latest db)))
 (rf/reg-sub ::loading? (fn [db _] (:loading? db)))
@@ -340,6 +384,7 @@
     (cond
       (= kind :new) [ki-view/creation-form]
       (= kind :preferences) [ki-view/preferences-page]
+      (= kind :admin) [ki-view/admin-page]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind

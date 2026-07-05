@@ -13,7 +13,7 @@ The underlying insight is that human knowledge, unlike mathematical proof, lives
 
 The cognitive style this tool embodies — explicit implication chains, defined terms, traceable confidence — is how rigorous thinkers already reason. People who think in implications naturally, who are frustrated by ambiguous claims, who need to trace the chain before accepting a conclusion. The platform does not ask them to simplify. It matches their cognitive architecture. And it extends that rigour to anyone motivated to think more clearly — not changing their nature, but assisting their reasoning and positioning. Writing itself did not change human cognition; it extended and disciplined it. This is a similar leap.
 
-The name is either **Agora** (the Greek public space where arguments were made openly, to be challenged) or **Logos** (reason, word, logic — the tradition from Aristotle to Proudhon). Both are short, deep, historically rooted in exactly the intellectual tradition this project belongs to. Final choice pending real-world feedback.
+The name is **Agora** (the Greek public space where arguments were made openly, to be challenged), short, deep, historically rooted in exactly the intellectual tradition this project belongs to. 
 
 ---
 
@@ -27,7 +27,7 @@ KIs are not claims about reality. They are claims about reasoning. The differenc
 
 KI granularity is the claimer's responsibility. The system imposes no minimum or maximum scope. A KI can be as broad as a book's thesis or as narrow as a single definitional step. The social validation process naturally drives decomposition: when a KI is too broad, challengers will find something to contest, and the claimer's only recourse is to split into smaller, independently defensible units. This mirrors mathematics exactly — lemmas exist because theorems needed separable chunks that could be proven independently. The invalidation pressure, not a top-down schema, drives the right granularity.
 
-A KI that survives long without invalidation and without needing to be split is a signal of quality. Primitives — KIs with no inputs — emerge naturally from this process. They are not declared as axioms; they simply have no inputs that need defending. The system does not distinguish between a declared axiom and an undeveloped claim — that distinction is resolved by social pressure over time.
+A KI that survives long without invalidation and without needing to be split is a signal of quality. Primitives — KIs with no inputs — emerge naturally from this process. It's not mandatory to declare them as axioms; they simply have no inputs that need defending. The system does not distinguish between a declared axiom and an undeveloped claim — that distinction is resolved by social pressure over time.
 
 ### Definitions as KIs
 
@@ -41,7 +41,7 @@ A KI can be reached via multiple independent sets of inputs — disjunctive ante
 
 ### KI Types
 
-A KI is typed at creation by the claimer. The type determines the lifecycle process, the challenge mechanism, and how confidence is interpreted. Three families exist:
+Every KI carries an **epistemic type** the claimer chooses — one of six flat values: `derived / verifiable-claim / postulate / stance / belief / credo`. **As implemented today, the type is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic type"). The per-type differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The six values fall into three conceptual families:
 
 **Derived KI** — the standard case. Has inputs, produces a logical consequence. Challenged by counterexample or ambiguity challenge. Confidence reflects how well the reasoning chain has survived scrutiny.
 
@@ -58,11 +58,22 @@ All four are processed identically by the system at MVP. In advanced layers, the
 
 ### Identity: object type vs epistemic type
 
-The `T` in the identity tuple is the **object type**, not the epistemic type above. The store is single-table and polymorphic (PLM-style): it holds **KIs** and, from Layer 2, **Objections** (the PLM "change" analog) — different object types with their own `Name + Major + Minor` lineages, standing in the same table. So identity is **ObjectType + Name + Major + Minor**, with `object_type = "ki"` today and `"objection"` later.
+The `T` in the identity tuple is the **object type**, not the epistemic type above. The store is single-table and polymorphic (PLM-style): it holds **KIs** and, from Layer 2, **Objections** (the PLM "change" analog) — different object types with their own lineages, standing in the same table. Identity is **ObjectType + Name + Lang + Major + Minor**, with `object_type = "ki"` today and `"objection"` later. `Lang` (the content language) is part of identity: each language is its own independent lineage, and the language versions of one concept are tied together simply by sharing a `Name` (see "Language & Translation"). The epistemic `type` is deliberately *not* in identity.
 
 The **epistemic type** (`derived / verifiable-claim / postulate / stance / belief / credo`) is a **mutable attribute of a KI**, deliberately *not* part of identity. People revise how they classify a claim — often *in response to a challenge* (e.g. a "postulate" is shown to actually follow from other KIs and becomes "derived"). Reclassifying is therefore an ordinary **edit → new minor**, never a new object, and edges (which reference `Name + Major`) follow automatically. Putting the epistemic type in the identity would fork the lineage and break edges on every reclassification, contradicting "KIs are immutable, evolving nodes."
 
-(Name uniqueness is thus carried by `Name + Major` within an object type; owner-scoped names / slugs are a later refinement.)
+(Name uniqueness is thus carried by `Name + Lang + Major` within an object type; owner-scoped names / slugs are a later refinement.)
+
+### Language & Translation
+
+A KI's **content language** is part of its identity (`Lang`). A concept can exist in several languages, and **the language versions are grouped by their shared `Name`** — there is no explicit "translation link", no group id. Creating a KI with an existing name in a new language automatically makes it a sibling. This is the "translation-by-name" model, chosen after rejecting a separate `translation_group` column.
+
+Consequences:
+
+- **Edges are language-neutral.** An edge references `(Name, Major)` only, so the whole reasoning graph is shared across languages for free. Rendering a KI in a given language resolves each neighbour to that language's version, **falling back** to another language when a translation doesn't exist yet (the UI shows a "a version exists in your language" banner when relevant).
+- **`Name` is a language-neutral identity slug** (used in URLs, edges, translation grouping). It is *not* the display heading. A separate, per-language, editable **`title`** field holds the human-readable heading (e.g. *"Préférer la confiance à la logique"*); when absent the UI falls back to a humanized form of the slug.
+- **Two independent language dials.** (1) A **content language**, fixed in the permalink `/agora/<lang>/ki/<name>/<major>` — sharing a link forces that language. (2) An **interface-language preference** — a stored user setting (localStorage for everyone; `AGORA_USER.lang` for logged-in users, loaded at login) that drives the chrome, the discover feed and search. Changing the preference never changes the language of a KI permalink you are viewing. Set on the Preferences page.
+- Translation authoring copies the source text as a starting point and offers a best-effort machine-translation suggestion (MyMemory) the author validates; the title is translated too. Direct inputs are duplicated alongside so the immediate graph exists in the new language.
 
 ### Timestamp & Provenance
 
@@ -308,6 +319,8 @@ This makes AI a challenger assistant built into the authoring flow — the oppos
 
 ## 12. Feature Layers
 
+> **Implementation status.** Layer 1a is essentially built, plus several things beyond the original slice list: full **internationalisation** (content language in identity, interface-language preference, translation-by-name, per-language `title` — see "Language & Translation"), **Google + email/password auth** (#38), **server-rendered SEO** — OpenGraph + schema.org `Article` with `isBasedOn` graph edges, dynamic `sitemap.xml`, `robots.txt` (#39), and an **admin maintenance page** (list/compact/drop KI lineages). Every "PostgreSQL schema" below is implemented in **MySQL** (`resources/agora/migrations/`). The Objection system, confidence score, fork/merge and article authoring UI remain deferred to Layer 2.
+
 ### Layer 1a — First Deployable
 
 Built as vertical slices, each slice producing a working product. Definitions are KIs with no inputs — no special mechanism needed. Confidence score deferred. Objection system deferred. Article authoring UI deferred — article seeded manually in DB.
@@ -400,16 +413,16 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 ### Stack
 
-- **Backend** — Clojure
-- **Frontend** — ClojureScript + React
-- **Hosting** — Clever Cloud
-- **Database** — PostgreSQL (graph structure: nodes, edges, confidence scores, ownership, version links, metadata — all lightweight, mostly hashes and references)
-- **Object storage** — Clever Cloud Cellar (S3-compatible) for immutable KI text content
-- **Auth** — OAuth (Google, Facebook)
+- **Backend** — Clojure (Ring/Reitit), part of the `landing` app (Agora is a product inside it, served under `/agora`).
+- **Frontend** — ClojureScript + React (Reagent/re-frame), its own shadow-cljs build (`:agora`), a single-page app.
+- **Hosting** — Clever Cloud.
+- **Database** — **MySQL** (the existing Clever Cloud addon, shared with the landing contact form — *not* PostgreSQL as the original spec assumed). Holds graph structure: nodes, edges, ownership, version links, visit counters, users — all lightweight, mostly hashes and references. Schema in `resources/agora/migrations/`.
+- **Object storage** — KI text is content-addressed. For the MVP it lives in a **MySQL `AGORA_BLOB` table** keyed by the SHA-256 of its content (`landing.agora.blob`); Cellar (S3) is the intended swap-point at scale, not yet used.
+- **Auth** — session cookie + **OAuth (Google)** and **email/password** (bcrypt). Facebook is wired in the model but deferred.
 
 ### Content-Addressed Storage
 
-KI text content is immutable. It is stored in object storage, addressed by a hash of its content. The database stores only the reference (hash), not the text. Identical content across versions or similar KIs is automatically deduplicated. The database stores graph structure only — small, fast, scales slowly.
+KI text content is immutable. It is addressed by a SHA-256 hash of its content and stored in the `AGORA_BLOB` table (MySQL for the MVP; Cellar/S3 later — `blob/write-blob` / `read-blob` are the stable swap-point). The `AGORA_KI` row stores only the reference (`output_statement_hash`), not the text. Identical content across versions, languages or similar KIs is automatically deduplicated. The rest of the DB stores graph structure only — small, fast, scales slowly.
 
 ### Confidence Storage
 
@@ -417,7 +430,7 @@ Confidence is a navigation signal, not the primary epistemic mechanism — that 
 
 ### Graph Model
 
-For MVP, PostgreSQL with adjacency list and recursive queries handles the graph sufficiently. A dedicated graph database is not needed at this scale. Migration path exists if the graph grows to require it.
+For MVP, MySQL with an adjacency-list edge table (`AGORA_KI_EDGE`, referencing `Name + Major`) handles the graph sufficiently. A dedicated graph database is not needed at this scale. Migration path exists if the graph grows to require it.
 
 ### Search
 

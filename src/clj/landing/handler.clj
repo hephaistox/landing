@@ -2,6 +2,7 @@
   "Handler turns an http http-request into a response"
   (:require
    [clojure.string                    :as str]
+   [landing.agora.endpoints.admin     :refer [admin-routes]]
    [landing.agora.endpoints.article   :refer [article-route]]
    [landing.agora.endpoints.auth      :refer [auth-routes]]
    [landing.agora.endpoints.ki        :refer [by-major-route
@@ -97,37 +98,40 @@
 
 (defn router
   []
-  (rring/router [(ping-route "/ping")
-                 (exception-route "/exception")
-                 (root-redirect-route "/")
-                 (lang-page-redirect-route "/index.html")
-                 (lang-page-redirect-route "/404.html")
-                 (legacy-articles-route "/articles")
-                 (plus "/plus")
-                 (admin-route "/all-kind-of-checks")
-                 (contact-route "/contact")
-                 (check-url-route "/check-url")
-                 (agora-lang-redirect-route "/agora")
-                 (sitemap-route "/agora/sitemap.xml")
-                 (agora-lang-redirect-route "/agora/:lang")
-                 (auth-routes "/agora/api/auth")
-                 (ki-collection-route "/agora/api/ki")
-                 (by-major-route "/agora/api/ki/by/:name/:major")
-                 (ki-route "/agora/api/ki/:id")
-                 (edit-ki-route "/agora/api/ki/:id/edit")
-                 (translate-ki-route "/agora/api/ki/:id/translate")
-                 (translate-suggest-route "/agora/api/translate")
-                 (inputs-route "/agora/api/ki/:id/inputs")
-                 (ki-page-route "/agora/:lang/ki/:name/:major")
-                 (public-shell-route "/agora/:lang/discover")
-                 (public-shell-route "/agora/:lang/preferences")
-                 (article-route "/agora/api/article/:id")
-                 (lab-shell-route "/agora/:lang/lab/ki")
-                 (lab-shell-route "/agora/:lang/lab/ki/:id")
-                 (lab-shell-route "/agora/:lang/lab/article/:id")
-                 (api-ep "/api")
-                 (w3c-validate-route "/w3c-validate")]
-                {}))
+  (rring/router
+   [(ping-route "/ping")
+    (exception-route "/exception")
+    (root-redirect-route "/")
+    (lang-page-redirect-route "/index.html")
+    (lang-page-redirect-route "/404.html")
+    (legacy-articles-route "/articles")
+    (plus "/plus")
+    (admin-route "/all-kind-of-checks")
+    (contact-route "/contact")
+    (check-url-route "/check-url")
+    (agora-lang-redirect-route "/agora")
+    (sitemap-route "/agora/sitemap.xml")
+    (agora-lang-redirect-route "/agora/:lang")
+    (auth-routes "/agora/api/auth")
+    (admin-routes "/agora/api/admin")
+    (ki-collection-route "/agora/api/ki")
+    (by-major-route "/agora/api/ki/by/:name/:major")
+    (ki-route "/agora/api/ki/:id")
+    (edit-ki-route "/agora/api/ki/:id/edit")
+    (translate-ki-route "/agora/api/ki/:id/translate")
+    (translate-suggest-route "/agora/api/translate")
+    (inputs-route "/agora/api/ki/:id/inputs")
+    (ki-page-route "/agora/:lang/ki/:name/:major")
+    (public-shell-route "/agora/:lang/discover")
+    (public-shell-route "/agora/:lang/preferences")
+    (article-route "/agora/api/article/:id")
+    (lab-shell-route "/agora/:lang/admin")
+    (lab-shell-route "/agora/:lang/lab/ki")
+    (lab-shell-route "/agora/:lang/lab/ki/:id")
+    (lab-shell-route "/agora/:lang/lab/article/:id")
+    (api-ep "/api")
+    (w3c-validate-route "/w3c-validate")]
+   {}))
 
 (defn handler
   []

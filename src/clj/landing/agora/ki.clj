@@ -318,6 +318,70 @@
         like]
        {:builder-fn rs/as-unqualified-kebab-maps}))))
 
+(defn list-tnrs
+  "All KI lineages (a TNR = object-type + name + major) with aggregate counts, for
+  the admin page: version rows, distinct languages and the latest minor."
+  []
+  (jdbc/execute!
+   db/ds
+   ["SELECT name, major,
+            COUNT(*) AS versions,
+            COUNT(DISTINCT lang) AS langs,
+            MAX(minor) AS latest
+     FROM AGORA_KI WHERE object_type = 'ki'
+     GROUP BY name, major
+     ORDER BY name, major"]
+   {:builder-fn rs/as-unqualified-kebab-maps}))
+
+(defn delete-tnr!
+  "Drop an entire (name, major) lineage — every language and minor — plus its edges
+  and visit counter. Content blobs are content-addressed and may be shared, so they
+  are left in place. Returns the number of KI rows deleted."
+  [ki-name ki-major]
+  (jdbc/execute!
+   db/ds
+   ["DELETE FROM AGORA_KI_EDGE
+     WHERE (input_name = ? AND input_major = ?) OR (output_name = ? AND output_major = ?)"
+    ki-name
+    ki-major
+    ki-name
+    ki-major])
+  (jdbc/execute! db/ds ["DELETE FROM AGORA_KI_VISIT WHERE name = ? AND major = ?" ki-name ki-major])
+  (:next.jdbc/update-count
+   (jdbc/execute-one!
+    db/ds
+    ["DELETE FROM AGORA_KI WHERE object_type = 'ki' AND name = ? AND major = ?" ki-name ki-major])))
+
+(defn compact-tnr!
+  "Keep only the latest minor of each language of a (name, major) lineage, deleting
+  the older minors. Edges reference (name, major) only, so they are untouched.
+  Returns the number of KI rows deleted."
+  [ki-name ki-major]
+  (->>
+    (jdbc/execute!
+     db/ds
+     ["SELECT lang, MAX(minor) AS latest FROM AGORA_KI
+          WHERE object_type = 'ki' AND name = ? AND major = ? GROUP BY lang"
+      ki-name
+      ki-major]
+     {:builder-fn rs/as-unqualified-kebab-maps})
+    (reduce
+     (fn [n {:keys [lang latest]}]
+       (+
+        n
+        (or
+         (:next.jdbc/update-count
+          (jdbc/execute-one!
+           db/ds
+           ["DELETE FROM AGORA_KI
+                            WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? AND minor < ?"
+            ki-name
+            ki-major
+            lang
+            latest]))
+         0)))
+     0)))
+
 (defn sitemap-rows
   "Every public KI permalink as {:name :major :lang :lastmod} — one row per
   language of each (name, major) lineage, with its latest publication date. Feeds
