@@ -27,7 +27,7 @@
   [ki-name ki-major lang]
   (jdbc/execute-one!
    db/ds
-   ["SELECT id, name, title, type, lang, major, minor FROM AGORA_KI
+   ["SELECT id, name, title, type, lang, major, minor FROM AGORA_NODE
      WHERE object_type = 'ki' AND name = ? AND major = ?
      ORDER BY (lang = ?) DESC, minor DESC LIMIT 1"
     ki-name
@@ -49,7 +49,7 @@
                  "_name AS name, "
                  wanted
                  "_major AS major "
-                 "FROM AGORA_KI_EDGE "
+                 "FROM AGORA_NODE_EDGE "
                  "WHERE "
                  known
                  "_name = ? AND "
@@ -81,7 +81,7 @@
   [ki-name ki-major lang]
   (jdbc/execute!
    db/ds
-   ["SELECT id, minor FROM AGORA_KI
+   ["SELECT id, minor FROM AGORA_NODE
      WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? ORDER BY minor"
     ki-name
     ki-major
@@ -96,7 +96,7 @@
   [ki-name ki-lang]
   (jdbc/execute!
    db/ds
-   ["SELECT DISTINCT name, major, lang FROM AGORA_KI
+   ["SELECT DISTINCT name, major, lang FROM AGORA_NODE
      WHERE object_type = 'ki' AND name = ? AND lang <> ?
      ORDER BY lang"
     ki-name
@@ -120,7 +120,7 @@
       db/ds
       ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor, k.output_statement_hash,
               k.owner_id, k.published_at, u.display_name AS author
-       FROM AGORA_KI k
+       FROM AGORA_NODE k
        LEFT JOIN AGORA_USER u ON u.id = k.owner_id
        WHERE k.id = ?"
        id]
@@ -152,7 +152,7 @@
   (:m
    (jdbc/execute-one!
     db/ds
-    ["SELECT COALESCE(MAX(minor) + 1, 0) AS m FROM AGORA_KI
+    ["SELECT COALESCE(MAX(minor) + 1, 0) AS m FROM AGORA_NODE
          WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ?"
      ki-name
      ki-major
@@ -176,7 +176,7 @@
               ki-major :major
               ki-lang :lang}
              (jdbc/execute-one! db/ds
-                                ["SELECT name, major, lang FROM AGORA_KI WHERE id = ?" id]
+                                ["SELECT name, major, lang FROM AGORA_NODE WHERE id = ?" id]
                                 {:builder-fn rs/as-unqualified-kebab-maps})]
     (let [hash (blob/write-blob statement)
           minor (next-minor ki-name ki-major ki-lang)
@@ -185,7 +185,7 @@
        db/ds
        ;; the content language is immutable across minors — carry it forward (a
        ;; translation is a same-named KI in another language, not a new minor).
-       ["INSERT INTO AGORA_KI
+       ["INSERT INTO AGORA_NODE
          (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
          VALUES (?, 'ki', ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
         new-id
@@ -205,7 +205,7 @@
   (some?
    (jdbc/execute-one!
     db/ds
-    ["SELECT id FROM AGORA_KI WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? LIMIT 1"
+    ["SELECT id FROM AGORA_NODE WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? LIMIT 1"
      ki-name
      ki-major
      lang]
@@ -219,7 +219,7 @@
   (when-not (lang-exists? ki-name ki-major to-lang)
     (jdbc/execute!
      db/ds
-     ["INSERT INTO AGORA_KI
+     ["INSERT INTO AGORA_NODE
        (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
        VALUES (?, 'ki', ?, ?, ?, ?, ?, 0, ?, ?, UTC_TIMESTAMP())"
       (str (UUID/randomUUID))
@@ -245,7 +245,7 @@
         hash :output-statement-hash}
        (jdbc/execute-one!
         db/ds
-        ["SELECT type, title, output_statement_hash FROM AGORA_KI
+        ["SELECT type, title, output_statement_hash FROM AGORA_NODE
                   WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ?
                   ORDER BY minor DESC LIMIT 1"
          ki-name
@@ -254,7 +254,7 @@
         {:builder-fn rs/as-unqualified-kebab-maps})]
       (jdbc/execute!
        db/ds
-       ["INSERT INTO AGORA_KI
+       ["INSERT INTO AGORA_NODE
          (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
          VALUES (?, 'ki', ?, ?, ?, ?, ?, 0, ?, ?, UTC_TIMESTAMP())"
         (str (UUID/randomUUID))
@@ -302,12 +302,12 @@
     (let [like (str "%" q "%")]
       (jdbc/execute!
        db/ds
-       ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor FROM AGORA_KI k
+       ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor FROM AGORA_NODE k
          LEFT JOIN AGORA_BLOB b ON b.hash = k.output_statement_hash
          WHERE k.object_type = 'ki'
            AND k.lang = ?
            AND (k.name LIKE ? OR k.title LIKE ? OR b.content LIKE ?)
-           AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_KI k2
+           AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_NODE k2
                           WHERE k2.object_type = 'ki' AND k2.name = k.name
                             AND k2.major = k.major AND k2.lang = k.lang)
          ORDER BY k.name, k.major
@@ -328,7 +328,7 @@
             COUNT(*) AS versions,
             COUNT(DISTINCT lang) AS langs,
             MAX(minor) AS latest
-     FROM AGORA_KI WHERE object_type = 'ki'
+     FROM AGORA_NODE WHERE object_type = 'ki'
      GROUP BY name, major
      ORDER BY name, major"]
    {:builder-fn rs/as-unqualified-kebab-maps}))
@@ -340,17 +340,19 @@
   [ki-name ki-major]
   (jdbc/execute!
    db/ds
-   ["DELETE FROM AGORA_KI_EDGE
+   ["DELETE FROM AGORA_NODE_EDGE
      WHERE (input_name = ? AND input_major = ?) OR (output_name = ? AND output_major = ?)"
     ki-name
     ki-major
     ki-name
     ki-major])
-  (jdbc/execute! db/ds ["DELETE FROM AGORA_KI_VISIT WHERE name = ? AND major = ?" ki-name ki-major])
+  (jdbc/execute! db/ds
+                 ["DELETE FROM AGORA_NODE_DYNAMIC WHERE name = ? AND major = ?" ki-name ki-major])
   (:next.jdbc/update-count
-   (jdbc/execute-one!
-    db/ds
-    ["DELETE FROM AGORA_KI WHERE object_type = 'ki' AND name = ? AND major = ?" ki-name ki-major])))
+   (jdbc/execute-one! db/ds
+                      ["DELETE FROM AGORA_NODE WHERE object_type = 'ki' AND name = ? AND major = ?"
+                       ki-name
+                       ki-major])))
 
 (defn compact-tnr!
   "Keep only the latest minor of each language of a (name, major) lineage, deleting
@@ -360,7 +362,7 @@
   (->>
     (jdbc/execute!
      db/ds
-     ["SELECT lang, MAX(minor) AS latest FROM AGORA_KI
+     ["SELECT lang, MAX(minor) AS latest FROM AGORA_NODE
           WHERE object_type = 'ki' AND name = ? AND major = ? GROUP BY lang"
       ki-name
       ki-major]
@@ -373,7 +375,7 @@
          (:next.jdbc/update-count
           (jdbc/execute-one!
            db/ds
-           ["DELETE FROM AGORA_KI
+           ["DELETE FROM AGORA_NODE
                             WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? AND minor < ?"
             ki-name
             ki-major
@@ -390,7 +392,7 @@
   (jdbc/execute!
    db/ds
    ["SELECT name, major, lang, MAX(published_at) AS lastmod
-     FROM AGORA_KI WHERE object_type = 'ki'
+     FROM AGORA_NODE WHERE object_type = 'ki'
      GROUP BY name, major, lang
      ORDER BY name, major, lang"]
    {:builder-fn rs/as-unqualified-kebab-maps}))
@@ -400,7 +402,7 @@
   [ki-name ki-major]
   (jdbc/execute!
    db/ds
-   ["INSERT INTO AGORA_KI_VISIT (name, major, visits) VALUES (?, ?, 1)
+   ["INSERT INTO AGORA_NODE_DYNAMIC (name, major, visits) VALUES (?, ?, 1)
      ON DUPLICATE KEY UPDATE visits = visits + 1"
     ki-name
     ki-major]))
@@ -417,12 +419,12 @@
    db/ds
    ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor, COALESCE(v.visits, 0) AS visits,
             b.content AS output_statement
-     FROM AGORA_KI k
-     LEFT JOIN AGORA_KI_VISIT v ON v.name = k.name AND v.major = k.major
+     FROM AGORA_NODE k
+     LEFT JOIN AGORA_NODE_DYNAMIC v ON v.name = k.name AND v.major = k.major
      LEFT JOIN AGORA_BLOB b ON b.hash = k.output_statement_hash
      WHERE k.object_type = 'ki'
        AND k.lang = ?
-       AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_KI k2
+       AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_NODE k2
                       WHERE k2.object_type = 'ki' AND k2.name = k.name
                         AND k2.major = k.major AND k2.lang = k.lang)
      ORDER BY POW(RAND(), 1.0 / (COALESCE(v.visits, 0) + 1)) DESC
@@ -445,7 +447,7 @@
      db/ds
      ;; Translations need no linking: a KI created with an existing name in another
      ;; language is automatically a sibling (grouped by identity Name).
-     ["INSERT INTO AGORA_KI
+     ["INSERT INTO AGORA_NODE
        (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
        VALUES (?, 'ki', ?, ?, ?, ?, 1, 0, ?, ?, UTC_TIMESTAMP())"
       id
@@ -461,7 +463,7 @@
   "The (name, major) identity of the KI `id`, or nil."
   [id]
   (jdbc/execute-one! db/ds
-                     ["SELECT name, major FROM AGORA_KI WHERE id = ?" id]
+                     ["SELECT name, major FROM AGORA_NODE WHERE id = ?" id]
                      {:builder-fn rs/as-unqualified-kebab-maps}))
 
 (defn add-input
@@ -476,7 +478,7 @@
              (ki-ref id)]
     (jdbc/execute!
      db/ds
-     ["INSERT IGNORE INTO AGORA_KI_EDGE
+     ["INSERT IGNORE INTO AGORA_NODE_EDGE
        (id, input_name, input_major, output_name, output_major)
        VALUES (?, ?, ?, ?, ?)"
       (str (UUID/randomUUID))
@@ -496,7 +498,7 @@
              (ki-ref id)]
     (jdbc/execute!
      db/ds
-     ["DELETE FROM AGORA_KI_EDGE
+     ["DELETE FROM AGORA_NODE_EDGE
        WHERE input_name = ? AND input_major = ? AND output_name = ? AND output_major = ?"
       in-name
       in-major

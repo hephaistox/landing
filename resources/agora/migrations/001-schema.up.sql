@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `AGORA_USER` (
 -- language: each language is its own lineage, tied to its siblings only by sharing
 -- `name`. `type` (the epistemic classification) and `title` are plain mutable
 -- attributes, not identity. Only the statement's hash is stored here.
-CREATE TABLE IF NOT EXISTS `AGORA_KI` (
+CREATE TABLE IF NOT EXISTS `AGORA_NODE` (
   `id`                    CHAR(36)     NOT NULL COMMENT 'UUID, stable permanent identity',
   `object_type`           ENUM('ki', 'objection') NOT NULL DEFAULT 'ki',
   `name`                  VARCHAR(255) NOT NULL COMMENT 'Language-neutral identity slug (URL, edges, translation grouping)',
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS `AGORA_KI` (
 
 -- Reasoning edges: input KI implies output KI. Language-neutral — references
 -- (name, major) only, so one edge set serves every language of a concept.
-CREATE TABLE IF NOT EXISTS `AGORA_KI_EDGE` (
+CREATE TABLE IF NOT EXISTS `AGORA_NODE_EDGE` (
   `id`           CHAR(36)     NOT NULL COMMENT 'UUID, edge identity',
   `input_name`   VARCHAR(255) NOT NULL COMMENT 'Input KI name',
   `input_major`  INT UNSIGNED NOT NULL COMMENT 'Input KI major version',
@@ -72,10 +72,12 @@ CREATE TABLE IF NOT EXISTS `AGORA_KI_EDGE` (
   KEY `idx_edge_by_input` (`input_name`, `input_major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Public-page view counter per (name, major), driving discoverability weighting.
-CREATE TABLE IF NOT EXISTS `AGORA_KI_VISIT` (
-  `name`   VARCHAR(255)   NOT NULL COMMENT 'KI name (public identity)',
-  `major`  INT UNSIGNED   NOT NULL COMMENT 'KI major (public identity)',
+-- Live computed state per node lineage (name, major) — values derived from the
+-- graph rather than authored, kept out of the immutable node rows. Visits (driving
+-- discoverability weighting) today; confidence and other computed signals later.
+CREATE TABLE IF NOT EXISTS `AGORA_NODE_DYNAMIC` (
+  `name`   VARCHAR(255)   NOT NULL COMMENT 'Node name (public identity)',
+  `major`  INT UNSIGNED   NOT NULL COMMENT 'Node major (public identity)',
   `visits` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Public-page view count',
   PRIMARY KEY (`name`, `major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

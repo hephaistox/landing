@@ -3,10 +3,10 @@
 ;; There is no migration runner yet (see #40), so migrations/seeds are applied
 ;; manually. Files may contain multiple `;`-separated statements (allowMultiQueries
 ;; is enabled below; `;` inside quoted string literals is handled by MySQL, not us).
-;; After applying, prints the current AGORA_KI rows.
+;; After applying, prints the current AGORA_NODE rows.
 ;;
-;;   clojure -M scripts/agora_db.clj resources/agora/migrations/001-ki-identity.up.sql \
-;;                                   resources/agora/seed/001-seed-ki.sql
+;;   clojure -M scripts/agora_db.clj resources/agora/migrations/001-schema.up.sql \
+;;                                   resources/agora/seed/001-seed.sql
 (require '[next.jdbc :as jdbc])
 
 (def ds
@@ -21,9 +21,10 @@
   (println "applying" f)
   (jdbc/execute! ds [(slurp f)]))
 
-(println "AGORA_KI rows:")
+(println "AGORA_NODE rows:")
 (doseq
-  [row (jdbc/execute!
-        ds
-        ["SELECT id, name, type, major, minor, output_statement_hash, published_at FROM AGORA_KI"])]
+  [row
+   (jdbc/execute!
+    ds
+    ["SELECT id, name, type, major, minor, output_statement_hash, published_at FROM AGORA_NODE"])]
   (prn row))

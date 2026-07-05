@@ -328,7 +328,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 **Slice 1 — Hidden page displaying a seeded KI**
 - PostgreSQL schema — KI identity (id, name, type, major, minor, output_statement_hash, timestamp)
-- Cellar object storage — content-addressed text blobs, DB stores hash only
+- Blob store — content-addressed text blobs in the MySQL `AGORA_BLOB` table (`landing.agora.blob`), DB stores the hash only (Cellar/S3 is a later swap-point, not used)
 - Clever Cloud deployment pipeline
 - Clojure DB connection and basic KI query
 - Basic API route — single KI by id
@@ -348,7 +348,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 **Slice 3-bis — Article**
 - PostgreSQL schema — article (id, title, body_hash, timestamp)
-- Article seeded manually in DB, body in Cellar
+- Article seeded manually in DB, body in the `AGORA_BLOB` blob store
 - Article display component — title, body, timestamp
 - Hidden route for article
 
@@ -423,7 +423,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 ### Content-Addressed Storage
 
-KI text content is immutable. It is addressed by a SHA-256 hash of its content and stored in the `AGORA_BLOB` table (MySQL for the MVP; Cellar/S3 later — `blob/write-blob` / `read-blob` are the stable swap-point). The `AGORA_KI` row stores only the reference (`output_statement_hash`), not the text. Identical content across versions, languages or similar KIs is automatically deduplicated. The rest of the DB stores graph structure only — small, fast, scales slowly.
+KI text content is immutable. It is addressed by a SHA-256 hash of its content and stored in the `AGORA_BLOB` table (MySQL for the MVP; Cellar/S3 later — `blob/write-blob` / `read-blob` are the stable swap-point). The `AGORA_NODE` row stores only the reference (`output_statement_hash`), not the text. Identical content across versions, languages or similar KIs is automatically deduplicated. The rest of the DB stores graph structure only — small, fast, scales slowly.
 
 ### Confidence Storage
 
@@ -431,7 +431,7 @@ Confidence is a navigation signal, not the primary epistemic mechanism — that 
 
 ### Graph Model
 
-For MVP, MySQL with an adjacency-list edge table (`AGORA_KI_EDGE`, referencing `Name + Major`) handles the graph sufficiently. A dedicated graph database is not needed at this scale. Migration path exists if the graph grows to require it.
+For MVP, MySQL with an adjacency-list edge table (`AGORA_NODE_EDGE`, referencing `Name + Major`) handles the graph sufficiently. A dedicated graph database is not needed at this scale. Migration path exists if the graph grows to require it.
 
 ### Search
 
@@ -440,7 +440,7 @@ Full text search is needed from day one. Elasticsearch is the main cost variable
 ### Cost Profile (Clever Cloud)
 
 - PostgreSQL XS — ~€15/month
-- Cellar object storage — negligible until significant scale
+- Blob store — in the MySQL addon for the MVP (no extra cost); Cellar/S3 later, negligible until significant scale
 - Search — main cost variable, possibly deferred
 - **Total MVP** — under €100/month
 
