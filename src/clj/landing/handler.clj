@@ -11,7 +11,10 @@
                                               ki-route
                                               translate-ki-route
                                               translate-suggest-route]]
-   [landing.agora.endpoints.lab       :refer [lab-shell-route public-shell-route]]
+   [landing.agora.endpoints.lab       :refer [ki-page-route
+                                              lab-shell-route
+                                              public-shell-route
+                                              sitemap-route]]
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
    [landing.endpoints.default-handler :refer [default-handler not-found-for-lang]]
@@ -83,7 +86,10 @@
   present and supported, else from the browser (cookie → Accept-Language →
   default), mirroring how the landing site resolves language."
   [prefix]
-  [prefix {:get {:handler (fn [req]
+  ;; :conflicting — `/agora/:lang` (2-seg wildcard) overlaps the literal
+  ;; `/agora/sitemap.xml` for the detector; reitit's matcher prefers the literal.
+  [prefix {:conflicting true
+           :get {:handler (fn [req]
                             (let [seg (get-in req [:path-params :lang])
                                   lang (if (contains? supported-langs seg) seg (pick-lang req))]
                               {:status 302
@@ -102,6 +108,7 @@
                  (contact-route "/contact")
                  (check-url-route "/check-url")
                  (agora-lang-redirect-route "/agora")
+                 (sitemap-route "/agora/sitemap.xml")
                  (agora-lang-redirect-route "/agora/:lang")
                  (auth-routes "/agora/api/auth")
                  (ki-collection-route "/agora/api/ki")
@@ -111,7 +118,7 @@
                  (translate-ki-route "/agora/api/ki/:id/translate")
                  (translate-suggest-route "/agora/api/translate")
                  (inputs-route "/agora/api/ki/:id/inputs")
-                 (public-shell-route "/agora/:lang/ki/:name/:major")
+                 (ki-page-route "/agora/:lang/ki/:name/:major")
                  (public-shell-route "/agora/:lang/discover")
                  (public-shell-route "/agora/:lang/preferences")
                  (article-route "/agora/api/article/:id")

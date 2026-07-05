@@ -27,7 +27,7 @@
   [ki-name ki-major lang]
   (jdbc/execute-one!
    db/ds
-   ["SELECT id, name, type, lang, major, minor FROM AGORA_KI
+   ["SELECT id, name, title, type, lang, major, minor FROM AGORA_KI
      WHERE object_type = 'ki' AND name = ? AND major = ?
      ORDER BY (lang = ?) DESC, minor DESC LIMIT 1"
     ki-name
@@ -317,6 +317,19 @@
         like
         like]
        {:builder-fn rs/as-unqualified-kebab-maps}))))
+
+(defn sitemap-rows
+  "Every public KI permalink as {:name :major :lang :lastmod} — one row per
+  language of each (name, major) lineage, with its latest publication date. Feeds
+  the sitemap (#39)."
+  []
+  (jdbc/execute!
+   db/ds
+   ["SELECT name, major, lang, MAX(published_at) AS lastmod
+     FROM AGORA_KI WHERE object_type = 'ki'
+     GROUP BY name, major, lang
+     ORDER BY name, major, lang"]
+   {:builder-fn rs/as-unqualified-kebab-maps}))
 
 (defn record-visit
   "Increment the public-page visit counter for the (name, major) lineage."
