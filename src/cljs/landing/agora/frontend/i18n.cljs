@@ -222,10 +222,14 @@
 
 (defn- base [lang] (str "/agora/" (normalize lang)))
 (defn discover [lang] (str (base lang) "/discover"))
-(defn new-ki [lang] (str (base lang) "/lab/ki/new"))
-(defn lab-ki-root [lang] (str (base lang) "/lab/ki"))
-(defn lab-ki [lang id] (str (base lang) "/lab/ki/" id))
-(defn lab-article [lang id] (str (base lang) "/lab/article/" id))
+(defn new-ki [lang] (str (base lang) "/new"))
+(defn ki-id
+  "The app URL of a KI by its concrete id (a specific version): /agora/<lang>/ki/<id>.
+  Distinct from the public permalink `ki` (name + major), which resolves to the
+  latest minor."
+  [lang id]
+  (str (base lang) "/ki/" id))
+(defn article [lang id] (str (base lang) "/article/" id))
 (defn preferences [lang] (str (base lang) "/preferences"))
 (defn admin [lang] (str (base lang) "/admin"))
 (defn ki

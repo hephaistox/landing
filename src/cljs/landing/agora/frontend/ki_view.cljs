@@ -399,7 +399,7 @@
                    (let [ki (:body resp)]
                      (if (:id ki)
                        {:db (dissoc db ::translate-form)
-                        :dispatch [:agora/goto (i18n/lab-ki target-lang (:id ki))]}
+                        :dispatch [:agora/goto (i18n/ki-id target-lang (:id ki))]}
                        {:db (assoc-in db [::translate-form :saving?] false)}))))
 
 ;; ---- Input links (add / drop / search / create) ----
@@ -751,7 +751,7 @@
               (for [v (sort-by :minor versions)
                     :let [current? (= (:minor v) minor)]]
                 ^{:key (:id v)}
-                [:a {:href (i18n/lab-ki lang (:id v))
+                [:a {:href (i18n/ki-id lang (:id v))
                      :on-click #(reset! open? false)
                      :style {:flex "0 0 auto"
                              :text-decoration "none"
@@ -764,7 +764,7 @@
 
 (defn- mini-card
   "A compact neighbour card linking to `link`. When `on-drop` is given, a ✕
-  removes the link (used for input links in the lab)."
+  removes the link (used for input links when editing)."
   [{c-name :name
     c-type :type
     :keys [major minor]}
@@ -1035,7 +1035,7 @@
        (i18n/t lang :form/cancel)]]]))
 
 (defn- static-card
-  "The card in read mode. In the lab (`edit?` true) a pencil switches to in-place
+  "The card in read mode. When editable (`edit?` true) a pencil switches to in-place
   editing; on the public page it is omitted."
   [{ki-name :name
     ki-title :title
@@ -1195,7 +1195,7 @@
          (not user) (i18n/t lang :form/login-to-create)
          submitting? (i18n/t lang :form/creating)
          :else (i18n/t lang :form/create))]
-      [:a {:href (i18n/lab-ki-root lang)
+      [:a {:href (i18n/discover lang)
            :style {:padding "0.4em 0.9em"
                    :border "1px solid #ccc"
                    :background "#fff"
@@ -1338,7 +1338,7 @@
                      ^{:key (:id inp)}
                      [mini-card
                       inp
-                      (i18n/lab-ki lang (:id inp))
+                      (i18n/ki-id lang (:id inp))
                       (when user
                         #(rf/dispatch [::drop-input id (select-keys inp [:name :major])]))])
                    [^{:key "add"} [add-input-control ki]]))
@@ -1352,8 +1352,7 @@
                              :flex-wrap "wrap"
                              :gap "0.5em"
                              :justify-content "center"}}]
-              (for [s successors]
-                ^{:key (:id s)} [mini-card s (i18n/lab-ki lang (:id s)) nil]))])]))
+              (for [s successors] ^{:key (:id s)} [mini-card s (i18n/ki-id lang (:id s)) nil]))])]))
 
 (defn public-ki-page
   "Read-only public KI page (#35): inputs above, the card (no edit controls) in the

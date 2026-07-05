@@ -27,7 +27,10 @@
 (defn article-route
   [prefix]
   [prefix
-   {:get {:coercion coercion
+   {;; :conflicting — `/agora/api/article/:id` overlaps the app-shell
+    ;; `/agora/:lang/article/:id`; reitit's matcher prefers the literal `api`.
+    :conflicting true
+    :get {:coercion coercion
           :handler article-handler
           :muuntaja m/instance
           :operationId "agora-article-by-id"

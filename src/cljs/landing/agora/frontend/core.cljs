@@ -1,11 +1,10 @@
 (ns landing.agora.frontend.core
-  "Agora frontend entry point — a small single-page app over the hidden lab
-  routes.
+  "Agora frontend entry point — a small single-page app over the Agora routes.
 
   Pushy (HTML5 history) intercepts in-app links and programmatic navigation, so
   moving between KIs/articles and landing on a freshly edited version updates the
-  view via re-frame without a full page reload. The backend still serves the same
-  shell for every `/agora/lab/...` path, so direct URLs and refresh keep working.
+  view via re-frame without a full page reload. The backend serves the SPA shell
+  for every `/agora/<lang>/...` path, so direct URLs and refresh keep working.
 
   Fetched resources are cached by [kind id] with a time-to-live; the displayed
   view only swaps once data is available, so navigation never flashes a Loading
@@ -24,10 +23,6 @@
 
 (goog-define ENV "dev")
 
-(def seeded-ki-id
-  "The KI seeded in #40; used as a fallback when no id is given in the URL."
-  "00000000-0000-0000-0000-000000000001")
-
 (def ^:private api-path
   {:ki "/agora/api/ki/"
    :article "/agora/api/article/"})
@@ -37,8 +32,10 @@
   (* 4 60 60 1000))
 
 (defn path->route
-  "Parse a lab path into {:kind …}, or nil when it is not a lab route (Pushy then
-  lets the browser handle the click normally)."
+  "Parse an Agora SPA path into {:kind …}, or nil when it is not an Agora route
+  (Pushy then lets the browser handle the click normally). A KI is addressed two
+  ways: the public permalink `/ki/<name>/<major>` (latest minor) and the app URL
+  `/ki/<id>` (a specific version)."
   [path]
   (cond
     (re-find #"^/agora/([a-z]{2})/discover/?(?:[?#].*)?$" path)
@@ -50,26 +47,26 @@
     (re-find #"^/agora/([a-z]{2})/admin/?(?:[?#].*)?$" path)
     {:kind :admin
      :lang (second (re-find #"^/agora/([a-z]{2})/admin" path))}
+    (re-find #"^/agora/([a-z]{2})/new/?(?:[?#].*)?$" path)
+    {:kind :new
+     :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
     (re-find #"^/agora/([a-z]{2})/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)
     (let [[_ lang n mj] (re-find #"^/agora/([a-z]{2})/ki/([^/?#]+)/([0-9]+)" path)]
       {:kind :ki-public
        :lang lang
        :name (js/decodeURIComponent n)
        :major (js/parseInt mj)})
-    (re-find #"^/agora/([a-z]{2})/lab/ki/new/?(?:[?#].*)?$" path)
-    {:kind :new
-     :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
-    (re-find #"^/agora/([a-z]{2})/lab/article/([^/?#]+)" path)
-    (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/lab/article/([^/?#]+)" path)]
+    (re-find #"^/agora/([a-z]{2})/ki/([^/?#]+)/?(?:[?#].*)?$" path)
+    (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/ki/([^/?#]+)" path)]
+      {:kind :ki
+       :lang lang
+       :id (js/decodeURIComponent id)})
+    (re-find #"^/agora/([a-z]{2})/article/([^/?#]+)" path)
+    (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/article/([^/?#]+)" path)]
       {:kind :article
        :lang lang
        :id (js/decodeURIComponent id)})
-    :else (when-let [m (re-find #"^/agora/([a-z]{2})/lab/ki(?:/([^/?#]+))?/?(?:[?#].*)?$" path)]
-            {:kind :ki
-             :lang (second m)
-             :id (or (some-> (nth m 2)
-                             js/decodeURIComponent)
-                     seeded-ki-id)})))
+    :else nil))
 
 (defonce ^:private history (atom nil))
 
@@ -252,7 +249,7 @@
                                         {:data ki
                                          :at (js/Date.now)})
                               (update :latest index-ki ki))
-                      :agora/navigate (i18n/lab-ki (i18n/current db) id)})))
+                      :agora/navigate (i18n/ki-id (i18n/current db) id)})))
 
 ;; Called after a link change (add/drop input): the same KI id is refreshed in
 ;; place — update the view, cache and latest index, no navigation.
@@ -390,7 +387,7 @@
       data (case kind
              :ki [ki-view/ki-page data]
              ;; A KI permalink renders read-only for anonymous visitors and the
-             ;; editable lab page for signed-in ones. Reactive on the auth sub, so
+             ;; editable page for signed-in ones. Reactive on the auth sub, so
              ;; it swaps the moment /me resolves after a hard load.
              :ki-public (if user [ki-view/ki-page data] [ki-view/public-ki-page data])
              :discover [ki-view/discover-page data]

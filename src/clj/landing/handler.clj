@@ -12,8 +12,8 @@
                                               ki-route
                                               translate-ki-route
                                               translate-suggest-route]]
-   [landing.agora.endpoints.lab       :refer [ki-page-route
-                                              lab-shell-route
+   [landing.agora.endpoints.shell     :refer [app-shell-route
+                                              ki-page-route
                                               public-shell-route
                                               sitemap-route]]
    [landing.endpoints.check-url       :refer [check-url-route]]
@@ -125,10 +125,10 @@
     (public-shell-route "/agora/:lang/discover")
     (public-shell-route "/agora/:lang/preferences")
     (article-route "/agora/api/article/:id")
-    (lab-shell-route "/agora/:lang/admin")
-    (lab-shell-route "/agora/:lang/lab/ki")
-    (lab-shell-route "/agora/:lang/lab/ki/:id")
-    (lab-shell-route "/agora/:lang/lab/article/:id")
+    (app-shell-route "/agora/:lang/new")
+    (app-shell-route "/agora/:lang/ki/:id")
+    (app-shell-route "/agora/:lang/article/:id")
+    (app-shell-route "/agora/:lang/admin")
     (api-ep "/api")
     (w3c-validate-route "/w3c-validate")]
    {}))

@@ -1,47 +1,21 @@
-(ns landing.agora.endpoints.lab
-  "Hidden lab route for the Agora vertical slice (#47).
+(ns landing.agora.endpoints.shell
+  "Serves the Agora SPA shell (`resources/public/agora/ki.html`, which loads the
+  `agora` build and mounts `#agora-app`). The frontend decides what to render from
+  the URL. Two flavours of head are injected server-side:
 
-  Serves a static HTML shell that loads the `agora` build; the frontend mounts on
-  `#agora-app` and, from the URL, renders either a KI (`/lab/ki[/<id>]`) or an
-  article (`/lab/article/<id>`). Not linked from anywhere — reachable only by
-  direct URL; every lab path serves the same shell. In :prod the shell (raw +
-  gzipped) is cached after first read."
+   - public pages (KI permalink, discover) get SEO metadata — OpenGraph +
+     schema.org (see landing.agora.seo);
+   - authoring/app pages (new, KI-by-id, article, admin) get a `robots noindex`
+     head, since they are not public content and must not compete with the
+     canonical permalink."
   (:require
-   [clojure.java.io                   :as io]
-   [landing.agora.ki                  :as ki]
-   [landing.agora.seo                 :as seo]
-   [landing.endpoints.cached-response :as cr]
-   [landing.endpoints.html            :refer [html-middlewares]]))
-
-(defn- build-shell
-  []
-  (cr/prepare {:status 200
-               :headers {"Content-Type" "text/html; charset=utf-8"}
-               :body (some-> (io/resource "public/agora/lab.html")
-                             slurp)}))
-
-(def ^:private prepared-shell (cr/cache-fn build-shell))
-
-(defn lab-shell-response
-  [req]
-  (-> (prepared-shell)
-      (cr/serve req)))
-
-(defn lab-shell-route
-  "Serve the Agora lab shell at `prefix`. The frontend decides what to render from
-  the URL, so the same shell backs every lab path (KI and article)."
-  [prefix]
-  ;; :conflicting — the language segment `/agora/:lang/lab/...` overlaps the
-  ;; literal API paths in the detector's eyes; reitit's matcher still prefers the
-  ;; literal `api` segment, so routing is correct.
-  [prefix {:conflicting true
-           :get {:swagger {:tags #{:agora}}
-                 :handler lab-shell-response
-                 :middleware html-middlewares
-                 :summary "Hidden lab page — Agora KI/article display (resource from URL)"}}])
+   [clojure.java.io        :as io]
+   [landing.agora.ki       :as ki]
+   [landing.agora.seo      :as seo]
+   [landing.endpoints.html :refer [html-middlewares]]))
 
 (def ^:private public-template
-  "The raw public shell, read once; SEO metadata is injected per request."
+  "The raw SPA shell, read once; a head is injected per request."
   (delay (some-> (io/resource "public/agora/ki.html")
                  slurp)))
 
@@ -52,9 +26,28 @@
              "Cache-Control" "public, max-age=600"}
    :body body})
 
+(defn app-shell-response
+  "Serve the SPA shell for an authoring/app route (new / KI-by-id / article /
+  admin) with a noindex head."
+  [req]
+  (let [lang (or (get-in req [:path-params :lang]) "fr")]
+    (html-response (seo/inject @public-template (seo/noindex-head "Agora") lang))))
+
+(defn app-shell-route
+  "Serve the app shell (noindex) at `prefix`. The frontend renders the right page
+  from the URL."
+  [prefix]
+  ;; :conflicting — the `/agora/:lang/…` language segment overlaps the literal API
+  ;; paths for the conflict detector; reitit's matcher prefers the literal.
+  [prefix {:conflicting true
+           :get {:swagger {:tags #{:agora}}
+                 :handler app-shell-response
+                 :middleware html-middlewares
+                 :summary "Agora app shell (noindex)"}}])
+
 (defn public-shell-response
-  "Serve the public shell for a non-KI page (discover / preferences) with generic
-  OpenGraph metadata."
+  "Serve the public shell for a non-KI public page (discover / preferences) with
+  generic OpenGraph metadata."
   [req]
   (let [lang (or (get-in req [:path-params :lang]) "fr")
         head (seo/generic-head
@@ -67,8 +60,9 @@
 
 (def ki-page-response
   "Serve the public KI permalink shell with per-KI SEO: title, description,
-  OpenGraph and schema.org Article (name, description, datePublished, author),
-  server-rendered so crawlers and unfurlers see it without running the SPA."
+  OpenGraph and schema.org Article (name, description, datePublished, author,
+  isBasedOn), server-rendered so crawlers and unfurlers see it without running the
+  SPA."
   (fn [req]
     (let [{:keys [lang name major]} (:path-params req)
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
@@ -82,8 +76,6 @@
 (defn public-shell-route
   "Serve the public shell for discover / preferences (generic OG metadata)."
   [prefix]
-  ;; :conflicting — see lab-shell-route; the `/agora/:lang/…` language segment
-  ;; overlaps literal API paths for the detector, but the matcher resolves it.
   [prefix {:conflicting true
            :get {:swagger {:tags #{:agora}}
                  :handler public-shell-response

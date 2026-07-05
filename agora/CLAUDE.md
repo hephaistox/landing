@@ -237,8 +237,9 @@ The threshold for the social layer to become valuable is **KI density in a domai
 
 - Read: anonymous, no barrier
 - Contribute: OAuth login, single gesture
-- Article authoring: as frictionless as KI creation
+- Agora's article authoring: as frictionless as KI creation
 - Linking a term in an article to a definition KI: single gesture, not search-and-copy
+- Non agora's article authoring: referencing permalink, or reuse badge (as github pages badges)
 
 ### Discoverability
 

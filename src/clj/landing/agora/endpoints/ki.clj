@@ -314,7 +314,10 @@
 (defn ki-route
   [prefix]
   [prefix
-   {:get {:coercion coercion
+   {;; :conflicting — `/agora/api/ki/:id` overlaps the app-shell `/agora/:lang/ki/:id`
+    ;; for the detector; reitit's matcher prefers the literal `api` segment.
+    :conflicting true
+    :get {:coercion coercion
           :handler ki-handler
           :muuntaja m/instance
           :operationId "agora-ki-by-id"

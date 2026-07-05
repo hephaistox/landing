@@ -131,6 +131,13 @@
              (meta-prop "og:url" (str base "/agora/" lang path))
              (meta-prop "og:locale" (get locale lang "en_US"))]))
 
+(defn noindex-head
+  "Head for an authoring/app page (new, KI-by-id, article, admin): a plain title
+  and a `robots noindex` — these are not public content and must not be crawled or
+  compete with the canonical permalink."
+  [title]
+  (str "<title>" (esc title) "</title>\n<meta name=\"robots\" content=\"noindex\"/>"))
+
 (defn inject
   "Return `template` with the existing <title> dropped, `head` injected before
   </head>, and the document language set to `lang`."
