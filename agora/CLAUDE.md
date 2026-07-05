@@ -287,7 +287,7 @@ These features are deferred but architecturally important to anticipate in the d
 
 ## 9. Public Pages & Google Discoverability
 
-Three distinct public page types exist from Layer 1a. They are read-only surfaces, separate from the authoring interface, and are the platform's public face.
+Three distinct public page types exist from Layer 1. They are read-only surfaces, separate from the authoring interface, and are the platform's public face.
 
 **KI page** — permanent URL per KI, public and crawlable. Displays the KI text, its input KIs, its confidence score, its commentary history, and its version lineage. The permanent URL is stable across versions — the page shows the latest version with lineage visible.
 
@@ -301,7 +301,7 @@ Three distinct public page types exist from Layer 1a. They are read-only surface
 - Permanent URLs from day one — no URL changes across versions
 - High-confidence KIs prioritised for indexing
 - Articles as primary SEO surface — aggregated, readable, linkable
-- Google discoverability is implemented in Layer 1a — cheap to do correctly from the start, very hard to retrofit
+- Google discoverability is implemented in Layer 1 — cheap to do correctly from the start, very hard to retrofit
 
 ---
 
@@ -320,9 +320,9 @@ This makes AI a challenger assistant built into the authoring flow — the oppos
 
 ## 12. Feature Layers
 
-> **Implementation status.** Layer 1a is essentially built, plus several things beyond the original slice list: full **internationalisation** (content language in identity, interface-language preference, translation-by-name, per-language `title` — see "Language & Translation"), **Google + email/password auth** (#38), **server-rendered SEO** — OpenGraph + schema.org `Article` with `isBasedOn` graph edges, dynamic `sitemap.xml`, `robots.txt` (#39), and an **admin maintenance page** (list/compact/drop KI lineages). Every "PostgreSQL schema" below is implemented in **MySQL** (`resources/agora/migrations/`). The Objection system, confidence score, fork/merge and article authoring UI remain deferred to Layer 2.
+> **Implementation status.** Layer 1 is essentially built, plus several things beyond the original slice list: full **internationalisation** (content language in identity, interface-language preference, translation-by-name, per-language `title` — see "Language & Translation"), **Google + email/password auth** (#38), **server-rendered SEO** — OpenGraph + schema.org `Article` with `isBasedOn` graph edges, dynamic `sitemap.xml`, `robots.txt` (#39), and an **admin maintenance page** (list/compact/drop KI lineages). Every "PostgreSQL schema" below is implemented in **MySQL** (`resources/agora/migrations/`). The Objection system, confidence score, fork/merge and article authoring UI remain deferred to Layer 2.
 
-### Layer 1a — First Deployable
+### Layer 1 — First Deployable
 
 Built as vertical slices, each slice producing a working product. Definitions are KIs with no inputs — no special mechanism needed. Confidence score deferred. Objection system deferred. Article authoring UI deferred — article seeded manually in DB.
 
@@ -459,7 +459,7 @@ The following questions are registered but not yet resolved. They should be addr
 | # | Question | Relevant Layer |
 |---|----------|---------------|
 | 4 | Validation governance | Resolved — confidence score replaces discrete status, no governance body needed |
-| 16 | MVP definition | Layer 1a/1b split above is the current answer, to be validated against first usage |
+| 16 | MVP definition | Resolved — Layer 1 (above) is the MVP; the earlier 1a/1b split was dropped as unnecessary |
 | 23 | Confidence score formula enrichment | Layer 2+ |
 | 24 | Epistemic community scoping | Layer 2+ |
 | 7 | Monetization detail beyond confidence budget | Layer 2+ |
