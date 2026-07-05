@@ -62,7 +62,8 @@
                                                         "9d9563416bb09a347912b2bd202f8b8aecfa77d4"}}
             :extra-paths ["env/build"]}}
  :deps
- {com.brunobonacci/safely {:mvn/version "1.0.0"}
+ {buddy/buddy-hashers {:mvn/version "2.0.167"}
+  com.brunobonacci/safely {:mvn/version "1.0.0"}
   com.draines/postal {:mvn/version "2.0.5"}
   com.github.hephaistox/auto-web-clj {:deps/root "auto_web_clj"
                                       :git/sha "e7446ec83262c36baecf3af11c7530b0d2e97eb8"

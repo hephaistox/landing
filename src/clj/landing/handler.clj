@@ -3,11 +3,14 @@
   (:require
    [clojure.string                    :as str]
    [landing.agora.endpoints.article   :refer [article-route]]
+   [landing.agora.endpoints.auth      :refer [auth-routes]]
    [landing.agora.endpoints.ki        :refer [by-major-route
                                               edit-ki-route
                                               inputs-route
                                               ki-collection-route
-                                              ki-route]]
+                                              ki-route
+                                              translate-ki-route
+                                              translate-suggest-route]]
    [landing.agora.endpoints.lab       :refer [lab-shell-route public-shell-route]]
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
@@ -19,8 +22,18 @@
    [landing.endpoints.resource        :refer [resource-handler]]
    [landing.endpoints.swagger         :refer [api-ep]]
    [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
-   [landing.language                  :refer [pick-lang]]
-   [reitit.ring                       :as rring]))
+   [landing.language                  :refer [pick-lang supported-langs]]
+   [reitit.ring                       :as rring]
+   [ring.middleware.session           :refer [wrap-session]]
+   [ring.middleware.session.cookie    :refer [cookie-store]]))
+
+(defn- session-key
+  "16-byte AES key for the signed session cookie, from SESSION_SECRET (padded /
+  truncated to 16 bytes) or a dev default."
+  []
+  (-> (or (System/getenv "SESSION_SECRET") "agora-dev-secret!")
+      (.getBytes "UTF-8")
+      (java.util.Arrays/copyOf 16)))
 
 (defn root-redirect-route
   "Redirect `/` to the language-specific static index page.
@@ -64,6 +77,18 @@
   [req]
   (when-let [lang (second (re-find #"^/(fr|en)/" (str (:uri req))))] (not-found-for-lang req lang)))
 
+(defn agora-lang-redirect-route
+  "Redirect `/agora` (and bare `/agora/:lang`) to the language-fixed discover page
+  `/agora/<lang>/discover`. The language comes from the `:lang` path segment when
+  present and supported, else from the browser (cookie → Accept-Language →
+  default), mirroring how the landing site resolves language."
+  [prefix]
+  [prefix {:get {:handler (fn [req]
+                            (let [seg (get-in req [:path-params :lang])
+                                  lang (if (contains? supported-langs seg) seg (pick-lang req))]
+                              {:status 302
+                               :headers {"Location" (str "/agora/" lang "/discover")}}))}}])
+
 (defn router
   []
   (rring/router [(ping-route "/ping")
@@ -76,23 +101,33 @@
                  (admin-route "/all-kind-of-checks")
                  (contact-route "/contact")
                  (check-url-route "/check-url")
-                 (ki-collection-route "/api/ki")
-                 (by-major-route "/api/ki/by/:name/:major")
-                 (ki-route "/api/ki/:id")
-                 (edit-ki-route "/api/ki/:id/edit")
-                 (inputs-route "/api/ki/:id/inputs")
-                 (public-shell-route "/ki/:name/:major")
-                 (public-shell-route "/discover")
-                 (article-route "/api/article/:id")
-                 (lab-shell-route "/lab/ki")
-                 (lab-shell-route "/lab/ki/:id")
-                 (lab-shell-route "/lab/article/:id")
+                 (agora-lang-redirect-route "/agora")
+                 (agora-lang-redirect-route "/agora/:lang")
+                 (auth-routes "/agora/api/auth")
+                 (ki-collection-route "/agora/api/ki")
+                 (by-major-route "/agora/api/ki/by/:name/:major")
+                 (ki-route "/agora/api/ki/:id")
+                 (edit-ki-route "/agora/api/ki/:id/edit")
+                 (translate-ki-route "/agora/api/ki/:id/translate")
+                 (translate-suggest-route "/agora/api/translate")
+                 (inputs-route "/agora/api/ki/:id/inputs")
+                 (public-shell-route "/agora/:lang/ki/:name/:major")
+                 (public-shell-route "/agora/:lang/discover")
+                 (public-shell-route "/agora/:lang/preferences")
+                 (article-route "/agora/api/article/:id")
+                 (lab-shell-route "/agora/:lang/lab/ki")
+                 (lab-shell-route "/agora/:lang/lab/ki/:id")
+                 (lab-shell-route "/agora/:lang/lab/article/:id")
                  (api-ep "/api")
                  (w3c-validate-route "/w3c-validate")]
                 {}))
 
 (defn handler
   []
-  (rring/ring-handler (router)
-                      (rring/routes resource-handler lang-fallback-handler default-handler)
-                      {}))
+  (-> (rring/ring-handler (router)
+                          (rring/routes resource-handler lang-fallback-handler default-handler)
+                          {})
+      (wrap-session {:store (cookie-store {:key (session-key)})
+                     :cookie-name "agora-session"
+                     :cookie-attrs {:http-only true
+                                    :same-site :lax}})))

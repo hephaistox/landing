@@ -29,7 +29,11 @@
   "Serve the Agora lab shell at `prefix`. The frontend decides what to render from
   the URL, so the same shell backs every lab path (KI and article)."
   [prefix]
-  [prefix {:get {:swagger {:tags #{:agora}}
+  ;; :conflicting — the language segment `/agora/:lang/lab/...` overlaps the
+  ;; literal API paths in the detector's eyes; reitit's matcher still prefers the
+  ;; literal `api` segment, so routing is correct.
+  [prefix {:conflicting true
+           :get {:swagger {:tags #{:agora}}
                  :handler lab-shell-response
                  :middleware html-middlewares
                  :summary "Hidden lab page — Agora KI/article display (resource from URL)"}}])
@@ -53,7 +57,10 @@
   (/ki/:name/:major) and the discoverability page (/discover). The frontend
   decides what to render from the URL."
   [prefix]
-  [prefix {:get {:swagger {:tags #{:agora}}
+  ;; :conflicting — see lab-shell-route; the `/agora/:lang/…` language segment
+  ;; overlaps literal API paths for the detector, but the matcher resolves it.
+  [prefix {:conflicting true
+           :get {:swagger {:tags #{:agora}}
                  :handler public-ki-response
                  :middleware html-middlewares
                  :summary "Public Agora page (KI permalink or discoverability)"}}])

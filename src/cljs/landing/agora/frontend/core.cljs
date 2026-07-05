@@ -5,7 +5,7 @@
   Pushy (HTML5 history) intercepts in-app links and programmatic navigation, so
   moving between KIs/articles and landing on a freshly edited version updates the
   view via re-frame without a full page reload. The backend still serves the same
-  shell for every `/lab/...` path, so direct URLs and refresh keep working.
+  shell for every `/agora/lab/...` path, so direct URLs and refresh keep working.
 
   Fetched resources are cached by [kind id] with a time-to-live; the displayed
   view only swaps once data is available, so navigation never flashes a Loading
@@ -14,6 +14,8 @@
   (:require
    [cljs.pprint                         :refer [pprint]]
    [landing.agora.frontend.article-view :as article-view]
+   [landing.agora.frontend.auth         :as auth]
+   [landing.agora.frontend.i18n         :as i18n]
    [landing.agora.frontend.ki-view      :as ki-view]
    [pushy.core                          :as pushy]
    [re-frame.core                       :as rf]
@@ -27,8 +29,8 @@
   "00000000-0000-0000-0000-000000000001")
 
 (def ^:private api-path
-  {:ki "/api/ki/"
-   :article "/api/article/"})
+  {:ki "/agora/api/ki/"
+   :article "/agora/api/article/"})
 
 (def ^:private cache-ttl-ms
   "How long a cached resource stays fresh before it is refetched (4 hours)."
@@ -39,19 +41,30 @@
   lets the browser handle the click normally)."
   [path]
   (cond
-    (re-find #"^/discover/?(?:[?#].*)?$" path) {:kind :discover}
-    (re-find #"^/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)
-    (let [[_ n mj] (re-find #"^/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)]
+    (re-find #"^/agora/([a-z]{2})/discover/?(?:[?#].*)?$" path)
+    {:kind :discover
+     :lang (second (re-find #"^/agora/([a-z]{2})/discover" path))}
+    (re-find #"^/agora/([a-z]{2})/preferences/?(?:[?#].*)?$" path)
+    {:kind :preferences
+     :lang (second (re-find #"^/agora/([a-z]{2})/preferences" path))}
+    (re-find #"^/agora/([a-z]{2})/ki/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)
+    (let [[_ lang n mj] (re-find #"^/agora/([a-z]{2})/ki/([^/?#]+)/([0-9]+)" path)]
       {:kind :ki-public
+       :lang lang
        :name (js/decodeURIComponent n)
        :major (js/parseInt mj)})
-    (re-find #"^/lab/ki/new/?(?:[?#].*)?$" path) {:kind :new}
-    (re-find #"^/lab/article/([^/?#]+)" path)
-    {:kind :article
-     :id (js/decodeURIComponent (second (re-find #"^/lab/article/([^/?#]+)" path)))}
-    :else (when-let [m (re-find #"^/lab/ki(?:/([^/?#]+))?/?(?:[?#].*)?$" path)]
+    (re-find #"^/agora/([a-z]{2})/lab/ki/new/?(?:[?#].*)?$" path)
+    {:kind :new
+     :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
+    (re-find #"^/agora/([a-z]{2})/lab/article/([^/?#]+)" path)
+    (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/lab/article/([^/?#]+)" path)]
+      {:kind :article
+       :lang lang
+       :id (js/decodeURIComponent id)})
+    :else (when-let [m (re-find #"^/agora/([a-z]{2})/lab/ki(?:/([^/?#]+))?/?(?:[?#].*)?$" path)]
             {:kind :ki
-             :id (or (some-> (second m)
+             :lang (second m)
+             :id (or (some-> (nth m 2)
                              js/decodeURIComponent)
                      seeded-ki-id)})))
 
@@ -126,9 +139,11 @@
                :on-failure [::fetch-failed]}})))
 
 (defn- route-changed-fetch-public
-  "Cache-or-fetch the public permalink /ki/{name}/{major} — latest minor."
-  [db ki-name ki-major]
-  (let [ck [:ki-public ki-name ki-major]
+  "Cache-or-fetch the public permalink /agora/{lang}/ki/{name}/{major}. The `lang`
+  comes from the URL — it is the content language to display for this KI, which is
+  independent of the interface-language preference (the permalink overrides it)."
+  [db ki-name ki-major lang]
+  (let [ck [:ki-public lang ki-name ki-major]
         entry (get-in db [:cache ck])
         fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
     (if fresh?
@@ -139,7 +154,8 @@
                   :error nil)}
       {:db (assoc db :loading? true :error nil)
        :fetch {:method :get
-               :url (str "/api/ki/by/" (js/encodeURIComponent ki-name) "/" ki-major)
+               :url
+               (str "/agora/api/ki/by/" (js/encodeURIComponent ki-name) "/" ki-major "?lang=" lang)
                :headers {"Accept" "application/json"}
                :response-content-types {#"application/json" :json}
                :on-success [::fetch-public-ok ck]
@@ -158,12 +174,13 @@
                          (update :latest index-ki ki)))))
 
 (defn- route-changed-fetch-list
-  "Fetch the discoverability KI list (GET /api/ki, no query). Not cached — each
-  visit re-fetches so the visit-weighted random order refreshes."
-  [db]
+  "Fetch the discoverability KI list (GET /agora/api/ki?lang=), scoped to the
+  current content language. Not cached — each visit re-fetches so the
+  visit-weighted random order refreshes."
+  [db lang]
   {:db (assoc db :loading? true :error nil)
    :fetch {:method :get
-           :url "/api/ki"
+           :url (str "/agora/api/ki?lang=" lang)
            :headers {"Accept" "application/json"}
            :response-content-types {#"application/json" :json}
            :on-success [::fetch-list-ok]
@@ -177,7 +194,11 @@
                           :loading? false)))
 
 (rf/reg-event-fx ::route-changed
-                 (fn [{:keys [db]} [_ {:keys [kind id name major]}]]
+                 (fn [{:keys [db]} [_ {:keys [kind id name major lang]}]]
+                   ;; The interface language is a preference, NOT the URL — so a
+                   ;; route change never touches it. The URL `lang` is used only as
+                   ;; the content language of a KI permalink; discover/search follow
+                   ;; the preference.
                    (let [db (ki-view/close-panels db)]
                      (case kind
                        :new {:db (assoc db
@@ -185,8 +206,13 @@
                                                :data nil}
                                         :loading? false
                                         :error nil)}
-                       :ki-public (route-changed-fetch-public db name major)
-                       :discover (route-changed-fetch-list db)
+                       :preferences {:db (assoc db
+                                                :view {:kind :preferences
+                                                       :data nil}
+                                                :loading? false
+                                                :error nil)}
+                       :ki-public (route-changed-fetch-public db name major lang)
+                       :discover (route-changed-fetch-list db (i18n/current db))
                        (route-changed-fetch db kind id)))))
 
 (rf/reg-event-db ::fetch-ok
@@ -217,7 +243,7 @@
                                         {:data ki
                                          :at (js/Date.now)})
                               (update :latest index-ki ki))
-                      :agora/navigate (str "/lab/ki/" id)})))
+                      :agora/navigate (i18n/lab-ki (i18n/current db) id)})))
 
 ;; Called after a link change (add/drop input): the same KI id is refreshed in
 ;; place — update the view, cache and latest index, no navigation.
@@ -236,6 +262,44 @@
 ;; route change, same as an intercepted link click.
 (rf/reg-fx :agora/navigate (fn [url] (pushy/set-token! @history url)))
 
+;; Event form of the above, for components (e.g. the language switcher) to call.
+(rf/reg-event-fx :agora/goto (fn [_ [_ url]] {:agora/navigate url}))
+
+;; ---------------------------------------------------------------------------
+;; Interface-language preference
+;;
+;; The preference drives the chrome, the discover feed and search. It is cached in
+;; localStorage (all users) and, for logged-in users, persisted to AGORA_USER (a
+;; 401 for anonymous users is harmless — the localStorage copy is authoritative
+;; for them). Changing it never rewrites a KI permalink you are viewing; if you are
+;; on discover it refetches the feed in the new language.
+;; ---------------------------------------------------------------------------
+
+(rf/reg-event-db ::pref-saved (fn [db _] db))
+
+(rf/reg-event-fx :agora/set-lang
+                 (fn [{:keys [db]} [_ lang]]
+                   (let [l (i18n/normalize lang)
+                         on-discover? (= :discover (get-in db [:view :kind]))]
+                     (i18n/write-stored! l)
+                     (cond-> {:db (i18n/set-lang db l)
+                              :fetch {:method :post
+                                      :url "/agora/api/auth/lang"
+                                      :headers {"Content-Type" "application/json"
+                                                "Accept" "application/json"}
+                                      :body (js/JSON.stringify (clj->js {:lang l}))
+                                      :response-content-types {#"application/json" :json}
+                                      :on-success [::pref-saved]
+                                      :on-failure [::pref-saved]}}
+                       on-discover? (assoc :agora/navigate (i18n/discover l))))))
+
+;; Adopt a language into the preference without persisting (it already came from a
+;; trusted source — localStorage at boot, or the account at login).
+(rf/reg-event-fx :agora/adopt-lang
+                 (fn [{:keys [db]} [_ lang]]
+                   (i18n/write-stored! (i18n/normalize lang))
+                   {:db (i18n/set-lang db lang)}))
+
 (rf/reg-sub ::view (fn [db _] (:view db)))
 (rf/reg-sub ::latest (fn [db _] (:latest db)))
 (rf/reg-sub ::loading? (fn [db _] (:loading? db)))
@@ -249,7 +313,9 @@
             :<-
             [::latest]
             (fn [[view latest] _]
-              (if (= :ki (:kind view)) (update view :data #(resolve-ki-neighbours latest %)) view)))
+              (if (#{:ki :ki-public} (:kind view))
+                (update view :data #(resolve-ki-neighbours latest %))
+                view)))
 
 ;; ---------------------------------------------------------------------------
 ;; View
@@ -268,15 +334,20 @@
 (defn app-view
   []
   (let [{:keys [kind data]} @(rf/subscribe [::resolved-view])
+        user @(rf/subscribe [::auth/user])
         loading? @(rf/subscribe [::loading?])
         error @(rf/subscribe [::error])]
     (cond
       (= kind :new) [ki-view/creation-form]
+      (= kind :preferences) [ki-view/preferences-page]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind
              :ki [ki-view/ki-page data]
-             :ki-public [ki-view/public-ki-page data]
+             ;; A KI permalink renders read-only for anonymous visitors and the
+             ;; editable lab page for signed-in ones. Reactive on the auth sub, so
+             ;; it swaps the moment /me resolves after a hard load.
+             :ki-public (if user [ki-view/ki-page data] [ki-view/public-ki-page data])
              :discover [ki-view/discover-page data]
              :article [article-view/article-card data]
              nil)
@@ -286,9 +357,14 @@
       :else nil)))
 
 (defn root-view
-  "The shared header on top of the current page."
+  "The shared header on top of the current page, plus the auth modal overlay."
   []
-  [:div [ki-view/header] [app-view]])
+  [:div
+   [ki-view/header]
+   [app-view]
+   [ki-view/site-footer]
+   [auth/auth-modal]
+   [ki-view/translation-editor]])
 
 (defn ^:dev/after-load mount-root
   []
@@ -300,6 +376,11 @@
 (defn init
   []
   (js/console.log "[agora] frontend started")
+  ;; Seed the interface-language preference from localStorage/cookie/browser before
+  ;; the first paint; a logged-in user's account preference then overrides it when
+  ;; /me returns (see auth ::me-ok → :agora/adopt-lang).
+  (rf/dispatch-sync [:agora/adopt-lang (i18n/initial-pref)])
+  (rf/dispatch [::auth/check])
   (reset! history (pushy/pushy #(rf/dispatch [::route-changed %]) path->route))
   (pushy/start! @history)
   ;; Dispatch the initial route explicitly so the first paint is correct

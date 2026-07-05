@@ -6,6 +6,7 @@
   (input box) rather than called as a literal {id}."
   (:require
    [landing.agora.ki                  :as ki]
+   [landing.agora.translate           :as translate]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]
@@ -21,6 +22,15 @@
   T is the object type `ki`)."
   [:map [:name :string] [:major :int]])
 
+(defn- user-id
+  "The logged-in user's id from the session, or nil. Authoring requires it (#38)."
+  [req]
+  (get-in req [:session :user-id]))
+
+(def ^:private unauthorized
+  {:status 401
+   :body {:error "login required"}})
+
 (def ki-handler
   "Return the KI identified by the :id path param, or 404 if it does not exist."
   (fn [req]
@@ -34,31 +44,69 @@
 
 (def edit-ki-handler
   "Create a new minor version of the KI identified by :id from the request body
-  (type + output statement). 201 with the new KI, or 404 if the source is unknown.
-  Not auth-gated yet — OAuth arrives in #38."
+  (type + output statement), owned by the logged-in user. 201 with the new KI,
+  404 if the source is unknown, 401 if not logged in (#38)."
   (fn [req]
-    (let [id (get-in req [:parameters :path :id])
-          edit (get-in req [:parameters :body])]
-      (if-let [ki (ki/edit-ki id edit)]
-        {:status 201
-         :body ki}
-        {:status 404
-         :body {:error "KI not found"
-                :id id}}))))
+    (if-let [uid (user-id req)]
+      (let [id (get-in req [:parameters :path :id])
+            edit (get-in req [:parameters :body])]
+        (if-let [ki (ki/edit-ki id uid edit)]
+          {:status 201
+           :body ki}
+          {:status 404
+           :body {:error "KI not found"
+                  :id id}}))
+      unauthorized)))
+
+(def translate-ki-handler
+  "Create a language version of the KI :id and its inputs. Body: target `:lang` and
+  the author-validated `:statement` (edited translation). Owned by the logged-in
+  user. 201 with the new version, 404 if the source is unknown, 401 if not logged
+  in."
+  (fn [req]
+    (if-let [uid (user-id req)]
+      (let [id (get-in req [:parameters :path :id])
+            {to-lang :lang
+             title :title
+             statement :statement}
+            (get-in req [:parameters :body])]
+        (if-let [ki (ki/translate-ki id to-lang uid title statement)]
+          {:status 201
+           :body ki}
+          {:status 404
+           :body {:error "KI not found"
+                  :id id}}))
+      unauthorized)))
+
+(def translate-suggest-handler
+  "Best-effort machine-translation *suggestion* for the authoring UI (logged-in
+  users only). Body: {:text :source :target}. Always 200 with {:translation …},
+  falling back to the source text when the external service is unavailable."
+  (fn [req]
+    (if (user-id req)
+      (let [{:keys [text source target]} (get-in req [:parameters :body])]
+        {:status 200
+         :body {:translation (or (translate/suggest text source target) text)}})
+      unauthorized)))
 
 (def search-ki-handler
   "With ?q= present, search KIs by name; otherwise return the discoverability
-  list (recent KIs, latest minor)."
+  list (recent KIs, latest minor). Both are scoped to the content language `?lang=`
+  (defaults to fr), so a French page only sees French KIs."
   (fn [req]
-    (let [q (get-in req [:parameters :query :q])]
+    (let [q (get-in req [:parameters :query :q])
+          lang (or (get-in req [:parameters :query :lang]) "fr")]
       {:status 200
-       :body (if (seq q) (ki/search-kis q) (ki/list-kis))})))
+       :body (if (seq q) (ki/search-kis q lang) (ki/list-kis lang))})))
 
 (def create-ki-handler
-  "Create a new KI (major 1, minor 0) from the request body. 201 with the KI."
+  "Create a new KI (major 1, minor 0) owned by the logged-in user. 201 with the
+  KI, or 401 if not logged in (#38)."
   (fn [req]
-    {:status 201
-     :body (ki/create-ki (get-in req [:parameters :body]))}))
+    (if-let [uid (user-id req)]
+      {:status 201
+       :body (ki/create-ki uid (get-in req [:parameters :body]))}
+      unauthorized)))
 
 (defn ki-collection-route
   "The KI collection: GET searches by name (?q=), POST creates a new KI."
@@ -77,44 +125,62 @@
           :operationId "agora-search-kis"
           :parameters {:query [:map
                                [:q {:optional true}
+                                :string]
+                               [:lang {:optional true}
                                 :string]]}
-          :summary "Search KIs by name"}
+          :summary "Search KIs by name (scoped to ?lang=)"}
     :post {:handler create-ki-handler
            :operationId "agora-create-ki"
-           :parameters {:body
-                        [:map [:name :string] [:type ki-type-enum] [:output-statement :string]]}
+           :parameters {:body [:map
+                               [:name :string]
+                               [:title {:optional true}
+                                :string]
+                               [:type ki-type-enum]
+                               [:lang {:optional true}
+                                :string]
+                               [:output-statement :string]]}
            :summary "Create a new KI (major 1, minor 0)"}}])
 
 (def add-input-handler
-  "Add an input link to the KI :id from the body ref. 200 with the updated KI."
+  "Add an input link to the KI :id (logged-in users only). 200 with the updated
+  KI, 404 if unknown, 401 if not logged in."
   (fn [req]
-    (let [id (get-in req [:parameters :path :id])
-          input (get-in req [:parameters :body])]
-      (if-let [ki (ki/add-input id input)]
-        {:status 200
-         :body ki}
-        {:status 404
-         :body {:error "KI not found"
-                :id id}}))))
+    (if (user-id req)
+      (let [id (get-in req [:parameters :path :id])
+            input (get-in req [:parameters :body])]
+        (if-let [ki (ki/add-input id input)]
+          {:status 200
+           :body ki}
+          {:status 404
+           :body {:error "KI not found"
+                  :id id}}))
+      unauthorized)))
 
 (def drop-input-handler
-  "Drop an input link from the KI :id given the body ref. 200 with the updated KI."
+  "Drop an input link from the KI :id (logged-in users only). 200 with the updated
+  KI, 404 if unknown, 401 if not logged in."
   (fn [req]
-    (let [id (get-in req [:parameters :path :id])
-          input (get-in req [:parameters :body])]
-      (if-let [ki (ki/drop-input id input)]
-        {:status 200
-         :body ki}
-        {:status 404
-         :body {:error "KI not found"
-                :id id}}))))
+    (if (user-id req)
+      (let [id (get-in req [:parameters :path :id])
+            input (get-in req [:parameters :body])]
+        (if-let [ki (ki/drop-input id input)]
+          {:status 200
+           :body ki}
+          {:status 404
+           :body {:error "KI not found"
+                  :id id}}))
+      unauthorized)))
 
 (defn inputs-route
   "Manage a KI's input links: POST adds one, DELETE removes one. Body is a
   Major-level KI reference {:name :major}."
   [prefix]
   [prefix
-   {:coercion coercion
+   {;; :conflicting — this 5-segment API path overlaps the `/agora/:lang/ki/…`
+    ;; page route for the conflict detector; reitit's matcher prefers the literal
+    ;; `api` segment, so requests resolve to the API handler as intended.
+    :conflicting true
+    :coercion coercion
     :muuntaja m/instance
     :swagger {:tags #{:agora}}
     :middleware [parameters/parameters-middleware
@@ -135,13 +201,16 @@
              :summary "Drop an input link from a KI"}}])
 
 (def by-major-handler
-  "Return the latest-minor KI of a (name, major) lineage — the permanent public
-  identity — or 404. Records a visit (drives discoverability weighting, #36)."
+  "Return the latest-minor KI of a (name, major) lineage in language `?lang=`
+  (defaults to fr) — the permanent public identity — or 404. Falls back to another
+  language when the concept is not yet translated. Records a visit (drives
+  discoverability weighting, #36)."
   (fn [req]
     (let [{ki-name :name
            ki-major :major}
-          (get-in req [:parameters :path])]
-      (if-let [ki (ki/fetch-ki-by-major ki-name ki-major)]
+          (get-in req [:parameters :path])
+          lang (or (get-in req [:parameters :query :lang]) "fr")]
+      (if-let [ki (ki/fetch-ki-by-major ki-name ki-major lang)]
         (do (ki/record-visit ki-name ki-major)
             {:status 200
              :body ki})
@@ -157,8 +226,11 @@
                  :handler by-major-handler
                  :muuntaja m/instance
                  :operationId "agora-ki-by-major"
-                 :parameters {:path [:map [:name :string] [:major :int]]}
-                 :summary "Fetch a KI's latest minor by (name, major)"
+                 :parameters {:path [:map [:name :string] [:major :int]]
+                              :query [:map
+                                      [:lang {:optional true}
+                                       :string]]}
+                 :summary "Fetch a KI's latest minor by (name, major), in ?lang="
                  :swagger {:tags #{:agora}}
                  :middleware [parameters/parameters-middleware
                               muuntaja/format-negotiate-middleware
@@ -170,12 +242,19 @@
 (defn edit-ki-route
   [prefix]
   [prefix
-   {:post {:coercion coercion
+   {;; :conflicting — see inputs-route: 5-segment API path overlaps the page route
+    ;; `/agora/:lang/ki/:name/:major` for the detector; the matcher resolves it.
+    :conflicting true
+    :post {:coercion coercion
            :handler edit-ki-handler
            :muuntaja m/instance
            :operationId "agora-edit-ki"
            :parameters {:path [:map [:id :string]]
-                        :body [:map [:type ki-type-enum] [:output-statement :string]]}
+                        :body [:map
+                               [:title {:optional true}
+                                :string]
+                               [:type ki-type-enum]
+                               [:output-statement :string]]}
            :summary "Edit a KI — produces a new minor version (immutable)"
            :swagger {:tags #{:agora}}
            :middleware [;; query-params & form-params
@@ -190,6 +269,47 @@
                         muuntaja/format-request-middleware
                         ;; coercing request parameters (path :id + body)
                         rcoercion/coerce-request-middleware]}}])
+
+(defn translate-ki-route
+  [prefix]
+  [prefix
+   {;; :conflicting — see inputs-route: 5-segment API path overlaps the page route.
+    :conflicting true
+    :post {:coercion coercion
+           :handler translate-ki-handler
+           :muuntaja m/instance
+           :operationId "agora-translate-ki"
+           :parameters {:path [:map [:id :string]]
+                        :body [:map
+                               [:lang :string]
+                               [:title {:optional true}
+                                :string]
+                               [:statement {:optional true}
+                                :string]]}
+           :summary "Create a language version of a KI and its inputs"
+           :swagger {:tags #{:agora}}
+           :middleware [parameters/parameters-middleware
+                        muuntaja/format-negotiate-middleware
+                        muuntaja/format-response-middleware
+                        exception/exception-middleware
+                        muuntaja/format-request-middleware
+                        rcoercion/coerce-request-middleware]}}])
+
+(defn translate-suggest-route
+  [prefix]
+  [prefix {:post {:coercion coercion
+                  :handler translate-suggest-handler
+                  :muuntaja m/instance
+                  :operationId "agora-translate-suggest"
+                  :parameters {:body [:map [:text :string] [:source :string] [:target :string]]}
+                  :summary "Machine-translation suggestion (best effort)"
+                  :swagger {:tags #{:agora}}
+                  :middleware [parameters/parameters-middleware
+                               muuntaja/format-negotiate-middleware
+                               muuntaja/format-response-middleware
+                               exception/exception-middleware
+                               muuntaja/format-request-middleware
+                               rcoercion/coerce-request-middleware]}}])
 
 (defn ki-route
   [prefix]
