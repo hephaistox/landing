@@ -35,12 +35,13 @@ VALUES
    'confidence-over-binary', 'derived',   1, 1,
    '45ef55ddc399d04ab6ef41a8f3874f5d91e26e675e7d24b596d0c01789282860', NULL, '2026-07-03 00:00:00');
 
--- Edge: confidence-is-partial → confidence-over-binary (references name + major only).
+-- Edge: confidence-is-partial → confidence-over-binary. Each endpoint is a node
+-- identity at (object_type, name, major) — both KIs here.
 INSERT INTO `AGORA_NODE_EDGE`
-  (`id`, `input_name`, `input_major`, `output_name`, `output_major`)
+  (`id`, `input_object_type`, `input_name`, `input_major`, `output_object_type`, `output_name`, `output_major`)
 VALUES
   ('00000000-0000-0000-0000-0000000000e1',
-   'confidence-is-partial', 1, 'confidence-over-binary', 1);
+   'ki', 'confidence-is-partial', 1, 'ki', 'confidence-over-binary', 1);
 
 -- One article, body content-addressed above.
 INSERT INTO `AGORA_ARTICLE` (`id`, `title`, `body_hash`, `published_at`) VALUES

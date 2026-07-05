@@ -52,18 +52,23 @@ CREATE TABLE IF NOT EXISTS `AGORA_NODE` (
   KEY `idx_ki_lang` (`object_type`, `lang`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Reasoning edges: input KI implies output KI. Language-neutral — references
--- (name, major) only, so one edge set serves every language of a concept.
+-- Reasoning edges: input node implies output node. Each endpoint is referenced by
+-- its identity at (object_type, name, major) granularity — T·N·R, i.e. without the
+-- minor (auto-resolved to latest) and without the language (edges are
+-- language-neutral, so one edge set serves every language of a concept). The
+-- object type is part of identity, so it is carried per endpoint.
 CREATE TABLE IF NOT EXISTS `AGORA_NODE_EDGE` (
-  `id`           CHAR(36)     NOT NULL COMMENT 'UUID, edge identity',
-  `input_name`   VARCHAR(255) NOT NULL COMMENT 'Input KI name',
-  `input_major`  INT UNSIGNED NOT NULL COMMENT 'Input KI major version',
-  `output_name`  VARCHAR(255) NOT NULL COMMENT 'Output KI name',
-  `output_major` INT UNSIGNED NOT NULL COMMENT 'Output KI major version',
+  `id`                 CHAR(36)     NOT NULL COMMENT 'UUID, edge identity',
+  `input_object_type`  ENUM('ki', 'objection') NOT NULL DEFAULT 'ki' COMMENT 'Input node object type (identity T)',
+  `input_name`         VARCHAR(255) NOT NULL COMMENT 'Input node name (identity N)',
+  `input_major`        INT UNSIGNED NOT NULL COMMENT 'Input node major version (identity R)',
+  `output_object_type` ENUM('ki', 'objection') NOT NULL DEFAULT 'ki' COMMENT 'Output node object type (identity T)',
+  `output_name`        VARCHAR(255) NOT NULL COMMENT 'Output node name (identity N)',
+  `output_major`       INT UNSIGNED NOT NULL COMMENT 'Output node major version (identity R)',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_edge` (`input_name`, `input_major`, `output_name`, `output_major`),
-  KEY `idx_edge_by_output` (`output_name`, `output_major`),
-  KEY `idx_edge_by_input` (`input_name`, `input_major`)
+  UNIQUE KEY `uq_edge` (`input_object_type`, `input_name`, `input_major`, `output_object_type`, `output_name`, `output_major`),
+  KEY `idx_edge_by_output` (`output_object_type`, `output_name`, `output_major`),
+  KEY `idx_edge_by_input` (`input_object_type`, `input_name`, `input_major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Live computed state per node lineage (name, major) — values derived from the

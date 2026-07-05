@@ -38,7 +38,9 @@
 (defn- edge-refs
   "The Major-only KI references (name, major) on the `wanted` side of edges whose
   `known` side is the given KI. `direction` :inputs looks at edges whose output is
-  this KI (wanting their input); :successors is the mirror."
+  this KI (wanting their input); :successors is the mirror. Both endpoints are
+  constrained to object_type 'ki' — the reasoning graph is KI-to-KI (objections
+  attach differently); the object type is part of each endpoint's identity."
   [direction ki-name ki-major]
   (let [[known wanted] (case direction
                          :inputs ["output" "input"]
@@ -51,6 +53,10 @@
                  "_major AS major "
                  "FROM AGORA_NODE_EDGE "
                  "WHERE "
+                 known
+                 "_object_type = 'ki' AND "
+                 wanted
+                 "_object_type = 'ki' AND "
                  known
                  "_name = ? AND "
                  known
@@ -341,7 +347,8 @@
   (jdbc/execute!
    db/ds
    ["DELETE FROM AGORA_NODE_EDGE
-     WHERE (input_name = ? AND input_major = ?) OR (output_name = ? AND output_major = ?)"
+     WHERE (input_object_type = 'ki' AND input_name = ? AND input_major = ?)
+        OR (output_object_type = 'ki' AND output_name = ? AND output_major = ?)"
     ki-name
     ki-major
     ki-name
@@ -478,9 +485,10 @@
              (ki-ref id)]
     (jdbc/execute!
      db/ds
+     ;; both endpoints are KIs (object_type 'ki' — part of the endpoint identity).
      ["INSERT IGNORE INTO AGORA_NODE_EDGE
-       (id, input_name, input_major, output_name, output_major)
-       VALUES (?, ?, ?, ?, ?)"
+       (id, input_object_type, input_name, input_major, output_object_type, output_name, output_major)
+       VALUES (?, 'ki', ?, ?, 'ki', ?, ?)"
       (str (UUID/randomUUID))
       in-name
       in-major
@@ -499,7 +507,8 @@
     (jdbc/execute!
      db/ds
      ["DELETE FROM AGORA_NODE_EDGE
-       WHERE input_name = ? AND input_major = ? AND output_name = ? AND output_major = ?"
+       WHERE input_object_type = 'ki' AND input_name = ? AND input_major = ?
+         AND output_object_type = 'ki' AND output_name = ? AND output_major = ?"
       in-name
       in-major
       out-name
