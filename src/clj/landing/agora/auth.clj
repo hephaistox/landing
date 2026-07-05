@@ -12,11 +12,24 @@
    [next.jdbc.result-set :as rs])
   (:import (java.util UUID)))
 
+(def admin-emails
+  "Accounts permitted to use the maintenance API — the platform owner only. The
+  backend is the security boundary; the profile's `:admin` flag is derived from
+  this so the frontend can hide admin UI without duplicating the allowlist."
+  #{"hephaistox.sc@gmail.com"})
+
+(defn admin?
+  "True when `email` belongs to a platform administrator."
+  [email]
+  (contains? admin-emails email))
+
 (defn- public
-  "A user row reduced to a public profile — no password hash."
+  "A user row reduced to a public profile — no password hash. `:admin` is derived
+  server-side from the account email (see `admin-emails`)."
   [row]
   (some-> row
-          (select-keys [:id :email :display-name :provider :avatar-url :lang])))
+          (select-keys [:id :email :display-name :provider :avatar-url :lang])
+          (as-> profile (assoc profile :admin (admin? (:email profile))))))
 
 (defn get-user
   "Public profile of the user `id`, or nil. Includes the preferred interface

@@ -16,6 +16,9 @@
 (rf/reg-sub ::user (fn [db _] (::user db)))
 (rf/reg-sub ::form (fn [db _] (::form db)))
 (rf/reg-sub ::menu? (fn [db _] (::menu? db)))
+;; `:admin` is derived server-side from the account email (landing.agora.auth):
+;; the frontend only reflects it, gating admin UI. The API is the real boundary.
+(rf/reg-sub ::admin? (fn [db _] (boolean (:admin (::user db)))))
 
 (defn logged-in?
   "True when a user is in app-db. Usable from other namespaces via the sub."
@@ -193,10 +196,12 @@
                   :on-click #(rf/dispatch [::toggle-menu])
                   :style menu-link}
               (i18n/t lang :nav/preferences)]
-             [:a {:href (i18n/admin lang)
-                  :on-click #(rf/dispatch [::toggle-menu])
-                  :style menu-link}
-              (i18n/t lang :nav/admin)]])
+             ;; Admin link only for the platform owner (server-derived :admin).
+             (when (:admin user)
+               [:a {:href (i18n/admin lang)
+                    :on-click #(rf/dispatch [::toggle-menu])
+                    :style menu-link}
+                (i18n/t lang :nav/admin)])])
           [:button {:on-click #(rf/dispatch [::logout])
                     :style {:width "100%"
                             :padding "0.4em"

@@ -11,12 +11,13 @@
 
   Not auth-gated yet — OAuth arrives in #38."
   (:require
-   [clojure.string              :as str]
-   [landing.agora.frontend.auth :as auth]
-   [landing.agora.frontend.fmt  :as fmt]
-   [landing.agora.frontend.i18n :as i18n]
-   [re-frame.core               :as rf]
-   [reagent.core                :as r]
+   [clojure.string                        :as str]
+   [landing.agora.frontend.auth           :as auth]
+   [landing.agora.frontend.fmt            :as fmt]
+   [landing.agora.frontend.i18n           :as i18n]
+   [landing.agora.frontend.ki-edit-common :as common]
+   [re-frame.core                         :as rf]
+   [reagent.core                          :as r]
    [superstructor.re-frame.fetch-fx]))
 
 ;; ===========================================================================
@@ -31,10 +32,6 @@
    "stance" "#b9770e"
    "belief" "#2b8a3e"
    "credo" "#c92a2a"})
-
-(def ki-types
-  "The KI types, in display order."
-  ["derived" "verifiable-claim" "postulate" "stance" "belief" "credo"])
 
 (defn type-badge-view
   "Coloured type badge with a label localized to the current UI language."
@@ -245,7 +242,9 @@
   (into [:div {:style {:display "flex"
                        :flex-wrap "wrap"
                        :gap "0.4em"}}]
-        (for [t ki-types
+        ;; `common/ki-types` is the canonical set as keywords; the DB/API represent
+        ;; the type as a string, so map to `(name kw)` at this boundary.
+        (for [t (map name common/ki-types)
               :let [current? (= t selected)]]
           ^{:key t}
           [:button {:on-click #(on-select t)
@@ -1604,6 +1603,9 @@
         (not user) [:div {:style {:color "#888"
                                   :font-style "italic"}}
                     (i18n/t lang :admin/login-required)]
+        (not (:admin user)) [:div {:style {:color "#888"
+                                           :font-style "italic"}}
+                             (i18n/t lang :admin/not-authorized)]
         (empty? tnrs) [:div {:style {:color "#aaa"
                                      :font-style "italic"}}
                        (i18n/t lang :admin/empty)]

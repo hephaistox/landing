@@ -1,11 +1,5 @@
--- Agora / Logos — MVP schema (consolidated).
+-- Agora — MVP schema (consolidated).
 --
--- The pre-MVP work was built as many incremental migrations (identity, blob
--- store, edges, object-type, visits, users, i18n, title, …). Since it all ships
--- as a single MVP commit and is already applied to the live DB, those are
--- squashed here into one reproducible schema. Applied by scripts/agora_db.clj;
--- a proper migration runner is #40.
-
 -- Content-addressed store for immutable KI/article text. Addressed by the SHA-256
 -- hex of the content (PRIMARY KEY gives automatic dedup). MySQL for the MVP;
 -- Cellar/S3 is the intended swap-point (see landing.agora.blob).

@@ -5,17 +5,21 @@
   path parameter is declared via malli coercion so it is documented in Swagger
   (input box) rather than called as a literal {id}."
   (:require
-   [landing.agora.ki                  :as ki]
-   [landing.agora.translate           :as translate]
-   [muuntaja.core                     :as m]
-   [reitit.coercion.malli             :refer [coercion]]
-   [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.exception  :as exception]
-   [reitit.ring.middleware.muuntaja   :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]))
+   [landing.agora.frontend.ki-edit-common :as common]
+   [landing.agora.ki                      :as ki]
+   [landing.agora.translate               :as translate]
+   [muuntaja.core                         :as m]
+   [reitit.coercion.malli                 :refer [coercion]]
+   [reitit.ring.coercion                  :as rcoercion]
+   [reitit.ring.middleware.exception      :as exception]
+   [reitit.ring.middleware.muuntaja       :as muuntaja]
+   [reitit.ring.middleware.parameters     :as parameters]))
 
 (def ^:private ki-type-enum
-  [:enum "derived" "verifiable-claim" "postulate" "stance" "belief" "credo"])
+  "Malli enum of the epistemic types, from the shared canonical set
+  (landing.agora.frontend.ki-edit-common/ki-types). The API represents the type
+  as a string, so the keyword set is mapped to strings."
+  (into [:enum] (map name common/ki-types)))
 
 (def ^:private input-ref-schema
   "Body for add/drop input: a Major-level KI reference (name + major; identity's

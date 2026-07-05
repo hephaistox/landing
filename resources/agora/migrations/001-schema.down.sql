@@ -1,4 +1,4 @@
--- Agora / Logos — MVP schema (rollback). Drops every Agora table.
+-- Agora — MVP schema (rollback). Drops every Agora table.
 DROP TABLE IF EXISTS `AGORA_NODE_EDGE`;
 DROP TABLE IF EXISTS `AGORA_NODE_DYNAMIC`;
 DROP TABLE IF EXISTS `AGORA_ARTICLE`;

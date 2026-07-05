@@ -1,4 +1,4 @@
--- Agora / Logos — test seed (consolidated).
+-- Agora — test seed (consolidated).
 --
 -- Throwaway data to make the app non-empty in dev: two linked KIs (a postulate
 -- and a derived conclusion, one with a second minor), plus one article. Text is

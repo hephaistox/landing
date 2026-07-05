@@ -1,4 +1,4 @@
-# CLAUDE.md — Knowledge Graph Platform (Agora / Logos)
+# CLAUDE.md — Knowledge Graph Platform (Agora)
 ## Architecture Framework & Implementation Specification
 
 ---
