@@ -2,8 +2,13 @@
   "Read access to Knowledge Items.
 
   A KI row stores only the hash of its output statement; this namespace resolves
-  that hash to the actual text via the blob store, returning a single clean map."
+  that hash to the actual text via the blob store, returning a single clean map.
+
+  Every DB call goes through `q!` / `q1!`, which turn a driver/connection failure
+  (java.sql.SQLException) into a logged `::db-unavailable` ex-info so the API layer
+  can answer 503 instead of leaking an opaque 500 (see landing.agora.endpoints.error)."
   (:require
+   [auto-core.log        :as core-log]
    [clojure.string       :as str]
    [landing.agora.blob   :as blob]
    [landing.agora.db     :as db]
@@ -11,7 +16,25 @@
    [landing.language     :as language]
    [next.jdbc            :as jdbc]
    [next.jdbc.result-set :as rs])
-  (:import (java.util UUID)))
+  (:import (java.sql SQLException)
+           (java.util UUID)))
+
+(defn- db-error!
+  "Log a DB driver/connection failure and rethrow it as a domain error the API
+  layer maps to a 503 (never leaks the SQL exception to the client)."
+  [e]
+  (core-log/error-exception e "Agora DB error")
+  (throw (ex-info "database unavailable" {:type ::db-unavailable} e)))
+
+(defn- q!
+  "next.jdbc/execute! with DB-failure handling."
+  [& args]
+  (try (apply jdbc/execute! args) (catch SQLException e (db-error! e))))
+
+(defn- q1!
+  "next.jdbc/execute-one! with DB-failure handling."
+  [& args]
+  (try (apply jdbc/execute-one! args) (catch SQLException e (db-error! e))))
 
 (defn resolve-major
   "Versioning-in-links utility (#30). Connections store a KI reference at Major
@@ -26,7 +49,7 @@
   falls back to any other language — so a French graph that is only partly
   translated still renders, showing untranslated nodes in their own language."
   [ki-name ki-major lang]
-  (jdbc/execute-one!
+  (q1!
    db/ds
    ["SELECT id, name, title, type, lang, major, minor FROM AGORA_NODE
      WHERE object_type = 'ki' AND name = ? AND major = ?
@@ -67,7 +90,7 @@
                  "_name, "
                  wanted
                  "_major")]
-    (jdbc/execute! db/ds [sql ki-name ki-major] {:builder-fn rs/as-unqualified-kebab-maps})))
+    (q! db/ds [sql ki-name ki-major] {:builder-fn rs/as-unqualified-kebab-maps})))
 
 (defn- neighbours
   "Light KI refs reachable from the given KI across one edge, each Major-only
@@ -86,7 +109,7 @@
   the UI can offer previous/next-version navigation. Each language has its own
   minor lineage."
   [ki-name ki-major lang]
-  (jdbc/execute!
+  (q!
    db/ds
    ["SELECT id, minor FROM AGORA_NODE
      WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? ORDER BY minor"
@@ -101,7 +124,7 @@
   language. Returns one light ref {:name :major :lang} per other language. Powers
   the Wikipedia-style language switch on the KI page — no explicit link needed."
   [ki-name ki-lang]
-  (jdbc/execute!
+  (q!
    db/ds
    ["SELECT DISTINCT name, major, lang FROM AGORA_NODE
      WHERE object_type = 'ki' AND name = ? AND lang <> ?
@@ -123,7 +146,7 @@
   [id]
   (when-let
     [row
-     (jdbc/execute-one!
+     (q1!
       db/ds
       ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor, k.output_statement_hash,
               k.owner_id, k.published_at, u.display_name AS author
@@ -157,7 +180,7 @@
   the current highest minor, or 0 if none exists yet. Minors are per language."
   [ki-name ki-major lang]
   (:m
-   (jdbc/execute-one!
+   (q1!
     db/ds
     ["SELECT COALESCE(MAX(minor) + 1, 0) AS m FROM AGORA_NODE
          WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ?"
@@ -182,13 +205,13 @@
   (when-let [{ki-name :name
               ki-major :major
               ki-lang :lang}
-             (jdbc/execute-one! db/ds
-                                ["SELECT name, major, lang FROM AGORA_NODE WHERE id = ?" id]
-                                {:builder-fn rs/as-unqualified-kebab-maps})]
+             (q1! db/ds
+                  ["SELECT name, major, lang FROM AGORA_NODE WHERE id = ?" id]
+                  {:builder-fn rs/as-unqualified-kebab-maps})]
     (let [hash (blob/write-blob statement)
           minor (next-minor ki-name ki-major ki-lang)
           new-id (str (UUID/randomUUID))]
-      (jdbc/execute!
+      (q!
        db/ds
        ;; the content language is immutable across minors — carry it forward (a
        ;; translation is a same-named KI in another language, not a new minor).
@@ -210,7 +233,7 @@
   "True when a `lang` version of the (name, major) lineage already exists."
   [ki-name ki-major lang]
   (some?
-   (jdbc/execute-one!
+   (q1!
     db/ds
     ["SELECT id FROM AGORA_NODE WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? LIMIT 1"
      ki-name
@@ -224,7 +247,7 @@
   `to-lang` version already exists."
   [ki-name ki-major ki-type ki-title to-lang statement owner-id]
   (when-not (lang-exists? ki-name ki-major to-lang)
-    (jdbc/execute!
+    (q!
      db/ds
      ["INSERT INTO AGORA_NODE
        (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
@@ -250,7 +273,7 @@
       [{ki-type :type
         ki-title :title
         hash :output-statement-hash}
-       (jdbc/execute-one!
+       (q1!
         db/ds
         ["SELECT type, title, output_statement_hash FROM AGORA_NODE
                   WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ?
@@ -259,7 +282,7 @@
          ki-major
          from-lang]
         {:builder-fn rs/as-unqualified-kebab-maps})]
-      (jdbc/execute!
+      (q!
        db/ds
        ["INSERT INTO AGORA_NODE
          (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
@@ -307,7 +330,7 @@
   (if (str/blank? q)
     []
     (let [like (str "%" q "%")]
-      (jdbc/execute!
+      (q!
        db/ds
        ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor FROM AGORA_NODE k
          LEFT JOIN AGORA_BLOB b ON b.hash = k.output_statement_hash
@@ -329,7 +352,7 @@
   "All KI lineages (a TNR = object-type + name + major) with aggregate counts, for
   the admin page: version rows, distinct languages and the latest minor."
   []
-  (jdbc/execute!
+  (q!
    db/ds
    ["SELECT name, major,
             COUNT(*) AS versions,
@@ -345,7 +368,7 @@
   and visit counter. Content blobs are content-addressed and may be shared, so they
   are left in place. Returns the number of KI rows deleted."
   [ki-name ki-major]
-  (jdbc/execute!
+  (q!
    db/ds
    ["DELETE FROM AGORA_NODE_EDGE
      WHERE (input_object_type = 'ki' AND input_name = ? AND input_major = ?)
@@ -354,16 +377,15 @@
     ki-major
     ki-name
     ki-major])
-  (jdbc/execute!
-   db/ds
-   ["DELETE FROM AGORA_NODE_DYNAMIC WHERE object_type = 'ki' AND name = ? AND major = ?"
-    ki-name
-    ki-major])
+  (q! db/ds
+      ["DELETE FROM AGORA_NODE_DYNAMIC WHERE object_type = 'ki' AND name = ? AND major = ?"
+       ki-name
+       ki-major])
   (:next.jdbc/update-count
-   (jdbc/execute-one! db/ds
-                      ["DELETE FROM AGORA_NODE WHERE object_type = 'ki' AND name = ? AND major = ?"
-                       ki-name
-                       ki-major])))
+   (q1! db/ds
+        ["DELETE FROM AGORA_NODE WHERE object_type = 'ki' AND name = ? AND major = ?"
+         ki-name
+         ki-major])))
 
 (defn compact-tnr!
   "Keep only the latest minor of each language of a (name, major) lineage, deleting
@@ -371,7 +393,7 @@
   Returns the number of KI rows deleted."
   [ki-name ki-major]
   (->>
-    (jdbc/execute!
+    (q!
      db/ds
      ["SELECT lang, MAX(minor) AS latest FROM AGORA_NODE
           WHERE object_type = 'ki' AND name = ? AND major = ? GROUP BY lang"
@@ -384,7 +406,7 @@
         n
         (or
          (:next.jdbc/update-count
-          (jdbc/execute-one!
+          (q1!
            db/ds
            ["DELETE FROM AGORA_NODE
                             WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? AND minor < ?"
@@ -400,7 +422,7 @@
   language of each (name, major) lineage, with its latest publication date. Feeds
   the sitemap (#39)."
   []
-  (jdbc/execute!
+  (q!
    db/ds
    ["SELECT name, major, lang, MAX(published_at) AS lastmod
      FROM AGORA_NODE WHERE object_type = 'ki'
@@ -411,7 +433,7 @@
 (defn record-visit
   "Increment the public-page visit counter for the (name, major) lineage."
   [ki-name ki-major]
-  (jdbc/execute!
+  (q!
    db/ds
    ["INSERT INTO AGORA_NODE_DYNAMIC (object_type, name, major, visits) VALUES ('ki', ?, ?, 1)
      ON DUPLICATE KEY UPDATE visits = visits + 1"
@@ -426,7 +448,7 @@
   weighted key POW(RAND(), 1/weight), so higher visits ⇒ higher chance of being
   in the top 10. Restricted to the content language `lang`."
   [lang]
-  (jdbc/execute!
+  (q!
    db/ds
    ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor, COALESCE(v.visits, 0) AS visits,
             b.content AS output_statement
@@ -454,7 +476,7 @@
              statement :output-statement}]
   (let [hash (blob/write-blob statement)
         id (str (UUID/randomUUID))]
-    (jdbc/execute!
+    (q!
      db/ds
      ;; Translations need no linking: a KI created with an existing name in another
      ;; language is automatically a sibling (grouped by identity Name).
@@ -473,9 +495,9 @@
 (defn- ki-ref
   "The (name, major) identity of the KI `id`, or nil."
   [id]
-  (jdbc/execute-one! db/ds
-                     ["SELECT name, major FROM AGORA_NODE WHERE id = ?" id]
-                     {:builder-fn rs/as-unqualified-kebab-maps}))
+  (q1! db/ds
+       ["SELECT name, major FROM AGORA_NODE WHERE id = ?" id]
+       {:builder-fn rs/as-unqualified-kebab-maps}))
 
 (defn add-input
   "Add an input edge: the KI referenced by `input` (a {:name :major} Major ref)
@@ -487,7 +509,7 @@
   (when-let [{out-name :name
               out-major :major}
              (ki-ref id)]
-    (jdbc/execute!
+    (q!
      db/ds
      ;; both endpoints are KIs (object_type 'ki' — part of the endpoint identity).
      ["INSERT IGNORE INTO AGORA_NODE_EDGE
@@ -508,7 +530,7 @@
   (when-let [{out-name :name
               out-major :major}
              (ki-ref id)]
-    (jdbc/execute!
+    (q!
      db/ds
      ["DELETE FROM AGORA_NODE_EDGE
        WHERE input_object_type = 'ki' AND input_name = ? AND input_major = ?

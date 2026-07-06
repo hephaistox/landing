@@ -5,6 +5,7 @@
   path parameter is declared via malli coercion so it is documented in Swagger
   (input box) rather than called as a literal {id}."
   (:require
+   [landing.agora.endpoints.error         :as error]
    [landing.agora.frontend.ki-edit-common :as common]
    [landing.agora.ki                      :as ki]
    [landing.agora.translate               :as translate]
@@ -12,7 +13,6 @@
    [muuntaja.core                         :as m]
    [reitit.coercion.malli                 :refer [coercion]]
    [reitit.ring.coercion                  :as rcoercion]
-   [reitit.ring.middleware.exception      :as exception]
    [reitit.ring.middleware.muuntaja       :as muuntaja]
    [reitit.ring.middleware.parameters     :as parameters]))
 
@@ -123,7 +123,7 @@
     :middleware [parameters/parameters-middleware
                  muuntaja/format-negotiate-middleware
                  muuntaja/format-response-middleware
-                 exception/exception-middleware
+                 error/exception-middleware
                  muuntaja/format-request-middleware
                  rcoercion/coerce-request-middleware]
     :get {:handler search-ki-handler
@@ -191,7 +191,7 @@
     :middleware [parameters/parameters-middleware
                  muuntaja/format-negotiate-middleware
                  muuntaja/format-response-middleware
-                 exception/exception-middleware
+                 error/exception-middleware
                  muuntaja/format-request-middleware
                  rcoercion/coerce-request-middleware]
     :post {:handler add-input-handler
@@ -240,7 +240,7 @@
                  :middleware [parameters/parameters-middleware
                               muuntaja/format-negotiate-middleware
                               muuntaja/format-response-middleware
-                              exception/exception-middleware
+                              error/exception-middleware
                               muuntaja/format-request-middleware
                               rcoercion/coerce-request-middleware]}}])
 
@@ -269,7 +269,7 @@
                         ;; encoding response body
                         muuntaja/format-response-middleware
                         ;; exception handling
-                        exception/exception-middleware
+                        error/exception-middleware
                         ;; decoding request body
                         muuntaja/format-request-middleware
                         ;; coercing request parameters (path :id + body)
@@ -296,7 +296,7 @@
            :middleware [parameters/parameters-middleware
                         muuntaja/format-negotiate-middleware
                         muuntaja/format-response-middleware
-                        exception/exception-middleware
+                        error/exception-middleware
                         muuntaja/format-request-middleware
                         rcoercion/coerce-request-middleware]}}])
 
@@ -312,7 +312,7 @@
                   :middleware [parameters/parameters-middleware
                                muuntaja/format-negotiate-middleware
                                muuntaja/format-response-middleware
-                               exception/exception-middleware
+                               error/exception-middleware
                                muuntaja/format-request-middleware
                                rcoercion/coerce-request-middleware]}}])
 
@@ -336,7 +336,7 @@
                        ;; encoding response body
                        muuntaja/format-response-middleware
                        ;; exception handling
-                       exception/exception-middleware
+                       error/exception-middleware
                        ;; decoding request body
                        muuntaja/format-request-middleware
                        ;; coercing request parameters (path :id)

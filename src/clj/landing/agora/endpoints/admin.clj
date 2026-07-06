@@ -4,11 +4,11 @@
   any logged-in user."
   (:require
    [landing.agora.auth                :as auth]
+   [landing.agora.endpoints.error     :as error]
    [landing.agora.ki                  :as ki]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.exception  :as exception]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
    [reitit.ring.middleware.parameters :as parameters]))
 
@@ -61,7 +61,7 @@
            :middleware [parameters/parameters-middleware
                         muuntaja/format-negotiate-middleware
                         muuntaja/format-response-middleware
-                        exception/exception-middleware
+                        error/exception-middleware
                         muuntaja/format-request-middleware
                         rcoercion/coerce-request-middleware]}
    ["/tnrs"
