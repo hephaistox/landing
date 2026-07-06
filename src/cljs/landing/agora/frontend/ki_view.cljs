@@ -16,6 +16,7 @@
    [landing.agora.frontend.fmt            :as fmt]
    [landing.agora.frontend.i18n           :as i18n]
    [landing.agora.frontend.ki-edit-common :as common]
+   [landing.agora.frontend.ui             :as ui]
    [landing.language                      :as language]
    [re-frame.core                         :as rf]
    [reagent.core                          :as r]
@@ -182,6 +183,7 @@
                        :align-items "flex-start"
                        :justify-content "center"
                        :padding-top "12vh"}}
+         [ui/on-escape #(reset! open? false)]
          [:div {:on-click #(.stopPropagation %)
                 :style {:width "18em"
                         :max-width "90%"
@@ -1149,6 +1151,7 @@
                      :margin-bottom "0.3em"}
         blank? (or (str/blank? name) (str/blank? output-statement))]
     [:div {:style (assoc card-style :margin "1.5em auto")}
+     [ui/on-escape #(rf/dispatch [:agora/cancel-new])]
      [:h1 {:style {:font-size "1.3em"
                    :margin "0 0 0.8em"}}
       (i18n/t lang :form/new-title)]
@@ -1250,6 +1253,7 @@
                      :align-items "flex-start"
                      :justify-content "center"
                      :padding-top "8vh"}}
+       [ui/on-escape #(rf/dispatch [::translate-cancel])]
        [:div {:on-click #(.stopPropagation %)
               :style {:width "34em"
                       :max-width "92%"

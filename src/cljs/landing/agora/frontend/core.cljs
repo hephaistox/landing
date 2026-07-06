@@ -274,6 +274,13 @@
 ;; Event form of the above, for components (e.g. the language switcher) to call.
 (rf/reg-event-fx :agora/goto (fn [_ [_ url]] {:agora/navigate url}))
 
+;; Esc on the creation page → back to discover (like Cancel), but only when no
+;; modal (e.g. the login prompt) is open over it — that modal handles Esc itself and
+;; must not also trigger a navigation that would discard the half-filled form.
+(rf/reg-event-fx :agora/cancel-new
+                 (fn [{:keys [db]} _]
+                   (when-not (::auth/form db) {:agora/navigate (i18n/discover (i18n/current db))})))
+
 ;; ---------------------------------------------------------------------------
 ;; Interface-language preference
 ;;
@@ -315,6 +322,10 @@
 
 (rf/reg-event-db ::admin-tnrs-ok (fn [db [_ resp]] (assoc db :admin-tnrs (:body resp))))
 
+;; On failure (403 not-admin, or 503 DB down) show an empty list rather than
+;; assoc-ing the error body — the admin table iterates :admin-tnrs.
+(rf/reg-event-db ::admin-tnrs-failed (fn [db _] (assoc db :admin-tnrs [])))
+
 (rf/reg-event-fx :agora/admin-fetch
                  (fn [_ _]
                    {:fetch {:method :get
@@ -322,7 +333,7 @@
                             :headers {"Accept" "application/json"}
                             :response-content-types {#"application/json" :json}
                             :on-success [::admin-tnrs-ok]
-                            :on-failure [::admin-tnrs-ok]}}))
+                            :on-failure [::admin-tnrs-failed]}}))
 
 (defn- admin-post
   [url ki-name ki-major]

@@ -4,6 +4,7 @@
   (:require
    [landing.agora.auth                :as auth]
    [landing.agora.oauth               :as oauth]
+   [landing.language                  :as language]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]
@@ -94,7 +95,9 @@
   the profile, upsert the user, set the session, and land on the app."
   (fn [req]
     (let [{:strs [code state]} (:query-params req)
-          expected (get-in req [:session :oauth-state])]
+          expected (get-in req [:session :oauth-state])
+          ;; land back inside the Agora app, in the caller's language
+          discover (str "/agora/" (language/pick-lang req) "/discover")]
       (if (and code state expected (= state expected))
         (let [tokens (oauth/exchange-code code)
               info (oauth/fetch-userinfo (:access_token tokens))]
@@ -105,13 +108,13 @@
                                                          :display-name (:name info)
                                                          :avatar-url (:picture info)}))]
             {:status 302
-             :headers {"Location" "/discover"}
+             :headers {"Location" discover}
              :session {:user-id (:id profile)}}
             ;; no :sub, or upsert failed (e.g. DB error, logged in auth/upsert-oauth-user)
             {:status 302
-             :headers {"Location" "/discover?login=failed"}}))
+             :headers {"Location" (str discover "?login=failed")}}))
         {:status 302
-         :headers {"Location" "/discover?login=failed"}}))))
+         :headers {"Location" (str discover "?login=failed")}}))))
 
 (defn auth-routes
   [prefix]

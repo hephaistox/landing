@@ -6,6 +6,7 @@
   (:require
    [clojure.string              :as str]
    [landing.agora.frontend.i18n :as i18n]
+   [landing.agora.frontend.ui   :as ui]
    [re-frame.core               :as rf]
    [superstructor.re-frame.fetch-fx]))
 
@@ -43,7 +44,14 @@
                             :headers {"Accept" "application/json"}
                             :response-content-types {#"application/json" :json}
                             :on-success [::me-ok]
-                            :on-failure [::me-ok]}}))
+                            :on-failure [::me-failed]}}))
+
+(rf/reg-event-db ::me-failed
+                 (fn [db _]
+                   ;; /me couldn't be resolved (transport error, or the endpoint
+                   ;; itself failed — e.g. the DB is down). Treat as anonymous rather
+                   ;; than trusting the failure response body as a user (it isn't one).
+                   (assoc db ::user nil)))
 
 (rf/reg-event-fx ::me-ok
                  (fn [{:keys [db]} [_ resp]]
@@ -63,8 +71,8 @@
                            :error nil
                            :submitting? false})))
 
-(rf/reg-event-db ::close (fn [db _] (dissoc db ::form)))
-(rf/reg-event-db ::set (fn [db [_ k v]] (assoc-in db [::form k] v)))
+(rf/reg-event-db ::close-form (fn [db _] (dissoc db ::form)))
+(rf/reg-event-db ::set-form-property (fn [db [_ k v]] (assoc-in db [::form k] v)))
 (rf/reg-event-db ::switch
                  (fn [db [_ mode]]
                    (update db
@@ -243,7 +251,7 @@
   (when-let [{:keys [mode email password display-name error submitting?]} @(rf/subscribe [::form])]
     (let [register? (= mode :register)
           lang @(rf/subscribe [::i18n/lang])]
-      [:div {:on-click #(rf/dispatch [::close])
+      [:div {:on-click #(rf/dispatch [::close-form])
              :style {:position "fixed"
                      :inset 0
                      :z-index 100
@@ -252,6 +260,7 @@
                      :align-items "flex-start"
                      :justify-content "center"
                      :padding-top "10vh"}}
+       [ui/on-escape #(rf/dispatch [::close-form])]
        [:div {:on-click #(.stopPropagation %)
               :style {:width "22em"
                       :max-width "90%"
@@ -282,18 +291,18 @@
          (i18n/t lang :auth/email)
          "email"
          email
-         #(rf/dispatch [::set :email (.. % -target -value)])]
+         #(rf/dispatch [::set-form-property :email (.. % -target -value)])]
         [field
          (i18n/t lang :auth/password)
          "password"
          password
-         #(rf/dispatch [::set :password (.. % -target -value)])]
+         #(rf/dispatch [::set-form-property :password (.. % -target -value)])]
         (when register?
           [field
            (i18n/t lang :auth/alias)
            "text"
            display-name
-           #(rf/dispatch [::set :display-name (.. % -target -value)])])
+           #(rf/dispatch [::set-form-property :display-name (.. % -target -value)])])
         (when error
           [:div {:style {:color "#c92a2a"
                          :font-size "0.85em"
