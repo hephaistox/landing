@@ -22,10 +22,23 @@
   is mapped to strings."
   (into [:enum] (map name domain/kind-ids)))
 
+;; Size-bounded field schemas — cap authored text so a single request can't store
+;; an unbounded blob (storage/DoS abuse) or smuggle an oversized slug into URLs.
+(def ^:private name-schema
+  [:string {:min 1
+            :max 200}])
+(def ^:private title-schema
+  [:string {:max 200}])
+(def ^:private statement-schema
+  [:string {:min 1
+            :max 10000}])
+(def ^:private lang-schema
+  [:string {:max 8}])
+
 (def ^:private input-ref-schema
   "Body for add/drop input: a Major-level KI reference (name + major; identity's
   T is the object type `ki`)."
-  [:map [:name :string] [:major :int]])
+  [:map [:name name-schema] [:major :int]])
 
 (defn- user-id
   "The logged-in user's id from the session, or nil. Authoring requires it (#38)."
@@ -130,20 +143,20 @@
           :operationId "agora-search-kis"
           :parameters {:query [:map
                                [:q {:optional true}
-                                :string]
+                                [:string {:max 200}]]
                                [:lang {:optional true}
-                                :string]]}
+                                lang-schema]]}
           :summary "Search KIs by name (scoped to ?lang=)"}
     :post {:handler create-ki-handler
            :operationId "agora-create-ki"
            :parameters {:body [:map
-                               [:name :string]
+                               [:name name-schema]
                                [:title {:optional true}
-                                :string]
+                                title-schema]
                                [:kind kind-enum]
                                [:lang {:optional true}
-                                :string]
-                               [:output-statement :string]]}
+                                lang-schema]
+                               [:output-statement statement-schema]]}
            :summary "Create a new KI (major 1, minor 0)"}}])
 
 (def add-input-handler
@@ -229,10 +242,10 @@
                  :handler by-major-handler
                  :muuntaja m/instance
                  :operationId "agora-ki-by-major"
-                 :parameters {:path [:map [:name :string] [:major :int]]
+                 :parameters {:path [:map [:name name-schema] [:major :int]]
                               :query [:map
                                       [:lang {:optional true}
-                                       :string]]}
+                                       lang-schema]]}
                  :summary "Fetch a KI's latest minor by (name, major), in ?lang="
                  :swagger {:tags #{:agora}}
                  :middleware [parameters/parameters-middleware
@@ -255,9 +268,9 @@
            :parameters {:path [:map [:id :string]]
                         :body [:map
                                [:title {:optional true}
-                                :string]
+                                title-schema]
                                [:kind kind-enum]
-                               [:output-statement :string]]}
+                               [:output-statement statement-schema]]}
            :summary "Edit a KI — produces a new minor version (immutable)"
            :swagger {:tags #{:agora}}
            :middleware [;; query-params & form-params
@@ -284,11 +297,11 @@
            :operationId "agora-translate-ki"
            :parameters {:path [:map [:id :string]]
                         :body [:map
-                               [:lang :string]
+                               [:lang lang-schema]
                                [:title {:optional true}
-                                :string]
+                                title-schema]
                                [:statement {:optional true}
-                                :string]]}
+                                statement-schema]]}
            :summary "Create a language version of a KI and its inputs"
            :swagger {:tags #{:agora}}
            :middleware [parameters/parameters-middleware
@@ -300,19 +313,21 @@
 
 (defn translate-suggest-route
   [prefix]
-  [prefix {:post {:coercion coercion
-                  :handler translate-suggest-handler
-                  :muuntaja m/instance
-                  :operationId "agora-translate-suggest"
-                  :parameters {:body [:map [:text :string] [:source :string] [:target :string]]}
-                  :summary "Machine-translation suggestion (best effort)"
-                  :swagger {:tags #{:agora}}
-                  :middleware [parameters/parameters-middleware
-                               muuntaja/format-negotiate-middleware
-                               muuntaja/format-response-middleware
-                               error/exception-middleware
-                               muuntaja/format-request-middleware
-                               rcoercion/coerce-request-middleware]}}])
+  [prefix
+   {:post {:coercion coercion
+           :handler translate-suggest-handler
+           :muuntaja m/instance
+           :operationId "agora-translate-suggest"
+           :parameters
+           {:body [:map [:text [:string {:max 10000}]] [:source lang-schema] [:target lang-schema]]}
+           :summary "Machine-translation suggestion (best effort)"
+           :swagger {:tags #{:agora}}
+           :middleware [parameters/parameters-middleware
+                        muuntaja/format-negotiate-middleware
+                        muuntaja/format-response-middleware
+                        error/exception-middleware
+                        muuntaja/format-request-middleware
+                        rcoercion/coerce-request-middleware]}}])
 
 (defn ki-route
   [prefix]

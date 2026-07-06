@@ -59,13 +59,13 @@
                         :root-dir "target"}
             :exec-fn jar/uber
             :extra-deps {io.github.clojure/tools.build {:git/sha
-                                                        "9d9563416bb09a347912b2bd202f8b8aecfa77d4"}}
+                                                        "aef6defb060f73940d283e521b1379c05f414265"}}
             :extra-paths ["env/build"]}}
  :deps
  {buddy/buddy-hashers {:mvn/version "2.0.167"}
   com.brunobonacci/safely {:mvn/version "1.0.0"}
   com.draines/postal {:mvn/version "2.0.5"}
-  com.github.ben-manes.caffeine/caffeine {:mvn/version "3.1.8"}
+  com.github.ben-manes.caffeine/caffeine {:mvn/version "3.2.4"}
   com.github.hephaistox/auto-web-clj {:deps/root "auto_web_clj"
                                       :git/sha "e7446ec83262c36baecf3af11c7530b0d2e97eb8"
                                       :git/url "https://github.com/hephaistox/auto-web"
@@ -78,6 +78,6 @@
                                        :hephaistox/dir "../auto_web"
                                        :hephaistox/root "auto_web_cljc"
                                        :hephaistox/url "https://github.com/hephaistox/auto-web"}
-  com.github.seancorfield/next.jdbc {:mvn/version "1.3.1108"}
+  com.github.seancorfield/next.jdbc {:mvn/version "1.3.1118"}
   com.mysql/mysql-connector-j {:mvn/version "9.7.0"}}
  :paths ["src/clj" "src/cljc" "resources"]}

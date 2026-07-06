@@ -8,14 +8,29 @@
   (:require
    [cheshire.core    :as json]
    [clojure.string   :as str]
+   [env]
    [landing.language :as language]))
 
+(def ^:private allowed-host-re
+  "Hosts we will echo into absolute URLs in production — the hephaistox domains
+  (.com/.fr/.pl, incl. subdomains) and Clever Cloud, mirroring the CORS allowlist
+  in `env`. Anything else is an unrecognized/spoofed Host and is not trusted."
+  #"(?i)^([a-z0-9-]+\.)*(hephaistox\.(?:com|fr|pl)|cleverapps\.io)(?::\d+)?$")
+
 (defn base-url
-  "The public origin for absolute URLs. Prefers OAUTH_BASE_URL (already configured
-  per deployment), else derives scheme+host from the request."
+  "The public origin for absolute URLs. Prefers OAUTH_BASE_URL (configured per
+  deployment). In dev it derives scheme+host from the request. In production it
+  trusts the request Host only when it matches a known hephaistox/Clever Cloud
+  domain (so .com/.fr/.pl deployments each get their own canonical origin) and
+  otherwise falls back to a fixed origin — an attacker-supplied Host can never
+  poison canonical/OpenGraph URLs or the sitemap."
   [req]
   (or (System/getenv "OAUTH_BASE_URL")
-      (str (name (or (:scheme req) :https)) "://" (get-in req [:headers "host"] "hephaistox.fr"))))
+      (let [host (get-in req [:headers "host"])]
+        (cond
+          (not= :prod env/env) (str (name (or (:scheme req) :http)) "://" (or host "localhost"))
+          (and host (re-matches allowed-host-re host)) (str "https://" host)
+          :else "https://hephaistox.fr"))))
 
 (defn- enc
   "URL-encode a path segment (spaces as %20), matching the SPA's encodeURIComponent
@@ -87,7 +102,7 @@
              ;; hreflang alternates across the concept's languages
              (for [{l :lang} langs]
                (str "<link rel=\"alternate\" hreflang=\""
-                    l
+                    (esc l)
                     "\" href=\""
                     (esc (str base "/agora/" l "/ki/" (enc ki-name) "/" ki-major))
                     "\"/>"))
@@ -141,7 +156,9 @@
   [template head lang]
   (-> template
       (str/replace #"(?is)<title>.*?</title>" "")
-      (str/replace #"<html lang=\"[^\"]*\"" (str "<html lang=\"" lang "\""))
+      ;; `lang` is escaped here as defence-in-depth; callers also normalize it to a
+      ;; supported code, so an attacker cannot break out of the attribute.
+      (str/replace #"<html lang=\"[^\"]*\"" (str "<html lang=\"" (esc lang) "\""))
       (str/replace "</head>" (str head "\n</head>"))))
 
 ;; ---------------------------------------------------------------------------

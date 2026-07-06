@@ -2,6 +2,7 @@
   "Handler turns an http http-request into a response"
   (:require
    [clojure.string                    :as str]
+   [env]
    [landing.agora.endpoints.admin     :refer [admin-routes]]
    [landing.agora.endpoints.article   :refer [article-route]]
    [landing.agora.endpoints.auth      :refer [auth-routes]]
@@ -30,12 +31,17 @@
    [ring.middleware.session.cookie    :refer [cookie-store]]))
 
 (defn- session-key
-  "16-byte AES key for the signed session cookie, from SESSION_SECRET (padded /
-  truncated to 16 bytes) or a dev default."
+  "16-byte AES key for the signed session cookie. In production SESSION_SECRET is
+  mandatory (≥16 chars): we fail fast rather than fall back to a shared, source
+  visible dev key, which would let anyone forge a session cookie (e.g. the admin's
+  user-id). In dev the default is fine."
   []
-  (-> (or (System/getenv "SESSION_SECRET") "agora-dev-secret!")
-      (.getBytes "UTF-8")
-      (java.util.Arrays/copyOf 16)))
+  (let [secret (System/getenv "SESSION_SECRET")]
+    (when (and (= :prod env/env) (or (str/blank? secret) (< (count secret) 16)))
+      (throw (ex-info "SESSION_SECRET must be set to at least 16 characters in production" {})))
+    (-> (or secret "agora-dev-secret!")
+        (.getBytes "UTF-8")
+        (java.util.Arrays/copyOf 16))))
 
 (defn root-redirect-route
   "Redirect `/` to the language-specific static index page.
@@ -128,6 +134,27 @@
                  (w3c-validate-route "/w3c-validate")]
                 {}))
 
+(defn wrap-agora-canonical-host
+  "In production, 301-redirect Agora URLs (`/agora…`) reached on any non-canonical
+  host to the canonical origin (OAUTH_BASE_URL, e.g. https://hephaistox.fr), so
+  links, logins and SEO all consolidate on one domain. Scoped to `/agora` so the
+  localized marketing site on the other hephaistox domains is untouched. No-op in
+  dev. The redirect target is a fixed constant, so this is never an open redirect."
+  [handler]
+  (let [base (-> (or (System/getenv "OAUTH_BASE_URL") "https://hephaistox.fr")
+                 (str/replace #"/+$" ""))
+        canonical-host (-> base
+                           (str/replace #"^https?://" "")
+                           (str/replace #"/.*$" ""))
+        prod? (= :prod env/env)]
+    (fn [req]
+      (let [host (get-in req [:headers "host"])
+            uri (str (:uri req))]
+        (if (and prod? host (not= host canonical-host) (str/starts-with? uri "/agora"))
+          {:status 301
+           :headers {"Location" (str base uri (when-let [q (:query-string req)] (str "?" q)))}}
+          (handler req))))))
+
 (defn handler
   []
   (-> (rring/ring-handler (router)
@@ -136,4 +163,8 @@
       (wrap-session {:store (cookie-store {:key (session-key)})
                      :cookie-name "agora-session"
                      :cookie-attrs {:http-only true
-                                    :same-site :lax}})))
+                                    :same-site :lax
+                                    ;; HTTPS-only in prod so the session cookie
+                                    ;; never travels over plain HTTP
+                                    :secure (= :prod env/env)}})
+      wrap-agora-canonical-host))

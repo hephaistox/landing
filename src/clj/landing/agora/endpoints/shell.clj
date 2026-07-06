@@ -31,7 +31,8 @@
   "Serve the SPA shell for an authoring/app route (new / KI-by-id / article /
   admin) with a noindex head."
   [req]
-  (let [lang (or (get-in req [:path-params :lang]) language/default-lang)]
+  ;; normalize the URL segment to a supported code — never inject it raw (XSS)
+  (let [lang (language/normalize (get-in req [:path-params :lang]))]
     (html-response (seo/inject @public-template (seo/noindex-head "Agora") lang))))
 
 (defn app-shell-route
@@ -50,7 +51,7 @@
   "Serve the public shell for a non-KI public page (discover / preferences) with
   generic OpenGraph metadata."
   [req]
-  (let [lang (or (get-in req [:path-params :lang]) language/default-lang)
+  (let [lang (language/normalize (get-in req [:path-params :lang]))
         head (seo/generic-head
               (seo/base-url req)
               lang
@@ -66,6 +67,7 @@
   SPA."
   (fn [req]
     (let [{:keys [lang name major]} (:path-params req)
+          lang (language/normalize lang)
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
           ki (ki/fetch-ki-by-major name major-n lang)
           base (seo/base-url req)

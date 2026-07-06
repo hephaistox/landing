@@ -20,18 +20,26 @@
   this so the frontend can hide admin UI without duplicating the allowlist."
   #{"hephaistox.sc@gmail.com"})
 
+(def min-password-length
+  "Minimum length for a password account. Kept modest (NIST favours length over
+  complexity rules); the API also caps the maximum to bound bcrypt work."
+  8)
+
 (defn admin?
-  "True when `email` belongs to a platform administrator."
-  [email]
-  (contains? admin-emails email))
+  "True when the account is a platform administrator: an allow-listed email **that
+  authenticated through Google**. Password accounts never qualify — email addresses
+  can be registered without proof of ownership, so admin must be tied to a verified
+  OAuth identity, not the email string alone."
+  [provider email]
+  (and (= provider "google") (contains? admin-emails email)))
 
 (defn- public
   "A user row reduced to a public profile — no password hash. `:admin` is derived
-  server-side from the account email (see `admin-emails`)."
+  server-side from the account provider + email (see `admin?`)."
   [row]
   (some-> row
           (select-keys [:id :email :display-name :provider :avatar-url :lang])
-          (as-> profile (assoc profile :admin (admin? (:email profile))))))
+          (as-> profile (assoc profile :admin (admin? (:provider profile) (:email profile))))))
 
 (defn get-user
   "Public profile of the user `id`, or nil. Includes the preferred interface
@@ -59,18 +67,21 @@
 
 (defn register
   "Create a password account. Returns one of:
-   - [:ok profile]           on success
-   - [:error :missing]       blank email or password
-   - [:error :email-taken]   email already registered (incl. a lost insert race
-                             on the UNIQUE constraint)
-   - [:error :db-error]      the database is unreachable or failing
+   - [:ok profile]            on success
+   - [:error :missing]        blank email or password
+   - [:error :weak-password]  password shorter than the minimum length
+   - [:error :email-taken]    email already registered (incl. a lost insert race
+                              on the UNIQUE constraint)
+   - [:error :db-error]       the database is unreachable or failing
 
   The DB calls (find-by-email / insert) raise java.sql.SQLException on failure, so
   they are caught here and surfaced as a distinct error rather than bubbling up as
   an unhandled 500."
   [{:keys [email password display-name]}]
-  (if (or (str/blank? email) (str/blank? password))
-    [:error :missing]
+  (cond
+    (or (str/blank? email) (str/blank? password)) [:error :missing]
+    (< (count password) min-password-length) [:error :weak-password]
+    :else
     (try
       (if (find-by-email email)
         [:error :email-taken]

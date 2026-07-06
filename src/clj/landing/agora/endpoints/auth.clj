@@ -2,9 +2,11 @@
   "Auth HTTP routes (#38): register / login / logout / me. Session is a signed
   cookie (see landing.handler); responses set/clear :session to log in/out."
   (:require
+   [auto-web.middleware.rate-limit    :refer [make-rate-limiter stop-rate-limit]]
    [landing.agora.auth                :as auth]
    [landing.agora.oauth               :as oauth]
    [landing.language                  :as language]
+   [mount.core                        :refer [defstate]]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]
@@ -21,6 +23,17 @@
    muuntaja/format-request-middleware
    rcoercion/coerce-request-middleware])
 
+(defstate
+ credential-rate-limiter
+ "Per-IP throttle on the credential endpoints (login / register) to blunt
+          brute-force and credential-stuffing — 429 once exceeded. Reuses the shared
+          landing rate limiter, same as /ping and /contact."
+ :start (make-rate-limiter {:limit 10
+                            :window-ms 60000
+                            :name "landing.agora.auth"
+                            :cleanup-interval-ms 60000})
+ :stop (stop-rate-limit credential-rate-limiter))
+
 (def register-handler
   (fn [req]
     (let [{:keys [email password display-name]} (get-in req [:parameters :body])
@@ -34,6 +47,9 @@
         (case v
           :email-taken {:status 409
                         :body {:error "email already registered"}}
+          :weak-password
+          {:status 400
+           :body {:error (str "password must be at least " auth/min-password-length " characters")}}
           :db-error {:status 503
                      :body {:error "service temporarily unavailable, please retry"}}
           {:status 400
@@ -73,7 +89,8 @@
   (fn [req]
     (if-let [uid (get-in req [:session :user-id])]
       {:status 200
-       :body (auth/set-lang! uid (get-in req [:parameters :body :lang]))}
+       ;; normalize to a supported code — never persist an arbitrary string
+       :body (auth/set-lang! uid (language/normalize (get-in req [:parameters :body :lang])))}
       {:status 401
        :body {:error "login required"}})))
 
@@ -123,18 +140,25 @@
            :swagger {:tags #{:auth}}
            :middleware mw}
    ["/register"
-    {:post {:handler register-handler
+    {:middleware [(:middleware-fn credential-rate-limiter)]
+     :post {:handler register-handler
             :operationId "agora-register"
             :parameters {:body [:map
-                                [:email :string]
-                                [:password :string]
+                                [:email
+                                 [:string {:min 3
+                                           :max 254}]]
+                                [:password
+                                 [:string {:min 1
+                                           :max 200}]]
                                 [:display-name {:optional true}
-                                 :string]]}
+                                 [:string {:max 100}]]]}
             :summary "Register a password account"}}]
    ["/login"
-    {:post {:handler login-handler
+    {:middleware [(:middleware-fn credential-rate-limiter)]
+     :post {:handler login-handler
             :operationId "agora-login"
-            :parameters {:body [:map [:email :string] [:password :string]]}
+            :parameters {:body
+                         [:map [:email [:string {:max 254}]] [:password [:string {:max 200}]]]}
             :summary "Log in with email/password"}}]
    ["/logout"
     {:post {:handler logout-handler
@@ -147,7 +171,7 @@
    ["/lang"
     {:post {:handler set-lang-handler
             :operationId "agora-set-lang"
-            :parameters {:body [:map [:lang :string]]}
+            :parameters {:body [:map [:lang [:string {:max 8}]]]}
             :summary "Set the preferred interface language"}}]
    ["/google"
     {:get {:handler google-start-handler

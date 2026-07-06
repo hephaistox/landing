@@ -12,21 +12,30 @@
    [next.jdbc        :as jdbc]))
 
 ;; A postulate (no inputs) and an inference that pins it, plus a clarified minor.
-(ki/create-ki nil {:name "confidence-is-partial"
-                   :kind "postulate"
-                   :lang "fr"
-                   :output-statement "Human collective confidence in any claim is always partial and evolving; knowledge therefore lives in a fuzzy, probabilistic space rather than in binary truth."})
-(ki/create-ki nil {:name "confidence-over-binary"
-                   :kind "inference"
-                   :lang "fr"
-                   :output-statement "Because our collective confidence in any claim is partial and evolving, a knowledge platform should record and expose degrees of confidence rather than forcing binary true/false conclusions."})
+(ki/create-ki
+ nil
+ {:name "confidence-is-partial"
+  :kind "postulate"
+  :lang "fr"
+  :output-statement
+  "Human collective confidence in any claim is always partial and evolving; knowledge therefore lives in a fuzzy, probabilistic space rather than in binary truth."})
+(ki/create-ki
+ nil
+ {:name "confidence-over-binary"
+  :kind "inference"
+  :lang "fr"
+  :output-statement
+  "Because our collective confidence in any claim is partial and evolving, a knowledge platform should record and expose degrees of confidence rather than forcing binary true/false conclusions."})
 (ki/add-input (:id (ki/fetch-ki-by-major "confidence-over-binary" 1 "fr"))
               nil
-              {:name "confidence-is-partial" :major 1})
-(ki/edit-ki (:id (ki/fetch-ki-by-major "confidence-over-binary" 1 "fr"))
-            nil
-            {:kind "inference"
-             :output-statement "Because our collective confidence in any claim is partial and always evolving, a knowledge platform should record and expose graded confidence rather than forcing binary true/false conclusions."})
+              {:name "confidence-is-partial"
+               :major 1})
+(ki/edit-ki
+ (:id (ki/fetch-ki-by-major "confidence-over-binary" 1 "fr"))
+ nil
+ {:kind "inference"
+  :output-statement
+  "Because our collective confidence in any claim is partial and always evolving, a knowledge platform should record and expose graded confidence rather than forcing binary true/false conclusions."})
 
 ;; One article (body inline; no ki helper for articles).
 (jdbc/execute!
