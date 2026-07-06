@@ -71,14 +71,16 @@ CREATE TABLE IF NOT EXISTS `AGORA_NODE_EDGE` (
   KEY `idx_edge_by_input` (`input_object_type`, `input_name`, `input_major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Live computed state per node lineage (name, major) — values derived from the
--- graph rather than authored, kept out of the immutable node rows. Visits (driving
--- discoverability weighting) today; confidence and other computed signals later.
+-- Live computed state per node lineage, keyed by its identity at (object_type,
+-- name, major) — T·N·R. Values derived from the graph rather than authored, kept
+-- out of the immutable node rows. Visits (driving discoverability weighting)
+-- today; confidence and other computed signals later.
 CREATE TABLE IF NOT EXISTS `AGORA_NODE_DYNAMIC` (
-  `name`   VARCHAR(255)   NOT NULL COMMENT 'Node name (public identity)',
-  `major`  INT UNSIGNED   NOT NULL COMMENT 'Node major (public identity)',
-  `visits` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Public-page view count',
-  PRIMARY KEY (`name`, `major`)
+  `object_type` ENUM('ki', 'objection') NOT NULL DEFAULT 'ki' COMMENT 'Node object type (identity T)',
+  `name`        VARCHAR(255)   NOT NULL COMMENT 'Node name (identity N)',
+  `major`       INT UNSIGNED   NOT NULL COMMENT 'Node major (identity R)',
+  `visits`      BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Public-page view count',
+  PRIMARY KEY (`object_type`, `name`, `major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Articles (body in AGORA_BLOB). Authoring UI is Layer 2; seeded manually for now.

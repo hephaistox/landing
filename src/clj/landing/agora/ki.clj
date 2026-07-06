@@ -353,8 +353,11 @@
     ki-major
     ki-name
     ki-major])
-  (jdbc/execute! db/ds
-                 ["DELETE FROM AGORA_NODE_DYNAMIC WHERE name = ? AND major = ?" ki-name ki-major])
+  (jdbc/execute!
+   db/ds
+   ["DELETE FROM AGORA_NODE_DYNAMIC WHERE object_type = 'ki' AND name = ? AND major = ?"
+    ki-name
+    ki-major])
   (:next.jdbc/update-count
    (jdbc/execute-one! db/ds
                       ["DELETE FROM AGORA_NODE WHERE object_type = 'ki' AND name = ? AND major = ?"
@@ -409,7 +412,7 @@
   [ki-name ki-major]
   (jdbc/execute!
    db/ds
-   ["INSERT INTO AGORA_NODE_DYNAMIC (name, major, visits) VALUES (?, ?, 1)
+   ["INSERT INTO AGORA_NODE_DYNAMIC (object_type, name, major, visits) VALUES ('ki', ?, ?, 1)
      ON DUPLICATE KEY UPDATE visits = visits + 1"
     ki-name
     ki-major]))
@@ -427,7 +430,7 @@
    ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor, COALESCE(v.visits, 0) AS visits,
             b.content AS output_statement
      FROM AGORA_NODE k
-     LEFT JOIN AGORA_NODE_DYNAMIC v ON v.name = k.name AND v.major = k.major
+     LEFT JOIN AGORA_NODE_DYNAMIC v ON v.object_type = k.object_type AND v.name = k.name AND v.major = k.major
      LEFT JOIN AGORA_BLOB b ON b.hash = k.output_statement_hash
      WHERE k.object_type = 'ki'
        AND k.lang = ?

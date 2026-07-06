@@ -5,12 +5,14 @@
   in clear. Transport security is HTTPS (Clever Cloud in prod). The user model
   also carries `provider`/`provider_id` so OAuth accounts slot in later."
   (:require
+   [auto-core.log        :as core-log]
    [buddy.hashers        :as hashers]
    [clojure.string       :as str]
    [landing.agora.db     :as db]
    [next.jdbc            :as jdbc]
    [next.jdbc.result-set :as rs])
-  (:import (java.util UUID)))
+  (:import (java.sql SQLException SQLIntegrityConstraintViolationException)
+           (java.util UUID)))
 
 (def admin-emails
   "Accounts permitted to use the maintenance API — the platform owner only. The
@@ -56,32 +58,59 @@
    {:builder-fn rs/as-unqualified-kebab-maps}))
 
 (defn register
-  "Create a password account. Returns [:ok profile], or [:error :missing] /
-  [:error :email-taken]."
+  "Create a password account. Returns one of:
+   - [:ok profile]           on success
+   - [:error :missing]       blank email or password
+   - [:error :email-taken]   email already registered (incl. a lost insert race
+                             on the UNIQUE constraint)
+   - [:error :db-error]      the database is unreachable or failing
+
+  The DB calls (find-by-email / insert) raise java.sql.SQLException on failure, so
+  they are caught here and surfaced as a distinct error rather than bubbling up as
+  an unhandled 500."
   [{:keys [email password display-name]}]
-  (cond
-    (or (str/blank? email) (str/blank? password)) [:error :missing]
-    (find-by-email email) [:error :email-taken]
-    :else
-    (let [id (str (UUID/randomUUID))
-          hash (hashers/derive password)]
-      (jdbc/execute!
-       db/ds
-       ["INSERT INTO AGORA_USER (id, provider, email, display_name, password_hash, created_at)
-         VALUES (?, 'password', ?, ?, ?, UTC_TIMESTAMP())"
-        id
-        email
-        (if (str/blank? display-name) email display-name)
-        hash])
-      [:ok (get-user id)])))
+  (if (or (str/blank? email) (str/blank? password))
+    [:error :missing]
+    (try
+      (if (find-by-email email)
+        [:error :email-taken]
+        (let [id (str (UUID/randomUUID))
+              hash (hashers/derive password)]
+          (jdbc/execute!
+           db/ds
+           ["INSERT INTO AGORA_USER (id, provider, email, display_name, password_hash, created_at)
+             VALUES (?, 'password', ?, ?, ?, UTC_TIMESTAMP())"
+            id
+            email
+            (if (str/blank? display-name) email display-name)
+            hash])
+          [:ok (get-user id)]))
+      (catch SQLIntegrityConstraintViolationException _
+        ;; a concurrent registration inserted the same email between our check and
+        ;; insert — treat the UNIQUE violation as the email being taken.
+        [:error :email-taken])
+      (catch SQLException e
+        (core-log/error-exception e "register: database error")
+        [:error :db-error]))))
 
 (defn authenticate
-  "Verify `email` + `password` for a password account. Returns the public profile
-  or nil."
+  "Verify `email` + `password` for a password account. Returns one of:
+   - [:ok profile]       valid credentials
+   - [:error :invalid]   no such account, not a password account, or wrong password
+   - [:error :db-error]  the database is unreachable or failing
+
+  find-by-email raises java.sql.SQLException on DB failure; it is caught here so a
+  DB outage surfaces as a distinct error rather than being mistaken for invalid
+  credentials."
   [email password]
-  (when-let [row (find-by-email email)]
-    (when (and (:password-hash row) (:valid (hashers/verify password (:password-hash row))))
-      (public row))))
+  (try (if-let [row (find-by-email email)]
+         (if (and (:password-hash row) (:valid (hashers/verify password (:password-hash row))))
+           [:ok (public row)]
+           [:error :invalid])
+         [:error :invalid])
+       (catch SQLException e
+         (core-log/error-exception e "authenticate: database error")
+         [:error :db-error])))
 
 (defn- find-by-provider
   [provider provider-id]
@@ -96,25 +125,31 @@
 (defn upsert-oauth-user
   "Find or create the account for an OAuth login (#38). Matches first on
   (provider, provider-id), then on email (loosely linking an existing account),
-  else creates a new one. Returns the public profile."
+  else creates a new one. Returns the public profile, or nil when the database is
+  unreachable/failing — the caller then treats the login as failed.
+
+  The DB calls raise java.sql.SQLException on failure; caught here (a UNIQUE race
+  from a concurrent first login lands here too, so the user simply retries)."
   [{:keys [provider provider-id email display-name avatar-url]}]
-  (if-let [existing (or (find-by-provider provider provider-id) (find-by-email email))]
-    (do
-      ;; keep the avatar fresh on each login (Google's picture URL can change)
-      (when avatar-url
+  (try
+    (if-let [existing (or (find-by-provider provider provider-id) (find-by-email email))]
+      (do
+        ;; keep the avatar fresh on each login (Google's picture URL can change)
+        (when avatar-url
+          (jdbc/execute!
+           db/ds
+           ["UPDATE AGORA_USER SET avatar_url = ? WHERE id = ?" avatar-url (:id existing)]))
+        (get-user (:id existing)))
+      (let [id (str (UUID/randomUUID))]
         (jdbc/execute!
          db/ds
-         ["UPDATE AGORA_USER SET avatar_url = ? WHERE id = ?" avatar-url (:id existing)]))
-      (get-user (:id existing)))
-    (let [id (str (UUID/randomUUID))]
-      (jdbc/execute!
-       db/ds
-       ["INSERT INTO AGORA_USER (id, provider, provider_id, email, display_name, avatar_url, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
-        id
-        provider
-        provider-id
-        email
-        (if (str/blank? display-name) email display-name)
-        avatar-url])
-      (get-user id))))
+         ["INSERT INTO AGORA_USER (id, provider, provider_id, email, display_name, avatar_url, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
+          id
+          provider
+          provider-id
+          email
+          (if (str/blank? display-name) email display-name)
+          avatar-url])
+        (get-user id)))
+    (catch SQLException e (core-log/error-exception e "upsert-oauth-user: database error") nil)))

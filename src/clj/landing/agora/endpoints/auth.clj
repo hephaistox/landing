@@ -30,20 +30,26 @@
         {:status 201
          :body v
          :session {:user-id (:id v)}}
-        {:status (if (= v :email-taken) 409 400)
-         :body {:error (if (= v :email-taken)
-                         "email already registered"
-                         "email and password are required")}}))))
+        (case v
+          :email-taken {:status 409
+                        :body {:error "email already registered"}}
+          :db-error {:status 503
+                     :body {:error "service temporarily unavailable, please retry"}}
+          {:status 400
+           :body {:error "email and password are required"}})))))
 
 (def login-handler
   (fn [req]
-    (let [{:keys [email password]} (get-in req [:parameters :body])]
-      (if-let [profile (auth/authenticate email password)]
-        {:status 200
-         :body profile
-         :session {:user-id (:id profile)}}
-        {:status 401
-         :body {:error "invalid email or password"}}))))
+    (let [{:keys [email password]} (get-in req [:parameters :body])
+          [status v] (auth/authenticate email password)]
+      (cond
+        (= status :ok) {:status 200
+                        :body v
+                        :session {:user-id (:id v)}}
+        (= v :db-error) {:status 503
+                         :body {:error "service temporarily unavailable, please retry"}}
+        :else {:status 401
+               :body {:error "invalid email or password"}}))))
 
 (def logout-handler
   (fn [_]
@@ -92,15 +98,16 @@
       (if (and code state expected (= state expected))
         (let [tokens (oauth/exchange-code code)
               info (oauth/fetch-userinfo (:access_token tokens))]
-          (if (:sub info)
-            (let [profile (auth/upsert-oauth-user {:provider "google"
-                                                   :provider-id (:sub info)
-                                                   :email (:email info)
-                                                   :display-name (:name info)
-                                                   :avatar-url (:picture info)})]
-              {:status 302
-               :headers {"Location" "/discover"}
-               :session {:user-id (:id profile)}})
+          (if-let [profile (and (:sub info)
+                                (auth/upsert-oauth-user {:provider "google"
+                                                         :provider-id (:sub info)
+                                                         :email (:email info)
+                                                         :display-name (:name info)
+                                                         :avatar-url (:picture info)}))]
+            {:status 302
+             :headers {"Location" "/discover"}
+             :session {:user-id (:id profile)}}
+            ;; no :sub, or upsert failed (e.g. DB error, logged in auth/upsert-oauth-user)
             {:status 302
              :headers {"Location" "/discover?login=failed"}}))
         {:status 302
