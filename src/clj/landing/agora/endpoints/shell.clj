@@ -12,7 +12,8 @@
    [clojure.java.io        :as io]
    [landing.agora.ki       :as ki]
    [landing.agora.seo      :as seo]
-   [landing.endpoints.html :refer [html-middlewares]]))
+   [landing.endpoints.html :refer [html-middlewares]]
+   [landing.language       :as language]))
 
 (def ^:private public-template
   "The raw SPA shell, read once; a head is injected per request."
@@ -30,7 +31,7 @@
   "Serve the SPA shell for an authoring/app route (new / KI-by-id / article /
   admin) with a noindex head."
   [req]
-  (let [lang (or (get-in req [:path-params :lang]) "fr")]
+  (let [lang (or (get-in req [:path-params :lang]) language/default-lang)]
     (html-response (seo/inject @public-template (seo/noindex-head "Agora") lang))))
 
 (defn app-shell-route
@@ -49,7 +50,7 @@
   "Serve the public shell for a non-KI public page (discover / preferences) with
   generic OpenGraph metadata."
   [req]
-  (let [lang (or (get-in req [:path-params :lang]) "fr")
+  (let [lang (or (get-in req [:path-params :lang]) language/default-lang)
         head (seo/generic-head
               (seo/base-url req)
               lang

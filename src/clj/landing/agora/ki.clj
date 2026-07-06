@@ -8,6 +8,7 @@
    [landing.agora.blob   :as blob]
    [landing.agora.db     :as db]
    [landing.agora.util   :as util]
+   [landing.language     :as language]
    [next.jdbc            :as jdbc]
    [next.jdbc.result-set :as rs])
   (:import (java.util UUID)))
@@ -464,7 +465,7 @@
       ki-name
       ki-title
       ki-type
-      (or ki-lang "fr")
+      (or ki-lang language/default-lang)
       hash
       owner-id])
     (fetch-ki id)))

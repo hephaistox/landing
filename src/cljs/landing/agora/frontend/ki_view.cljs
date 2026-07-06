@@ -16,6 +16,7 @@
    [landing.agora.frontend.fmt            :as fmt]
    [landing.agora.frontend.i18n           :as i18n]
    [landing.agora.frontend.ki-edit-common :as common]
+   [landing.language                      :as language]
    [re-frame.core                         :as rf]
    [reagent.core                          :as r]
    [superstructor.re-frame.fetch-fx]))
@@ -52,7 +53,7 @@
   "The content language of a KI, shown as a small outlined code (FR / EN)."
   [lang]
   (when lang
-    [:span {:title (get i18n/language-name lang lang)
+    [:span {:title (get language/language-name lang lang)
             :style {:display "inline-block"
                     :border "1px solid #b9770e"
                     :color "#b9770e"
@@ -118,7 +119,7 @@
      (str "🌐 "
           (i18n/t ui-lang :ki/lang-notice-shown)
           " "
-          (get i18n/language-name ki-lang ki-lang)
+          (get language/language-name ki-lang ki-lang)
           ". ")
      [:a {:href (i18n/ki ui-lang alt)
           :style {:color "#b9770e"
@@ -148,7 +149,7 @@
                                  :major major
                                  :current? true}}
                        (map (juxt :lang identity) translations))
-         missing (remove present i18n/supported)
+         missing (remove present language/languages)
          openable? (or (seq translations) (and user (seq missing)))]
      [:span
       [:button {:on-click (when openable? #(reset! open? true))
@@ -195,7 +196,7 @@
            [:div {:style {:display "flex"
                           :flex-direction "column"
                           :gap "0.15em"}}]
-           (for [l i18n/supported
+           (for [l language/languages
                  :let [entry (present l)]
                  ;; hide missing languages from anonymous users (they cannot
                  ;; create), so they only see the switchable ones.
@@ -207,14 +208,14 @@
                                                 :background "#f4efe4"
                                                 :font-weight 700
                                                 :color "#7a5209"}}
-                                  (get i18n/language-name l l)]
+                                  (get language/language-name l l)]
                entry [:a {:href (i18n/ki l entry)
                           :on-click #(reset! open? false)
                           :style {:padding "0.4em 0.5em"
                                   :border-radius "0.3em"
                                   :text-decoration "none"
                                   :color "#b9770e"}}
-                      (get i18n/language-name l l)]
+                      (get language/language-name l l)]
                :else [:button {:on-click (fn []
                                            (reset! open? false)
                                            (rf/dispatch [::translate-open
@@ -233,7 +234,7 @@
                                        :color "#b9770e"
                                        :cursor "pointer"
                                        :font-size "0.95em"}}
-                      (str "+ " (get i18n/language-name l l))])))]])])))
+                      (str "+ " (get language/language-name l l))])))]])])))
 
 (defn type-selector
   "All KI types as clickable badges; the selected one is highlighted, the others
@@ -626,12 +627,8 @@
   []
   (let [lang @(rf/subscribe [::i18n/lang])
         user @(rf/subscribe [::auth/user])]
-    [:header {:style {:display "flex"
-                      :align-items "center"
-                      :gap "1.2em"
-                      :flex-wrap "wrap"
-                      :padding "0.6em 1.2em"
-                      :background "#1b1a17"
+    [:header {:class "agora-header"
+              :style {:background "#1b1a17"
                       :color "#e8e2d6"
                       :border-bottom "2px solid #b9770e"}}
      [:a {:href (i18n/discover lang)
@@ -655,11 +652,10 @@
                           :text-decoration "none"
                           :opacity (if gate? 0.4 0.85)}}
               label]))
-     [:div {:style {:flex "1 1 auto"}}]
-     [:div {:style {:width "18em"
-                    :max-width "40%"}}
+     [:div {:class "agora-header__search"}
       [search-box]]
-     [auth/auth-controls]]))
+     [:div {:class "agora-header__auth"}
+      [auth/auth-controls]]]))
 
 (def ^:private footer-legal
   "Legal / info links, adapted from the hephaistox.com landing footer. Paths are
@@ -671,14 +667,15 @@
    [:footer/who-are-we "articles/who-are-we.html"]])
 
 (def ^:private footer-social
-  [["LinkedIn" "https://www.linkedin.com/company/hephaistox"]
-   ["Facebook" "https://www.facebook.com/profile.php?id=61586135248424"]
-   ["YouTube" "https://www.youtube.com/@HephaistoxSC"]
-   ["GitHub" "https://github.com/hephaistox"]])
+  "Social links as FontAwesome brand icons, mirroring the hephaistox.com footer."
+  [["LinkedIn" "fa-linkedin" "https://www.linkedin.com/company/hephaistox"]
+   ["Facebook" "fa-facebook-f" "https://www.facebook.com/profile.php?id=61586135248424"]
+   ["YouTube" "fa-youtube" "https://www.youtube.com/@HephaistoxSC"]
+   ["GitHub" "fa-github" "https://github.com/hephaistox"]])
 
 (defn site-footer
   "Agora footer, adapted from the hephaistox.com landing footer: legal/info links
-  (to the main site, language-rooted), social links, and copyright. Themed to
+  (to the main site, language-rooted), social icons, and copyright. Themed to
   match the header (dark/copper)."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
@@ -689,9 +686,9 @@
              :flex-wrap "wrap"
              :justify-content "center"
              :gap "0.4em 1.2em"
-             :margin-bottom "0.7em"}]
-    [:footer {:style {:margin-top "2.5em"
-                      :padding "1.4em 1.2em"
+             :margin-bottom "0.9em"}]
+    [:footer {:style {:flex-shrink 0
+                      :padding "1.6em 1.2em"
                       :background "#1b1a17"
                       :color "#e8e2d6"
                       :border-top "2px solid #b9770e"
@@ -707,14 +704,19 @@
                      [:a {:href (str "/" lang "/" path)
                           :style link}
                       (i18n/t lang k)])))
-     (into [:div {:style row}]
-           (for [[label url] footer-social]
+     (into [:div {:style (assoc row :gap "0.2em 1.4em" :font-size "1.35em")}]
+           (for [[label icon url] footer-social]
              ^{:key label}
              [:a {:href url
                   :target "_blank"
                   :rel "noopener noreferrer"
-                  :style link}
-              label]))
+                  :title label
+                  :aria-label label
+                  :style {:color "#d9b38c"
+                          :text-decoration "none"
+                          :line-height 1
+                          :padding "0.15em"}}
+              [:i {:class (str "fa-brands " icon)}]]))
      [:div {:style {:font-size "0.8em"
                     :color "#8a8377"}}
       "Hephaistox © 2026"]]))
@@ -820,6 +822,40 @@
                   :line-height "1"}}
     "▼"]])
 
+(defn auto-textarea
+  "A textarea that grows to fit its content — never too small, and never taller/wider
+  than needed. Width is 100% of its card and manual resize is disabled, so it can't
+  spill outside. `attrs` (`:value`/`:on-change`/`:placeholder`/`:disabled`/`:style`…)
+  is merged onto the element; the caller's `:style` overrides the defaults."
+  [_attrs]
+  (let [node (atom nil)
+        fit! (fn []
+               (when-let [el @node]
+                 (set! (.. el -style -height) "auto")
+                 (set! (.. el -style -height) (str (.-scrollHeight el) "px"))))]
+    (r/create-class
+     {:display-name "auto-textarea"
+      :component-did-mount fit!
+      :component-did-update fit!
+      :reagent-render (fn [{:keys [on-change style]
+                            :as attrs}]
+                        [:textarea
+                         (merge {:ref #(reset! node %)}
+                                (dissoc attrs :on-change :style)
+                                {:on-change (fn [e] (when on-change (on-change e)) (fit!))
+                                 :style (merge {:width "100%"
+                                                :box-sizing "border-box"
+                                                :resize "none"
+                                                :overflow "hidden"
+                                                :min-height "4.5em"
+                                                :padding "0.5em"
+                                                :font-family "inherit"
+                                                :font-size "1.02em"
+                                                :line-height "1.5"
+                                                :border "1px solid #ccc"
+                                                :border-radius "0.3em"}
+                                               style)})])})))
+
 (defn- create-input-form
   [ki-id {:keys [new-name new-type new-statement]}]
   (let [lang @(rf/subscribe [::i18n/lang])
@@ -848,11 +884,10 @@
               :style field}]
      [:div {:style {:margin-bottom "0.5em"}}
       [type-selector new-type #(rf/dispatch [::links-set :new-type %])]]
-     [:textarea {:placeholder (i18n/t lang :form/statement)
-                 :rows 2
-                 :value new-statement
-                 :on-change #(rf/dispatch [::links-set :new-statement (.. % -target -value)])
-                 :style field}]
+     [auto-textarea {:placeholder (i18n/t lang :form/statement)
+                     :value new-statement
+                     :on-change #(rf/dispatch [::links-set :new-statement (.. % -target -value)])
+                     :style (assoc field :min-height "3.2em")}]
      [:button {:on-click #(rf/dispatch [::create-and-add ki-id])
                :disabled (or (str/blank? new-name) (str/blank? new-statement))
                :style {:padding "0.35em 0.8em"
@@ -997,17 +1032,9 @@
                       :border "1px solid #eee"
                       :border-radius "0.3em"}}]
      [byline author published-at]
-     [:textarea {:value output-statement
-                 :rows 4
-                 :on-change #(rf/dispatch [::edit-set :output-statement (.. % -target -value)])
-                 :style {:width "100%"
-                         :box-sizing "border-box"
-                         :padding "0.5em"
-                         :font-family "inherit"
-                         :font-size "1.02em"
-                         :line-height "1.5"
-                         :border "1px solid #ccc"
-                         :border-radius "0.3em"}}]
+     [auto-textarea {:value output-statement
+                     :on-change #(rf/dispatch
+                                  [::edit-set :output-statement (.. % -target -value)])}]
      (when error
        [:div {:style {:color "#c92a2a"
                       :font-size "0.85em"
@@ -1092,11 +1119,11 @@
   [selected on-select]
   (into [:div {:style {:display "flex"
                        :gap "0.4em"}}]
-        (for [l i18n/supported
+        (for [l language/languages
               :let [current? (= l selected)]]
           ^{:key l}
           [:button {:on-click #(on-select l)
-                    :title (get i18n/language-name l l)
+                    :title (get language/language-name l l)
                     :style {:border (str "1px solid " (if current? "#b9770e" "#ccc"))
                             :background (if current? "#b9770e" "#fff")
                             :color (if current? "#fff" "#b9770e")
@@ -1163,18 +1190,9 @@
       [language-selector (or form-lang lang) #(rf/dispatch [::new-set :lang %])]]
      [:div {:style label-style}
       (i18n/t lang :form/statement)]
-     [:textarea {:rows 4
-                 :placeholder (i18n/t lang :form/statement-ph)
-                 :value (or output-statement "")
-                 :on-change #(rf/dispatch [::new-set :output-statement (.. % -target -value)])
-                 :style {:width "100%"
-                         :box-sizing "border-box"
-                         :padding "0.5em"
-                         :font-family "inherit"
-                         :font-size "1.02em"
-                         :line-height "1.5"
-                         :border "1px solid #ccc"
-                         :border-radius "0.3em"}}]
+     [auto-textarea {:placeholder (i18n/t lang :form/statement-ph)
+                     :value (or output-statement "")
+                     :on-change #(rf/dispatch [::new-set :output-statement (.. % -target -value)])}]
      [:div {:style {:display "flex"
                     :gap "0.5em"
                     :margin-top "0.9em"}}
@@ -1241,11 +1259,11 @@
                       :font-family "system-ui, sans-serif"}}
         [:h2 {:style {:margin "0 0 0.3em"
                       :font-size "1.3em"}}
-         (str (i18n/t lang :translate/to) " " (get i18n/language-name target-lang target-lang))]
+         (str (i18n/t lang :translate/to) " " (get language/language-name target-lang target-lang))]
         [:div {:style label-style}
          (str (i18n/t lang :translate/source)
               " · "
-              (get i18n/language-name source-lang source-lang))]
+              (get language/language-name source-lang source-lang))]
         ;; source title (read-only) + editable translated title
         [:div {:style {:padding "0.4em 0.7em"
                        :background "#f7f4ec"
@@ -1281,19 +1299,11 @@
          source-text]
         [:div {:style label-style}
          (i18n/t lang :translate/your)]
-        [:textarea {:value (if suggesting? "" translation)
-                    :rows 4
-                    :disabled suggesting?
-                    :placeholder (when suggesting? (i18n/t lang :translate/suggesting))
-                    :on-change #(rf/dispatch [::translate-set :translation (.. % -target -value)])
-                    :style {:width "100%"
-                            :box-sizing "border-box"
-                            :padding "0.5em"
-                            :font-family "inherit"
-                            :font-size "1.02em"
-                            :line-height "1.5"
-                            :border "1px solid #ccc"
-                            :border-radius "0.3em"}}]
+        [auto-textarea {:value (if suggesting? "" translation)
+                        :disabled suggesting?
+                        :placeholder (when suggesting? (i18n/t lang :translate/suggesting))
+                        :on-change #(rf/dispatch
+                                     [::translate-set :translation (.. % -target -value)])}]
         [:div {:style {:display "flex"
                        :gap "0.5em"
                        :margin-top "0.9em"}}
@@ -1332,7 +1342,9 @@
                           :flex-wrap "wrap"
                           :gap "0.5em"
                           :justify-content "center"
-                          :align-items "center"}}]
+                          ;; top-align so the small "+" control doesn't vertically
+                          ;; offset the taller input cards next to it.
+                          :align-items "flex-start"}}]
            (concat (for [inp inputs]
                      ^{:key (:id inp)}
                      [mini-card
@@ -1386,18 +1398,9 @@
 ;; Discoverability page (#36)
 ;; ===========================================================================
 
-(def ^:private clamp-style
-  "Multi-line ellipsis: show the first few lines, cut the rest with `…`. React
-  inline styles need camelCase keys, so the vendor prefix is `Webkit…`, not the
-  CSS-dashed `-webkit-…` (which React silently drops)."
-  {:display "-webkit-box"
-   :WebkitLineClamp "4"
-   :WebkitBoxOrient "vertical"
-   :overflow "hidden"})
-
 (defn- discover-card
-  "A carousel card giving a clue of what a KI holds: type, a readable title, and
-  the opening lines of its output statement (rest elided)."
+  "A preview card giving a clue of what a KI holds: type, a readable title, and its
+  full output statement (never truncated — the card grows to fit)."
   [lang k]
   [:a {:href (permalink lang k)
        :style {:display "flex"
@@ -1422,10 +1425,10 @@
                   :line-height 1.25
                   :color "#2a2723"}}
     (display-title (:title k) (:name k))]
-   [:div {:style (merge clamp-style
-                        {:font-size "0.9em"
-                         :line-height 1.4
-                         :color "#555"})}
+   [:div {:style {:font-size "0.9em"
+                  :line-height 1.4
+                  :color "#555"
+                  :white-space "pre-wrap"}}
     (:output-statement k)]
    [:div {:style {:margin-top "auto"
                   :color "#aaa"
@@ -1447,12 +1450,86 @@
       (i18n/t lang :discover/tagline)]
      (if (seq kis)
        (into [:div {:style {:display "grid"
-                            :grid-template-columns "repeat(auto-fill, minmax(17em, 1fr))"
+                            :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
                             :gap "0.9em"}}]
              (for [k kis] ^{:key (:id k)} [discover-card lang k]))
        [:div {:style {:color "#aaa"
                       :font-style "italic"}}
         (i18n/t lang :discover/empty)])]))
+
+;; ===========================================================================
+;; Loading placeholders (skeletons)
+;; ===========================================================================
+
+(defn- skel
+  "A shimmering placeholder block (`.agora-skel` / `@keyframes agora-pulse` in the
+  ki.html shell)."
+  [style]
+  [:div {:class "agora-skel"
+         :style style}])
+
+(defn- skeleton-card
+  "Card-shaped placeholder matching a KI card's silhouette."
+  []
+  [:div {:style (assoc card-style :display "flex" :flex-direction "column" :gap "0.7em")}
+   [skel {:width "9em"
+          :height "1.1em"}]
+   [skel {:width "70%"
+          :height "1.5em"}]
+   [skel {:width "6em"
+          :height "0.8em"}]
+   [skel {:height "0.9em"}]
+   [skel {:height "0.9em"}]
+   [skel {:width "85%"
+          :height "0.9em"}]])
+
+(defn- skeleton-ki-page
+  []
+  [:div {:style {:display "flex"
+                 :flex-direction "column"
+                 :align-items "center"
+                 :padding "1em 0.6em 2em"}}
+   [skeleton-card]])
+
+(defn- skeleton-discover
+  []
+  [:div {:style {:max-width "72em"
+                 :margin "1.5em auto"
+                 :padding "0 0.8em"}}
+   [skel {:width "22em"
+          :max-width "80%"
+          :height "1.1em"
+          :margin-bottom "1.2em"}]
+   (into [:div {:style {:display "grid"
+                        :grid-template-columns "repeat(auto-fill, minmax(17em, 1fr))"
+                        :gap "0.9em"}}]
+         (for [i (range 6)]
+           ^{:key i}
+           [:div {:style {:display "flex"
+                          :flex-direction "column"
+                          :gap "0.6em"
+                          :min-height "9em"
+                          :padding "0.9em 1em"
+                          :border "1px solid #e2ddd2"
+                          :border-radius "0.6em"
+                          :background "#fff"}}
+            [skel {:width "6em"
+                   :height "1em"}]
+            [skel {:width "80%"
+                   :height "1.25em"}]
+            [skel {:height "0.8em"}]
+            [skel {:width "90%"
+                   :height "0.8em"}]
+            [skel {:width "60%"
+                   :height "0.8em"}]]))])
+
+(defn loading-view
+  "Skeleton placeholder shown while a page's data loads, matched to the target
+  `kind` so the layout does not jump when the content arrives."
+  [kind]
+  (case kind
+    :discover [skeleton-discover]
+    [skeleton-ki-page]))
 
 ;; ===========================================================================
 ;; Preferences page — a settings surface meant to grow over time

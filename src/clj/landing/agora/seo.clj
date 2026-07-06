@@ -6,12 +6,9 @@
   injected into the shell `<head>` at serve time — and a sitemap is generated from
   the DB so every KI permalink is crawlable."
   (:require
-   [cheshire.core  :as json]
-   [clojure.string :as str]))
-
-(def ^:private locale
-  {"fr" "fr_FR"
-   "en" "en_US"})
+   [cheshire.core    :as json]
+   [clojure.string   :as str]
+   [landing.language :as language]))
 
 (defn base-url
   "The public origin for absolute URLs. Prefers OAUTH_BASE_URL (already configured
@@ -99,7 +96,7 @@
               (meta-prop "og:title" title)
               (meta-prop "og:description" desc)
               (meta-prop "og:url" url)
-              (meta-prop "og:locale" (get locale lang "en_US"))
+              (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
               (meta-name "twitter:card" "summary")
               (json-ld (cond-> {"@context" "https://schema.org"
                                 "@type" "Article"
@@ -129,7 +126,7 @@
              (meta-prop "og:title" title)
              (meta-prop "og:description" desc)
              (meta-prop "og:url" (str base "/agora/" lang path))
-             (meta-prop "og:locale" (get locale lang "en_US"))]))
+             (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))]))
 
 (defn noindex-head
   "Head for an authoring/app page (new, KI-by-id, article, admin): a plain title
@@ -181,10 +178,10 @@
          "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"\n"
          "        xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n"
          ;; discover pages
-         (str/join (for [l ["fr" "en"]]
+         (str/join (for [l language/languages]
                      (url (str "/agora/" l "/discover")
                           nil
-                          (for [a ["fr" "en"]]
+                          (for [a language/languages]
                             {:lang a
                              :path (str "/agora/" a "/discover")}))))
          ;; KI permalinks

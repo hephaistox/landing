@@ -1,9 +1,10 @@
 (ns landing.agora.frontend.i18n
   "UI translations and language-fixed path builders for the Agora SPA.
 
-  Two languages for now — `fr` / `en`, matching the landing site. Add a language
-  by adding its map to `dict` and its code to `supported`; everything else adapts
-  automatically.
+  Two languages for now — `fr` / `en`, matching the landing site. Language identity
+  (codes, order, default, labels) is canonical in `landing.language` (cljc, shared
+  with the backend); this namespace only adds the translated UI strings. Add a
+  language there and its map to `dict` here.
 
   There are two language dimensions:
    - the INTERFACE language (`::lang`), a user preference driving the chrome, the
@@ -15,19 +16,8 @@
 
   Path builders take a language explicitly. `t`/`::lang` use the preference."
   (:require
-   [clojure.string :as str]
-   [re-frame.core  :as rf]))
-
-(def supported "Content + UI language codes (ISO 639-1). First is the default." ["fr" "en"])
-
-(def default-lang (first supported))
-
-(defn normalize
-  "Coerce a raw language string to a supported code, else the default."
-  [lang]
-  (let [l (some-> lang
-                  str/lower-case)]
-    (if (some #{l} supported) l default-lang)))
+   [landing.language :as language]
+   [re-frame.core    :as rf]))
 
 ;; ---------------------------------------------------------------------------
 ;; Dictionary
@@ -207,22 +197,17 @@
          :footer/disclaimer "Disclaimer"
          :footer/who-are-we "Who are we?"}})
 
-(def language-name
-  "Human label for a language code, shown in the switcher."
-  {"fr" "Français"
-   "en" "English"})
-
 (defn t
   "Translate key `k` into language `lang`, falling back to the default language
   then to the key name."
   [lang k]
-  (or (get-in dict [(normalize lang) k]) (get-in dict [default-lang k]) (name k)))
+  (or (get-in dict [(language/normalize lang) k]) (get-in dict [language/default-lang k]) (name k)))
 
 ;; ---------------------------------------------------------------------------
 ;; Language-fixed path builders
 ;; ---------------------------------------------------------------------------
 
-(defn- base [lang] (str "/agora/" (normalize lang)))
+(defn- base [lang] (str "/agora/" (language/normalize lang)))
 (defn discover [lang] (str (base lang) "/discover"))
 (defn new-ki [lang] (str (base lang) "/new"))
 (defn ki-id
@@ -248,17 +233,17 @@
 ;; `/agora/<lang>/…` segment is a separate dimension: the content language to
 ;; display for that page, which may differ from the preference.
 
-(rf/reg-sub ::lang (fn [db _] (or (::lang db) default-lang)))
+(rf/reg-sub ::lang (fn [db _] (or (::lang db) language/default-lang)))
 
 (defn set-lang
   "Store the normalized language in app-db (for use inside event handlers)."
   [db lang]
-  (assoc db ::lang (normalize lang)))
+  (assoc db ::lang (language/normalize lang)))
 
 (defn current
   "The current interface language from app-db (for use inside event handlers)."
   [db]
-  (or (::lang db) default-lang))
+  (or (::lang db) language/default-lang))
 
 ;; ---- Preference persistence (localStorage; DB sync lives in core) ----
 
@@ -294,4 +279,4 @@
   "The preference to start with: localStorage → shared `lang` cookie → browser →
   default. Normalized to a supported code."
   []
-  (normalize (or (read-stored) (cookie-lang) (browser-lang) default-lang)))
+  (language/normalize (or (read-stored) (cookie-lang) (browser-lang) language/default-lang)))

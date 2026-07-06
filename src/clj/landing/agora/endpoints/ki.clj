@@ -8,6 +8,7 @@
    [landing.agora.frontend.ki-edit-common :as common]
    [landing.agora.ki                      :as ki]
    [landing.agora.translate               :as translate]
+   [landing.language                      :as language]
    [muuntaja.core                         :as m]
    [reitit.coercion.malli                 :refer [coercion]]
    [reitit.ring.coercion                  :as rcoercion]
@@ -99,7 +100,7 @@
   (defaults to fr), so a French page only sees French KIs."
   (fn [req]
     (let [q (get-in req [:parameters :query :q])
-          lang (or (get-in req [:parameters :query :lang]) "fr")]
+          lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
       {:status 200
        :body (if (seq q) (ki/search-kis q lang) (ki/list-kis lang))})))
 
@@ -213,7 +214,7 @@
     (let [{ki-name :name
            ki-major :major}
           (get-in req [:parameters :path])
-          lang (or (get-in req [:parameters :query :lang]) "fr")]
+          lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
       (if-let [ki (ki/fetch-ki-by-major ki-name ki-major lang)]
         (do (ki/record-visit ki-name ki-major)
             {:status 200

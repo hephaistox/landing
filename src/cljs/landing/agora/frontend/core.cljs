@@ -16,6 +16,7 @@
    [landing.agora.frontend.auth         :as auth]
    [landing.agora.frontend.i18n         :as i18n]
    [landing.agora.frontend.ki-view      :as ki-view]
+   [landing.language                    :as language]
    [pushy.core                          :as pushy]
    [re-frame.core                       :as rf]
    [reagent.dom                         :as rdom]
@@ -199,7 +200,9 @@
                    ;; route change never touches it. The URL `lang` is used only as
                    ;; the content language of a KI permalink; discover/search follow
                    ;; the preference.
-                   (let [db (ki-view/close-panels db)]
+                   ;; remember what we're navigating to so the loading state can show
+                   ;; a matching skeleton (a KI card vs the discover grid).
+                   (let [db (assoc (ki-view/close-panels db) :loading-kind kind)]
                      (case kind
                        :new {:db (assoc db
                                         :view {:kind :new
@@ -285,7 +288,7 @@
 
 (rf/reg-event-fx :agora/set-lang
                  (fn [{:keys [db]} [_ lang]]
-                   (let [l (i18n/normalize lang)
+                   (let [l (language/normalize lang)
                          on-discover? (= :discover (get-in db [:view :kind]))]
                      (i18n/write-stored! l)
                      (cond-> {:db (i18n/set-lang db l)
@@ -303,7 +306,7 @@
 ;; trusted source — localStorage at boot, or the account at login).
 (rf/reg-event-fx :agora/adopt-lang
                  (fn [{:keys [db]} [_ lang]]
-                   (i18n/write-stored! (i18n/normalize lang))
+                   (i18n/write-stored! (language/normalize lang))
                    {:db (i18n/set-lang db lang)}))
 
 ;; ---------------------------------------------------------------------------
@@ -344,6 +347,7 @@
 (rf/reg-sub ::view (fn [db _] (:view db)))
 (rf/reg-sub ::latest (fn [db _] (:latest db)))
 (rf/reg-sub ::loading? (fn [db _] (:loading? db)))
+(rf/reg-sub ::loading-kind (fn [db _] (:loading-kind db)))
 (rf/reg-sub ::error (fn [db _] (:error db)))
 
 ;; The view with KI neighbours re-resolved through the local latest-minor index,
@@ -394,16 +398,20 @@
              :article [article-view/article-card data]
              nil)
       error [error-view error]
-      loading? [:p {:style {:color "#888"}}
-                "Loading…"]
+      loading? [ki-view/loading-view @(rf/subscribe [::loading-kind])]
       :else nil)))
 
 (defn root-view
-  "The shared header on top of the current page, plus the auth modal overlay."
+  "The shared header, the current page, and the footer. A flex column at least as
+  tall as the viewport keeps the footer at the bottom: it sits against the bottom
+  edge when content is short, and is pushed below when content overflows."
   []
-  [:div
+  [:div {:style {:display "flex"
+                 :flex-direction "column"
+                 :min-height "100vh"}}
    [ki-view/header]
-   [app-view]
+   [:main {:style {:flex "1 0 auto"}}
+    [app-view]]
    [ki-view/site-footer]
    [auth/auth-modal]
    [ki-view/translation-editor]])
