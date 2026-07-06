@@ -6,10 +6,11 @@
   injected into the shell `<head>` at serve time — and a sitemap is generated from
   the DB so every KI permalink is crawlable."
   (:require
-   [cheshire.core    :as json]
-   [clojure.string   :as str]
+   [cheshire.core        :as json]
+   [clojure.string       :as str]
    [env]
-   [landing.language :as language]))
+   [landing.agora.domain :as domain]
+   [landing.language     :as language]))
 
 (def ^:private allowed-host-re
   "Hosts we will echo into absolute URLs in production — the hephaistox domains
@@ -129,6 +130,43 @@
                          ;; its input KIs (declared as linked works)
                          (seq (:inputs ki)) (assoc "isBasedOn"
                                                    (mapv #(ref-entry base %) (:inputs ki)))))]))))
+
+(defn- body->text
+  "Plain-text of an article body for a meta description: each `[[ki:…]]` citation
+  token becomes its custom text (or the humanized KI name), so the description reads
+  naturally instead of showing raw tokens."
+  [body]
+  (str/replace (or body "") domain/cite-pattern (fn [[_ nm _major txt]] (or txt (humanize nm)))))
+
+(defn article-head
+  "SEO `<head>` for an article permalink: title, description (from the body),
+  canonical, OpenGraph and an schema.org Article."
+  [base lang art-name art-major art]
+  (let [title (title-of art art-name)
+        desc (description-of {:output-statement (body->text (:body art))})
+        url (str base "/agora/" lang "/article/" (enc art-name) "/" art-major)]
+    (str/join "\n"
+              [(str "<title>" (esc title) " — Agora</title>")
+               (meta-name "description" desc)
+               (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")
+               (meta-prop "og:type" "article")
+               (meta-prop "og:site_name" "Agora")
+               (meta-prop "og:title" title)
+               (meta-prop "og:description" desc)
+               (meta-prop "og:url" url)
+               (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
+               (meta-name "twitter:card" "summary")
+               (json-ld (cond-> {"@context" "https://schema.org"
+                                 "@type" "Article"
+                                 "headline" title
+                                 "name" title
+                                 "description" desc
+                                 "inLanguage" lang
+                                 "url" url}
+                          (:published-at art) (assoc "datePublished" (:published-at art))
+                          (:author art) (assoc "author"
+                                               {"@type" "Person"
+                                                "name" (:author art)})))])))
 
 (defn generic-head
   "Generic OpenGraph for a non-KI public page (e.g. discover)."

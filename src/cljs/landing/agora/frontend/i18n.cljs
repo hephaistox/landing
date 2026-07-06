@@ -24,9 +24,28 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private dict
-  {"fr" {:nav/new-ki "Nouveau"
+  {"fr" {:nav/discover-ki "Connaissances"
+         :nav/new-ki "Nouvelle connaissance"
+         :nav/discover-articles "Articles"
+         :nav/new-article "Nouvel article"
          :nav/preferences "Préférences"
          :nav/admin "Admin"
+         :articles/tagline
+         "Articles — le raisonnement rendu lisible, chaque terme relié à sa source."
+         :articles/empty "Aucun article pour l'instant."
+         :article-form/new-title "Nouvel article"
+         :article-form/name "Nom (identifiant)"
+         :article-form/name-ph "un court identifiant d'URL"
+         :article-form/title "Titre"
+         :article-form/title-ph "le titre affiché"
+         :article-form/body "Contenu"
+         :article-form/body-ph "Écrivez votre article. Insérez un KI avec la recherche ci-dessous."
+         :article-form/insert-ki "Insérer un KI"
+         :article-form/ki-search-ph "Rechercher un KI à insérer…"
+         :article-form/create "Publier"
+         :article-form/creating "Publication…"
+         :article-form/login-to-create "Connectez-vous pour publier"
+         :article-form/cancel "Annuler"
          :prefs/title "Préférences"
          :admin/title "Administration"
          :admin/major "Majeur"
@@ -110,9 +129,27 @@
          :footer/privacy "Confidentialité"
          :footer/disclaimer "Avertissement"
          :footer/who-are-we "Qui sommes-nous ?"}
-   "en" {:nav/new-ki "New"
+   "en" {:nav/discover-ki "Knowlegdes"
+         :nav/new-ki "New Knowledge"
+         :nav/discover-articles "Articles"
+         :nav/new-article "New article"
          :nav/preferences "Preferences"
          :nav/admin "Admin"
+         :articles/tagline "Articles — reasoning made legible, every term linked to its source."
+         :articles/empty "No articles yet."
+         :article-form/new-title "New article"
+         :article-form/name "Name (slug)"
+         :article-form/name-ph "a short URL slug"
+         :article-form/title "Title"
+         :article-form/title-ph "the displayed title"
+         :article-form/body "Body"
+         :article-form/body-ph "Write your article. Insert a KI with the search box below."
+         :article-form/insert-ki "Insert a KI"
+         :article-form/ki-search-ph "Search a KI to insert…"
+         :article-form/create "Publish"
+         :article-form/creating "Publishing…"
+         :article-form/login-to-create "Log in to publish"
+         :article-form/cancel "Cancel"
          :prefs/title "Preferences"
          :admin/title "Administration"
          :admin/major "Major"
@@ -217,6 +254,12 @@
   [lang id]
   (str (base lang) "/ki/" id))
 (defn article [lang id] (str (base lang) "/article/" id))
+(defn articles "The article discover page." [lang] (str (base lang) "/articles"))
+(defn new-article "The article authoring page." [lang] (str (base lang) "/article/new"))
+(defn article-permalink
+  "Public permalink of an article (name + major) in `lang`."
+  [lang {:keys [name major]}]
+  (str (base lang) "/article/" (js/encodeURIComponent name) "/" major))
 (defn preferences [lang] (str (base lang) "/preferences"))
 (defn admin [lang] (str (base lang) "/admin"))
 (defn ki

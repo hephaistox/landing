@@ -47,7 +47,38 @@
   "kind name (string) → conceptual family (keyword)."
   (into {} (map (juxt (comp name :id) :family)) kinds))
 
-(def object-types "The identity T values. Canonical set — not DB-enforced." [:ki :objection])
+(def object-types
+  "The identity T values (object types sharing the single AGORA_NODE table)."
+  [:ki :objection :article])
+
+;; --- article KI-citation grammar ---------------------------------------------
+;; A `[[ki:<name>@<major>]]` (or `…|custom text]]`) token in an article body cites a
+;; KI. The grammar is defined once here so the article renderer (frontend) and the
+;; citation extractor (backend) never drift.
+
+(def cite-pattern
+  "Regex for one in-body KI citation: capture groups are name, major, optional text."
+  #"\[\[ki:([^@\]|]+)@(\d+)(?:\|([^\]]+))?\]\]")
+
+(defn- parse-major
+  [s]
+  #?(:clj (Integer/parseInt s)
+     :cljs (js/parseInt s 10)))
+
+(defn cite-refs
+  "The distinct KIs cited in `body`, as input declarations for a node in `lang`:
+  a vector of TNLRs {:type \"ki\" :name … :lang lang :major …}, order-preserving and
+  deduped by (name, major). These are exactly KI inputs, so an article reuses the
+  whole input/pin/successor model."
+  [body lang]
+  (->> (re-seq cite-pattern (or body ""))
+       (map (fn [[_ nm mj]]
+              {:type "ki"
+               :name nm
+               :lang lang
+               :major (parse-major mj)}))
+       (distinct)
+       (vec)))
 
 ;; --- TNLR --------------------------------------------------------------------
 

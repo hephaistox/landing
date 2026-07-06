@@ -2,6 +2,7 @@
   "Auth HTTP routes (#38): register / login / logout / me. Session is a signed
   cookie (see landing.handler); responses set/clear :session to log in/out."
   (:require
+   [auto-core.log                     :as core-log]
    [auto-web.middleware.rate-limit    :refer [make-rate-limiter stop-rate-limit]]
    [landing.agora.auth                :as auth]
    [landing.agora.oauth               :as oauth]
@@ -114,24 +115,44 @@
     (let [{:strs [code state]} (:query-params req)
           expected (get-in req [:session :oauth-state])
           ;; land back inside the Agora app, in the caller's language
-          discover (str "/agora/" (language/pick-lang req) "/discover")]
-      (if (and code state expected (= state expected))
-        (let [tokens (oauth/exchange-code code)
-              info (oauth/fetch-userinfo (:access_token tokens))]
-          (if-let [profile (and (:sub info)
-                                (auth/upsert-oauth-user {:provider "google"
-                                                         :provider-id (:sub info)
-                                                         :email (:email info)
-                                                         :display-name (:name info)
-                                                         :avatar-url (:picture info)}))]
-            {:status 302
-             :headers {"Location" discover}
-             :session {:user-id (:id profile)}}
-            ;; no :sub, or upsert failed (e.g. DB error, logged in auth/upsert-oauth-user)
-            {:status 302
-             :headers {"Location" (str discover "?login=failed")}}))
-        {:status 302
-         :headers {"Location" (str discover "?login=failed")}}))))
+          discover (str "/agora/" (language/pick-lang req) "/discover")
+          ;; log *why* a callback failed (the flow is otherwise silent — exchange-code
+          ;; swallows Google's error), then send the user back with ?login=failed. Only
+          ;; :error/:error_description are logged — never the client secret or a token.
+          fail (fn [reason]
+                 (core-log/warn (str "Google OAuth callback failed — " reason))
+                 {:status 302
+                  :headers {"Location" (str discover "?login=failed")}})]
+      (cond
+        (not (and code state expected (= state expected))) (fail (str "state/CSRF check "
+                                                                      {:code? (boolean code)
+                                                                       :state? (boolean state)
+                                                                       :session-state? (boolean
+                                                                                        expected)
+                                                                       :match? (= state expected)}))
+        :else
+        (let [tokens (oauth/exchange-code code)]
+          (cond
+            (not (:access_token tokens))
+            (fail (str "token exchange rejected: "
+                       (pr-str (select-keys tokens [:error :error_description]))))
+            :else
+            (let [info (oauth/fetch-userinfo (:access_token tokens))]
+              (cond
+                (not (:sub info)) (fail (str "userinfo without :sub: "
+                                             (pr-str (select-keys info
+                                                                  [:error :error_description]))))
+                :else
+                (if-let [profile (auth/upsert-oauth-user {:provider "google"
+                                                          :provider-id (:sub info)
+                                                          :email (:email info)
+                                                          :display-name (:name info)
+                                                          :avatar-url (:picture info)})]
+                  {:status 302
+                   :headers {"Location" discover}
+                   :session {:user-id (:id profile)}}
+                  (fail
+                   "upsert-oauth-user returned nil (DB error, or AGORA_USER schema issue)"))))))))))
 
 (defn auth-routes
   [prefix]

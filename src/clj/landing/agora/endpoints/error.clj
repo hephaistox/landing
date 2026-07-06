@@ -1,8 +1,8 @@
 (ns landing.agora.endpoints.error
   "Shared reitit exception handling for the Agora JSON API.
 
-  A database failure — the `:landing.agora.ki/db-unavailable` ex-info that
-  `landing.agora.ki` rethrows after logging, or a raw `java.sql.SQLException` from
+  A database failure — the `:landing.agora.node/db-unavailable` ex-info that
+  `landing.agora.node` rethrows after logging, or a raw `java.sql.SQLException` from
   anywhere else — is surfaced as a 503 (the service is momentarily unavailable, the
   client should retry) instead of an opaque 500. Every other exception keeps
   reitit's default handling."
@@ -18,5 +18,5 @@
   failures to 503."
   (exception/create-exception-middleware
    (merge exception/default-handlers
-          {:landing.agora.ki/db-unavailable (fn [_e _req] unavailable)
+          {:landing.agora.node/db-unavailable (fn [_e _req] unavailable)
            java.sql.SQLException (fn [_e _req] unavailable)})))

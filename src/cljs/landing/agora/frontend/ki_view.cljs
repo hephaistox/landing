@@ -608,13 +608,12 @@
      true]))
 
 (defn header
-  "Shared Agora header (Hephaistox dark/copper theme). The `New KI` authoring link
-  is shadowed and routes to login when logged out. There is no explicit Lab entry:
-  a signed-in visitor gets the editable page automatically when viewing a KI. The
-  language is a preference, set on the Preferences page — not here."
+  "Shared Agora header (Hephaistox dark/copper theme): the two discover links, search
+  and auth controls. Creation is a `+` card at the end of each discover grid, not a
+  header link. The interface language is a preference, set on the Preferences page —
+  not here; a signed-in visitor gets the editable page automatically when viewing a KI."
   []
-  (let [lang @(rf/subscribe [::i18n/lang])
-        user @(rf/subscribe [::auth/user])]
+  (let [lang @(rf/subscribe [::i18n/lang])]
     [:header {:class "agora-header"
               :style {:background "#1b1a17"
                       :color "#e8e2d6"
@@ -627,19 +626,20 @@
                   :color "#d99a2b"
                   :text-decoration "none"}}
       "Agora"]
-     (into [:nav {:style {:display "flex"
-                          :gap "1em"
-                          :font-size "0.9em"}}]
-           (for [[label href auth?] [[(i18n/t lang :nav/new-ki) (i18n/new-ki lang) true]]
-                 :let [gate? (and auth? (not user))]]
-             ^{:key href}
-             [:a {:href (if gate? "#" href)
-                  :on-click (when gate?
-                              (fn [e] (.preventDefault e) (rf/dispatch [::auth/open :login])))
-                  :style {:color "#e8e2d6"
-                          :text-decoration "none"
-                          :opacity (if gate? 0.4 0.85)}}
-              label]))
+     ;; Just the two discover links; creation is a `+` card on each discover grid.
+     (let [link (fn [label href] [:a {:key href
+                                      :href href
+                                      :style {:color "#e8e2d6"
+                                              :text-decoration "none"
+                                              :opacity 0.85}}
+                                  label])]
+       [:nav {:style {:display "flex"
+                      :align-items "center"
+                      :gap "1.1em"
+                      :font-size "0.9em"
+                      :flex-wrap "wrap"}}
+        (link (i18n/t lang :nav/discover-ki) (i18n/discover lang))
+        (link (i18n/t lang :nav/discover-articles) (i18n/articles lang))])
      [:div {:class "agora-header__search"}
       [search-box]]
      [:div {:class "agora-header__auth"}
@@ -1450,10 +1450,37 @@
                   :white-space "pre-wrap"}}
     (:output-statement k)]])
 
+(defn add-card
+  "A dashed 'create' tile for the end of a discover grid — a large + linking to `href`.
+  Auth is handled by the destination form (it shows a log-in prompt when needed)."
+  [href label]
+  [:a {:href href
+       :title label
+       :style {:display "flex"
+               :flex-direction "column"
+               :align-items "center"
+               :justify-content "center"
+               :gap "0.35em"
+               :min-height "6em"
+               :padding "0.9em 1em"
+               :border "2px dashed #cbb68f"
+               :border-radius "0.6em"
+               :background "transparent"
+               :color "#b9770e"
+               :text-decoration "none"}}
+   [:span {:style {:font-size "2.4em"
+                   :line-height "0.9"
+                   :font-weight 300}}
+    "+"]
+   [:span {:style {:font-size "0.85em"
+                   :font-weight 600}}
+    label]])
+
 (defn discover-page
   "Public homepage: a visit-weighted sample of KIs (scoped to the current content
   language) as a responsive grid of preview cards that wraps to as many rows as
-  the screen width needs. Navigation and search live in the shared header."
+  the screen width needs, ending with a `+` card to author a new KI. Navigation and
+  search live in the shared header."
   [kis]
   (let [lang @(rf/subscribe [::i18n/lang])]
     [:div {:style {:max-width "72em"
@@ -1463,14 +1490,11 @@
      [:p {:style {:color "#666"
                   :margin "0 0 1em"}}
       (i18n/t lang :discover/tagline)]
-     (if (seq kis)
-       (into [:div {:style {:display "grid"
-                            :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
-                            :gap "0.9em"}}]
-             (for [k kis] ^{:key (:id k)} [discover-card lang k]))
-       [:div {:style {:color "#aaa"
-                      :font-style "italic"}}
-        (i18n/t lang :discover/empty)])]))
+     (into [:div {:style {:display "grid"
+                          :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
+                          :gap "0.9em"}}]
+           (conj (mapv (fn [k] ^{:key (:id k)} [discover-card lang k]) kis)
+                 ^{:key "__add__"} [add-card (i18n/new-ki lang) (i18n/t lang :nav/new-ki)]))]))
 
 ;; ===========================================================================
 ;; Loading placeholders (skeletons)

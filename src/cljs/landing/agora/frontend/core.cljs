@@ -42,6 +42,12 @@
     (re-find #"^/agora/([a-z]{2})/discover/?(?:[?#].*)?$" path)
     {:kind :discover
      :lang (second (re-find #"^/agora/([a-z]{2})/discover" path))}
+    (re-find #"^/agora/([a-z]{2})/articles/?(?:[?#].*)?$" path)
+    {:kind :articles
+     :lang (second (re-find #"^/agora/([a-z]{2})/articles" path))}
+    (re-find #"^/agora/([a-z]{2})/article/new/?(?:[?#].*)?$" path)
+    {:kind :article-new
+     :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
     (re-find #"^/agora/([a-z]{2})/preferences/?(?:[?#].*)?$" path)
     {:kind :preferences
      :lang (second (re-find #"^/agora/([a-z]{2})/preferences" path))}
@@ -62,6 +68,12 @@
       {:kind :ki
        :lang lang
        :id (js/decodeURIComponent id)})
+    (re-find #"^/agora/([a-z]{2})/article/([^/?#]+)/([0-9]+)/?(?:[?#].*)?$" path)
+    (let [[_ lang n mj] (re-find #"^/agora/([a-z]{2})/article/([^/?#]+)/([0-9]+)" path)]
+      {:kind :article-public
+       :lang lang
+       :name (js/decodeURIComponent n)
+       :major (js/parseInt mj)})
     (re-find #"^/agora/([a-z]{2})/article/([^/?#]+)" path)
     (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/article/([^/?#]+)" path)]
       {:kind :article
@@ -173,35 +185,93 @@
                                  :data (:body response)}
                           :loading? false)))
 
-(rf/reg-event-fx ::route-changed
-                 (fn [{:keys [db]} [_ {:keys [kind id name major lang]}]]
-                   ;; The interface language is a preference, NOT the URL — so a
-                   ;; route change never touches it. The URL `lang` is used only as
-                   ;; the content language of a KI permalink; discover/search follow
-                   ;; the preference.
-                   ;; remember what we're navigating to so the loading state can show
-                   ;; a matching skeleton (a KI card vs the discover grid).
-                   (let [db (assoc (ki-view/close-panels db) :loading-kind kind)]
-                     (case kind
-                       :new {:db (assoc db
-                                        :view {:kind :new
-                                               :data nil}
-                                        :loading? false
-                                        :error nil)}
-                       :preferences {:db (assoc db
-                                                :view {:kind :preferences
-                                                       :data nil}
-                                                :loading? false
-                                                :error nil)}
-                       :admin {:db (assoc db
-                                          :view {:kind :admin
-                                                 :data nil}
-                                          :loading? false
-                                          :error nil)
-                               :dispatch [:agora/admin-fetch]}
-                       :ki-public (route-changed-fetch-public db name major lang)
-                       :discover (route-changed-fetch-list db (i18n/current db))
-                       (route-changed-fetch db kind id)))))
+(defn- route-changed-fetch-article-list
+  "Fetch the article discover list (GET /agora/api/article?lang=). Not cached, like the
+  KI discover list."
+  [db lang]
+  {:db (assoc db :loading? true :error nil)
+   :fetch {:method :get
+           :url (str "/agora/api/article?lang=" lang)
+           :headers {"Accept" "application/json"}
+           :response-content-types {#"application/json" :json}
+           :on-success [::fetch-articles-ok]
+           :on-failure [::fetch-failed]}})
+
+(rf/reg-event-db ::fetch-articles-ok
+                 (fn [db [_ response]]
+                   (assoc db
+                          :view {:kind :articles
+                                 :data (:body response)}
+                          :loading? false)))
+
+(defn- route-changed-fetch-article-public
+  "Cache-or-fetch the public article permalink /agora/{lang}/article/{name}/{major}."
+  [db art-name art-major lang]
+  (let [ck [:article-public lang art-name art-major]
+        entry (get-in db [:cache ck])
+        fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
+    (if fresh?
+      {:db (assoc db
+                  :view {:kind :article-public
+                         :data (:data entry)}
+                  :loading? false
+                  :error nil)}
+      {:db (assoc db :loading? true :error nil)
+       :fetch {:method :get
+               :url (str "/agora/api/article/by/" (js/encodeURIComponent art-name)
+                         "/" art-major
+                         "?lang=" lang)
+               :headers {"Accept" "application/json"}
+               :response-content-types {#"application/json" :json}
+               :on-success [::fetch-article-public-ok ck]
+               :on-failure [::fetch-failed]}})))
+
+(rf/reg-event-db ::fetch-article-public-ok
+                 (fn [db [_ ck response]]
+                   (let [a (:body response)]
+                     (-> db
+                         (assoc :view {:kind :article-public
+                                       :data a}
+                                :loading? false)
+                         (cache-put ck a)))))
+
+(rf/reg-event-fx
+ ::route-changed
+ (fn [{:keys [db]} [_ {:keys [kind id name major lang]}]]
+   ;; The interface language is a preference, NOT the URL — so a
+   ;; route change never touches it. The URL `lang` is used only as
+   ;; the content language of a KI permalink; discover/search follow
+   ;; the preference.
+   ;; remember what we're navigating to so the loading state can show
+   ;; a matching skeleton (a KI card vs the discover grid).
+   (let [db (assoc (ki-view/close-panels db) :loading-kind kind)]
+     (case kind
+       :new {:db (assoc db
+                        :view {:kind :new
+                               :data nil}
+                        :loading? false
+                        :error nil)}
+       :preferences {:db (assoc db
+                                :view {:kind :preferences
+                                       :data nil}
+                                :loading? false
+                                :error nil)}
+       :admin {:db (assoc db
+                          :view {:kind :admin
+                                 :data nil}
+                          :loading? false
+                          :error nil)
+               :dispatch [:agora/admin-fetch]}
+       :ki-public (route-changed-fetch-public db name major lang)
+       :discover (route-changed-fetch-list db (i18n/current db))
+       :articles (route-changed-fetch-article-list db (i18n/current db))
+       :article-new {:db (assoc db
+                                :view {:kind :article-new
+                                       :data nil}
+                                :loading? false
+                                :error nil)}
+       :article-public (route-changed-fetch-article-public db name major lang)
+       (route-changed-fetch db kind id)))))
 
 (rf/reg-event-db ::fetch-ok
                  (fn [db [_ kind id response]]
@@ -230,6 +300,30 @@
                               :on-failure [::fetch-failed]}})))
 
 (rf/reg-event-db ::neighbour-ok (fn [db [_ id response]] (cache-put db [:ki id] (:body response))))
+
+;; Article KI-citations are *living* references (name + major → latest minor), so
+;; they resolve through the by-major endpoint, not by id. They fill the same cache
+;; slot the permalink page uses (`[:ki-public lang name major]`), so citing a KI in
+;; an article also warms its permalink. Skips already-cached.
+(rf/reg-event-fx :agora/ensure-ki-by-major
+                 (fn [{:keys [db]} [_ ki-name ki-major lang]]
+                   (let [ck [:ki-public lang ki-name ki-major]]
+                     (when-not (get-in db [:cache ck])
+                       {:fetch {:method :get
+                                :url (str "/agora/api/ki/by/" (js/encodeURIComponent ki-name)
+                                          "/" ki-major
+                                          "?lang=" lang)
+                                :headers {"Accept" "application/json"}
+                                :response-content-types {#"application/json" :json}
+                                :on-success [::cite-ok ck]
+                                :on-failure [::fetch-failed]}}))))
+
+(rf/reg-event-db ::cite-ok (fn [db [_ ck response]] (cache-put db ck (:body response))))
+
+;; The cached living-citation doc for (name, major) in `lang` (nil until it lands).
+(rf/reg-sub :agora/cite-doc
+            (fn [db [_ ki-name ki-major lang]]
+              (get-in db [:cache [:ki-public lang ki-name ki-major] :data])))
 
 ;; Called after a successful edit: ingest the new version locally and navigate to
 ;; it — no refetch.
@@ -358,6 +452,7 @@
         error @(rf/subscribe [::error])]
     (cond
       (= kind :new) [ki-view/creation-form]
+      (= kind :article-new) [article-view/article-new-form]
       (= kind :preferences) [ki-view/preferences-page]
       (= kind :admin) [ki-view/admin-page]
       ;; Keep showing the current resource whenever we have one — even while the
@@ -369,7 +464,9 @@
              ;; it swaps the moment /me resolves after a hard load.
              :ki-public (if user [ki-view/ki-page data] [ki-view/public-ki-page data])
              :discover [ki-view/discover-page data]
+             :articles [article-view/articles-discover data]
              :article [article-view/article-card data]
+             :article-public [article-view/article-card data]
              nil)
       error [error-view error]
       loading? [ki-view/loading-view @(rf/subscribe [::loading-kind])]

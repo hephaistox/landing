@@ -53,6 +53,28 @@
                       t-a
                       "a2")))))
 
+(deftest cite-refs
+  (testing "extracts cited KIs from body tokens as ki-input TNLRs in the given lang"
+    (is (= [{:type "ki"
+             :name "confidence-is-partial"
+             :lang "fr"
+             :major 1}
+            {:type "ki"
+             :name "confidence-over-binary"
+             :lang "fr"
+             :major 2}]
+           (sut/cite-refs
+            "See [[ki:confidence-is-partial@1|partial]] then [[ki:confidence-over-binary@2]] here."
+            "fr"))))
+  (testing "dedupes repeated citations and tolerates no tokens"
+    (is (= [{:type "ki"
+             :name "a"
+             :lang "en"
+             :major 1}]
+           (sut/cite-refs "[[ki:a@1]] and again [[ki:a@1]]" "en")))
+    (is (= [] (sut/cite-refs "no citations here" "fr")))
+    (is (= [] (sut/cite-refs nil "fr")))))
+
 (deftest refs-and-successors
   (testing "input-refs zip declarations with their pins (nil id when unpinned)"
     (is (= [(assoc t-a :id "a1") (assoc t-b :id nil)]

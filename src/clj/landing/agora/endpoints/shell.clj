@@ -10,6 +10,7 @@
      canonical permalink."
   (:require
    [clojure.java.io        :as io]
+   [landing.agora.article  :as article]
    [landing.agora.ki       :as ki]
    [landing.agora.seo      :as seo]
    [landing.endpoints.html :refer [html-middlewares]]
@@ -93,6 +94,29 @@
                  :handler ki-page-response
                  :middleware html-middlewares
                  :summary "Public KI permalink (SEO head injected)"}}])
+
+(def article-page-response
+  "Serve the public article permalink shell with per-article SEO (title, description,
+  OpenGraph, schema.org Article), server-rendered so crawlers see it without the SPA."
+  (fn [req]
+    (let [{:keys [lang name major]} (:path-params req)
+          lang (language/normalize lang)
+          major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
+          art (article/fetch-article-by-major name major-n lang)
+          base (seo/base-url req)
+          head (if art
+                 (seo/article-head base lang name major-n art)
+                 (seo/generic-head base lang (str "/article/" name "/" major-n) "Agora" "Agora"))]
+      (html-response (seo/inject @public-template head lang)))))
+
+(defn article-page-route
+  "Serve the public article permalink shell with server-rendered SEO metadata."
+  [prefix]
+  [prefix {:conflicting true
+           :get {:swagger {:tags #{:agora}}
+                 :handler article-page-response
+                 :middleware html-middlewares
+                 :summary "Public article permalink (SEO head injected)"}}])
 
 (def sitemap-response
   "sitemap.xml of all KI permalinks + discover pages, generated from the DB so it

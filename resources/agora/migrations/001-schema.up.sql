@@ -59,11 +59,5 @@ CREATE TABLE IF NOT EXISTS `AGORA_SUCCESSOR` (
   KEY `idx_by_input` (`input_type`, `input_name`, `input_lang`, `input_major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Articles (body inline). Authoring UI is Layer 2; seeded manually for now.
-CREATE TABLE IF NOT EXISTS `AGORA_ARTICLE` (
-  `id`           CHAR(36)     NOT NULL COMMENT 'UUID, stable permanent identity',
-  `title`        VARCHAR(500) NOT NULL COMMENT 'Article title',
-  `body`         LONGTEXT     NOT NULL COMMENT 'Article body text, inline',
-  `published_at` DATETIME     NOT NULL COMMENT 'Immutable first-publication timestamp (UTC)',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Articles are `type = 'article'` rows in AGORA_NODE (same versioned document model as
+-- KIs); they cite KIs via `content.:inputs`. No separate article table.
