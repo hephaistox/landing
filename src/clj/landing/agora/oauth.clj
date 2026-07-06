@@ -24,8 +24,13 @@
   (boolean (and (env "GOOGLE_CLIENT_ID") (env "GOOGLE_CLIENT_SECRET"))))
 
 (defn redirect-uri
+  "The Google callback URL: `<OAUTH_BASE_URL>/agora/api/auth/google/callback`. Must
+  match a URI registered in the Google console exactly — so any trailing slash on
+  OAUTH_BASE_URL is stripped to avoid a `//callback` double-slash mismatch."
   []
-  (str (or (env "OAUTH_BASE_URL") "http://localhost:8080") "/agora/api/auth/google/callback"))
+  (str (-> (or (env "OAUTH_BASE_URL") "http://localhost:8080")
+           (str/replace #"/+$" ""))
+       "/agora/api/auth/google/callback"))
 
 (defn- enc [s] (URLEncoder/encode (str s) "UTF-8"))
 
