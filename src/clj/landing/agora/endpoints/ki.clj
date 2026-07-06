@@ -5,22 +5,22 @@
   path parameter is declared via malli coercion so it is documented in Swagger
   (input box) rather than called as a literal {id}."
   (:require
-   [landing.agora.endpoints.error         :as error]
-   [landing.agora.frontend.ki-edit-common :as common]
-   [landing.agora.ki                      :as ki]
-   [landing.agora.translate               :as translate]
-   [landing.language                      :as language]
-   [muuntaja.core                         :as m]
-   [reitit.coercion.malli                 :refer [coercion]]
-   [reitit.ring.coercion                  :as rcoercion]
-   [reitit.ring.middleware.muuntaja       :as muuntaja]
-   [reitit.ring.middleware.parameters     :as parameters]))
+   [landing.agora.domain              :as domain]
+   [landing.agora.endpoints.error     :as error]
+   [landing.agora.ki                  :as ki]
+   [landing.agora.translate           :as translate]
+   [landing.language                  :as language]
+   [muuntaja.core                     :as m]
+   [reitit.coercion.malli             :refer [coercion]]
+   [reitit.ring.coercion              :as rcoercion]
+   [reitit.ring.middleware.muuntaja   :as muuntaja]
+   [reitit.ring.middleware.parameters :as parameters]))
 
-(def ^:private ki-type-enum
-  "Malli enum of the epistemic types, from the shared canonical set
-  (landing.agora.frontend.ki-edit-common/ki-types). The API represents the type
-  as a string, so the keyword set is mapped to strings."
-  (into [:enum] (map name common/ki-types)))
+(def ^:private kind-enum
+  "Malli enum of the epistemic `kind`s, from the canonical domain set
+  (landing.agora.domain/kinds). The API represents it as a string, so the keyword set
+  is mapped to strings."
+  (into [:enum] (map name domain/kind-ids)))
 
 (def ^:private input-ref-schema
   "Body for add/drop input: a Major-level KI reference (name + major; identity's
@@ -140,20 +140,20 @@
                                [:name :string]
                                [:title {:optional true}
                                 :string]
-                               [:type ki-type-enum]
+                               [:kind kind-enum]
                                [:lang {:optional true}
                                 :string]
                                [:output-statement :string]]}
            :summary "Create a new KI (major 1, minor 0)"}}])
 
 (def add-input-handler
-  "Add an input link to the KI :id (logged-in users only). 200 with the updated
-  KI, 404 if unknown, 401 if not logged in."
+  "Declare an input on the KI :id (logged-in users only) → a new minor version. 200
+  with the new KI, 404 if unknown, 401 if not logged in."
   (fn [req]
-    (if (user-id req)
+    (if-let [uid (user-id req)]
       (let [id (get-in req [:parameters :path :id])
             input (get-in req [:parameters :body])]
-        (if-let [ki (ki/add-input id input)]
+        (if-let [ki (ki/add-input id uid input)]
           {:status 200
            :body ki}
           {:status 404
@@ -162,13 +162,13 @@
       unauthorized)))
 
 (def drop-input-handler
-  "Drop an input link from the KI :id (logged-in users only). 200 with the updated
-  KI, 404 if unknown, 401 if not logged in."
+  "Remove a declared input from the KI :id (logged-in users only) → a new minor version.
+  200 with the new KI, 404 if unknown, 401 if not logged in."
   (fn [req]
-    (if (user-id req)
+    (if-let [uid (user-id req)]
       (let [id (get-in req [:parameters :path :id])
             input (get-in req [:parameters :body])]
-        (if-let [ki (ki/drop-input id input)]
+        (if-let [ki (ki/drop-input id uid input)]
           {:status 200
            :body ki}
           {:status 404
@@ -208,17 +208,15 @@
 (def by-major-handler
   "Return the latest-minor KI of a (name, major) lineage in language `?lang=`
   (defaults to fr) — the permanent public identity — or 404. Falls back to another
-  language when the concept is not yet translated. Records a visit (drives
-  discoverability weighting, #36)."
+  language when the concept is not yet translated."
   (fn [req]
     (let [{ki-name :name
            ki-major :major}
           (get-in req [:parameters :path])
           lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
       (if-let [ki (ki/fetch-ki-by-major ki-name ki-major lang)]
-        (do (ki/record-visit ki-name ki-major)
-            {:status 200
-             :body ki})
+        {:status 200
+         :body ki}
         {:status 404
          :body {:error "KI not found"
                 :name ki-name
@@ -258,7 +256,7 @@
                         :body [:map
                                [:title {:optional true}
                                 :string]
-                               [:type ki-type-enum]
+                               [:kind kind-enum]
                                [:output-statement :string]]}
            :summary "Edit a KI — produces a new minor version (immutable)"
            :swagger {:tags #{:agora}}

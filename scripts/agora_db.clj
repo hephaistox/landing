@@ -5,8 +5,9 @@
 ;; is enabled below; `;` inside quoted string literals is handled by MySQL, not us).
 ;; After applying, prints the current AGORA_NODE rows.
 ;;
-;;   clojure -M scripts/agora_db.clj resources/agora/migrations/001-schema.up.sql \
-;;                                   resources/agora/seed/001-seed.sql
+;;   clojure -M scripts/agora_db.clj resources/agora/migrations/001-schema.up.sql
+;; then seed (through the domain) with:
+;;   clojure -M:env-dev scripts/agora_seed.clj
 (require '[next.jdbc :as jdbc])
 
 (def ds

@@ -1,13 +1,8 @@
 -- Agora — MVP schema (consolidated).
 --
--- Content-addressed store for immutable KI/article text. Addressed by the SHA-256
--- hex of the content (PRIMARY KEY gives automatic dedup). MySQL for the MVP;
--- Cellar/S3 is the intended swap-point (see landing.agora.blob).
-CREATE TABLE IF NOT EXISTS `AGORA_BLOB` (
-  `hash`    CHAR(64) NOT NULL COMMENT 'SHA-256 hex of content; the content-addressed key',
-  `content` LONGTEXT NOT NULL COMMENT 'Immutable UTF-8 blob (e.g. a KI output statement)',
-  PRIMARY KEY (`hash`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- All text (KI statements, article bodies) is stored inline on its own row; there
+-- is no separate blob store and no derived counter table — a node's mutable state
+-- lives in its EDN `envelope`.
 
 -- Registered contributors. Read is anonymous; authoring requires an account.
 CREATE TABLE IF NOT EXISTS `AGORA_USER` (
@@ -30,64 +25,45 @@ CREATE TABLE IF NOT EXISTS `AGORA_USER` (
 -- language: each language is its own lineage, tied to its siblings only by sharing
 -- `name`. `type` (the epistemic classification) and `title` are plain mutable
 -- attributes, not identity. Only the statement's hash is stored here.
+-- Identity is the only thing kept as columns (so keys/indexes never look into EDN):
+-- id + TNLR (type, name, lang, major) + minor. Everything else is two EDN blobs:
+--   content  (immutable): {:kind :title :statement :author :owner-id :published-at}
+--   computed (mutable):   {:inputs [{:tnlr {:type :name :lang :major} :id}]}
+-- `type` is the object type (the T; `ki` / `objection`) — a plain string, NOT enforced
+-- by the DB (the canonical set lives in landing.agora.domain).
 CREATE TABLE IF NOT EXISTS `AGORA_NODE` (
-  `id`                    CHAR(36)     NOT NULL COMMENT 'UUID, stable permanent identity',
-  `object_type`           ENUM('ki', 'objection') NOT NULL DEFAULT 'ki',
-  `name`                  VARCHAR(255) NOT NULL COMMENT 'Language-neutral identity slug (URL, edges, translation grouping)',
-  `title`                 VARCHAR(512) NULL     COMMENT 'Per-language display title (falls back to a humanized name)',
-  `type`                  ENUM('derived',
-                               'verifiable-claim',
-                               'postulate',
-                               'stance',
-                               'belief',
-                               'credo') NOT NULL COMMENT 'Epistemic type; a mutable label (no per-type behaviour yet)',
-  `lang`                  CHAR(2)      NOT NULL DEFAULT 'fr' COMMENT 'Content language (ISO 639-1)',
-  `major`                 INT UNSIGNED NOT NULL COMMENT 'Major version; breaking changes bump this',
-  `minor`                 INT UNSIGNED NOT NULL COMMENT 'Minor version; clarifications bump this',
-  `output_statement_hash` CHAR(64)     NOT NULL COMMENT 'SHA-256 hex of the output statement blob (AGORA_BLOB)',
-  `owner_id`              CHAR(36)     NULL     COMMENT 'Owning user (AGORA_USER.id)',
-  `published_at`          DATETIME     NOT NULL COMMENT 'Immutable first-publication timestamp, UTC (proof of antecedence)',
+  `id`       CHAR(36)     NOT NULL COMMENT 'UUID, permanent identity of this exact version',
+  `type`     VARCHAR(32)  NOT NULL DEFAULT 'ki' COMMENT 'Object type — identity T (ki/objection)',
+  `name`     VARCHAR(255) NOT NULL COMMENT 'Identity N (language-neutral slug)',
+  `lang`     CHAR(2)      NOT NULL DEFAULT 'fr' COMMENT 'Identity L (content language)',
+  `major`    INT UNSIGNED NOT NULL COMMENT 'Identity R (major version)',
+  `minor`    INT UNSIGNED NOT NULL COMMENT 'Minor version (the latest is the current one)',
+  `content`  LONGTEXT     NOT NULL COMMENT 'Immutable content EDN',
+  `computed` LONGTEXT     NULL     COMMENT 'Mutable computed EDN (pinned inputs, …); rebuildable',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ki_identity` (`object_type`, `name`, `lang`, `major`, `minor`),
-  KEY `idx_ki_lang` (`object_type`, `lang`)
+  UNIQUE KEY `uq_ki_identity` (`type`, `name`, `lang`, `major`, `minor`),
+  KEY `idx_latest` (`type`, `name`, `lang`, `major`, `minor`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Reasoning edges: input node implies output node. Each endpoint is referenced by
--- its identity at (object_type, name, major) granularity — T·N·R, i.e. without the
--- minor (auto-resolved to latest) and without the language (edges are
--- language-neutral, so one edge set serves every language of a concept). The
--- object type is part of identity, so it is carried per endpoint.
-CREATE TABLE IF NOT EXISTS `AGORA_NODE_EDGE` (
-  `id`                 CHAR(36)     NOT NULL COMMENT 'UUID, edge identity',
-  `input_object_type`  ENUM('ki', 'objection') NOT NULL DEFAULT 'ki' COMMENT 'Input node object type (identity T)',
-  `input_name`         VARCHAR(255) NOT NULL COMMENT 'Input node name (identity N)',
-  `input_major`        INT UNSIGNED NOT NULL COMMENT 'Input node major version (identity R)',
-  `output_object_type` ENUM('ki', 'objection') NOT NULL DEFAULT 'ki' COMMENT 'Output node object type (identity T)',
-  `output_name`        VARCHAR(255) NOT NULL COMMENT 'Output node name (identity N)',
-  `output_major`       INT UNSIGNED NOT NULL COMMENT 'Output node major version (identity R)',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_edge` (`input_object_type`, `input_name`, `input_major`, `output_object_type`, `output_name`, `output_major`),
-  KEY `idx_edge_by_output` (`output_object_type`, `output_name`, `output_major`),
-  KEY `idx_edge_by_input` (`input_object_type`, `input_name`, `input_major`)
+-- Reverse-edge CACHE. A node embeds its own inputs (pinned) in `computed`; the opposite
+-- direction — "which KIs use this concept as an input?" — is precomputed here so a read
+-- never traverses. Keyed by the input's TNLR (type, name, lang, major) → the id of each
+-- KI that pins it. Derived, so safe to drop and rebuilt daily (and incrementally on write).
+CREATE TABLE IF NOT EXISTS `AGORA_SUCCESSOR` (
+  `input_type`   VARCHAR(32)  NOT NULL DEFAULT 'ki' COMMENT 'Input TNLR — T',
+  `input_name`   VARCHAR(255) NOT NULL COMMENT 'Input TNLR — N',
+  `input_lang`   CHAR(2)      NOT NULL COMMENT 'Input TNLR — L',
+  `input_major`  INT UNSIGNED NOT NULL COMMENT 'Input TNLR — R',
+  `successor_id` CHAR(36)     NOT NULL COMMENT 'Resolved id of a KI pinning this TNLR as input',
+  PRIMARY KEY (`input_type`, `input_name`, `input_lang`, `input_major`, `successor_id`),
+  KEY `idx_by_input` (`input_type`, `input_name`, `input_lang`, `input_major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Live computed state per node lineage, keyed by its identity at (object_type,
--- name, major) — T·N·R. Values derived from the graph rather than authored, kept
--- out of the immutable node rows. Visits (driving discoverability weighting)
--- today; confidence and other computed signals later.
-CREATE TABLE IF NOT EXISTS `AGORA_NODE_DYNAMIC` (
-  `object_type` ENUM('ki', 'objection') NOT NULL DEFAULT 'ki' COMMENT 'Node object type (identity T)',
-  `name`        VARCHAR(255)   NOT NULL COMMENT 'Node name (identity N)',
-  `major`       INT UNSIGNED   NOT NULL COMMENT 'Node major (identity R)',
-  `visits`      BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Public-page view count',
-  PRIMARY KEY (`object_type`, `name`, `major`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Articles (body in AGORA_BLOB). Authoring UI is Layer 2; seeded manually for now.
+-- Articles (body inline). Authoring UI is Layer 2; seeded manually for now.
 CREATE TABLE IF NOT EXISTS `AGORA_ARTICLE` (
   `id`           CHAR(36)     NOT NULL COMMENT 'UUID, stable permanent identity',
   `title`        VARCHAR(500) NOT NULL COMMENT 'Article title',
-  `body_hash`    CHAR(64)     NOT NULL COMMENT 'SHA-256 hex of the body blob (AGORA_BLOB)',
+  `body`         LONGTEXT     NOT NULL COMMENT 'Article body text, inline',
   `published_at` DATETIME     NOT NULL COMMENT 'Immutable first-publication timestamp (UTC)',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

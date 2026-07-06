@@ -7,40 +7,32 @@
   are managed where the inputs are shown: a drop control on each input link, and
   an add/search/create control next to the top connector. Edit and link
   operations POST to the API and fold the result back into the view via
-  :agora/edited / :agora/ki-updated (registered in core).
+  :agora/edited (registered in core).
 
   Not auth-gated yet — OAuth arrives in #38."
   (:require
-   [clojure.string                        :as str]
-   [landing.agora.frontend.auth           :as auth]
-   [landing.agora.frontend.fmt            :as fmt]
-   [landing.agora.frontend.i18n           :as i18n]
-   [landing.agora.frontend.ki-edit-common :as common]
-   [landing.agora.frontend.ui             :as ui]
-   [landing.language                      :as language]
-   [re-frame.core                         :as rf]
-   [reagent.core                          :as r]
+   [clojure.string              :as str]
+   [landing.agora.domain        :as domain]
+   [landing.agora.frontend.auth :as auth]
+   [landing.agora.frontend.fmt  :as fmt]
+   [landing.agora.frontend.i18n :as i18n]
+   [landing.agora.frontend.ui   :as ui]
+   [landing.language            :as language]
+   [re-frame.core               :as rf]
+   [reagent.core                :as r]
    [superstructor.re-frame.fetch-fx]))
 
 ;; ===========================================================================
 ;; Types
 ;; ===========================================================================
 
-(def ^:private type-bg
-  "Accent colour per KI type. Labels are translated (see i18n `:type/…`)."
-  {"derived" "#2c5aa0"
-   "verifiable-claim" "#0b7285"
-   "postulate" "#6741d9"
-   "stance" "#b9770e"
-   "belief" "#2b8a3e"
-   "credo" "#c92a2a"})
-
-(defn type-badge-view
-  "Coloured type badge with a label localized to the current UI language."
-  [ki-type]
+(defn kind-badge
+  "Coloured kind badge (colour from the domain) with a label localized to the current
+  UI language."
+  [kind]
   (let [lang @(rf/subscribe [::i18n/lang])]
     [:span {:style {:display "inline-block"
-                    :background (get type-bg ki-type "#666")
+                    :background (get domain/kind-color kind "#666")
                     :color "#fff"
                     :font-size "0.7em"
                     :font-weight 700
@@ -48,7 +40,7 @@
                     :text-transform "uppercase"
                     :padding "0.2em 0.6em"
                     :border-radius "0.25em"}}
-     (i18n/t lang (keyword "type" ki-type))]))
+     (i18n/t lang (keyword "kind" kind))]))
 
 (defn lang-badge
   "The content language of a KI, shown as a small outlined code (FR / EN)."
@@ -245,9 +237,9 @@
   (into [:div {:style {:display "flex"
                        :flex-wrap "wrap"
                        :gap "0.4em"}}]
-        ;; `common/ki-types` is the canonical set as keywords; the DB/API represent
-        ;; the type as a string, so map to `(name kw)` at this boundary.
-        (for [t (map name common/ki-types)
+        ;; `domain/kind-ids` is the canonical set as keywords; the DB/API represent
+        ;; the kind as a string, so map to `(name kw)` at this boundary.
+        (for [t (map name domain/kind-ids)
               :let [current? (= t selected)]]
           ^{:key t}
           [:button {:on-click #(on-select t)
@@ -259,7 +251,7 @@
                             :border-radius "0.3em"
                             :opacity (if current? 1 0.35)
                             :box-shadow (if current? "0 0 0 2px #333" "none")}}
-           [type-badge-view t]])))
+           [kind-badge t]])))
 
 ;; ===========================================================================
 ;; State + operations (edit + links)
@@ -304,7 +296,7 @@
                           ::edit
                           {:open? true
                            :title (:title ki)
-                           :type (:type ki)
+                           :kind (:kind ki)
                            :output-statement (:output-statement ki)
                            :saving? false
                            :error nil})))
@@ -314,12 +306,12 @@
 
 (rf/reg-event-fx ::edit-save
                  (fn [{:keys [db]} [_ ki-id]]
-                   (let [{:keys [title type output-statement]} (::edit db)]
+                   (let [{:keys [title kind output-statement]} (::edit db)]
                      {:db (update db ::edit assoc :saving? true :error nil)
                       :fetch (json-req :post
                                        (str "/agora/api/ki/" ki-id "/edit")
                                        {:title title
-                                        :type type
+                                        :kind kind
                                         :output-statement output-statement}
                                        [::edit-save-ok])})))
 
@@ -467,7 +459,7 @@
                      {:fetch (json-req :post
                                        "/agora/api/ki"
                                        {:name new-name
-                                        :type new-type
+                                        :kind new-type
                                         :lang (i18n/current db)
                                         :output-statement new-statement}
                                        [::created ki-id])})))
@@ -476,15 +468,9 @@
                  (fn [_ [_ ki-id resp]]
                    {:dispatch [::add-input ki-id (select-keys (:body resp) [:name :major])]}))
 
-(rf/reg-event-fx ::input-changed
-                 (fn [{:keys [db]} [_ resp]]
-                   {:db (assoc db
-                               ::links
-                               {:adding? false
-                                :creating? false
-                                :q ""
-                                :results []})
-                    :dispatch [:agora/ki-updated (:body resp)]}))
+;; add/drop-input now produce a NEW minor, so navigate to it (like an edit) rather
+;; than refreshing in place — :agora/edited caches it, closes panels, and navigates.
+(rf/reg-event-fx ::input-changed (fn [_ [_ resp]] {:dispatch [:agora/edited (:body resp)]}))
 
 ;; ---- Create a new KI (standalone form, #34) ----
 
@@ -493,13 +479,13 @@
 
 (rf/reg-event-fx ::new-submit
                  (fn [{:keys [db]} _]
-                   (let [{:keys [name title type lang output-statement]} (::new db)]
+                   (let [{:keys [name title kind lang output-statement]} (::new db)]
                      {:db (assoc-in db [::new :submitting?] true)
                       :fetch (json-req :post
                                        "/agora/api/ki"
                                        {:name name
                                         :title title
-                                        :type (or type "derived")
+                                        :kind (or kind "inference")
                                         :lang (or lang (i18n/current db))
                                         :output-statement output-statement}
                                        [::new-created])})))
@@ -590,7 +576,7 @@
                             :text-decoration "none"
                             :color "inherit"
                             :border-bottom "1px solid #f0f0f0"}}
-                [type-badge-view (:type k)]
+                [kind-badge (:kind k)]
                 [:span {:style {:font-weight 600}}
                  (:name k)]
                 [:span {:style version-tag-style}
@@ -769,7 +755,7 @@
   "A compact neighbour card linking to `link`. When `on-drop` is given, a ✕
   removes the link (used for input links when editing)."
   [{c-name :name
-    c-type :type
+    c-type :kind
     :keys [major minor]}
    link
    on-drop]
@@ -789,7 +775,7 @@
                    :align-items "center"
                    :gap "0.5em"
                    :margin-bottom "0.3em"}}
-     [type-badge-view c-type]
+     [kind-badge c-type]
      [:span {:style version-tag-style}
       (str "v" major "." minor)]]
     [:div {:style {:font-weight 600
@@ -808,6 +794,27 @@
                        :font-size "0.85em"
                        :line-height 1}}
       "✕"])])
+
+(defn- skeleton-mini-card
+  "Placeholder shown while a neighbour's KI loads by id."
+  []
+  [:div {:class "agora-skel"
+         :style {:width "16em"
+                 :max-width "100%"
+                 :height "3.4em"
+                 :border-radius "0.4em"}}])
+
+(defn neighbour-card
+  "A neighbour (input/successor) rendered from its `id`: fetches its KI by id (into
+  the shared cache) and shows a `mini-card`, or a skeleton while loading. `link-fn`
+  builds the href from the loaded doc; `drop-fn` (optional) is a fn of the doc → the
+  ✕ on-click."
+  [id _opts]
+  (rf/dispatch [:agora/ensure-ki id])
+  (fn [id {:keys [link-fn drop-fn]}]
+    (if-let [doc @(rf/subscribe [:agora/doc id])]
+      [mini-card doc (link-fn doc) (when drop-fn (drop-fn doc))]
+      [skeleton-mini-card])))
 
 (defn- connector
   "A short vertical directed link (arrow down = direction of implication)."
@@ -968,7 +975,7 @@
                                   :align-items "center"
                                   :gap "0.4em"
                                   :font-size "0.85em"}}
-                   [type-badge-view (:type r)]
+                   [kind-badge (:kind r)]
                    [:span (:name r)]
                    [:span {:style version-tag-style}
                     (str "v" (:major r) "." (:minor r))]]])))
@@ -1007,14 +1014,14 @@
   [{ki-name :name
     ki-lang :lang
     :keys [id major minor published-at author]}
-   {:keys [title type output-statement saving? error]}]
+   {:keys [title kind output-statement saving? error]}]
   (let [lang @(rf/subscribe [::i18n/lang])]
     [:article {:style card-style}
      [:div {:style {:display "flex"
                     :align-items "center"
                     :gap "0.75em"
                     :margin-bottom "0.6em"}}
-      [type-selector type #(rf/dispatch [::edit-set :type %])]
+      [type-selector kind #(rf/dispatch [::edit-set :kind %])]
       [lang-badge ki-lang]
       [:span {:style {:color "#888"
                       :font-size "0.8em"
@@ -1067,7 +1074,7 @@
   editing; on the public page it is omitted."
   [{ki-name :name
     ki-title :title
-    ki-type :type
+    ki-type :kind
     :keys [major minor published-at output-statement versions author]
     :as ki}
    edit?]
@@ -1095,7 +1102,7 @@
                     :align-items "center"
                     :gap "0.75em"
                     :margin-bottom "0.5em"}}
-      [type-badge-view ki-type]
+      [kind-badge ki-type]
       [languages-control lang ki]
       [version-picker {:major major
                        :minor minor
@@ -1141,7 +1148,7 @@
   "Standalone form to create a new KI (#34). On save it POSTs /agora/api/ki and
   navigates to the new KI's page, where inputs can then be linked."
   []
-  (let [{:keys [name title type output-statement submitting?]
+  (let [{:keys [name title kind output-statement submitting?]
          form-lang :lang}
         @(rf/subscribe [::new])
         user @(rf/subscribe [::auth/user])
@@ -1186,7 +1193,7 @@
      [:div {:style label-style}
       (i18n/t lang :form/type)]
      [:div {:style {:margin-bottom "0.8em"}}
-      [type-selector (or type "derived") #(rf/dispatch [::new-set :type %])]]
+      [type-selector (or kind "inference") #(rf/dispatch [::new-set :kind %])]]
      [:div {:style label-style}
       (i18n/t lang :form/language)]
      [:div {:style {:margin-bottom "0.8em"}}
@@ -1351,11 +1358,13 @@
                           :align-items "flex-start"}}]
            (concat (for [inp inputs]
                      ^{:key (:id inp)}
-                     [mini-card
-                      inp
-                      (i18n/ki-id lang (:id inp))
-                      (when user
-                        #(rf/dispatch [::drop-input id (select-keys inp [:name :major])]))])
+                     [neighbour-card
+                      (:id inp)
+                      {:link-fn (fn [doc] (i18n/ki-id lang (:id doc)))
+                       :drop-fn (when user
+                                  (fn [doc]
+                                    #(rf/dispatch
+                                      [::drop-input id (select-keys doc [:name :major])])))}])
                    [^{:key "add"} [add-input-control ki]]))
      [connector]
      [ki-card ki]
@@ -1367,7 +1376,9 @@
                              :flex-wrap "wrap"
                              :gap "0.5em"
                              :justify-content "center"}}]
-              (for [s successors] ^{:key (:id s)} [mini-card s (i18n/ki-id lang (:id s)) nil]))])]))
+              (for [s successors]
+                ^{:key (:id s)}
+                [neighbour-card (:id s) {:link-fn (fn [doc] (i18n/ki-id lang (:id doc)))}]))])]))
 
 (defn public-ki-page
   "Read-only public KI page (#35): inputs above, the card (no edit controls) in the
@@ -1385,7 +1396,9 @@
                              :flex-wrap "wrap"
                              :gap "0.5em"
                              :justify-content "center"}}]
-              (for [inp inputs] ^{:key (:id inp)} [mini-card inp (permalink lang inp) nil]))
+              (for [inp inputs]
+                ^{:key (:id inp)}
+                [neighbour-card (:id inp) {:link-fn (fn [doc] (permalink lang doc))}]))
         [connector]])
      [static-card ki false]
      [language-mismatch-notice lang ki]
@@ -1396,7 +1409,9 @@
                              :flex-wrap "wrap"
                              :gap "0.5em"
                              :justify-content "center"}}]
-              (for [s successors] ^{:key (:id s)} [mini-card s (permalink lang s) nil]))])]))
+              (for [s successors]
+                ^{:key (:id s)}
+                [neighbour-card (:id s) {:link-fn (fn [doc] (permalink lang doc))}]))])]))
 
 ;; ===========================================================================
 ;; Discoverability page (#36)
@@ -1421,7 +1436,7 @@
    [:div {:style {:display "flex"
                   :align-items "center"
                   :gap "0.5em"}}
-    [type-badge-view (:type k)]
+    [kind-badge (:kind k)]
     [:span {:style version-tag-style}
      (str "v" (:major k) "." (:minor k))]]
    [:div {:style {:font-weight 700
@@ -1433,11 +1448,7 @@
                   :line-height 1.4
                   :color "#555"
                   :white-space "pre-wrap"}}
-    (:output-statement k)]
-   [:div {:style {:margin-top "auto"
-                  :color "#aaa"
-                  :font-size "0.72em"}}
-    (str (:visits k) " " (i18n/t lang (if (= 1 (:visits k)) :discover/view :discover/views)))]])
+    (:output-statement k)]])
 
 (defn discover-page
   "Public homepage: a visit-weighted sample of KIs (scoped to the current content

@@ -41,7 +41,7 @@ A KI can be reached via multiple independent sets of inputs — disjunctive ante
 
 ### KI Types
 
-Every KI carries an **epistemic type** the claimer chooses — one of six flat values: `derived / verifiable-claim / postulate / stance / belief / credo`. **As implemented today, the type is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic type"). The per-type differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The six values fall into three conceptual families:
+Every KI carries an **epistemic kind** (field `kind`) the claimer chooses — one of six flat values: `inference / prediction / postulate / position / belief / credo`. **As implemented today, the type is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic type"). The per-type differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The six values fall into three conceptual families:
 
 **Derived KI** — the standard case. Has inputs, produces a logical consequence. Challenged by counterexample or ambiguity challenge. Confidence reflects how well the reasoning chain has survived scrutiny.
 
@@ -60,7 +60,7 @@ All four are processed identically by the system at MVP. In advanced layers, the
 
 The `T` in the identity tuple is the **object type**, not the epistemic type above. The store is single-table and polymorphic (PLM-style): it holds **KIs** and, from Layer 2, **Objections** (the PLM "change" analog) — different object types with their own lineages, standing in the same table. Identity is **ObjectType + Name + Lang + Major + Minor**, with `object_type = "ki"` today and `"objection"` later. `Lang` (the content language) is part of identity: each language is its own independent lineage, and the language versions of one concept are tied together simply by sharing a `Name` (see "Language & Translation"). The epistemic `type` is deliberately *not* in identity.
 
-The **epistemic type** (`derived / verifiable-claim / postulate / stance / belief / credo`) is a **mutable attribute of a KI**, deliberately *not* part of identity. People revise how they classify a claim — often *in response to a challenge* (e.g. a "postulate" is shown to actually follow from other KIs and becomes "derived"). Reclassifying is therefore an ordinary **edit → new minor**, never a new object, and edges (which reference `Name + Major`) follow automatically. Putting the epistemic type in the identity would fork the lineage and break edges on every reclassification, contradicting "KIs are immutable, evolving nodes."
+The **epistemic kind** (`inference / prediction / postulate / position / belief / credo`) is a **mutable attribute of a KI**, deliberately *not* part of identity. People revise how they classify a claim — often *in response to a challenge* (e.g. a "postulate" is shown to actually follow from other KIs and becomes "derived"). Reclassifying is therefore an ordinary **edit → new minor**, never a new object, and edges (which reference `Name + Major`) follow automatically. Putting the epistemic type in the identity would fork the lineage and break edges on every reclassification, contradicting "KIs are immutable, evolving nodes."
 
 (Name uniqueness is thus carried by `Name + Lang + Major` within an object type; owner-scoped names / slugs are a later refinement.)
 
@@ -70,7 +70,7 @@ A KI's **content language** is part of its identity (`Lang`). A concept can exis
 
 Consequences:
 
-- **Edges are language-neutral.** An edge references `(Name, Major)` only, so the whole reasoning graph is shared across languages for free. Rendering a KI in a given language resolves each neighbour to that language's version, **falling back** to another language when a translation doesn't exist yet (the UI shows a "a version exists in your language" banner when relevant).
+- **Inputs are pinned per language.** A KI's inputs are stored in its `envelope`, each pinned by **TNLR** (which includes Language) to a concrete predecessor `id` — so a French KI's inputs point at French predecessors. Translating a KI creates target-language siblings of its inputs and pins to them; the read still **falls back** to another language when a translation doesn't exist yet (the UI shows a "a version exists in your language" banner when relevant). (This replaced the earlier language-neutral `(Name, Major)` edge table.)
 - **`Name` is a language-neutral identity slug** (used in URLs, edges, translation grouping). It is *not* the display heading. A separate, per-language, editable **`title`** field holds the human-readable heading (e.g. *"Préférer la confiance à la logique"*); when absent the UI falls back to a humanized form of the slug.
 - **Two independent language dials.** (1) A **content language**, fixed in the permalink `/agora/<lang>/ki/<name>/<major>` — sharing a link forces that language. (2) An **interface-language preference** — a stored user setting (localStorage for everyone; `AGORA_USER.lang` for logged-in users, loaded at login) that drives the chrome, the discover feed and search. Changing the preference never changes the language of a KI permalink you are viewing. Set on the Preferences page.
 - Translation authoring copies the source text as a starting point and offers a best-effort machine-translation suggestion (MyMemory) the author validates; the title is translated too. Direct inputs are duplicated alongside so the immediate graph exists in the new language.
@@ -328,7 +328,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 **Slice 1 — Hidden page displaying a seeded KI**
 - PostgreSQL schema — KI identity (id, name, type, major, minor, output_statement_hash, timestamp)
-- Blob store — content-addressed text blobs in the MySQL `AGORA_BLOB` table (`landing.agora.blob`), DB stores the hash only (Cellar/S3 is a later swap-point, not used)
+- Inline text — KI statements are stored inline on the node row (no separate blob store)
 - Clever Cloud deployment pipeline
 - Clojure DB connection and basic KI query
 - Basic API route — single KI by id
@@ -347,8 +347,8 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 - Navigation reflects versioned links correctly
 
 **Slice 3-bis — Article**
-- PostgreSQL schema — article (id, title, body_hash, timestamp)
-- Article seeded manually in DB, body in the `AGORA_BLOB` blob store
+- Schema — article (id, title, body, timestamp)
+- Article seeded manually in DB, body inline
 - Article display component — title, body, timestamp
 - Hidden route for article
 
@@ -363,7 +363,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 **Slice 6 — Create a KI from the interface**
 - Full KI creation form — name, type, output statement, input links
-- KI type selector — derived, verifiable claim, postulate, stance, belief, credo
+- KI kind selector — inference, prediction, postulate, position, belief, credo
 - Versioning identity assignment — Major/Minor on creation
 
 **Slice 7 — Public KI page with permanent URL**
@@ -417,21 +417,29 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 - **Backend** — Clojure (Ring/Reitit), part of the `landing` app (Agora is a product inside it, served under `/agora`).
 - **Frontend** — ClojureScript + React (Reagent/re-frame), its own shadow-cljs build (`:agora`), a single-page app.
 - **Hosting** — Clever Cloud.
-- **Database** — **MySQL** (the existing Clever Cloud addon, shared with the landing contact form — *not* PostgreSQL as the original spec assumed). Holds graph structure: nodes, edges, ownership, version links, visit counters, users — all lightweight, mostly hashes and references. Schema in `resources/agora/migrations/`.
-- **Object storage** — KI text is content-addressed. For the MVP it lives in a **MySQL `AGORA_BLOB` table** keyed by the SHA-256 of its content (`landing.agora.blob`); Cellar (S3) is the intended swap-point at scale, not yet used.
+- **Database** — **MySQL** (the existing Clever Cloud addon, shared with the landing contact form — *not* PostgreSQL as the original spec assumed). Just four tables: `AGORA_NODE` (documents), `AGORA_SUCCESSOR` (derived reverse-edge cache), `AGORA_ARTICLE`, `AGORA_USER`. Schema in `resources/agora/migrations/`.
+- **Object storage** — all text is stored **inline** on its own row (KI statements on `AGORA_NODE`, article bodies on `AGORA_ARTICLE`); one read gets the whole record. There is no separate blob store.
 - **Auth** — session cookie + **OAuth (Google)** and **email/password** (bcrypt). Facebook is wired in the model but deferred.
 
-### Content-Addressed Storage
+### Read model — document + caches (reads ≫ writes)
 
-KI text content is immutable. It is addressed by a SHA-256 hash of its content and stored in the `AGORA_BLOB` table (MySQL for the MVP; Cellar/S3 later — `blob/write-blob` / `read-blob` are the stable swap-point). The `AGORA_NODE` row stores only the reference (`output_statement_hash`), not the text. Identical content across versions, languages or similar KIs is automatically deduplicated. The rest of the DB stores graph structure only — small, fast, scales slowly.
+The workload is overwhelmingly reads (thousands of reads per minor creation), so graph traversal and version resolution are **precomputed on write and cached**, not done in SQL per read. See `landing.agora.ki` and `landing.agora.cache`.
+
+- **TNLR** = (Type, Name, Language, major Release) — the full identity minus `minor`; it names a concept-lineage in one language whose latest minor is the current version.
+- **A KI is a document, keyed by `id`.** The only columns are the identity keys — `id`, `type` (the object type, T), `name`, `lang`, `major`, `minor` — so PK/indexes never parse EDN. Everything else is two EDN blobs: **immutable `content`** (`{:kind :title :statement :author :owner-id :published-at :inputs [TNLR…]}`, never updated after insert) and **mutable `computed`** (`{:pins {tnlr-key → id}}`, re-resolved on writes). All wiring/pin/successor rules are pure functions in `landing.agora.domain` (cljc); `landing.agora.ki` is the SQL/cache adapter.
+- **An input has two halves.** The **declaration** (which concept — a TNLR) is *authored*, part of the KI's meaning, and lives in immutable `content.:inputs`. The **pin** (which exact predecessor version — an id) is *derived* and lives in mutable `computed.:pins`. So changing inputs versions the KI (`add`/`drop-input` → a new **minor**, under the same permalink, and successors re-pin to it), while re-resolving a pin does not.
+- **Re-pin on write, not on read.** Creating a new minor of concept X re-pins X's successors: each successor's `computed.:pins` entry for X is rewritten to the new id — a mutable update, no version (that's "resolution updates happen only when we create a new one"). There is no client-side or per-read version resolution.
+- **Reverse edges = the `AGORA_SUCCESSOR` cache table** (input-TNLR → successor **id**). A node can't know its own successors, so this is precomputed from every envelope. It is a **cache**: safe to drop, rebuilt incrementally on write and fully **every 24h** by `landing.agora.scheduler` (calls `ki/rebuild-successor-index!`).
+- **In-memory caches (Caffeine, `landing.agora.cache`)** front all of it: `id → document`, TNLR → successors / versions, name → translations. A KI page with 2 inputs is **~3 cheap reads** (the KI + each input by id, for its title); warm cache hits touch MySQL 0 times (down from ~19 before).
+- **Frontend cache** (`core.cljs`) — a bounded LRU (≤1000) of documents by id; the old client-side latest-minor resolution is gone.
 
 ### Confidence Storage
 
-Confidence is a navigation signal, not the primary epistemic mechanism — that role belongs to the objection system. It is stored as a live computed value in the database, recomputed as objection states change. It is not stored in the immutable KI content.
+Confidence is a navigation signal, not the primary epistemic mechanism — that role belongs to the objection system. Its live computed value belongs in the node **`computed`** blob (the mutable part, alongside the pins), recomputed as objection states change — never in the immutable content.
 
 ### Graph Model
 
-For MVP, MySQL with an adjacency-list edge table (`AGORA_NODE_EDGE`, referencing `Name + Major`) handles the graph sufficiently. A dedicated graph database is not needed at this scale. Migration path exists if the graph grows to require it.
+MySQL is a key-value document store here (`AGORA_NODE` by id) plus one derived reverse-index cache table (`AGORA_SUCCESSOR`). Forward edges live in each node's `envelope`; there is no join-heavy edge table. A dedicated graph database is unnecessary at this scale.
 
 ### Search
 
@@ -440,7 +448,7 @@ Full text search is needed from day one. Elasticsearch is the main cost variable
 ### Cost Profile (Clever Cloud)
 
 - PostgreSQL XS — ~€15/month
-- Blob store — in the MySQL addon for the MVP (no extra cost); Cellar/S3 later, negligible until significant scale
+- Text storage — inline on each row (no separate store or cost)
 - Search — main cost variable, possibly deferred
 - **Total MVP** — under €100/month
 

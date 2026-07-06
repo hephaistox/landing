@@ -1,542 +1,583 @@
 (ns landing.agora.ki
-  "Read access to Knowledge Items.
+  "Adapter: SQL + Caffeine cache around the pure domain (landing.agora.domain).
 
-  A KI row stores only the hash of its output statement; this namespace resolves
-  that hash to the actual text via the blob store, returning a single clean map.
-
-  Every DB call goes through `q!` / `q1!`, which turn a driver/connection failure
-  (java.sql.SQLException) into a logged `::db-unavailable` ex-info so the API layer
-  can answer 503 instead of leaking an opaque 500 (see landing.agora.endpoints.error)."
+  A node row keeps only the identity keys as columns — `id`, `type` (object type, the
+  T), `name`, `lang`, `major`, `minor` — plus two EDN blobs:
+   - `content`  (immutable): {:kind :title :statement :author :owner-id :published-at
+                              :inputs [TNLR…]} — the declared inputs are authored, so
+                              they live here; changing them versions the KI.
+   - `computed` (mutable):   {:pins {tnlr-key → id}} — the resolved pin per declaration,
+                              re-resolved on writes (no version).
+  Reads assemble a document by `id` through the caches; the reverse direction lives in
+  the `AGORA_SUCCESSOR` cache table. All graph decisions are in the domain; this ns
+  only does I/O and EDN (de)serialization."
   (:require
    [auto-core.log        :as core-log]
-   [clojure.string       :as str]
-   [landing.agora.blob   :as blob]
+   [clojure.edn          :as edn]
+   [landing.agora.cache  :as cache]
    [landing.agora.db     :as db]
-   [landing.agora.util   :as util]
+   [landing.agora.domain :as domain]
    [landing.language     :as language]
    [next.jdbc            :as jdbc]
    [next.jdbc.result-set :as rs])
   (:import (java.sql SQLException)
+           (java.time Instant)
+           (java.time.temporal ChronoUnit)
            (java.util UUID)))
 
+;; ---------------------------------------------------------------------------
+;; DB access with failure handling (→ 503 at the API boundary; see endpoints.error)
+;; ---------------------------------------------------------------------------
+
 (defn- db-error!
-  "Log a DB driver/connection failure and rethrow it as a domain error the API
-  layer maps to a 503 (never leaks the SQL exception to the client)."
   [e]
   (core-log/error-exception e "Agora DB error")
   (throw (ex-info "database unavailable" {:type ::db-unavailable} e)))
 
-(defn- q!
-  "next.jdbc/execute! with DB-failure handling."
-  [& args]
-  (try (apply jdbc/execute! args) (catch SQLException e (db-error! e))))
+(defn- q! [& args] (try (apply jdbc/execute! args) (catch SQLException e (db-error! e))))
+(defn- q1! [& args] (try (apply jdbc/execute-one! args) (catch SQLException e (db-error! e))))
 
-(defn- q1!
-  "next.jdbc/execute-one! with DB-failure handling."
-  [& args]
-  (try (apply jdbc/execute-one! args) (catch SQLException e (db-error! e))))
+(def ^:private kebab {:builder-fn rs/as-unqualified-kebab-maps})
+(defn- uuid [] (str (UUID/randomUUID)))
+(defn- now-iso [] (str (.truncatedTo (Instant/now) ChronoUnit/SECONDS)))
 
-(defn resolve-major
-  "Versioning-in-links utility (#30). Connections store a KI reference at Major
-  granularity only (name, major — identity's T is the object type `ki`, not the
-  epistemic type); this resolves such a reference to its concrete latest-minor
-  row {:id :name :type :lang :major :minor}, or nil when no KI with that major
-  exists. Auto-resolution to the newest minor means a link follows clarifications
-  of its target — including a type reclassification — without being rewritten.
+;; ---------------------------------------------------------------------------
+;; EDN (de)serialization of the content / computed blobs (adapter concern)
+;; ---------------------------------------------------------------------------
 
-  Language-aware: edges are language-neutral (referenced by name only), so a
-  reference resolves to the `lang` version of the concept when it exists, else
-  falls back to any other language — so a French graph that is only partly
-  translated still renders, showing untranslated nodes in their own language."
-  [ki-name ki-major lang]
-  (q1!
-   db/ds
-   ["SELECT id, name, title, type, lang, major, minor FROM AGORA_NODE
-     WHERE object_type = 'ki' AND name = ? AND major = ?
-     ORDER BY (lang = ?) DESC, minor DESC LIMIT 1"
-    ki-name
-    ki-major
-    lang]
-   {:builder-fn rs/as-unqualified-kebab-maps}))
+(defn- decode-content
+  [s]
+  (or (some-> s
+              edn/read-string)
+      {}))
+(defn- encode-content [m] (pr-str m))
+(defn- decode-pins
+  [s]
+  (:pins (or (some-> s
+                     edn/read-string)
+             {:pins {}})))
+(defn- encode-pins [pins] (pr-str {:pins pins}))
 
-(defn- edge-refs
-  "The Major-only KI references (name, major) on the `wanted` side of edges whose
-  `known` side is the given KI. `direction` :inputs looks at edges whose output is
-  this KI (wanting their input); :successors is the mirror. Both endpoints are
-  constrained to object_type 'ki' — the reasoning graph is KI-to-KI (objections
-  attach differently); the object type is part of each endpoint's identity."
-  [direction ki-name ki-major]
-  (let [[known wanted] (case direction
-                         :inputs ["output" "input"]
-                         :successors ["input" "output"])
-        ;; `known`/`wanted` are fixed literals ("input"/"output"), never user input.
-        sql (str "SELECT "
-                 wanted
-                 "_name AS name, "
-                 wanted
-                 "_major AS major "
-                 "FROM AGORA_NODE_EDGE "
-                 "WHERE "
-                 known
-                 "_object_type = 'ki' AND "
-                 wanted
-                 "_object_type = 'ki' AND "
-                 known
-                 "_name = ? AND "
-                 known
-                 "_major = ? "
-                 "ORDER BY "
-                 wanted
-                 "_name, "
-                 wanted
-                 "_major")]
-    (q! db/ds [sql ki-name ki-major] {:builder-fn rs/as-unqualified-kebab-maps})))
+;; ---------------------------------------------------------------------------
+;; id → document (cached): identity columns + content + resolved pins
+;; ---------------------------------------------------------------------------
 
-(defn- neighbours
-  "Light KI refs reachable from the given KI across one edge, each Major-only
-  reference resolved to its latest-minor row via `resolve-major`, preferring the
-  `lang` translation of each neighbour. `direction` is :inputs (KIs that imply
-  this one) or :successors (KIs this one implies)."
-  [direction ki-name ki-major lang]
-  (->> (edge-refs direction ki-name ki-major)
-       (keep (fn [{ref-name :name
-                   ref-major :major}]
-               (resolve-major ref-name ref-major lang)))
-       vec))
-
-(defn- versions
-  "All minors of the (name, major, lang) lineage as [{:id :minor} …] ascending, so
-  the UI can offer previous/next-version navigation. Each language has its own
-  minor lineage."
-  [ki-name ki-major lang]
-  (q!
-   db/ds
-   ["SELECT id, minor FROM AGORA_NODE
-     WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? ORDER BY minor"
-    ki-name
-    ki-major
-    lang]
-   {:builder-fn rs/as-unqualified-kebab-maps}))
-
-(defn- translations
-  "Other-language versions of the same concept. Translations are grouped by
-  identity Name (T,N): the sibling KIs share this `ki-name` but a different
-  language. Returns one light ref {:name :major :lang} per other language. Powers
-  the Wikipedia-style language switch on the KI page — no explicit link needed."
-  [ki-name ki-lang]
-  (q!
-   db/ds
-   ["SELECT DISTINCT name, major, lang FROM AGORA_NODE
-     WHERE object_type = 'ki' AND name = ? AND lang <> ?
-     ORDER BY lang"
-    ki-name
-    ki-lang]
-   {:builder-fn rs/as-unqualified-kebab-maps}))
-
-(defn fetch-ki
-  "Fetch the KI identified by `id`, resolving its output statement text from the
-  blob store and its graph neighbours. Returns a map of the KI fields
-  (unqualified, kebab-case) plus:
-   - :output-statement — the resolved text
-   - :author           — the owning user's display name (nil if unowned)
-   - :inputs           — light refs of the KIs that imply this one
-   - :successors       — light refs of the KIs this one implies
-   - :versions         — [{:id :minor} …] of this lineage's minors, ascending
-  or nil if no such KI. :published-at is an ISO-8601 UTC string."
+(defn- load-node
   [id]
   (when-let
     [row
      (q1!
       db/ds
-      ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor, k.output_statement_hash,
-              k.owner_id, k.published_at, u.display_name AS author
-       FROM AGORA_NODE k
-       LEFT JOIN AGORA_USER u ON u.id = k.owner_id
-       WHERE k.id = ?"
+      ["SELECT id, type, name, lang, major, minor, content, computed
+                        FROM AGORA_NODE WHERE id = ?"
        id]
-      {:builder-fn rs/as-unqualified-kebab-maps})]
-    (let [{ki-name :name
-           ki-major :major
-           ki-lang :lang}
-          row]
-      (-> row
-          (assoc :output-statement (blob/read-blob (:output-statement-hash row)))
-          (update :published-at util/->utc-iso)
-          (assoc :inputs (neighbours :inputs ki-name ki-major ki-lang))
-          (assoc :successors (neighbours :successors ki-name ki-major ki-lang))
-          (assoc :versions (versions ki-name ki-major ki-lang))
-          (assoc :translations (translations ki-name ki-lang))))))
+      kebab)]
+    (merge (select-keys row [:id :type :name :lang :major :minor])
+           (decode-content (:content row))
+           {:pins (decode-pins (:computed row))})))
+
+(def ^:private node-cache
+  "id → node document (identity + immutable content + resolved pins). Invalidated only
+  when the mutable pins are re-resolved; content never changes."
+  (cache/loading 20000 load-node))
+
+(defn fetch-node "The node document for `id` (cached), or nil." [id] (cache/fetch node-cache id))
+
+;; ---------------------------------------------------------------------------
+;; Lineage indexes (cached): successors, versions, translations.
+;; ---------------------------------------------------------------------------
+
+(def ^:private successors-cache
+  "TNLR [type name lang major] → ids of KIs that declare it as an input (AGORA_SUCCESSOR)."
+  (cache/loading
+   20000
+   (fn [[ty nm lang major]]
+     (mapv
+      :successor-id
+      (q!
+       db/ds
+       ["SELECT successor_id FROM AGORA_SUCCESSOR
+                 WHERE input_type = ? AND input_name = ? AND input_lang = ? AND input_major = ?"
+        ty
+        nm
+        lang
+        major]
+       kebab)))))
+
+(def ^:private versions-cache
+  "TNLR → [{:id :minor} …] ascending (the minor lineage in one language)."
+  (cache/loading
+   20000
+   (fn [[ty nm lang major]]
+     (q!
+      db/ds
+      ["SELECT id, minor FROM AGORA_NODE
+           WHERE type = ? AND name = ? AND lang = ? AND major = ? ORDER BY minor"
+       ty
+       nm
+       lang
+       major]
+      kebab))))
+
+(def ^:private translations-cache
+  "[type name lang] → other-language versions {:name :major :lang} of the same concept."
+  (cache/loading
+   20000
+   (fn [[ty nm lang]]
+     (q!
+      db/ds
+      ["SELECT DISTINCT name, major, lang FROM AGORA_NODE
+           WHERE type = ? AND name = ? AND lang <> ? ORDER BY lang"
+       ty
+       nm
+       lang]
+      kebab))))
+
+(defn- resolve-latest-id
+  "The id of the latest minor of (name, major) in `lang`, falling back to any other
+  language when that concept is not yet translated."
+  [ki-name ki-major lang]
+  (:id
+   (q1!
+    db/ds
+    ["SELECT id FROM AGORA_NODE
+              WHERE type = 'ki' AND name = ? AND major = ?
+              ORDER BY (lang = ?) DESC, minor DESC LIMIT 1"
+     ki-name
+     ki-major
+     lang]
+    kebab)))
+
+(defn- latest-of
+  "The domain's injected `latest-of`: a TNLR map → its current latest id."
+  [{:keys [name major lang]}]
+  (resolve-latest-id name major lang))
+
+;; ---------------------------------------------------------------------------
+;; Cache invalidation
+;; ---------------------------------------------------------------------------
+
+(defn- evict-lineage!
+  [ty nm lang major]
+  (cache/evict! versions-cache [ty nm lang major])
+  (cache/evict! translations-cache [ty nm lang]))
+
+(defn- clear-caches!
+  []
+  (cache/clear! node-cache)
+  (cache/clear! successors-cache)
+  (cache/clear! versions-cache)
+  (cache/clear! translations-cache))
+
+;; ---------------------------------------------------------------------------
+;; Read: assemble the endpoint-facing KI view
+;; ---------------------------------------------------------------------------
+
+(defn fetch-ki
+  "The KI `id` as the endpoint view. Neighbours are light refs (inputs carry their
+  TNLR + pinned id, successors only the id); the SPA fetches each by id for its card.
+  Plus the version lineage and translations. nil if unknown."
+  [id]
+  (when-let [n (fetch-node id)]
+    (let [tnlr (domain/tnlr-key n)]
+      (-> n
+          (assoc :output-statement (:statement n)
+                 :inputs (domain/input-refs (:inputs n) (:pins n))
+                 :successors (mapv (fn [sid] {:id sid}) (cache/fetch successors-cache tnlr))
+                 :versions (cache/fetch versions-cache tnlr)
+                 :translations (cache/fetch translations-cache [(:type n) (:name n) (:lang n)]))
+          (dissoc :statement :owner-id :pins)))))
 
 (defn fetch-ki-by-major
-  "Fetch the latest-minor KI of the (name, major) lineage in language `lang` — the
-  permanent public identity behind /agora/{lang}/ki/{name}/{major} — or nil if no
-  such lineage exists. Falls back to another language when the concept is not yet
-  translated into `lang` (see resolve-major)."
+  "The latest-minor KI of (name, major) in `lang` (with cross-language fallback), or
+  nil. The permanent public identity behind /agora/{lang}/ki/{name}/{major}."
   [ki-name ki-major lang]
-  (when-let [{:keys [id]} (resolve-major ki-name ki-major lang)] (fetch-ki id)))
+  (when-let [id (resolve-latest-id ki-name ki-major lang)] (fetch-ki id)))
+
+;; ---------------------------------------------------------------------------
+;; Successor index (reverse edges) + re-pin
+;; ---------------------------------------------------------------------------
+
+(defn- index-successors!
+  "Record, in AGORA_SUCCESSOR, that `successor-id` declares each of `tnlrs` as input."
+  [successor-id tnlrs]
+  (doseq [{:keys [tnlr]} (domain/successor-tuples successor-id tnlrs)]
+    (let [[ty nm lang major] (domain/tnlr-key tnlr)]
+      (q!
+       db/ds
+       ["INSERT IGNORE INTO AGORA_SUCCESSOR
+            (input_type, input_name, input_lang, input_major, successor_id) VALUES (?, ?, ?, ?, ?)"
+        ty
+        nm
+        lang
+        major
+        successor-id])
+      (cache/evict! successors-cache [ty nm lang major]))))
+
+(defn- repin-successors!
+  "A new minor `new-id` was created for concept (type,name,lang,major): re-point every
+  successor's pin for that TNLR to `new-id` (a mutable `computed` update — no version),
+  and drop their cached documents."
+  [ty nm lang major new-id]
+  (let [t {:type ty
+           :name nm
+           :lang lang
+           :major major}]
+    (doseq [sid (cache/fetch successors-cache (domain/tnlr-key t))]
+      (when-let [row (q1! db/ds ["SELECT computed FROM AGORA_NODE WHERE id = ?" sid] kebab)]
+        (let [pins' (domain/repin (decode-pins (:computed row)) t new-id)]
+          (q! db/ds ["UPDATE AGORA_NODE SET computed = ? WHERE id = ?" (encode-pins pins') sid])
+          (cache/evict! node-cache sid))))))
+
+;; ---------------------------------------------------------------------------
+;; Write
+;; ---------------------------------------------------------------------------
+
+(defn- author-name
+  [owner-id]
+  (when owner-id
+    (:display-name
+     (q1! db/ds ["SELECT display_name FROM AGORA_USER WHERE id = ?" owner-id] kebab))))
 
 (defn- next-minor
-  "The next minor number for the (`ki-name`, `ki-major`, `lang`) lineage: one past
-  the current highest minor, or 0 if none exists yet. Minors are per language."
-  [ki-name ki-major lang]
+  [ty nm lang major]
   (:m
    (q1!
     db/ds
     ["SELECT COALESCE(MAX(minor) + 1, 0) AS m FROM AGORA_NODE
-         WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ?"
-     ki-name
-     ki-major
-     lang]
-    {:builder-fn rs/as-unqualified-kebab-maps})))
-
-(defn edit-ki
-  "Edit the KI identified by `id`, producing a NEW minor version — never an
-  in-place mutation. The new version keeps the source's name and major, takes the
-  given `type` and output `statement`, and gets the next minor in its (name, major)
-  lineage. The epistemic `type` is a plain attribute, so reclassifying is just an
-  edit: the new minor auto-resolves for every KI referencing this major
-  (resolve-major picks the new latest minor). `owner-id` is the editing user (the
-  new minor's owner). Returns the new KI (via fetch-ki), or nil if `id` is unknown."
-  [id
-   owner-id
-   {ki-type :type
-    ki-title :title
-    statement :output-statement}]
-  (when-let [{ki-name :name
-              ki-major :major
-              ki-lang :lang}
-             (q1! db/ds
-                  ["SELECT name, major, lang FROM AGORA_NODE WHERE id = ?" id]
-                  {:builder-fn rs/as-unqualified-kebab-maps})]
-    (let [hash (blob/write-blob statement)
-          minor (next-minor ki-name ki-major ki-lang)
-          new-id (str (UUID/randomUUID))]
-      (q!
-       db/ds
-       ;; the content language is immutable across minors — carry it forward (a
-       ;; translation is a same-named KI in another language, not a new minor).
-       ["INSERT INTO AGORA_NODE
-         (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
-         VALUES (?, 'ki', ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
-        new-id
-        ki-name
-        ki-title
-        ki-type
-        ki-lang
-        ki-major
-        minor
-        hash
-        owner-id])
-      (fetch-ki new-id))))
+             WHERE type = ? AND name = ? AND lang = ? AND major = ?"
+     ty
+     nm
+     lang
+     major]
+    kebab)))
 
 (defn- lang-exists?
-  "True when a `lang` version of the (name, major) lineage already exists."
-  [ki-name ki-major lang]
+  [ty nm major lang]
   (some?
-   (q1!
-    db/ds
-    ["SELECT id FROM AGORA_NODE WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? LIMIT 1"
-     ki-name
-     ki-major
-     lang]
-    {:builder-fn rs/as-unqualified-kebab-maps})))
+   (q1! db/ds
+        ["SELECT id FROM AGORA_NODE WHERE type = ? AND name = ? AND major = ? AND lang = ? LIMIT 1"
+         ty
+         nm
+         major
+         lang]
+        kebab)))
 
-(defn- create-in-lang!
-  "Create a `to-lang` version (major/minor 0) of the (name, major) lineage with the
-  given `title`, `statement` and `ki-type`, owned by `owner-id` — unless a
-  `to-lang` version already exists."
-  [ki-name ki-major ki-type ki-title to-lang statement owner-id]
-  (when-not (lang-exists? ki-name ki-major to-lang)
+(defn- insert-node!
+  "Insert one immutable version. `identity` = {:id :name :lang :major :minor}; `content`
+  is the immutable map (incl. its declared `:inputs`); pins are resolved from those
+  declarations. Indexes the declared inputs as successors."
+  [{:keys [id name lang major minor]} content]
+  (let [tnlrs (:inputs content)]
     (q!
      db/ds
-     ["INSERT INTO AGORA_NODE
-       (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
-       VALUES (?, 'ki', ?, ?, ?, ?, ?, 0, ?, ?, UTC_TIMESTAMP())"
-      (str (UUID/randomUUID))
-      ki-name
-      ki-title
-      ki-type
-      to-lang
-      ki-major
-      (blob/write-blob statement)
-      owner-id])))
+     ["INSERT INTO AGORA_NODE (id, type, name, lang, major, minor, content, computed)
+          VALUES (?, 'ki', ?, ?, ?, ?, ?, ?)"
+      id
+      name
+      lang
+      major
+      minor
+      (encode-content content)
+      (encode-pins (domain/pin-all tnlrs latest-of))])
+    (index-successors! id tnlrs)))
 
-(defn- copy-lineage-to-lang!
-  "Create a `to-lang` version (major/minor 0) of the (name, major) lineage by
-  copying its latest `from-lang` statement, owned by `owner-id` — unless a
-  `to-lang` version already exists. The blob is content-addressed, so the copy
-  reuses the same hash (dedup) until the translator edits it. No-op when the
-  source lineage has no `from-lang` row."
-  [ki-name ki-major from-lang to-lang owner-id]
-  (when-not (lang-exists? ki-name ki-major to-lang)
-    (when-let
-      [{ki-type :type
-        ki-title :title
-        hash :output-statement-hash}
-       (q1!
-        db/ds
-        ["SELECT type, title, output_statement_hash FROM AGORA_NODE
-                  WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ?
-                  ORDER BY minor DESC LIMIT 1"
-         ki-name
-         ki-major
-         from-lang]
-        {:builder-fn rs/as-unqualified-kebab-maps})]
-      (q!
-       db/ds
-       ["INSERT INTO AGORA_NODE
-         (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
-         VALUES (?, 'ki', ?, ?, ?, ?, ?, 0, ?, ?, UTC_TIMESTAMP())"
-        (str (UUID/randomUUID))
-        ki-name
-        ki-title
-        ki-type
-        to-lang
-        ki-major
-        hash
-        owner-id]))))
+(defn- content-of
+  "The immutable content map carried forward from a source node (its authored fields)."
+  [n]
+  (select-keys n [:kind :title :statement :author :owner-id :inputs]))
+
+(defn create-ki
+  "Create a brand-new KI (major 1, minor 0), no inputs yet. Returns it via fetch-ki."
+  [owner-id {ki-name :name
+             ki-title :title
+             kind :kind
+             ki-lang :lang
+             statement :output-statement}]
+  (let [id (uuid)
+        lang (or ki-lang language/default-lang)]
+    (insert-node! {:id id
+                   :name ki-name
+                   :lang lang
+                   :major 1
+                   :minor 0}
+                  {:kind kind
+                   :title ki-title
+                   :statement statement
+                   :inputs []
+                   :author (author-name owner-id)
+                   :owner-id owner-id
+                   :published-at (now-iso)})
+    (evict-lineage! "ki" ki-name lang 1)
+    (fetch-ki id)))
+
+(defn- new-minor!
+  "Insert a new minor of the concept `src` (same name/major/lang) with the given
+  `content` (declared inputs carried in it), re-pin this concept's successors onto it,
+  and return the new KI."
+  [src content]
+  (let [{:keys [name lang major]} src
+        new-id (uuid)]
+    (insert-node! {:id new-id
+                   :name name
+                   :lang lang
+                   :major major
+                   :minor (next-minor "ki" name lang major)}
+                  (assoc content :published-at (now-iso)))
+    (repin-successors! "ki" name lang major new-id)
+    (evict-lineage! "ki" name lang major)
+    (fetch-ki new-id)))
+
+(defn edit-ki
+  "Edit KI `id` → a new minor version (statement/title/kind change; declared inputs
+  carried forward)."
+  [id
+   owner-id
+   {kind :kind
+    ki-title :title
+    statement :output-statement}]
+  (when-let [src (fetch-node id)]
+    (new-minor! src
+                (assoc (content-of src)
+                       :kind kind
+                       :title ki-title
+                       :statement statement
+                       :author (author-name owner-id)
+                       :owner-id owner-id))))
+
+(defn add-input
+  "Declare the KI referenced by `input` (name+major, in this KI's language) as an input
+  of `id` → a new minor. Idempotent. Returns the updated (new-minor) KI."
+  [id
+   owner-id
+   {in-name :name
+    in-major :major}]
+  (when-let [{:keys [lang]
+              :as src}
+             (fetch-node id)]
+    (if (resolve-latest-id in-name in-major lang)
+      (let [t {:type "ki"
+               :name in-name
+               :lang lang
+               :major in-major}]
+        (new-minor! src
+                    (assoc (content-of src)
+                           :inputs (domain/add-declared (:inputs src) t)
+                           :author (author-name owner-id)
+                           :owner-id owner-id)))
+      (fetch-ki id))))
+
+(defn drop-input
+  "Remove the declared input `input` (name+major) from KI `id` → a new minor. Returns
+  the updated (new-minor) KI."
+  [id
+   owner-id
+   {in-name :name
+    in-major :major}]
+  (when-let [{:keys [lang]
+              :as src}
+             (fetch-node id)]
+    (let [t {:type "ki"
+             :name in-name
+             :lang lang
+             :major in-major}]
+      (new-minor! src
+                  (assoc (content-of src)
+                         :inputs (domain/drop-declared (:inputs src) t)
+                         :author (author-name owner-id)
+                         :owner-id owner-id)))))
 
 (defn translate-ki
-  "Create a `to-lang` version of the KI `id` and its direct inputs, owned by
-  `owner-id`. The KI itself takes the author-validated `statement` (the edited
-  translation, falling back to the source text if blank); its direct inputs are
-  copied from their source text as placeholders the author can refine later.
-  Existing versions are left untouched, and edges are shared by name so the graph
-  comes along automatically. Returns the `to-lang` KI (via fetch-ki-by-major), or
-  nil if `id` is unknown."
+  "Create a `to-lang` version of KI `id` and to-lang copies of its direct inputs
+  (declared+pinned to those). Existing versions are untouched. Returns the to-lang KI."
   [id to-lang owner-id title statement]
-  (when-let [src (fetch-ki id)]
-    (create-in-lang! (:name src)
-                     (:major src)
-                     (:type src)
-                     (if (str/blank? title) (:title src) title)
-                     to-lang
-                     (if (str/blank? statement) (:output-statement src) statement)
-                     owner-id)
-    (doseq [{in-name :name
-             in-major :major
-             in-lang :lang}
-            (:inputs src)]
-      (copy-lineage-to-lang! in-name in-major in-lang to-lang owner-id))
-    (fetch-ki-by-major (:name src) (:major src) to-lang)))
+  (when-let [{:keys [name major]
+              :as src}
+             (fetch-node id)]
+    (when-not (lang-exists? "ki" name major to-lang)
+      (let [author (author-name owner-id)
+            declarations (mapv (fn [{in-name :name
+                                     in-major :major
+                                     in-lang :lang}]
+                                 (when-not (lang-exists? "ki" in-name in-major to-lang)
+                                   (when-let [s (fetch-node
+                                                 (resolve-latest-id in-name in-major in-lang))]
+                                     (insert-node! {:id (uuid)
+                                                    :name in-name
+                                                    :lang to-lang
+                                                    :major in-major
+                                                    :minor 0}
+                                                   {:kind (:kind s)
+                                                    :title (:title s)
+                                                    :statement (:statement s)
+                                                    :inputs []
+                                                    :author author
+                                                    :owner-id owner-id
+                                                    :published-at (now-iso)})
+                                     (evict-lineage! "ki" in-name to-lang in-major)))
+                                 {:type "ki"
+                                  :name in-name
+                                  :lang to-lang
+                                  :major in-major})
+                               (:inputs src))]
+        (insert-node! {:id (uuid)
+                       :name name
+                       :lang to-lang
+                       :major major
+                       :minor 0}
+                      {:kind (:kind src)
+                       :title (if (nil? title) (:title src) title)
+                       :statement (if (nil? statement) (:statement src) statement)
+                       :inputs declarations
+                       :author author
+                       :owner-id owner-id
+                       :published-at (now-iso)})
+        (evict-lineage! "ki" name to-lang major)))
+    (fetch-ki-by-major name major to-lang)))
+
+;; ---------------------------------------------------------------------------
+;; Discovery / search / admin
+;; ---------------------------------------------------------------------------
+
+(defn- card
+  "A discovery/search card from a row with a `content` blob."
+  [row]
+  (let [c (decode-content (:content row))]
+    (assoc (select-keys row [:id :type :name :lang :major :minor])
+           :kind (:kind c)
+           :title (:title c)
+           :output-statement (:statement c))))
 
 (defn search-kis
-  "KIs matching `q` (case-insensitive) in either their name OR their latest
-  output-statement text, one light ref per lineage (latest minor), restricted to
-  the content language `lang`. Blank `q` returns []. The statement text lives in
-  the blob store, joined by hash. Used by the search UI (#37) and to pick an
-  existing KI as an input (#33)."
+  "KIs matching `q` in name/title/statement, latest minor per lineage, scoped to `lang`.
+  Blank `q` → []. Title/statement live in the content blob, so this is a LIKE scan."
   [q lang]
-  (if (str/blank? q)
+  (if (or (nil? q) (empty? q))
     []
     (let [like (str "%" q "%")]
-      (q!
-       db/ds
-       ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor FROM AGORA_NODE k
-         LEFT JOIN AGORA_BLOB b ON b.hash = k.output_statement_hash
-         WHERE k.object_type = 'ki'
-           AND k.lang = ?
-           AND (k.name LIKE ? OR k.title LIKE ? OR b.content LIKE ?)
-           AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_NODE k2
-                          WHERE k2.object_type = 'ki' AND k2.name = k.name
-                            AND k2.major = k.major AND k2.lang = k.lang)
-         ORDER BY k.name, k.major
-         LIMIT 50"
-        lang
-        like
-        like
-        like]
-       {:builder-fn rs/as-unqualified-kebab-maps}))))
+      (mapv
+       card
+       (q!
+        db/ds
+        ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content FROM AGORA_NODE k
+                  WHERE k.type = 'ki' AND k.lang = ?
+                    AND (k.name LIKE ? OR k.content LIKE ?)
+                    AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_NODE k2
+                                   WHERE k2.type = 'ki' AND k2.name = k.name
+                                     AND k2.major = k.major AND k2.lang = k.lang)
+                  ORDER BY k.name, k.major LIMIT 50"
+         lang
+         like
+         like]
+        kebab)))))
+
+(defn list-kis
+  "Up to 10 latest-minor KIs (with :output-statement for cards), sampled at random,
+  scoped to `lang`."
+  [lang]
+  (mapv
+   card
+   (q!
+    db/ds
+    ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content FROM AGORA_NODE k
+              WHERE k.type = 'ki' AND k.lang = ?
+                AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_NODE k2
+                               WHERE k2.type = 'ki' AND k2.name = k.name
+                                 AND k2.major = k.major AND k2.lang = k.lang)
+              ORDER BY RAND() LIMIT 10"
+     lang]
+    kebab)))
 
 (defn list-tnrs
-  "All KI lineages (a TNR = object-type + name + major) with aggregate counts, for
-  the admin page: version rows, distinct languages and the latest minor."
+  "All KI lineages (name, major) with version/language/latest counts (admin page)."
   []
   (q!
    db/ds
-   ["SELECT name, major,
-            COUNT(*) AS versions,
-            COUNT(DISTINCT lang) AS langs,
-            MAX(minor) AS latest
-     FROM AGORA_NODE WHERE object_type = 'ki'
-     GROUP BY name, major
-     ORDER BY name, major"]
-   {:builder-fn rs/as-unqualified-kebab-maps}))
+   ["SELECT name, major, COUNT(*) AS versions, COUNT(DISTINCT lang) AS langs, MAX(minor) AS latest
+        FROM AGORA_NODE WHERE type = 'ki' GROUP BY name, major ORDER BY name, major"]
+   kebab))
 
 (defn delete-tnr!
-  "Drop an entire (name, major) lineage — every language and minor — plus its edges
-  and visit counter. Content blobs are content-addressed and may be shared, so they
-  are left in place. Returns the number of KI rows deleted."
+  "Drop an entire (name, major) lineage plus its successor-index rows. Returns the
+  number of node rows deleted."
   [ki-name ki-major]
   (q!
    db/ds
-   ["DELETE FROM AGORA_NODE_EDGE
-     WHERE (input_object_type = 'ki' AND input_name = ? AND input_major = ?)
-        OR (output_object_type = 'ki' AND output_name = ? AND output_major = ?)"
+   ["DELETE FROM AGORA_SUCCESSOR
+              WHERE (input_name = ? AND input_major = ?)
+                 OR successor_id IN (SELECT id FROM AGORA_NODE WHERE name = ? AND major = ?)"
     ki-name
     ki-major
     ki-name
     ki-major])
-  (q! db/ds
-      ["DELETE FROM AGORA_NODE_DYNAMIC WHERE object_type = 'ki' AND name = ? AND major = ?"
-       ki-name
-       ki-major])
-  (:next.jdbc/update-count
-   (q1! db/ds
-        ["DELETE FROM AGORA_NODE WHERE object_type = 'ki' AND name = ? AND major = ?"
-         ki-name
-         ki-major])))
+  (let [n (:next.jdbc/update-count
+           (q1! db/ds
+                ["DELETE FROM AGORA_NODE WHERE type = 'ki' AND name = ? AND major = ?"
+                 ki-name
+                 ki-major]))]
+    (clear-caches!)
+    n))
 
 (defn compact-tnr!
-  "Keep only the latest minor of each language of a (name, major) lineage, deleting
-  the older minors. Edges reference (name, major) only, so they are untouched.
-  Returns the number of KI rows deleted."
+  "Keep only the latest minor of each language of a (name, major) lineage; delete the
+  rest. Returns the number of node rows deleted."
   [ki-name ki-major]
-  (->>
-    (q!
-     db/ds
-     ["SELECT lang, MAX(minor) AS latest FROM AGORA_NODE
-          WHERE object_type = 'ki' AND name = ? AND major = ? GROUP BY lang"
-      ki-name
-      ki-major]
-     {:builder-fn rs/as-unqualified-kebab-maps})
-    (reduce
-     (fn [n {:keys [lang latest]}]
-       (+
-        n
-        (or
-         (:next.jdbc/update-count
-          (q1!
-           db/ds
-           ["DELETE FROM AGORA_NODE
-                            WHERE object_type = 'ki' AND name = ? AND major = ? AND lang = ? AND minor < ?"
-            ki-name
-            ki-major
-            lang
-            latest]))
-         0)))
-     0)))
+  (let
+    [n
+     (->>
+       (q!
+        db/ds
+        ["SELECT lang, MAX(minor) AS latest FROM AGORA_NODE
+                     WHERE type = 'ki' AND name = ? AND major = ? GROUP BY lang"
+         ki-name
+         ki-major]
+        kebab)
+       (reduce
+        (fn [acc {:keys [lang latest]}]
+          (+
+           acc
+           (or
+            (:next.jdbc/update-count
+             (q1!
+              db/ds
+              ["DELETE FROM AGORA_NODE
+                                                  WHERE type = 'ki' AND name = ? AND major = ?
+                                                    AND lang = ? AND minor < ?"
+               ki-name
+               ki-major
+               lang
+               latest]))
+            0)))
+        0))]
+    (clear-caches!)
+    n))
 
 (defn sitemap-rows
-  "Every public KI permalink as {:name :major :lang :lastmod} — one row per
-  language of each (name, major) lineage, with its latest publication date. Feeds
-  the sitemap (#39)."
+  "Every public KI permalink as {:name :major :lang :lastmod}. published-at lives in the
+  content blob, so the max per lineage is computed here."
   []
-  (q!
-   db/ds
-   ["SELECT name, major, lang, MAX(published_at) AS lastmod
-     FROM AGORA_NODE WHERE object_type = 'ki'
-     GROUP BY name, major, lang
-     ORDER BY name, major, lang"]
-   {:builder-fn rs/as-unqualified-kebab-maps}))
+  (->> (q! db/ds ["SELECT name, major, lang, content FROM AGORA_NODE WHERE type = 'ki'"] kebab)
+       (map (fn [r]
+              (assoc (select-keys r [:name :major :lang])
+                     :published-at
+                     (:published-at (decode-content (:content r))))))
+       (group-by (juxt :name :major :lang))
+       (mapv (fn [[[name major lang] rows]]
+               {:name name
+                :major major
+                :lang lang
+                :lastmod (apply max-key str (map :published-at rows))}))))
 
-(defn record-visit
-  "Increment the public-page visit counter for the (name, major) lineage."
-  [ki-name ki-major]
-  (q!
-   db/ds
-   ["INSERT INTO AGORA_NODE_DYNAMIC (object_type, name, major, visits) VALUES ('ki', ?, ?, 1)
-     ON DUPLICATE KEY UPDATE visits = visits + 1"
-    ki-name
-    ki-major]))
+;; ---------------------------------------------------------------------------
+;; Daily cache rebuild
+;; ---------------------------------------------------------------------------
 
-(defn list-kis
-  "Up to 10 KIs, one light ref per lineage (latest minor, plus :visits and the
-  :output-statement text for a card preview), sampled
-  at random weighted toward the most-visited (#36). The weight is (visits + 1) so
-  never-visited KIs can still appear; ordering uses the Efraimidis–Spirakis
-  weighted key POW(RAND(), 1/weight), so higher visits ⇒ higher chance of being
-  in the top 10. Restricted to the content language `lang`."
-  [lang]
-  (q!
-   db/ds
-   ["SELECT k.id, k.name, k.title, k.type, k.lang, k.major, k.minor, COALESCE(v.visits, 0) AS visits,
-            b.content AS output_statement
-     FROM AGORA_NODE k
-     LEFT JOIN AGORA_NODE_DYNAMIC v ON v.object_type = k.object_type AND v.name = k.name AND v.major = k.major
-     LEFT JOIN AGORA_BLOB b ON b.hash = k.output_statement_hash
-     WHERE k.object_type = 'ki'
-       AND k.lang = ?
-       AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_NODE k2
-                      WHERE k2.object_type = 'ki' AND k2.name = k.name
-                        AND k2.major = k.major AND k2.lang = k.lang)
-     ORDER BY POW(RAND(), 1.0 / (COALESCE(v.visits, 0) + 1)) DESC
-     LIMIT 10"
-    lang]
-   {:builder-fn rs/as-unqualified-kebab-maps}))
-
-(defn create-ki
-  "Create a brand-new KI (major 1, minor 0) owned by `owner-id`, from `name`,
-  `type` and output `statement`; return it via fetch-ki. Used to create an input
-  inflight while managing links (#33), and by the creation form (#34)."
-  [owner-id {ki-name :name
-             ki-title :title
-             ki-type :type
-             ki-lang :lang
-             statement :output-statement}]
-  (let [hash (blob/write-blob statement)
-        id (str (UUID/randomUUID))]
-    (q!
-     db/ds
-     ;; Translations need no linking: a KI created with an existing name in another
-     ;; language is automatically a sibling (grouped by identity Name).
-     ["INSERT INTO AGORA_NODE
-       (id, object_type, name, title, type, lang, major, minor, output_statement_hash, owner_id, published_at)
-       VALUES (?, 'ki', ?, ?, ?, ?, 1, 0, ?, ?, UTC_TIMESTAMP())"
-      id
-      ki-name
-      ki-title
-      ki-type
-      (or ki-lang language/default-lang)
-      hash
-      owner-id])
-    (fetch-ki id)))
-
-(defn- ki-ref
-  "The (name, major) identity of the KI `id`, or nil."
-  [id]
-  (q1! db/ds
-       ["SELECT name, major FROM AGORA_NODE WHERE id = ?" id]
-       {:builder-fn rs/as-unqualified-kebab-maps}))
-
-(defn add-input
-  "Add an input edge: the KI referenced by `input` (a {:name :major} Major ref)
-  implies the KI identified by `id`. Edges reference (name, major) and are
-  idempotent (INSERT IGNORE on the unique edge key). Returns the updated KI via
-  fetch-ki, or nil if `id` is unknown."
-  [id {in-name :name
-       in-major :major}]
-  (when-let [{out-name :name
-              out-major :major}
-             (ki-ref id)]
-    (q!
-     db/ds
-     ;; both endpoints are KIs (object_type 'ki' — part of the endpoint identity).
-     ["INSERT IGNORE INTO AGORA_NODE_EDGE
-       (id, input_object_type, input_name, input_major, output_object_type, output_name, output_major)
-       VALUES (?, 'ki', ?, ?, 'ki', ?, ?)"
-      (str (UUID/randomUUID))
-      in-name
-      in-major
-      out-name
-      out-major])
-    (fetch-ki id)))
-
-(defn drop-input
-  "Remove the input edge from the KI referenced by `input` to the KI `id`.
-  Returns the updated KI via fetch-ki, or nil if `id` is unknown."
-  [id {in-name :name
-       in-major :major}]
-  (when-let [{out-name :name
-              out-major :major}
-             (ki-ref id)]
-    (q!
-     db/ds
-     ["DELETE FROM AGORA_NODE_EDGE
-       WHERE input_object_type = 'ki' AND input_name = ? AND input_major = ?
-         AND output_object_type = 'ki' AND output_name = ? AND output_major = ?"
-      in-name
-      in-major
-      out-name
-      out-major])
-    (fetch-ki id)))
+(defn rebuild-successor-index!
+  "Recompute AGORA_SUCCESSOR from every node's declared inputs, and drop the in-memory
+  caches. Safe to run any time; run daily to heal drift."
+  []
+  (q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])
+  (doseq [{:keys [id content]} (q! db/ds ["SELECT id, content FROM AGORA_NODE"] kebab)]
+    (index-successors! id (:inputs (decode-content content))))
+  (clear-caches!)
+  :ok)

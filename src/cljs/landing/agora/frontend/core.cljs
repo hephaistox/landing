@@ -6,10 +6,10 @@
   view via re-frame without a full page reload. The backend serves the SPA shell
   for every `/agora/<lang>/...` path, so direct URLs and refresh keep working.
 
-  Fetched resources are cached by [kind id] with a time-to-live; the displayed
-  view only swaps once data is available, so navigation never flashes a Loading
-  state. A local latest-minor index lets neighbour links auto-resolve to the
-  newest known version (e.g. right after an edit) without hitting the server."
+  Fetched documents are held in a bounded (≤1000) cache keyed by id, and the
+  displayed view only swaps once data is available. The backend pins inputs and
+  re-pins successors, so there is no client-side version resolution — neighbour
+  refs are used as returned."
   (:require
    [cljs.pprint                         :refer [pprint]]
    [landing.agora.frontend.article-view :as article-view]
@@ -72,47 +72,29 @@
 (defonce ^:private history (atom nil))
 
 ;; ---------------------------------------------------------------------------
-;; Local latest-minor index
+;; Fetched-document cache (bounded LRU)
 ;;
-;; :latest {[name major] {:id id :minor minor}} — the newest KI version we
-;; know about for each major lineage, learned from fetched/edited data. Neighbour
-;; links resolve through it, mirroring the server's resolve-major, so an edit is
-;; reflected everywhere immediately.
+;; :cache {key {:data … :at ms}} — KIs/articles keyed by id (or permalink key),
+;; capped so the SPA holds only recently-shown documents. Inputs are pinned and
+;; successors re-pinned server-side, so there is NO client-side latest-minor
+;; resolution — neighbour refs are used exactly as the backend returned them.
 ;; ---------------------------------------------------------------------------
 
-(defn- note-latest
-  "Fold a KI-ish ref {:name :major :minor :id} into the latest-minor index. Keyed
-  on (name, major) — identity's T is the object type `ki`."
-  [latest {:keys [name major minor id]}]
-  (if (and name major id (some? minor))
-    (let [k [name major]
-          cur (get latest k)]
-      (if (or (nil? cur) (> minor (:minor cur)))
-        (assoc latest
-               k
-               {:id id
-                :minor minor})
-        latest))
-    latest))
+(def ^:private cache-max-entries 1000)
 
-(defn- index-ki
-  "Index a KI and its neighbours into the latest-minor map."
-  [latest ki]
-  (reduce note-latest latest (concat [ki] (:inputs ki) (:successors ki))))
-
-(defn- resolve-neighbour
-  "Point a neighbour ref at the newest known minor of its (name, major) lineage."
-  [latest
-   {:keys [name major minor]
-    :as n}]
-  (let [newer (get latest [name major])]
-    (if (and newer (> (:minor newer) minor)) (assoc n :id (:id newer) :minor (:minor newer)) n)))
-
-(defn- resolve-ki-neighbours
-  [latest ki]
-  (-> ki
-      (update :inputs #(mapv (partial resolve-neighbour latest) %))
-      (update :successors #(mapv (partial resolve-neighbour latest) %))))
+(defn- cache-put
+  "Store `data` under `k` with a timestamp, evicting the least-recently-fetched
+  entries beyond the cap."
+  [db k data]
+  (let [entries (assoc (:cache db)
+                       k
+                       {:data data
+                        :at (js/Date.now)})]
+    (assoc db
+           :cache
+           (if (> (count entries) cache-max-entries)
+             (into {} (take-last cache-max-entries (sort-by (comp :at val) entries)))
+             entries))))
 
 ;; ---------------------------------------------------------------------------
 ;; State
@@ -169,10 +151,7 @@
                          (assoc :view {:kind :ki-public
                                        :data ki}
                                 :loading? false)
-                         (assoc-in [:cache ck]
-                                   {:data ki
-                                    :at (js/Date.now)})
-                         (update :latest index-ki ki)))))
+                         (cache-put ck ki)))))
 
 (defn- route-changed-fetch-list
   "Fetch the discoverability KI list (GET /agora/api/ki?lang=), scoped to the
@@ -227,45 +206,40 @@
 (rf/reg-event-db ::fetch-ok
                  (fn [db [_ kind id response]]
                    (let [data (:body response)]
-                     (cond-> (-> db
-                                 (assoc :view {:kind kind
-                                               :data data}
-                                        :loading? false)
-                                 (assoc-in [:cache [kind id]]
-                                           {:data data
-                                            :at (js/Date.now)}))
-                       (= kind :ki) (update :latest index-ki data)))))
+                     (-> db
+                         (assoc :view {:kind kind
+                                       :data data}
+                                :loading? false)
+                         (cache-put [kind id] data)))))
 
 (rf/reg-event-db ::fetch-failed
                  (fn [db [_ response]]
                    (js/console.error "[agora] fetch failed:" (clj->js response))
                    (assoc db :loading? false :error response)))
 
-;; Called after a successful edit: ingest the new version locally (cache + latest
-;; index) and navigate to it — no refetch, and references resolve to it at once.
+;; Neighbour cards fetch their KI by id (the response now carries bare {:id} refs).
+;; This fills the cache without touching the current view, and skips already-cached.
+(rf/reg-event-fx :agora/ensure-ki
+                 (fn [{:keys [db]} [_ id]]
+                   (when-not (get-in db [:cache [:ki id]])
+                     {:fetch {:method :get
+                              :url (str "/agora/api/ki/" id)
+                              :headers {"Accept" "application/json"}
+                              :response-content-types {#"application/json" :json}
+                              :on-success [::neighbour-ok id]
+                              :on-failure [::fetch-failed]}})))
+
+(rf/reg-event-db ::neighbour-ok (fn [db [_ id response]] (cache-put db [:ki id] (:body response))))
+
+;; Called after a successful edit: ingest the new version locally and navigate to
+;; it — no refetch.
 (rf/reg-event-fx :agora/edited
                  (fn [{:keys [db]} [_ ki]]
                    (let [id (:id ki)]
                      {:db (-> db
                               (ki-view/close-panels)
-                              (assoc-in [:cache [:ki id]]
-                                        {:data ki
-                                         :at (js/Date.now)})
-                              (update :latest index-ki ki))
+                              (cache-put [:ki id] ki))
                       :agora/navigate (i18n/ki-id (i18n/current db) id)})))
-
-;; Called after a link change (add/drop input): the same KI id is refreshed in
-;; place — update the view, cache and latest index, no navigation.
-(rf/reg-event-db :agora/ki-updated
-                 (fn [db [_ ki]]
-                   (-> db
-                       (assoc :view
-                              {:kind :ki
-                               :data ki})
-                       (assoc-in [:cache [:ki (:id ki)]]
-                                 {:data ki
-                                  :at (js/Date.now)})
-                       (update :latest index-ki ki))))
 
 ;; Programmatic navigation: drive Pushy so it pushState's and dispatches the
 ;; route change, same as an intercepted link click.
@@ -356,22 +330,11 @@
                    {:fetch (admin-post "/agora/api/admin/compact-tnr" ki-name ki-major)}))
 
 (rf/reg-sub ::view (fn [db _] (:view db)))
-(rf/reg-sub ::latest (fn [db _] (:latest db)))
+;; The cached document for a KI id (nil until a neighbour fetch lands).
+(rf/reg-sub :agora/doc (fn [db [_ id]] (get-in db [:cache [:ki id] :data])))
 (rf/reg-sub ::loading? (fn [db _] (:loading? db)))
 (rf/reg-sub ::loading-kind (fn [db _] (:loading-kind db)))
 (rf/reg-sub ::error (fn [db _] (:error db)))
-
-;; The view with KI neighbours re-resolved through the local latest-minor index,
-;; so links always point at the newest known version.
-(rf/reg-sub ::resolved-view
-            :<-
-            [::view]
-            :<-
-            [::latest]
-            (fn [[view latest] _]
-              (if (#{:ki :ki-public} (:kind view))
-                (update view :data #(resolve-ki-neighbours latest %))
-                view)))
 
 ;; ---------------------------------------------------------------------------
 ;; View
@@ -389,7 +352,7 @@
 
 (defn app-view
   []
-  (let [{:keys [kind data]} @(rf/subscribe [::resolved-view])
+  (let [{:keys [kind data]} @(rf/subscribe [::view])
         user @(rf/subscribe [::auth/user])
         loading? @(rf/subscribe [::loading?])
         error @(rf/subscribe [::error])]

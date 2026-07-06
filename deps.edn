@@ -65,6 +65,7 @@
  {buddy/buddy-hashers {:mvn/version "2.0.167"}
   com.brunobonacci/safely {:mvn/version "1.0.0"}
   com.draines/postal {:mvn/version "2.0.5"}
+  com.github.ben-manes.caffeine/caffeine {:mvn/version "3.1.8"}
   com.github.hephaistox/auto-web-clj {:deps/root "auto_web_clj"
                                       :git/sha "e7446ec83262c36baecf3af11c7530b0d2e97eb8"
                                       :git/url "https://github.com/hephaistox/auto-web"
