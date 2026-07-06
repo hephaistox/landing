@@ -24,7 +24,7 @@
    [landing.endpoints.ping            :refer [ping-route]]
    [landing.endpoints.plus            :refer [plus]]
    [landing.endpoints.resource        :refer [resource-handler]]
-   [landing.endpoints.swagger         :refer [api-ep]]
+   [landing.endpoints.swagger         :refer [api-swagger]]
    [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
    [landing.language                  :refer [pick-lang supported-langs]]
    [reitit.ring                       :as rring]
@@ -129,7 +129,7 @@
     (app-shell-route "/agora/:lang/ki/:id")
     (app-shell-route "/agora/:lang/article/:id")
     (app-shell-route "/agora/:lang/admin")
-    (api-ep "/api")
+    (api-swagger "/api")
     (w3c-validate-route "/w3c-validate")]
    {}))
 

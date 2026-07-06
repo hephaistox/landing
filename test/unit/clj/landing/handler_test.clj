@@ -2,6 +2,7 @@
   (:require
    [clojure.string    :as str]
    [clojure.test      :refer [deftest is testing]]
+   [env]
    [landing.handler   :as sut]
    [ring.mock.request :as mock]))
 
@@ -160,13 +161,19 @@
 
 (deftest cache-and-cors-test
   (let [h (sut/handler)]
-    (testing "Static asset gets a long immutable Cache-Control"
-      (let [resp (h (mock/request :get "/css/custom.css"))]
-        (is (= "public, max-age=31536000, immutable" (get-in resp [:headers "Cache-Control"])))
-        (is (= "*" (get-in resp [:headers "Access-Control-Allow-Origin"])))))
-    (testing "JS asset gets a long immutable Cache-Control"
-      (let [resp (h (mock/request :get "/js/lang.js"))]
-        (is (= "public, max-age=31536000, immutable" (get-in resp [:headers "Cache-Control"])))))
+    (testing "In :prod, a static asset gets a long immutable Cache-Control"
+      (with-redefs [env/env :prod]
+        (let [resp (h (mock/request :get "/css/custom.css"))]
+          (is (= "public, max-age=31536000, immutable" (get-in resp [:headers "Cache-Control"])))
+          (is (= "*" (get-in resp [:headers "Access-Control-Allow-Origin"]))))))
+    (testing "In :prod, a JS asset gets a long immutable Cache-Control"
+      (with-redefs [env/env :prod]
+        (let [resp (h (mock/request :get "/js/lang.js"))]
+          (is (= "public, max-age=31536000, immutable" (get-in resp [:headers "Cache-Control"]))))))
+    (testing "In :dev, static assets are no-cache (not fingerprinted)"
+      (with-redefs [env/env :dev]
+        (let [resp (h (mock/request :get "/css/custom.css"))]
+          (is (= "no-cache" (get-in resp [:headers "Cache-Control"]))))))
     (testing "HTML gets a short Cache-Control"
       (let [resp (h (mock/request :get "/fr/index.html"))]
         (is (= "no-cache" (get-in resp [:headers "Cache-Control"])))))
