@@ -19,10 +19,8 @@
    [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
    [landing.endpoints.default-handler :refer [default-handler not-found-for-lang]]
-   [landing.endpoints.exception       :refer [exception-route]]
    [landing.endpoints.html.admin-be   :refer [admin-route]]
    [landing.endpoints.ping            :refer [ping-route]]
-   [landing.endpoints.plus            :refer [plus]]
    [landing.endpoints.resource        :refer [resource-handler]]
    [landing.endpoints.swagger         :refer [api-swagger]]
    [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
@@ -98,40 +96,37 @@
 
 (defn router
   []
-  (rring/router
-   [(ping-route "/ping")
-    (exception-route "/exception")
-    (root-redirect-route "/")
-    (lang-page-redirect-route "/index.html")
-    (lang-page-redirect-route "/404.html")
-    (legacy-articles-route "/articles")
-    (plus "/plus")
-    (admin-route "/all-kind-of-checks")
-    (contact-route "/contact")
-    (check-url-route "/check-url")
-    (agora-lang-redirect-route "/agora")
-    (sitemap-route "/agora/sitemap.xml")
-    (agora-lang-redirect-route "/agora/:lang")
-    (auth-routes "/agora/api/auth")
-    (admin-routes "/agora/api/admin")
-    (ki-collection-route "/agora/api/ki")
-    (by-major-route "/agora/api/ki/by/:name/:major")
-    (ki-route "/agora/api/ki/:id")
-    (edit-ki-route "/agora/api/ki/:id/edit")
-    (translate-ki-route "/agora/api/ki/:id/translate")
-    (translate-suggest-route "/agora/api/translate")
-    (inputs-route "/agora/api/ki/:id/inputs")
-    (ki-page-route "/agora/:lang/ki/:name/:major")
-    (public-shell-route "/agora/:lang/discover")
-    (public-shell-route "/agora/:lang/preferences")
-    (article-route "/agora/api/article/:id")
-    (app-shell-route "/agora/:lang/new")
-    (app-shell-route "/agora/:lang/ki/:id")
-    (app-shell-route "/agora/:lang/article/:id")
-    (app-shell-route "/agora/:lang/admin")
-    (api-swagger "/api")
-    (w3c-validate-route "/w3c-validate")]
-   {}))
+  (rring/router [(ping-route "/ping")
+                 (root-redirect-route "/")
+                 (lang-page-redirect-route "/index.html")
+                 (lang-page-redirect-route "/404.html")
+                 (legacy-articles-route "/articles")
+                 (admin-route "/all-kind-of-checks")
+                 (contact-route "/contact")
+                 (check-url-route "/check-url")
+                 (agora-lang-redirect-route "/agora")
+                 (sitemap-route "/agora/sitemap.xml")
+                 (agora-lang-redirect-route "/agora/:lang")
+                 (auth-routes "/agora/api/auth")
+                 (admin-routes "/agora/api/admin")
+                 (ki-collection-route "/agora/api/ki")
+                 (by-major-route "/agora/api/ki/by/:name/:major")
+                 (ki-route "/agora/api/ki/:id")
+                 (edit-ki-route "/agora/api/ki/:id/edit")
+                 (translate-ki-route "/agora/api/ki/:id/translate")
+                 (translate-suggest-route "/agora/api/translate")
+                 (inputs-route "/agora/api/ki/:id/inputs")
+                 (ki-page-route "/agora/:lang/ki/:name/:major")
+                 (public-shell-route "/agora/:lang/discover")
+                 (public-shell-route "/agora/:lang/preferences")
+                 (article-route "/agora/api/article/:id")
+                 (app-shell-route "/agora/:lang/new")
+                 (app-shell-route "/agora/:lang/ki/:id")
+                 (app-shell-route "/agora/:lang/article/:id")
+                 (app-shell-route "/agora/:lang/admin")
+                 (api-swagger "/api")
+                 (w3c-validate-route "/w3c-validate")]
+                {}))
 
 (defn handler
   []

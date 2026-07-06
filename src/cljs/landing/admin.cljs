@@ -380,7 +380,6 @@
            (concat
             [["Main page" "/"]
              ["Swagger" "/api/api-docs/"]
-             ["Exception" "/exception"]
              ["Trigger 404" "/non-existing-page"]
              ["Github project" "https://github.com/hephaistox/landing"]
              ["Project board" "https://github.com/orgs/hephaistox/projects/1/views/3"]
