@@ -102,6 +102,13 @@
 ;;     predecessor gets a new minor) and lives in the mutable `computed`
 ;;     (`:pins {tnlr-key → id}`).
 
+(def max-inputs
+  "Cap on the number of declared inputs a single KI may carry. Inputs are added one
+  at a time (each a new minor), with no natural bound, so this protects the read
+  model — the envelope blob size and the successor-cache fan-out — from an
+  unbounded input list. A generous ceiling; real reasoning steps use a handful."
+  50)
+
 (defn add-declared
   "Add TNLR `t` to the declared inputs (dedup by TNLR). Returns the new declarations."
   [tnlrs t]

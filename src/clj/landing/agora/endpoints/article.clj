@@ -5,6 +5,7 @@
   (:require
    [landing.agora.article             :as article]
    [landing.agora.endpoints.error     :as error]
+   [landing.agora.endpoints.throttle  :as throttle]
    [landing.language                  :as language]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
@@ -91,6 +92,7 @@
                                 lang-schema]]}
           :summary "List articles (discover, scoped to ?lang=)"}
     :post {:handler create-article-handler
+           :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
            :operationId "agora-create-article"
            :parameters {:body [:map
                                [:name name-schema]

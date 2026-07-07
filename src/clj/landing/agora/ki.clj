@@ -119,12 +119,17 @@
       (let [t {:type ki-type
                :name in-name
                :lang lang
-               :major in-major}]
-        (new-minor! src
-                    (assoc (content-of src)
-                           :inputs (domain/add-declared (:inputs src) t)
-                           :author (node/author-name owner-id)
-                           :owner-id owner-id)))
+               :major in-major}
+            inputs (domain/add-declared (:inputs src) t)]
+        ;; add-declared dedups, so re-adding an existing input never grows the
+        ;; count — only a genuinely new input past the cap is rejected.
+        (if (> (count inputs) domain/max-inputs)
+          :input-limit
+          (new-minor! src
+                      (assoc (content-of src)
+                             :inputs inputs
+                             :author (node/author-name owner-id)
+                             :owner-id owner-id))))
       (fetch-ki id))))
 
 (defn drop-input

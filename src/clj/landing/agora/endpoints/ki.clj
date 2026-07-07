@@ -7,6 +7,7 @@
   (:require
    [landing.agora.domain              :as domain]
    [landing.agora.endpoints.error     :as error]
+   [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.ki                  :as ki]
    [landing.agora.translate           :as translate]
    [landing.language                  :as language]
@@ -148,6 +149,7 @@
                                 lang-schema]]}
           :summary "Search KIs by name (scoped to ?lang=)"}
     :post {:handler create-ki-handler
+           :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
            :operationId "agora-create-ki"
            :parameters {:body [:map
                                [:name name-schema]
@@ -161,17 +163,22 @@
 
 (def add-input-handler
   "Declare an input on the KI :id (logged-in users only) → a new minor version. 200
-  with the new KI, 404 if unknown, 401 if not logged in."
+  with the new KI, 404 if unknown, 422 if the input cap is reached, 401 if not
+  logged in."
   (fn [req]
     (if-let [uid (user-id req)]
       (let [id (get-in req [:parameters :path :id])
-            input (get-in req [:parameters :body])]
-        (if-let [ki (ki/add-input id uid input)]
-          {:status 200
-           :body ki}
-          {:status 404
-           :body {:error "KI not found"
-                  :id id}}))
+            input (get-in req [:parameters :body])
+            result (ki/add-input id uid input)]
+        (cond
+          (= result :input-limit)
+          {:status 422
+           :body {:error (str "a KI may declare at most " domain/max-inputs " inputs")}}
+          result {:status 200
+                  :body result}
+          :else {:status 404
+                 :body {:error "KI not found"
+                        :id id}}))
       unauthorized)))
 
 (def drop-input-handler
@@ -201,12 +208,14 @@
     :coercion coercion
     :muuntaja m/instance
     :swagger {:tags #{:agora}}
+    ;; both methods mutate (each = a new minor), so throttle at the route level.
     :middleware [parameters/parameters-middleware
                  muuntaja/format-negotiate-middleware
                  muuntaja/format-response-middleware
                  error/exception-middleware
                  muuntaja/format-request-middleware
-                 rcoercion/coerce-request-middleware]
+                 rcoercion/coerce-request-middleware
+                 (:middleware-fn throttle/authoring-rate-limiter)]
     :post {:handler add-input-handler
            :operationId "agora-add-input"
            :parameters {:path [:map [:id :string]]
@@ -284,7 +293,9 @@
                         ;; decoding request body
                         muuntaja/format-request-middleware
                         ;; coercing request parameters (path :id + body)
-                        rcoercion/coerce-request-middleware]}}])
+                        rcoercion/coerce-request-middleware
+                        ;; throttle authoring writes
+                        (:middleware-fn throttle/authoring-rate-limiter)]}}])
 
 (defn translate-ki-route
   [prefix]
@@ -309,7 +320,8 @@
                         muuntaja/format-response-middleware
                         error/exception-middleware
                         muuntaja/format-request-middleware
-                        rcoercion/coerce-request-middleware]}}])
+                        rcoercion/coerce-request-middleware
+                        (:middleware-fn throttle/authoring-rate-limiter)]}}])
 
 (defn translate-suggest-route
   [prefix]
