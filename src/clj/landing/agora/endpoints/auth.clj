@@ -4,6 +4,7 @@
   (:require
    [auto-core.log                     :as core-log]
    [auto-web.middleware.rate-limit    :refer [make-rate-limiter stop-rate-limit]]
+   [landing.agora.altcha              :as altcha]
    [landing.agora.auth                :as auth]
    [landing.agora.oauth               :as oauth]
    [landing.language                  :as language]
@@ -35,26 +36,39 @@
                             :cleanup-interval-ms 60000})
  :stop (stop-rate-limit credential-rate-limiter))
 
+(def altcha-challenge-handler
+  "Issue a fresh ALTCHA proof-of-work challenge for the registration widget."
+  (fn [_]
+    {:status 200
+     :body (altcha/challenge)}))
+
+(defn- register-account
+  [email password display-name]
+  (let [[status v] (auth/register {:email email
+                                   :password password
+                                   :display-name display-name})]
+    (if (= status :ok)
+      {:status 201
+       :body v
+       :session {:user-id (:id v)}}
+      (case v
+        :email-taken {:status 409
+                      :body {:error "email already registered"}}
+        :weak-password
+        {:status 400
+         :body {:error (str "password must be at least " auth/min-password-length " characters")}}
+        :db-error {:status 503
+                   :body {:error "service temporarily unavailable, please retry"}}
+        {:status 400
+         :body {:error "email and password are required"}}))))
+
 (def register-handler
   (fn [req]
-    (let [{:keys [email password display-name]} (get-in req [:parameters :body])
-          [status v] (auth/register {:email email
-                                     :password password
-                                     :display-name display-name})]
-      (if (= status :ok)
-        {:status 201
-         :body v
-         :session {:user-id (:id v)}}
-        (case v
-          :email-taken {:status 409
-                        :body {:error "email already registered"}}
-          :weak-password
-          {:status 400
-           :body {:error (str "password must be at least " auth/min-password-length " characters")}}
-          :db-error {:status 503
-                     :body {:error "service temporarily unavailable, please retry"}}
-          {:status 400
-           :body {:error "email and password are required"}})))))
+    (let [{:keys [email password display-name altcha]} (get-in req [:parameters :body])]
+      (if-not (altcha/verify altcha)
+        {:status 400
+         :body {:error "human verification failed, please try again"}}
+        (register-account email password display-name)))))
 
 (def login-handler
   (fn [req]
@@ -172,8 +186,14 @@
                                  [:string {:min 1
                                            :max 200}]]
                                 [:display-name {:optional true}
-                                 [:string {:max 100}]]]}
+                                 [:string {:max 100}]]
+                                [:altcha [:string {:max 4000}]]]}
             :summary "Register a password account"}}]
+   ["/altcha-challenge"
+    {:get {:handler altcha-challenge-handler
+           :operationId "agora-altcha-challenge"
+           :no-doc true
+           :summary "Issue an ALTCHA proof-of-work challenge"}}]
    ["/login"
     {:middleware [(:middleware-fn credential-rate-limiter)]
      :post {:handler login-handler

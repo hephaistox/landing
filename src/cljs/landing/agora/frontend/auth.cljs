@@ -4,6 +4,8 @@
   email/password login and registration. Session is a server cookie; the current
   user is discovered via GET /agora/api/auth/me on load."
   (:require
+   ["altcha"] ;; registers the <altcha-widget> web component (self-hosted PoW captcha)
+   ["altcha/i18n/fr-fr"] ;; registers French widget strings ($altcha.i18n "fr-fr"); must load after "altcha"
    [clojure.string              :as str]
    [landing.agora.frontend.i18n :as i18n]
    [landing.agora.frontend.ui   :as ui]
@@ -83,11 +85,12 @@
 
 (rf/reg-event-fx ::submit
                  (fn [{:keys [db]} _]
-                   (let [{:keys [mode email password display-name]} (::form db)
+                   (let [{:keys [mode email password display-name altcha]} (::form db)
                          url (if (= mode :login) "/agora/api/auth/login" "/agora/api/auth/register")
                          body (cond-> {:email email
                                        :password password}
-                                (= mode :register) (assoc :display-name display-name))]
+                                (= mode :register) (assoc :display-name display-name
+                                                          :altcha altcha))]
                      {:db (assoc-in db [::form :submitting?] true)
                       :fetch (json-req :post url body [::auth-ok] [::auth-failed])})))
 
@@ -245,12 +248,45 @@
                     :border "1px solid #ccc"
                     :border-radius "0.3em"}}]])
 
+(defn- altcha-captcha
+  "The self-hosted ALTCHA proof-of-work widget. It fetches its challenge from our
+  endpoint, solves it in a worker, and on success stores the payload in the form so
+  the register POST can carry it (the server re-verifies).
+
+  `lang` (\"fr\"/\"en\") picks the widget's UI language; \"fr\" resolves to the
+  registered \"fr-fr\" strings. NOTE: ALTCHA only runs in a *secure context* — HTTPS,
+  or http://localhost / http://127.0.0.1. Over plain HTTP on any other host (a LAN IP,
+  0.0.0.0, a *.local name) `crypto.subtle` is unavailable and the widget shows the
+  generic \"Verification failed\" — use http://localhost in dev."
+  [lang]
+  (let [attach (fn [el]
+                 (when el
+                   (.addEventListener el
+                                      "statechange"
+                                      (fn [e]
+                                        (let [d (.-detail e)]
+                                          (rf/dispatch [::set-form-property
+                                                        :altcha
+                                                        (when (= (.-state d) "verified")
+                                                          (.-payload d))]))))))]
+    (fn [lang]
+      [:altcha-widget {:ref attach
+                       ;; v3 attribute is `challenge` (a URL fetches; inline JSON starts with `{`);
+                       ;; `challengeurl` was the old v0.x name and is silently ignored → empty fetch.
+                       :challenge "/agora/api/auth/altcha-challenge"
+                       :language (name lang)
+                       :style {:display "block"
+                               :margin-bottom "0.8em"}}])))
+
 (defn auth-modal
   "Login / registration overlay, shown when a form is open."
   []
-  (when-let [{:keys [mode email password display-name error submitting?]} @(rf/subscribe [::form])]
+  (when-let [{:keys [mode email password display-name error submitting? altcha]} @(rf/subscribe
+                                                                                   [::form])]
     (let [register? (= mode :register)
-          lang @(rf/subscribe [::i18n/lang])]
+          lang @(rf/subscribe [::i18n/lang])
+          ;; on register, the button stays disabled until the ALTCHA payload is present
+          blocked? (or (boolean submitting?) (and register? (str/blank? altcha)))]
       [:div {:on-click #(rf/dispatch [::close-form])
              :style {:position "fixed"
                      :inset 0
@@ -303,13 +339,14 @@
            "text"
            display-name
            #(rf/dispatch [::set-form-property :display-name (.. % -target -value)])])
+        (when register? [altcha-captcha lang])
         (when error
           [:div {:style {:color "#c92a2a"
                          :font-size "0.85em"
                          :margin-bottom "0.6em"}}
            error])
-        [:button {:on-click #(rf/dispatch [::submit])
-                  :disabled (boolean submitting?)
+        [:button {:on-click #(when-not blocked? (rf/dispatch [::submit]))
+                  :disabled blocked?
                   :style {:width "100%"
                           :padding "0.55em"
                           :border "none"
@@ -317,7 +354,8 @@
                           :color "#fff"
                           :border-radius "0.3em"
                           :font-size "1em"
-                          :cursor (if submitting? "default" "pointer")}}
+                          :opacity (if blocked? 0.7 1)
+                          :cursor (if blocked? "default" "pointer")}}
          (if submitting? "…" (i18n/t lang (if register? :auth/register :auth/login)))]
         [:div {:style {:text-align "center"
                        :margin-top "0.8em"

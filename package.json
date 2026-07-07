@@ -7,6 +7,7 @@
   "version": "1.0.0",
   "author": "Hephaistox <info@hephaistox.fr>",
   "dependencies": {
+    "altcha": "^3.1.0",
     "create-react-class": "^15.7.0",
     "highlight.js": "^11.10.0",
     "react": "^18.3.1",
