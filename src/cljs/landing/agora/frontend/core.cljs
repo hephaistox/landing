@@ -39,6 +39,9 @@
   `/ki/<id>` (a specific version)."
   [path]
   (cond
+    (re-find #"^/agora/([a-z]{2})/?(?:[?#].*)?$" path) {:kind :home
+                                                        :lang (second (re-find #"^/agora/([a-z]{2})"
+                                                                               path))}
     (re-find #"^/agora/([a-z]{2})/discover/?(?:[?#].*)?$" path)
     {:kind :discover
      :lang (second (re-find #"^/agora/([a-z]{2})/discover" path))}
@@ -166,22 +169,22 @@
                          (cache-put ck ki)))))
 
 (defn- route-changed-fetch-list
-  "Fetch the discoverability KI list (GET /agora/api/ki?lang=), scoped to the
-  current content language. Not cached — each visit re-fetches so the
-  visit-weighted random order refreshes."
-  [db lang]
+  "Fetch the KI list (GET /agora/api/ki?lang=), scoped to the current content language,
+  for the given `view-kind` (`:home` landing or `:discover` grid). Not cached — each
+  visit re-fetches so the visit-weighted random order refreshes."
+  [db lang view-kind]
   {:db (assoc db :loading? true :error nil)
    :fetch {:method :get
            :url (str "/agora/api/ki?lang=" lang)
            :headers {"Accept" "application/json"}
            :response-content-types {#"application/json" :json}
-           :on-success [::fetch-list-ok]
+           :on-success [::fetch-list-ok view-kind]
            :on-failure [::fetch-failed]}})
 
 (rf/reg-event-db ::fetch-list-ok
-                 (fn [db [_ response]]
+                 (fn [db [_ view-kind response]]
                    (assoc db
-                          :view {:kind :discover
+                          :view {:kind view-kind
                                  :data (:body response)}
                           :loading? false)))
 
@@ -263,7 +266,8 @@
                           :error nil)
                :dispatch [:agora/admin-fetch]}
        :ki-public (route-changed-fetch-public db name major lang)
-       :discover (route-changed-fetch-list db (i18n/current db))
+       :home (route-changed-fetch-list db (i18n/current db) :home)
+       :discover (route-changed-fetch-list db (i18n/current db) :discover)
        :articles (route-changed-fetch-article-list db (i18n/current db))
        :article-new {:db (assoc db
                                 :view {:kind :article-new
@@ -463,6 +467,7 @@
              ;; editable page for signed-in ones. Reactive on the auth sub, so
              ;; it swaps the moment /me resolves after a hard load.
              :ki-public (if user [ki-view/ki-page data] [ki-view/public-ki-page data])
+             :home [ki-view/landing-page data]
              :discover [ki-view/discover-page data]
              :articles [article-view/articles-discover data]
              :article [article-view/article-card data]

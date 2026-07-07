@@ -223,7 +223,8 @@
                           :gap "0.9em"}}]
            (conj (mapv (fn [a] ^{:key (:id a)} [article-preview-card lang a]) articles)
                  ^{:key "__add__"}
-                 [ki-view/add-card (i18n/new-article lang) (i18n/t lang :nav/new-article)]))]))
+                 [ki-view/add-card (i18n/new-article lang) (i18n/t lang :nav/new-article)]))
+     [ki-view/fab (i18n/new-article lang) (i18n/t lang :nav/new-article)]]))
 
 ;; ---------------------------------------------------------------------------
 ;; Article authoring (writing page)

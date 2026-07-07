@@ -618,7 +618,7 @@
               :style {:background "#1b1a17"
                       :color "#e8e2d6"
                       :border-bottom "2px solid #b9770e"}}
-     [:a {:href (i18n/discover lang)
+     [:a {:href (i18n/home lang)
           :style {:font-family "Georgia, 'Cormorant Garamond', serif"
                   :font-size "1.4em"
                   :font-weight 700
@@ -1476,25 +1476,138 @@
                    :font-weight 600}}
     label]])
 
+(defn fab
+  "A mobile-only floating '+' create button, fixed bottom-right so it stays reachable
+  without scrolling to the grid's trailing add-card. Hidden ≥640px by the shell's
+  `.agora-fab` rule (desktop uses the in-grid card). Links to `href`."
+  [href label]
+  [:a {:class "agora-fab"
+       :href href
+       :title label
+       :aria-label label}
+   "+"])
+
+(defn- landing-hero
+  "The marketing banner atop the discover/landing page: the pitch and the primary
+  create actions — so authoring is above the fold, not buried under the grid."
+  [lang]
+  [:section {:style {:background "linear-gradient(160deg, #1b1a17, #262019)"
+                     :color "#e8e2d6"
+                     :border-radius "0.8em"
+                     :padding "2.2em 1.4em"
+                     :margin-bottom "1.4em"
+                     :text-align "center"}}
+   [:h1 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
+                 :font-size "clamp(1.6em, 4.2vw, 2.5em)"
+                 :line-height "1.18"
+                 :margin "0 0 0.45em"
+                 :color "#f0e6d2"}}
+    (i18n/t lang :landing/headline)]
+   [:p {:style {:max-width "42em"
+                :margin "0 auto 1.4em"
+                :font-size "1.05em"
+                :line-height "1.55"
+                :color "#c9c1b2"}}
+    (i18n/t lang :landing/subtitle)]
+   [:div {:style {:display "flex"
+                  :flex-wrap "wrap"
+                  :gap "0.7em"
+                  :justify-content "center"}}
+    [:a {:href (i18n/new-ki lang)
+         :style {:padding "0.6em 1.3em"
+                 :background "#b9770e"
+                 :color "#fff"
+                 :border-radius "0.4em"
+                 :font-weight 600
+                 :text-decoration "none"}}
+     (i18n/t lang :landing/cta-ki)]
+    [:a {:href (i18n/new-article lang)
+         :style {:padding "0.6em 1.3em"
+                 :background "transparent"
+                 :color "#e8e2d6"
+                 :border "1px solid #b9770e"
+                 :border-radius "0.4em"
+                 :text-decoration "none"}}
+     (i18n/t lang :landing/cta-article)]]])
+
+(defn- landing-spotlight
+  "A live example — one real KI from the graph, rendered prominently so a first-time
+  visitor sees what a Knowledge Item is."
+  [lang k]
+  [:a {:href (permalink lang k)
+       :style {:display "block"
+               :border "1px solid #e2ddd2"
+               :border-left "4px solid #b9770e"
+               :border-radius "0.6em"
+               :background "#fff"
+               :padding "1.1em 1.3em"
+               :margin-bottom "1.6em"
+               :text-decoration "none"
+               :color "inherit"}}
+   [:div {:style {:font-size "0.72em"
+                  :text-transform "uppercase"
+                  :letter-spacing "0.06em"
+                  :color "#b9770e"
+                  :margin-bottom "0.55em"}}
+    (i18n/t lang :landing/example-label)]
+   [:div {:style {:display "flex"
+                  :align-items "center"
+                  :gap "0.6em"
+                  :margin-bottom "0.45em"}}
+    [kind-badge (:kind k)]
+    [:span {:style {:font-weight 700
+                    :font-size "1.15em"}}
+     (or (:title k) (:name k))]]
+   [:p {:style {:margin "0 0 0.5em"
+                :color "#333"
+                :line-height "1.55"}}
+    (:output-statement k)]
+   [:span {:style {:color "#b9770e"
+                   :font-weight 600
+                   :font-size "0.9em"}}
+    (i18n/t lang :landing/explore)]])
+
+(defn landing-page
+  "The Agora home/landing page (`/agora/<lang>`): a marketing hero with the primary
+  create actions, a live example KI from the graph, and a link into KI discovery.
+  General and welcoming — the full browse grid lives on the discover page."
+  [kis]
+  (let [lang @(rf/subscribe [::i18n/lang])]
+    [:div {:style {:max-width "56em"
+                   :margin "1.5em auto"
+                   :padding "0 0.8em"
+                   :font-family "system-ui, sans-serif"}}
+     [landing-hero lang]
+     (when-let [k (first kis)] [landing-spotlight lang k])
+     [:div {:style {:text-align "center"}}
+      [:a {:href (i18n/discover lang)
+           :style {:color "#b9770e"
+                   :font-weight 600
+                   :text-decoration "none"}}
+       (i18n/t lang :landing/browse)]]]))
+
 (defn discover-page
-  "Public homepage: a visit-weighted sample of KIs (scoped to the current content
-  language) as a responsive grid of preview cards that wraps to as many rows as
-  the screen width needs, ending with a `+` card to author a new KI. Navigation and
-  search live in the shared header."
+  "Focused KI discovery (`/agora/<lang>/discover`): a responsive grid of recent KIs,
+  ending with a `+` card, plus a mobile FAB. Search lives in the shared header."
   [kis]
   (let [lang @(rf/subscribe [::i18n/lang])]
     [:div {:style {:max-width "72em"
                    :margin "1.5em auto"
                    :padding "0 0.8em"
                    :font-family "system-ui, sans-serif"}}
+     [:h1 {:style {:font-size "1.4em"
+                   :margin "0 0 0.2em"
+                   :color "#1b1a17"}}
+      (i18n/t lang :discover/heading)]
      [:p {:style {:color "#666"
-                  :margin "0 0 1em"}}
+                  :margin "0 0 1.1em"}}
       (i18n/t lang :discover/tagline)]
      (into [:div {:style {:display "grid"
                           :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
                           :gap "0.9em"}}]
            (conj (mapv (fn [k] ^{:key (:id k)} [discover-card lang k]) kis)
-                 ^{:key "__add__"} [add-card (i18n/new-ki lang) (i18n/t lang :nav/new-ki)]))]))
+                 ^{:key "__add__"} [add-card (i18n/new-ki lang) (i18n/t lang :nav/new-ki)]))
+     [fab (i18n/new-ki lang) (i18n/t lang :nav/new-ki)]]))
 
 ;; ===========================================================================
 ;; Loading placeholders (skeletons)
@@ -1567,7 +1680,7 @@
   `kind` so the layout does not jump when the content arrives."
   [kind]
   (case kind
-    :discover [skeleton-discover]
+    (:home :discover :articles) [skeleton-discover]
     [skeleton-ki-page]))
 
 ;; ===========================================================================

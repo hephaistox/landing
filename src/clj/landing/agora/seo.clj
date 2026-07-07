@@ -168,6 +168,45 @@
                                                {"@type" "Person"
                                                 "name" (:author art)})))])))
 
+(def ^:private home-copy
+  "Localized marketing title/description for the home/landing page — mirrors the SPA
+  hero copy (landing.agora.frontend.i18n `:landing/headline` / `:landing/subtitle`).
+  Kept here because SEO is server-rendered before the SPA runs."
+  {"fr"
+   {:title "Agora — Stockez le raisonnement, pas seulement la conclusion"
+    :desc
+    "Agora est un graphe public d'étapes de raisonnement contestables — chaque affirmation traçable jusqu'aux étapes qui la fondent, chaque terme jusqu'à sa définition."}
+   "en"
+   {:title "Agora — Store the reasoning, not just the conclusion"
+    :desc
+    "Agora is a public graph of challengeable reasoning steps — every claim traceable to the steps it stands on, every term to its definition."}})
+
+(defn home-head
+  "SEO `<head>` for the Agora home/landing page: a localized marketing title and
+  description, canonical + hreflang alternates across languages, and website
+  OpenGraph."
+  [base lang]
+  (let [{:keys [title desc]}
+        (get home-copy (language/normalize lang) (get home-copy language/default-lang))
+        url (str base "/agora/" lang)]
+    (str/join "\n"
+              (concat [(str "<title>" (esc title) "</title>")
+                       (meta-name "description" desc)
+                       (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")]
+                      (for [l language/languages]
+                        (str "<link rel=\"alternate\" hreflang=\""
+                             (esc l)
+                             "\" href=\""
+                             (esc (str base "/agora/" l))
+                             "\"/>"))
+                      [(meta-prop "og:type" "website")
+                       (meta-prop "og:site_name" "Agora")
+                       (meta-prop "og:title" title)
+                       (meta-prop "og:description" desc)
+                       (meta-prop "og:url" url)
+                       (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
+                       (meta-name "twitter:card" "summary")]))))
+
 (defn generic-head
   "Generic OpenGraph for a non-KI public page (e.g. discover)."
   [base lang path title desc]
@@ -232,6 +271,13 @@
     (str "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
          "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"\n"
          "        xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n"
+         ;; home / landing pages
+         (str/join (for [l language/languages]
+                     (url (str "/agora/" l)
+                          nil
+                          (for [a language/languages]
+                            {:lang a
+                             :path (str "/agora/" a)}))))
          ;; discover pages
          (str/join (for [l language/languages]
                      (url (str "/agora/" l "/discover")

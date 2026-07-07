@@ -77,6 +77,24 @@
                  (seo/generic-head base lang (str "/ki/" name "/" major-n) "Agora" "Agora"))]
       (html-response (seo/inject @public-template head lang)))))
 
+(defn home-page-response
+  "Serve the Agora home/landing shell (`/agora/<lang>`) with its own SEO head —
+  localized marketing title/description, canonical and hreflang alternates."
+  [req]
+  (let [lang (language/normalize (get-in req [:path-params :lang]))]
+    (html-response (seo/inject @public-template (seo/home-head (seo/base-url req) lang) lang))))
+
+(defn home-shell-route
+  "Serve the home/landing shell at `prefix` (`/agora/:lang`)."
+  [prefix]
+  [prefix {;; :conflicting — `/agora/:lang` overlaps the literal `/agora/sitemap.xml`;
+           ;; reitit's matcher prefers the literal.
+           :conflicting true
+           :get {:swagger {:tags #{:agora}}
+                 :handler home-page-response
+                 :middleware html-middlewares
+                 :summary "Agora home/landing (SEO head injected)"}}])
+
 (defn public-shell-route
   "Serve the public shell for discover / preferences (generic OG metadata)."
   [prefix]

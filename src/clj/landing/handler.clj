@@ -17,6 +17,7 @@
                                               translate-suggest-route]]
    [landing.agora.endpoints.shell     :refer [app-shell-route
                                               article-page-route
+                                              home-shell-route
                                               ki-page-route
                                               public-shell-route
                                               sitemap-route]]
@@ -28,7 +29,7 @@
    [landing.endpoints.resource        :refer [resource-handler]]
    [landing.endpoints.swagger         :refer [api-swagger]]
    [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
-   [landing.language                  :refer [pick-lang supported-langs]]
+   [landing.language                  :refer [pick-lang]]
    [reitit.ring                       :as rring]
    [ring.middleware.session           :refer [wrap-session]]
    [ring.middleware.session.cookie    :refer [cookie-store]]))
@@ -89,19 +90,14 @@
   (when-let [lang (second (re-find #"^/(fr|en)/" (str (:uri req))))] (not-found-for-lang req lang)))
 
 (defn agora-lang-redirect-route
-  "Redirect `/agora` (and bare `/agora/:lang`) to the language-fixed discover page
-  `/agora/<lang>/discover`. The language comes from the `:lang` path segment when
-  present and supported, else from the browser (cookie → Accept-Language →
-  default), mirroring how the landing site resolves language."
+  "Redirect bare `/agora` to the language-fixed landing/home page `/agora/<lang>`. The
+  language comes from the browser (cookie → Accept-Language → default), mirroring how
+  the landing site resolves language. (`/agora/<lang>` itself is served as the SPA
+  shell — see the router.)"
   [prefix]
-  ;; :conflicting — `/agora/:lang` (2-seg wildcard) overlaps the literal
-  ;; `/agora/sitemap.xml` for the detector; reitit's matcher prefers the literal.
-  [prefix {:conflicting true
-           :get {:handler (fn [req]
-                            (let [seg (get-in req [:path-params :lang])
-                                  lang (if (contains? supported-langs seg) seg (pick-lang req))]
-                              {:status 302
-                               :headers {"Location" (str "/agora/" lang "/discover")}}))}}])
+  [prefix {:get {:handler (fn [req]
+                            {:status 302
+                             :headers {"Location" (str "/agora/" (pick-lang req))}})}}])
 
 (defn router
   []
@@ -116,7 +112,7 @@
     (check-url-route "/check-url")
     (agora-lang-redirect-route "/agora")
     (sitemap-route "/agora/sitemap.xml")
-    (agora-lang-redirect-route "/agora/:lang")
+    (home-shell-route "/agora/:lang")
     (auth-routes "/agora/api/auth")
     (admin-routes "/agora/api/admin")
     (ki-collection-route "/agora/api/ki")
