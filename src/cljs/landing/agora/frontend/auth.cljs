@@ -258,7 +258,7 @@
   or http://localhost / http://127.0.0.1. Over plain HTTP on any other host (a LAN IP,
   0.0.0.0, a *.local name) `crypto.subtle` is unavailable and the widget shows the
   generic \"Verification failed\" — use http://localhost in dev."
-  [lang]
+  [_]
   (let [attach (fn [el]
                  (when el
                    (.addEventListener el
@@ -269,14 +269,13 @@
                                                         :altcha
                                                         (when (= (.-state d) "verified")
                                                           (.-payload d))]))))))]
-    (fn [lang]
-      [:altcha-widget {:ref attach
-                       ;; v3 attribute is `challenge` (a URL fetches; inline JSON starts with `{`);
-                       ;; `challengeurl` was the old v0.x name and is silently ignored → empty fetch.
-                       :challenge "/agora/api/auth/altcha-challenge"
-                       :language (name lang)
-                       :style {:display "block"
-                               :margin-bottom "0.8em"}}])))
+    (fn [lang] [:altcha-widget {:ref attach
+                                ;; v3 attribute is `challenge` (a URL fetches; inline JSON starts with `{`);
+                                ;; `challengeurl` was the old v0.x name and is silently ignored → empty fetch.
+                                :challenge "/agora/api/auth/altcha-challenge"
+                                :language (name lang)
+                                :style {:display "block"
+                                        :margin-bottom "0.8em"}}])))
 
 (defn auth-modal
   "Login / registration overlay, shown when a form is open."

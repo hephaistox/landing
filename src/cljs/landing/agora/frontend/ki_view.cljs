@@ -32,7 +32,8 @@
   but a nil must never reach `i18n/t`: `(keyword \"kind\" nil)` yields a keyword whose
   name is nil, which blows up when hashed/looked up in the dict."
   [kind]
-  (when-let [kind (not-empty (some-> kind name))]
+  (when-let [kind (not-empty (some-> kind
+                                     name))]
     (let [lang @(rf/subscribe [::i18n/lang])]
       [:span {:style {:display "inline-block"
                       :background (get domain/kind-color kind "#666")
@@ -1611,7 +1612,9 @@
                   :color color
                   :margin-bottom "0.35em"}}
     tag]
-   [:div {:style {:color "#2a2621" :line-height "1.45"}} text]])
+   [:div {:style {:color "#2a2621"
+                  :line-height "1.45"}}
+    text]])
 
 (defn- reasoning-diagram
   "The page's main 'picture': a self-contained illustration of a Knowledge Item
@@ -1627,14 +1630,18 @@
                   :gap "0.9em"
                   :justify-content "center"}}
     [home-mini-node (i18n/t lang :home/tag-definition) "#6741d9" (i18n/t lang :home/ex-definition)]
-    [home-mini-node (i18n/t lang :home/tag-observation) "#0b7285" (i18n/t lang :home/ex-observation)]]
+    [home-mini-node
+     (i18n/t lang :home/tag-observation)
+     "#0b7285"
+     (i18n/t lang :home/ex-observation)]]
    [:div {:style {:text-align "center"
                   :color "#b9770e"
                   :font-size "1.5em"
                   :line-height 1
                   :margin "0.55em 0"}}
     "↓"]
-   [:div {:style {:display "flex" :justify-content "center"}}
+   [:div {:style {:display "flex"
+                  :justify-content "center"}}
     [home-mini-node (i18n/t lang :home/tag-conclusion) "#2c5aa0" (i18n/t lang :home/ex-conclusion)]]
    [:div {:style {:max-width "30em"
                   :margin "1.2em auto 0"
@@ -1645,13 +1652,16 @@
                   :color "#8a3a3a"
                   :font-size "0.92em"
                   :line-height "1.45"}}
-    [:span {:style {:font-weight 700 :margin-right "0.45em"}} "⚔"]
+    [:span {:style {:font-weight 700
+                    :margin-right "0.45em"}}
+     "⚔"]
     (i18n/t lang :home/ex-objection)]])
 
 (defn- home-step
   "One numbered step in the 'how it works' row."
   [n title body]
-  [:div {:style {:flex "1 1 14em" :min-width "12em"}}
+  [:div {:style {:flex "1 1 14em"
+                 :min-width "12em"}}
    [:div {:style {:width "2.2em"
                   :height "2.2em"
                   :border-radius "50%"
@@ -1663,8 +1673,14 @@
                   :justify-content "center"
                   :margin-bottom "0.6em"}}
     n]
-   [:h3 {:style {:margin "0 0 0.3em" :color "#1b1a17" :font-size "1.05em"}} title]
-   [:p {:style {:margin 0 :color "#5c5648" :line-height "1.5"}} body]])
+   [:h3 {:style {:margin "0 0 0.3em"
+                 :color "#1b1a17"
+                 :font-size "1.05em"}}
+    title]
+   [:p {:style {:margin 0
+                :color "#5c5648"
+                :line-height "1.5"}}
+    body]])
 
 (defn- home-feature
   "One feature tile: an emoji glyph, a title and a one-liner."
@@ -1673,9 +1689,18 @@
                  :border "1px solid #ece5d8"
                  :border-radius "0.6em"
                  :padding "1.1em"}}
-   [:div {:style {:font-size "1.6em" :margin-bottom "0.35em"}} glyph]
-   [:h3 {:style {:margin "0 0 0.25em" :font-size "1em" :color "#1b1a17"}} title]
-   [:p {:style {:margin 0 :color "#5c5648" :font-size "0.92em" :line-height "1.5"}} body]])
+   [:div {:style {:font-size "1.6em"
+                  :margin-bottom "0.35em"}}
+    glyph]
+   [:h3 {:style {:margin "0 0 0.25em"
+                 :font-size "1em"
+                 :color "#1b1a17"}}
+    title]
+   [:p {:style {:margin 0
+                :color "#5c5648"
+                :font-size "0.92em"
+                :line-height "1.5"}}
+    body]])
 
 (defn landing-page
   "The Agora home/landing page (`/agora/<lang>`): a marketing hero, an illustrated
@@ -1689,7 +1714,6 @@
                    :padding "0 0.9em"
                    :font-family "system-ui, sans-serif"}}
      [landing-hero lang]
-
      ;; Anatomy of a claim — the illustrated centrepiece
      [:section {:style {:margin "2.6em 0"}}
       [home-section-heading (i18n/t lang :home/anatomy-title)]
@@ -1700,7 +1724,6 @@
                    :line-height "1.6"}}
        (i18n/t lang :home/anatomy-lead)]
       [reasoning-diagram lang]]
-
      ;; The pain it solves
      [:section {:style {:background "#1b1a17"
                         :color "#e8e2d6"
@@ -1718,34 +1741,45 @@
                    :line-height "1.7"
                    :color "#c9c1b2"}}
        (i18n/t lang :home/problem-body)]]
-
      ;; How it works — three steps
      [:section {:style {:margin "2.6em 0"}}
       [home-section-heading (i18n/t lang :home/how-title)]
-      [:div {:style {:display "flex" :flex-wrap "wrap" :gap "1.4em"}}
+      [:div {:style {:display "flex"
+                     :flex-wrap "wrap"
+                     :gap "1.4em"}}
        [home-step "1" (i18n/t lang :home/how-1-title) (i18n/t lang :home/how-1-body)]
        [home-step "2" (i18n/t lang :home/how-2-title) (i18n/t lang :home/how-2-body)]
        [home-step "3" (i18n/t lang :home/how-3-title) (i18n/t lang :home/how-3-body)]]]
-
      ;; Feature grid
      [:section {:style {:margin "2.6em 0"}}
       [home-section-heading (i18n/t lang :home/features-title)]
-      (into [:div {:style {:display "grid"
-                           :grid-template-columns "repeat(auto-fit, minmax(min(16em, 100%), 1fr))"
-                           :gap "0.9em"}}]
-            [[home-feature "🔗" (i18n/t lang :home/feat-terms-title) (i18n/t lang :home/feat-terms-body)]
-             [home-feature "⚔️" (i18n/t lang :home/feat-objection-title) (i18n/t lang :home/feat-objection-body)]
-             [home-feature "🌳" (i18n/t lang :home/feat-versions-title) (i18n/t lang :home/feat-versions-body)]
-             [home-feature "🕒" (i18n/t lang :home/feat-time-title) (i18n/t lang :home/feat-time-body)]
-             [home-feature "📉" (i18n/t lang :home/feat-confidence-title) (i18n/t lang :home/feat-confidence-body)]
-             [home-feature "🌍" (i18n/t lang :home/feat-lang-title) (i18n/t lang :home/feat-lang-body)]])]
-
+      (into
+       [:div {:style {:display "grid"
+                      :grid-template-columns "repeat(auto-fit, minmax(min(16em, 100%), 1fr))"
+                      :gap "0.9em"}}]
+       [[home-feature "🔗" (i18n/t lang :home/feat-terms-title) (i18n/t lang :home/feat-terms-body)]
+        [home-feature
+         "⚔️"
+         (i18n/t lang :home/feat-objection-title)
+         (i18n/t lang :home/feat-objection-body)]
+        [home-feature
+         "🌳"
+         (i18n/t lang :home/feat-versions-title)
+         (i18n/t lang :home/feat-versions-body)]
+        [home-feature "🕒" (i18n/t lang :home/feat-time-title) (i18n/t lang :home/feat-time-body)]
+        [home-feature
+         "📉"
+         (i18n/t lang :home/feat-confidence-title)
+         (i18n/t lang :home/feat-confidence-body)]
+        [home-feature
+         "🌍"
+         (i18n/t lang :home/feat-lang-title)
+         (i18n/t lang :home/feat-lang-body)]])]
      ;; A real KI from the graph
      (when-let [k (first kis)]
        [:section {:style {:margin "2.6em 0"}}
         [home-section-heading (i18n/t lang :home/live-title)]
         [landing-spotlight lang k]])
-
      ;; Closing call to action
      [:section {:style {:background "linear-gradient(160deg, #b9770e, #8a5709)"
                         :color "#fff"
@@ -1762,7 +1796,10 @@
                    :line-height "1.6"
                    :color "#fbe6cf"}}
        (i18n/t lang :home/cta-body)]
-      [:div {:style {:display "flex" :flex-wrap "wrap" :gap "0.7em" :justify-content "center"}}
+      [:div {:style {:display "flex"
+                     :flex-wrap "wrap"
+                     :gap "0.7em"
+                     :justify-content "center"}}
        [:a {:href (i18n/new-ki lang)
             :style {:padding "0.7em 1.5em"
                     :background "#1b1a17"
