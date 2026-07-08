@@ -10,8 +10,7 @@
      canonical permalink."
   (:require
    [clojure.java.io        :as io]
-   [landing.agora.article  :as article]
-   [landing.agora.ki       :as ki]
+   [landing.agora.document :as document]
    [landing.agora.seo      :as seo]
    [landing.endpoints.html :refer [html-middlewares]]
    [landing.language       :as language]))
@@ -70,7 +69,7 @@
     (let [{:keys [lang name major]} (:path-params req)
           lang (language/normalize lang)
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
-          ki (ki/fetch-ki-by-major name major-n lang)
+          ki (document/fetch-by-major "ki" name major-n lang)
           base (seo/base-url req)
           head (if ki
                  (seo/ki-head base lang name major-n ki)
@@ -120,7 +119,7 @@
     (let [{:keys [lang name major]} (:path-params req)
           lang (language/normalize lang)
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
-          art (article/fetch-article-by-major name major-n lang)
+          art (document/fetch-by-major "article" name major-n lang)
           base (seo/base-url req)
           head (if art
                  (seo/article-head base lang name major-n art)
@@ -143,7 +142,7 @@
     {:status 200
      :headers {"Content-Type" "application/xml; charset=utf-8"
                "Cache-Control" "public, max-age=3600"}
-     :body (seo/sitemap-xml (seo/base-url req) (ki/sitemap-rows))}))
+     :body (seo/sitemap-xml (seo/base-url req) (document/sitemap-rows "ki"))}))
 
 (defn sitemap-route
   [prefix]

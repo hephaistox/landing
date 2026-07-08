@@ -15,10 +15,14 @@
            (java.util UUID)))
 
 (def admin-emails
-  "Accounts permitted to use the maintenance API — the platform owner only. The
-  backend is the security boundary; the profile's `:admin` flag is derived from
-  this so the frontend can hide admin UI without duplicating the allowlist."
-  #{"hephaistox.sc@gmail.com"})
+  "Accounts permitted to use the maintenance API — the platform owner(s). Read from the
+  `AGORA_ADMIN_EMAILS` env var (comma- or whitespace-separated) so the allowlist is
+  configured per deployment, not baked into the source. Empty when the var is unset →
+  no admin accounts. The backend is the security boundary; the profile's `:admin` flag
+  is derived from this so the frontend can hide admin UI without duplicating the list."
+  (into #{}
+        (comp (map str/trim) (remove str/blank?))
+        (str/split (or (System/getenv "AGORA_ADMIN_EMAILS") "") #"[,\s]+")))
 
 (def min-password-length
   "Minimum length for a password account. Kept modest (NIST favours length over
@@ -50,6 +54,16 @@
     db/ds
     ["SELECT id, email, display_name, provider, avatar_url, lang FROM AGORA_USER WHERE id = ?" id]
     {:builder-fn rs/as-unqualified-kebab-maps})))
+
+(defn author-profile
+  "The *public author card* for user `id`, or nil: display name, avatar and the
+  account-creation date. Deliberately excludes email and any private field — this is
+  shown on the public author page, to anyone."
+  [id]
+  (jdbc/execute-one!
+   db/ds
+   ["SELECT id, display_name, avatar_url, created_at FROM AGORA_USER WHERE id = ?" id]
+   {:builder-fn rs/as-unqualified-kebab-maps}))
 
 (defn set-lang!
   "Persist the user's preferred interface language, and return the updated public

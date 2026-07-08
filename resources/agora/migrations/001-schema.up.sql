@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS `AGORA_USER` (
 --   content  (immutable): {:kind :title :statement :author :owner-id :published-at}
 --   computed (mutable):   {:inputs [{:tnlr {:type :name :lang :major} :id}]}
 -- `type` is the object type (the T; `ki` / `objection`) — a plain string, NOT enforced
--- by the DB (the canonical set lives in landing.agora.domain).
+-- by the DB (the canonical set lives in landing.agora.document-domain).
 CREATE TABLE IF NOT EXISTS `AGORA_NODE` (
   `id`       CHAR(36)     NOT NULL COMMENT 'UUID, permanent identity of this exact version',
   `type`     VARCHAR(32)  NOT NULL DEFAULT 'ki' COMMENT 'Object type — identity T (ki/objection)',

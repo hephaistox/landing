@@ -1,0 +1,286 @@
+(ns landing.agora.endpoints.document
+  "One generic HTTP route set over the document engine (landing.agora.document),
+  mounted once per object type — `(document-routes \"ki\" \"/agora/api/ki\")`,
+  `(document-routes \"article\" \"/agora/api/article\")`. Every type gets the full
+  surface: list/search, create, by-permanent-identity, by-id, edit, translate and
+  input (add/drop). The only per-type data is in `configs` below: the request-body
+  schemas and how a request body maps onto the engine's content fields.
+
+  The `/translate` machine-translation *suggestion* (stateless authoring aid, not a
+  document op) is a standalone route here too."
+  (:require
+   [landing.agora.document            :as document]
+   [landing.agora.document-domain              :as domain]
+   [landing.agora.endpoints.throttle  :as throttle]
+   [landing.agora.translate           :as translate]
+   [landing.language                  :as language]
+   [muuntaja.core                     :as m]
+   [reitit.coercion.malli             :refer [coercion]]
+   [reitit.ring.coercion              :as rcoercion]
+   [reitit.ring.middleware.exception  :as exception]
+   [reitit.ring.middleware.muuntaja   :as muuntaja]
+   [reitit.ring.middleware.parameters :as parameters]))
+
+(def ^:private mw
+  [parameters/parameters-middleware
+   muuntaja/format-negotiate-middleware
+   muuntaja/format-response-middleware
+   exception/exception-middleware
+   muuntaja/format-request-middleware
+   rcoercion/coerce-request-middleware])
+
+;; Size-bounded field schemas — cap authored text so one request can't store an
+;; unbounded blob (storage/DoS abuse) or smuggle an oversized slug into a URL.
+(def ^:private name-schema
+  [:string {:min 1
+            :max 200}])
+(def ^:private title-schema
+  [:string {:min 1
+            :max 200}])
+(def ^:private statement-schema
+  [:string {:min 1
+            :max 10000}])
+(def ^:private body-schema
+  [:string {:min 1
+            :max 50000}])
+(def ^:private lang-schema
+  [:string {:max 8}])
+(def ^:private kind-enum (into [:enum] (map name domain/kind-ids)))
+(def ^:private input-ref-schema [:map [:name name-schema] [:major :int]])
+
+(def ^:private throttled [(:middleware-fn throttle/authoring-rate-limiter)])
+
+(defn- uid [req] (get-in req [:session :user-id]))
+(def ^:private unauthorized
+  {:status 401
+   :body {:error "login required"}})
+
+(def ^:private configs
+  "Per-type request shaping. `:list` is the no-query discover list; `:to-create`/
+  `:to-edit`/`:to-translate` map a validated request body onto the engine's content
+  fields (uniform keys); the `*-body` malli schemas validate the request."
+  ;; The prose field is `:text` for every type (a KI's "statement" and an article's
+  ;; "body" are the same slot); the size cap still differs per type (short assertion vs
+  ;; long article), so the schema under `:text` differs while the key does not.
+  {"ki" {:list document/list-latest
+         :create-body [:map
+                       [:name {:optional true}
+                        name-schema]
+                       [:title {:optional true}
+                        [:maybe [:string {:max 200}]]]
+                       [:kind kind-enum]
+                       [:lang {:optional true}
+                        lang-schema]
+                       [:text statement-schema]]
+         :to-create (fn [b]
+                      {:name (:name b)
+                       :title (:title b)
+                       :kind (:kind b)
+                       :lang (:lang b)
+                       :text (:text b)})
+         :edit-body [:map
+                     [:title {:optional true}
+                      [:maybe [:string {:max 200}]]]
+                     [:kind kind-enum]
+                     [:text statement-schema]]
+         :to-edit (fn [b]
+                    {:title (:title b)
+                     :kind (:kind b)
+                     :text (:text b)})
+         :translate-body [:map
+                          [:lang lang-schema]
+                          [:title {:optional true}
+                           [:maybe [:string {:max 200}]]]
+                          [:text {:optional true}
+                           statement-schema]]
+         :to-translate (fn [b]
+                         {:title (:title b)
+                          :text (:text b)})}
+   "article" {:list document/list-recent
+              :create-body [:map
+                            [:name {:optional true}
+                             name-schema]
+                            [:title title-schema]
+                            [:lang {:optional true}
+                             lang-schema]
+                            [:text body-schema]]
+              :to-create (fn [b]
+                           {:name (:name b)
+                            :title (:title b)
+                            :lang (:lang b)
+                            :text (:text b)})
+              :edit-body [:map
+                          [:title {:optional true}
+                           title-schema]
+                          [:text {:optional true}
+                           body-schema]]
+              :to-edit (fn [b]
+                         {:title (:title b)
+                          :text (:text b)})
+              :translate-body [:map
+                               [:lang lang-schema]
+                               [:title {:optional true}
+                                title-schema]
+                               [:text {:optional true}
+                                body-schema]]
+              :to-translate (fn [b]
+                              {:title (:title b)
+                               :text (:text b)})}})
+
+(defn- not-found
+  [& {:as extra}]
+  {:status 404
+   :body (merge {:error "not found"} extra)})
+
+(defn document-routes
+  "The full route set for object `type` under `prefix`."
+  [type prefix]
+  (let [{:keys [list create-body to-create edit-body to-edit translate-body to-translate]} (configs
+                                                                                            type)
+        body #(get-in % [:parameters :body])
+        path-id #(get-in % [:parameters :path :id])
+        list-h (fn [req]
+                 (let [q (get-in req [:parameters :query :q])
+                       lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
+                   {:status 200
+                    :body (if (seq q) (document/search type q lang) (list type lang))}))
+        create-h (fn [req]
+                   (if-let [u (uid req)]
+                     {:status 201
+                      :body (document/create type u (to-create (body req)))}
+                     unauthorized))
+        by-major-h (fn [req]
+                     (let [{n :name
+                            mj :major}
+                           (get-in req [:parameters :path])
+                           lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
+                       (if-let [d (document/fetch-by-major type n mj lang)]
+                         {:status 200
+                          :body d}
+                         (not-found :name n :major mj))))
+        by-id-h (fn [req]
+                  (if-let [d (document/fetch (path-id req))]
+                    {:status 200
+                     :body d}
+                    (not-found :id (path-id req))))
+        edit-h (fn [req]
+                 (if-let [u (uid req)]
+                   (if-let [d (document/edit (path-id req) u (to-edit (body req)))]
+                     {:status 201
+                      :body d}
+                     (not-found :id (path-id req)))
+                   unauthorized))
+        translate-h (fn [req]
+                      (if-let [u (uid req)]
+                        (if-let [d (document/translate (path-id req)
+                                                       (:lang (body req))
+                                                       u
+                                                       (to-translate (body req)))]
+                          {:status 201
+                           :body d}
+                          (not-found :id (path-id req)))
+                        unauthorized))
+        add-input-h (fn [req]
+                      (if-let [u (uid req)]
+                        (let [r (document/add-input (path-id req) u (body req))]
+                          (cond
+                            (= r :input-limit)
+                            {:status 422
+                             :body {:error (str "at most " domain/max-inputs " inputs")}}
+                            r {:status 200
+                               :body r}
+                            :else (not-found :id (path-id req))))
+                        unauthorized))
+        drop-input-h (fn [req]
+                       (if-let [u (uid req)]
+                         (if-let [d (document/drop-input (path-id req) u (body req))]
+                           {:status 200
+                            :body d}
+                           (not-found :id (path-id req)))
+                         unauthorized))]
+    [prefix {:coercion coercion
+             :muuntaja m/instance
+             :swagger {:tags #{:agora}}
+             ;; the 5-segment API paths overlap the `/agora/:lang/<type>/…` page routes for
+             ;; the conflict detector; reitit's matcher prefers the literal `api` segment.
+             :conflicting true
+             :middleware mw}
+     [""
+      {:get {:handler list-h
+             :operationId (str "agora-list-" type)
+             :parameters {:query [:map
+                                  [:q {:optional true}
+                                   [:maybe [:string {:max 200}]]]
+                                  [:lang {:optional true}
+                                   lang-schema]]}
+             :summary (str "List/search " type "s")}
+       :post {:handler create-h
+              :middleware throttled
+              :operationId (str "agora-create-" type)
+              :parameters {:body create-body}
+              :summary (str "Create a " type)}}]
+     ["/by/:name/:major"
+      {:get {:handler by-major-h
+             :operationId (str "agora-" type "-by-major")
+             :parameters {:path [:map [:name name-schema] [:major :int]]
+                          :query [:map
+                                  [:lang {:optional true}
+                                   lang-schema]]}
+             :summary (str "Latest minor of a " type " by (name, major)")}}]
+     ["/:id"
+      {:get {:handler by-id-h
+             :operationId (str "agora-" type "-by-id")
+             :parameters {:path [:map [:id :string]]}
+             :summary (str "A " type " by id")}}]
+     ["/:id/edit"
+      {:post {:handler edit-h
+              :middleware throttled
+              :operationId (str "agora-edit-" type)
+              :parameters {:path [:map [:id :string]]
+                           :body edit-body}
+              :summary (str "Edit a " type " → new minor")}}]
+     ["/:id/translate"
+      {:post {:handler translate-h
+              :middleware throttled
+              :operationId (str "agora-translate-" type)
+              :parameters {:path [:map [:id :string]]
+                           :body translate-body}
+              :summary (str "Create a language version of a " type)}}]
+     ["/:id/inputs"
+      {:post {:handler add-input-h
+              :middleware throttled
+              :operationId (str "agora-add-input-" type)
+              :parameters {:path [:map [:id :string]]
+                           :body input-ref-schema}
+              :summary "Add an input link"}
+       :delete {:handler drop-input-h
+                :middleware throttled
+                :operationId (str "agora-drop-input-" type)
+                :parameters {:path [:map [:id :string]]
+                             :body input-ref-schema}
+                :summary "Drop an input link"}}]]))
+
+;; ---------------------------------------------------------------------------
+;; Machine-translation suggestion (stateless authoring aid — not a document op)
+;; ---------------------------------------------------------------------------
+
+(def ^:private suggest-handler
+  (fn [req]
+    (if (uid req)
+      (let [{:keys [text source target]} (get-in req [:parameters :body])]
+        {:status 200
+         :body {:translation (or (translate/suggest text source target) text)}})
+      unauthorized)))
+
+(defn translate-suggest-route
+  [prefix]
+  [prefix
+   {:post {:coercion coercion
+           :handler suggest-handler
+           :muuntaja m/instance
+           :operationId "agora-translate-suggest"
+           :parameters
+           {:body [:map [:text [:string {:max 10000}]] [:source lang-schema] [:target lang-schema]]}
+           :summary "Machine-translation suggestion (best effort)"
+           :swagger {:tags #{:agora}}
+           :middleware mw}}])

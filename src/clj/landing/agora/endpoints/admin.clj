@@ -4,54 +4,57 @@
   any logged-in user."
   (:require
    [landing.agora.auth                :as auth]
+   [landing.agora.document            :as document]
    [landing.agora.endpoints.error     :as error]
-   [landing.agora.ki                  :as ki]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
    [reitit.ring.middleware.parameters :as parameters]))
 
-(def ^:private unauthorized
-  {:status 401
-   :body {:error "login required"}})
-
-(def ^:private forbidden
-  {:status 403
-   :body {:error "admin only"}})
-
 (defn- admin-guard
   "Run `f` only for an authenticated administrator: 401 when anonymous, 403 when
   logged in but not on the admin allowlist."
   [req f]
   (if-let [uid (get-in req [:session :user-id])]
-    (if (:admin (auth/get-user uid)) (f) forbidden)
-    unauthorized))
+    (if (:admin (auth/get-user uid))
+      (f)
+      {:status 403
+       :body {:error "admin only"}})
+    {:status 401
+     :body {:error "login required"}}))
 
-(def ^:private tnr-ref [:map [:name :string] [:major :int]])
+(def ^:private tnr-ref [:map [:type :string] [:name :string] [:lang :string] [:major :int]])
 
 (def list-tnrs-handler
   (fn [req]
     (admin-guard req
                  (fn []
                    {:status 200
-                    :body (ki/list-tnrs)}))))
+                    :body (document/all-tnrs)}))))
+
+(def issues-handler
+  (fn [req]
+    (admin-guard req
+                 (fn []
+                   {:status 200
+                    :body (document/consistency-issues)}))))
 
 (def drop-tnr-handler
   (fn [req]
     (admin-guard req
                  (fn []
-                   (let [{:keys [name major]} (get-in req [:parameters :body])]
+                   (let [{:keys [type name lang major]} (get-in req [:parameters :body])]
                      {:status 200
-                      :body {:deleted (ki/delete-tnr! name major)}})))))
+                      :body {:deleted (document/delete-tnr! type name lang major)}})))))
 
 (def compact-tnr-handler
   (fn [req]
     (admin-guard req
                  (fn []
-                   (let [{:keys [name major]} (get-in req [:parameters :body])]
+                   (let [{:keys [type name lang major]} (get-in req [:parameters :body])]
                      {:status 200
-                      :body {:deleted (ki/compact-tnr! name major)}})))))
+                      :body {:deleted (document/compact-tnr! type name lang major)}})))))
 
 (defn admin-routes
   [prefix]
@@ -68,6 +71,10 @@
     {:get {:handler list-tnrs-handler
            :operationId "agora-admin-tnrs"
            :summary "List KI lineages (TNRs) with counts"}}]
+   ["/issues"
+    {:get {:handler issues-handler
+           :operationId "agora-admin-issues"
+           :summary "Nodes with dangling references (broken input / citation)"}}]
    ["/drop-tnr"
     {:post {:handler drop-tnr-handler
             :operationId "agora-admin-drop-tnr"

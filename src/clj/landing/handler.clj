@@ -4,18 +4,9 @@
    [clojure.string                    :as str]
    [env]
    [landing.agora.endpoints.admin     :refer [admin-routes]]
-   [landing.agora.endpoints.article   :refer [article-by-major-route
-                                              article-collection-route
-                                              article-route
-                                              edit-article-route]]
    [landing.agora.endpoints.auth      :refer [auth-routes]]
-   [landing.agora.endpoints.ki        :refer [by-major-route
-                                              edit-ki-route
-                                              inputs-route
-                                              ki-collection-route
-                                              ki-route
-                                              translate-ki-route
-                                              translate-suggest-route]]
+   [landing.agora.endpoints.author    :refer [author-routes]]
+   [landing.agora.endpoints.document  :refer [document-routes translate-suggest-route]]
    [landing.agora.endpoints.shell     :refer [app-shell-route
                                               article-page-route
                                               home-shell-route
@@ -102,43 +93,37 @@
 
 (defn router
   []
-  (rring/router
-   [(ping-route "/ping")
-    (root-redirect-route "/")
-    (lang-page-redirect-route "/index.html")
-    (lang-page-redirect-route "/404.html")
-    (legacy-articles-route "/articles")
-    (admin-route "/all-kind-of-checks")
-    (contact-route "/contact")
-    (check-url-route "/check-url")
-    (agora-lang-redirect-route "/agora")
-    (sitemap-route "/agora/sitemap.xml")
-    (home-shell-route "/agora/:lang")
-    (auth-routes "/agora/api/auth")
-    (admin-routes "/agora/api/admin")
-    (ki-collection-route "/agora/api/ki")
-    (by-major-route "/agora/api/ki/by/:name/:major")
-    (ki-route "/agora/api/ki/:id")
-    (edit-ki-route "/agora/api/ki/:id/edit")
-    (translate-ki-route "/agora/api/ki/:id/translate")
-    (translate-suggest-route "/agora/api/translate")
-    (inputs-route "/agora/api/ki/:id/inputs")
-    (ki-page-route "/agora/:lang/ki/:name/:major")
-    (public-shell-route "/agora/:lang/discover")
-    (public-shell-route "/agora/:lang/preferences")
-    (public-shell-route "/agora/:lang/articles")
-    (article-collection-route "/agora/api/article")
-    (article-by-major-route "/agora/api/article/by/:name/:major")
-    (edit-article-route "/agora/api/article/:id/edit")
-    (article-route "/agora/api/article/:id")
-    (article-page-route "/agora/:lang/article/:name/:major")
-    (app-shell-route "/agora/:lang/new")
-    (app-shell-route "/agora/:lang/ki/:id")
-    (app-shell-route "/agora/:lang/article/:id")
-    (app-shell-route "/agora/:lang/admin")
-    (api-swagger "/api")
-    (w3c-validate-route "/w3c-validate")]
-   {}))
+  (rring/router [(ping-route "/ping")
+                 (root-redirect-route "/")
+                 (lang-page-redirect-route "/index.html")
+                 (lang-page-redirect-route "/404.html")
+                 (legacy-articles-route "/articles")
+                 (admin-route "/all-kind-of-checks")
+                 (contact-route "/contact")
+                 (check-url-route "/check-url")
+                 (agora-lang-redirect-route "/agora")
+                 (sitemap-route "/agora/sitemap.xml")
+                 (home-shell-route "/agora/:lang")
+                 (auth-routes "/agora/api/auth")
+                 (admin-routes "/agora/api/admin")
+                 ;; The whole KI/article API surface — one generic route set per object type.
+                 (document-routes "ki" "/agora/api/ki")
+                 (document-routes "article" "/agora/api/article")
+                 (author-routes "/agora/api/author")
+                 (translate-suggest-route "/agora/api/translate")
+                 (ki-page-route "/agora/:lang/ki/:name/:major")
+                 (public-shell-route "/agora/:lang/discover")
+                 (public-shell-route "/agora/:lang/preferences")
+                 (public-shell-route "/agora/:lang/articles")
+                 (article-page-route "/agora/:lang/article/:name/:major")
+                 (app-shell-route "/agora/:lang/new")
+                 (app-shell-route "/agora/:lang/ki/:id")
+                 (app-shell-route "/agora/:lang/article/:id")
+                 (app-shell-route "/agora/:lang/author/:id")
+                 (app-shell-route "/agora/:lang/admin")
+                 (api-swagger "/api")
+                 (w3c-validate-route "/w3c-validate")]
+                {}))
 
 (defn wrap-agora-canonical-host
   "In production, 301-redirect Agora URLs (`/agora…`) reached on any non-canonical

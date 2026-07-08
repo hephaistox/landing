@@ -36,7 +36,7 @@
   :output-statement
   "Because our collective confidence in any claim is partial and always evolving, a knowledge platform should record and expose graded confidence rather than forcing binary true/false conclusions."})
 
-;; One article: a versioned AGORA_NODE (type "article") citing two KIs via living
+;; One article: a versioned AGORA_DOCUMENT (type "article") citing two KIs via living
 ;; [[ki:name@major]] tokens in its body (parsed into content.:inputs and pinned).
 (article/create-article
  nil

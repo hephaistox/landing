@@ -1,0 +1,31 @@
+;; Canonical definitions of the epistemic KI *types*, seeded as `definition`-kind KIs
+;; (slug `type-<kind>`, major 1) so each type is itself described by a KI the kind
+;; badge links to. French only for now — English translations added later.
+;; Keyed by the kind id (see landing.agora.document-domain/kinds).
+{:inference
+ {:title     "Inférence"
+  :statement "Un savoir dérivé : à partir d'entrées tenues pour vraies, une conséquence logique s'ensuit. C'est le cas standard d'un Knowledge Item. On le conteste par contre-exemple ou par objection d'ambiguïté ; sa confiance reflète la manière dont sa chaîne de raisonnement a résisté à l'examen."}
+
+ :prediction
+ {:title     "Prédiction"
+  :statement "Un savoir vérifiable : sa vérité sera tranchée par un événement observable, éventuellement à une date future. Avant résolution, les objections portent sur la solidité du raisonnement ; à la résolution, la réalité tranche et le débat se clôt — confirmé ou réfuté, quelle que soit la confiance de la communauté."}
+
+ :postulate
+ {:title     "Postulat"
+  :statement "Un fondement déclaré, dans un registre formel, scientifique ou mathématique. Sans entrées, il n'est pas ancré dans une réalité observable et ne peut être falsifié par contre-exemple : il ne se conteste que par un fondement incompatible."}
+
+ :definition
+ {:title     "Définition"
+  :statement "Un Knowledge Item dont la sortie est un contrat sémantique : il fixe ce qu'un terme signifie dans le graphe. Les définitions sont elles-mêmes contestables — on peut montrer qu'un terme est ambigu ou qu'une définition exclut des cas pertinents. Les termes clés des autres KI renvoient à leur définition."}
+
+ :position
+ {:title     "Position"
+  :statement "Un fondement déclaré, dans un registre civique, politique ou argumentatif : une position prise. Elle ne se conteste pas par contre-exemple mais par une position incompatible, chaque camp conservant sa propre histoire d'objections."}
+
+ :belief
+ {:title     "Croyance"
+  :statement "Un fondement déclaré, dans un registre personnel, philosophique ou spirituel. Des croyances incompatibles coexistent durablement : la plateforme rend le désaccord lisible plutôt que d'imposer une résolution qui n'existe pas."}
+
+ :credo
+ {:title     "Credo"
+  :statement "Un fondement déclaré, dans un registre proche du manifeste : conviction forte, presque militante. Il invite à la confrontation des valeurs plutôt qu'à la contestation logique."}}

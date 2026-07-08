@@ -35,32 +35,36 @@ Definitions are KIs. A definition KI's output is a semantic contract: "in this g
 
 Key terms within any KI should link to their definition KI in the graph. The authoring interface makes this a single gesture. When a term used in a KI already has multiple definition KIs in the graph, that is a graph-native ambiguity signal surfaced automatically during authoring.
 
-### Multiple Input Paths
+### Independent Derivations — separate KIs, not disjunctive antecedents
 
-A KI can be reached via multiple independent sets of inputs — disjunctive antecedents. Each input set is an independent argument for the same conclusion. Invalidating one input path does not invalidate the KI — it forces the claimer to remove or disambiguate that specific path. Multiple surviving input paths strengthen a KI structurally: the conclusion is supported from independent directions.
+A KI has **exactly one input set** — a single conjunction of premises ("these inputs, together, imply this output"). This matches the atom's meaning (one reasoning step) and the implementation: `content.:inputs` is a flat list of TNLRs, pinned in `computed.:pins`, indexed once in `AGORA_SUCCESSOR`. There are no *sets of sets*.
+
+**Rejected alternative — disjunctive antecedents.** An earlier design let a single KI be reached via multiple independent input sets (an OR of AND-sets). We dropped it: it forces `inputs`/pins/the successor cache to become nested, complicating storage, resolution and authoring for a case that is rare; and it muddies ownership (whose conclusion is it when the arguments differ?).
+
+**How the same conclusion, reached independently, is modelled instead.** As **two (or more) separate KIs** — each a single-conjunction implication, each individually owned, versioned and challengeable. Refuting one derivation withdraws *that* KI; the others are untouched (independent invalidation falls out for free). Their relationship is surfaced two ways, not by fusing them into one node:
+
+- **Automatically** — *Convergence path detection* and *KI similarity detection* (see §8) flag independent chains reaching the same conclusion as a robustness signal / possible merge.
+- **Optionally, declared** — a lightweight, opt-in **equivalence link** ("these KIs assert the same output") a claimer can add between sibling derivations.
+
+This keeps each node atomic and the data model flat, preserves individual accountability, and reconstructs the "supported from independent directions" view via a relation rather than a nested-input structure.
 
 ### KI Types
 
-Every KI carries an **epistemic kind** (field `kind`) the claimer chooses — one of values: `inference / prediction ...`. **As implemented today, the type is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic type"). The per-type differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The six values fall into three conceptual families:
+Every KI carries an **epistemic kind** (field `kind`) the claimer chooses — one of values: `inference / prediction ...`. **As implemented today, the type is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic type"). The per-type differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The values fall into three conceptual families:
 
 **Derived KI** — the standard case. Has inputs, produces a logical consequence. Challenged by counterexample or ambiguity challenge. Confidence reflects how well the reasoning chain has survived scrutiny.
 
 **Verifiable claim** — a KI whose truth will be settled by an external observable event, possibly at a future date. "Donald Trump will be president again" is a verifiable claim. Before resolution, challenges are about reasoning soundness. At resolution, reality speaks and debate closes. The KI transitions to a resolved state — confirmed or refuted — regardless of community confidence at that point. Resolution date is a first-class property.
 
-**Declared foundation** — a KI with no inputs, not grounded in external observable reality, consciously declared as a starting point. Cannot be falsified by counterexample or reasoning — only contested by an incompatible declared foundation. The claimer chooses the register that matches their tone and domain:
+**Declared foundation** — a KI with no inputs, not grounded in external observable reality, consciously declared as a starting point. Cannot be falsified by counterexample or reasoning — only contested by an incompatible declared foundation. 
 
-- **Postulate** — formal, scientific, mathematical register
-- **Stance** — civic, political, argumentative register
-- **Belief** — personal, philosophical, spiritual register
-- **Credo** — manifesto-like, strong conviction, almost militant register
-
-All four are processed identically by the system at MVP. In advanced layers, the challenge process may differ by variation — a postulate invites logical challenge, a credo invites value confrontation — and the system may route challenges accordingly. The vocabulary choice is also a signal to readers and challengers about what kind of response is appropriate, guiding behaviour naturally even before the system enforces it.
+All are processed identically by the system at MVP. In advanced layers, the challenge process may differ by variation — a postulate invites logical challenge, a credo invites value confrontation — and the system may route challenges accordingly. The vocabulary choice is also a signal to readers and challengers about what kind of response is appropriate, guiding behaviour naturally even before the system enforces it.
 
 ### Identity: object type vs epistemic type
 
-The `T` in the identity tuple is the **object type**, not the epistemic type above. The store is single-table and polymorphic (PLM-style): it holds **KIs** and, from Layer 2, **Objections** (the PLM "change" analog) — different object types with their own lineages, standing in the same table. Identity is **ObjectType + Name + Lang + Major + Minor**, with `object_type = "ki"` today and `"objection"` later. `Lang` (the content language) is part of identity: each language is its own independent lineage, and the language versions of one concept are tied together simply by sharing a `Name` (see "Language & Translation"). The epistemic `type` is deliberately *not* in identity.
+The `T` in the identity tuple is the **object type**, not the epistemic type above. The store is single-table and polymorphic (PLM-style): it holds **KIs**, **Article** and, from Layer 2, **Objections** (the PLM "change" analog) — different object types with their own lineages, standing in the same table. Identity is **ObjectType + Name + Lang + Major + Minor**, with `object_type = "ki"` today and `"objection"` later. `Lang` (the content language) is part of identity: each language is its own independent lineage, and the language versions of one concept are tied together simply by sharing a `Name` (see "Language & Translation"). The epistemic `type` is deliberately *not* in identity.
 
-The **epistemic kind** (`inference / prediction / postulate / position / belief / credo`) is a **mutable attribute of a KI**, deliberately *not* part of identity. People revise how they classify a claim — often *in response to a challenge* (e.g. a "postulate" is shown to actually follow from other KIs and becomes "derived"). Reclassifying is therefore an ordinary **edit → new minor**, never a new object, and edges (which reference `Name + Major`) follow automatically. Putting the epistemic type in the identity would fork the lineage and break edges on every reclassification, contradicting "KIs are immutable, evolving nodes."
+The **epistemic kind** (`inference / prediction / ...`) is a **mutable attribute of a KI**, deliberately *not* part of identity. People revise how they classify a claim — often *in response to a challenge* (e.g. a "postulate" is shown to actually follow from other KIs and becomes "derived"). Reclassifying is therefore an ordinary **edit → new minor**, never a new object, and edges (which reference `Name + Major`) follow automatically. Putting the epistemic type in the identity would fork the lineage and break edges on every reclassification, contradicting "KIs are immutable, evolving nodes."
 
 (Name uniqueness is thus carried by `Name + Lang + Major` within an object type; owner-scoped names / slugs are a later refinement.)
 
@@ -77,7 +81,7 @@ Consequences:
 
 ### Timestamp & Provenance
 
-Every KI carries an immutable timestamp of first publication. This is a proof of intellectual antecedence — the claimer can establish that they formulated this reasoning before it became mainstream, before an academic paper covered it, before the fact resolved. The timestamp is public, indexed by Google, and incontestable. A forked version carries its own timestamp; antecedence belongs to the original branch. This is a strong claimer motivation: beyond convincing others, they are protecting their intellectual authorship.
+Every KI carries an immutable timestamp for each version. This is a proof of intellectual antecedence — the claimer can establish that they formulated this reasoning before it became mainstream, before an academic paper covered it, before the fact resolved. The timestamp is public, indexed by Google, and incontestable. A forked version carries its own timestamp; antecedence belongs to the original branch. This is a strong claimer motivation: beyond convincing others, they are protecting their intellectual authorship.
 
 ---
 
@@ -138,7 +142,7 @@ These remain valid regardless of how confidence is computed:
 
 Confidence is **strictly local** — affected only by a KI's own objection history and input chain. Unconnected graph additions are invisible to it. No global normalization.
 
-A KI's confidence **ceiling is set by its weakest input**. You cannot be more certain of a consequence than you are of its least certain premise. Multiple input paths produce a confidence interval — floor from the weakest path, ceiling from the strongest. The operative value is always the floor.
+A KI's confidence is **capped by its weakest input**. You cannot be more certain of a consequence than you are of its least certain premise. Since a KI has a single input set (see "Independent Derivations"), this is one bound — the floor set by the weakest premise — not a per-path interval. When the *same conclusion* is reached by independent derivations (separate KIs, related by convergence/equivalence), the stronger derivation raises overall confidence in the conclusion — but that is a property of the **relation between KIs**, computed by graph analysis (§8), not of a single node's inputs.
 
 Confidence **can decrease** when new knowledge reveals a fragile assumption in an input chain. This is correct behaviour, not a bug.
 
@@ -175,6 +179,18 @@ Any contributor can fork KI-A to create their own branch, becoming its owner. If
 ### Referential Integrity
 
 A KI cannot claim strong support if one of its inputs is in broken or contested state. When a dependency is withdrawn, successors enter a broken input state and their confidence is recomputed. Status propagates upward through the dependency chain automatically. This gives the graph referential integrity — a structural property, not a declared policy.
+
+### Consistency rules
+
+Inputs and in-text `[[ki:…]]` citations are the same thing (an input edge is a citation, and vice-versa), so both are held to the same **consistency rules**. These are:
+
+1. **No dangling reference.** Every reference must point at a KI lineage that exists (in some language — the read falls back across languages). A citation of a non-existent `name@major` is a *dangling reference*.
+2. **No self-reference.** A document may not cite its own lineage (same `type + name + major`). A node cannot be an input of itself — that is a degenerate cycle. (Only KIs can violate this: citations always target `type = ki`, so an *article* citing a KI that merely shares its name is a different lineage and is allowed.)
+
+Enforcement is layered:
+
+- **At authoring time (UI):** the citation editor's search **removes the current document from its results**, so a KI can never be made to quote itself (`cite/citation-editor`'s `self-name` argument). Dangling references can't normally be authored because you cite by picking an existing KI (or creating one inline).
+- **After the fact (admin):** `landing.agora.document/consistency-issues` scans **every version** of every document and reports both violations — `:broken` (dangling) and `:self` (self-reference) — surfaced on the admin page, each row deep-linking to the exact offending version. It's a *cache/consistency check*, not a hard DB constraint, so it can catch drift (e.g. a withdrawn lineage that leaves dangling citations behind).
 
 ---
 
@@ -464,13 +480,13 @@ This project is integrated into the Hephaistox landing project. It shares the ex
 
 The following questions are registered but not yet resolved. They should be addressed before or during the relevant implementation layer.
 
-| # | Question | Relevant Layer |
-|---|----------|---------------|
-| 4 | Validation governance | Resolved — confidence score replaces discrete status, no governance body needed |
-| 16 | MVP definition | Resolved — Layer 1 (above) is the MVP; the earlier 1a/1b split was dropped as unnecessary |
-| 23 | Confidence score formula enrichment | Layer 2+ |
-| 24 | Epistemic community scoping | Layer 2+ |
-| 7 | Monetization detail beyond confidence budget | Layer 2+ |
+| #  | Question                                     | Relevant Layer                                                                            |
+|----|----------------------------------------------|-------------------------------------------------------------------------------------------|
+| 4  | Validation governance                        | Resolved — confidence score replaces discrete status, no governance body needed           |
+| 16 | MVP definition                               | Resolved — Layer 1 (above) is the MVP; the earlier 1a/1b split was dropped as unnecessary |
+| 23 | Confidence score formula enrichment          | Layer 2+                                                                                  |
+| 24 | Epistemic community scoping                  | Layer 2+                                                                                  |
+| 7  | Monetization detail beyond confidence budget | Layer 2+                                                                                  |
 
 ---
 

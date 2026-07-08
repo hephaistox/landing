@@ -1,4 +1,4 @@
-(ns landing.agora.frontend.ui
+(ns landing.agora.frontend.ui-commons
   "Small shared UI helpers for the Agora SPA."
   (:require
    [reagent.core :as r]))

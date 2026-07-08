@@ -1,21 +1,21 @@
 (ns landing.agora.node
-  "Shared adapter for AGORA_NODE — the single polymorphic table holding every object
+  "Shared adapter for AGORA_DOCUMENT — the single polymorphic table holding every object
   type (KIs, articles, later objections). SQL + Caffeine caches around the pure domain
-  (landing.agora.domain).
+  (landing.agora.document-domain).
 
   A row keeps only the identity columns — `id`, `type` (object type, the T), `name`,
   `lang`, `major`, `minor` — plus two EDN blobs: immutable `content` and mutable
   `computed` ({:pins {tnlr-key → id}}). Type-specific view shaping and writes live in
-  landing.agora.ki / landing.agora.article, which call these primitives so that all
+  landing.agora.document, which calls these primitives so that all
   node I/O, successor indexing and cache eviction stay in one place (and one cache)."
   (:require
-   [auto-core.log        :as core-log]
-   [clojure.edn          :as edn]
-   [landing.agora.cache  :as cache]
-   [landing.agora.db     :as db]
-   [landing.agora.domain :as domain]
-   [next.jdbc            :as jdbc]
-   [next.jdbc.result-set :as rs])
+   [auto-core.log                 :as core-log]
+   [clojure.edn                   :as edn]
+   [landing.agora.cache           :as cache]
+   [landing.agora.db              :as db]
+   [landing.agora.document-domain :as domain]
+   [next.jdbc                     :as jdbc]
+   [next.jdbc.result-set          :as rs])
   (:import (java.sql SQLException)
            (java.time Instant)
            (java.time.temporal ChronoUnit)
@@ -58,7 +58,7 @@
     [row
      (q1!
       db/ds
-      ["SELECT id, type, name, lang, major, minor, content, computed FROM AGORA_NODE WHERE id = ?"
+      ["SELECT id, type, name, lang, major, minor, content, computed FROM AGORA_DOCUMENT WHERE id = ?"
        id]
       kebab)]
     (merge (select-keys row [:id :type :name :lang :major :minor])
@@ -100,7 +100,7 @@
    (fn [[ty nm lang major]]
      (q!
       db/ds
-      ["SELECT id, minor FROM AGORA_NODE
+      ["SELECT id, minor FROM AGORA_DOCUMENT
          WHERE type = ? AND name = ? AND lang = ? AND major = ? ORDER BY minor"
        ty
        nm
@@ -119,7 +119,7 @@
    (fn [[ty nm lang]]
      (q!
       db/ds
-      ["SELECT DISTINCT name, major, lang FROM AGORA_NODE
+      ["SELECT DISTINCT name, major, lang FROM AGORA_DOCUMENT
          WHERE type = ? AND name = ? AND lang <> ? ORDER BY lang"
        ty
        nm
@@ -138,7 +138,7 @@
   (:id
    (q1!
     db/ds
-    ["SELECT id FROM AGORA_NODE
+    ["SELECT id FROM AGORA_DOCUMENT
        WHERE type = ? AND name = ? AND major = ? ORDER BY (lang = ?) DESC, minor DESC LIMIT 1"
      ty
      nm
@@ -197,9 +197,9 @@
            :lang lang
            :major major}]
     (doseq [sid (cache/fetch successors-cache (domain/tnlr-key t))]
-      (when-let [row (q1! db/ds ["SELECT computed FROM AGORA_NODE WHERE id = ?" sid] kebab)]
+      (when-let [row (q1! db/ds ["SELECT computed FROM AGORA_DOCUMENT WHERE id = ?" sid] kebab)]
         (let [pins' (domain/repin (decode-pins (:computed row)) t new-id)]
-          (q! db/ds ["UPDATE AGORA_NODE SET computed = ? WHERE id = ?" (encode-pins pins') sid])
+          (q! db/ds ["UPDATE AGORA_DOCUMENT SET computed = ? WHERE id = ?" (encode-pins pins') sid])
           (cache/evict! node-cache sid))))))
 
 ;; --- Write
@@ -215,7 +215,7 @@
   (:m
    (q1!
     db/ds
-    ["SELECT COALESCE(MAX(minor) + 1, 0) AS m FROM AGORA_NODE
+    ["SELECT COALESCE(MAX(minor) + 1, 0) AS m FROM AGORA_DOCUMENT
        WHERE type = ? AND name = ? AND lang = ? AND major = ?"
      ty
      nm
@@ -226,13 +226,14 @@
 (defn lang-exists?
   [ty nm major lang]
   (some?
-   (q1! db/ds
-        ["SELECT id FROM AGORA_NODE WHERE type = ? AND name = ? AND major = ? AND lang = ? LIMIT 1"
-         ty
-         nm
-         major
-         lang]
-        kebab)))
+   (q1!
+    db/ds
+    ["SELECT id FROM AGORA_DOCUMENT WHERE type = ? AND name = ? AND major = ? AND lang = ? LIMIT 1"
+     ty
+     nm
+     major
+     lang]
+    kebab)))
 
 (defn insert-node!
   "Insert one immutable version. `ident` = {:id :type :name :lang :major :minor};
@@ -244,7 +245,7 @@
   (let [tnlrs (:inputs content)]
     (q!
      db/ds
-     ["INSERT INTO AGORA_NODE (id, type, name, lang, major, minor, content, computed)
+     ["INSERT INTO AGORA_DOCUMENT (id, type, name, lang, major, minor, content, computed)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       id
       node-type
@@ -261,7 +262,7 @@
   caches. Safe to run any time; run daily to heal drift."
   []
   (q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])
-  (doseq [{:keys [id content]} (q! db/ds ["SELECT id, content FROM AGORA_NODE"] kebab)]
+  (doseq [{:keys [id content]} (q! db/ds ["SELECT id, content FROM AGORA_DOCUMENT"] kebab)]
     (index-successors! id (:inputs (decode-content content))))
   (clear-caches!)
   :ok)

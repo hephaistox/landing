@@ -1,0 +1,11 @@
+-- Rename AGORA_NODE → AGORA_DOCUMENT.
+--
+-- The single polymorphic table is called a "document" everywhere in the code (the
+-- engine ns is `landing.agora.document`); the table name now matches the concept.
+-- No foreign keys reference it (AGORA_SUCCESSOR.successor_id links by convention only),
+-- so this is a plain rename — no constraint juggling, data untouched.
+--
+-- Apply BEFORE deploying the code that queries AGORA_DOCUMENT (dev shares the prod DB,
+-- so rename first, then reload/redeploy):
+--   clojure -M scripts/agora_db.clj resources/agora/migrations/002-rename-node-to-document.up.sql
+RENAME TABLE `AGORA_NODE` TO `AGORA_DOCUMENT`;

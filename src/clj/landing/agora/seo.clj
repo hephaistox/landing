@@ -9,7 +9,7 @@
    [cheshire.core        :as json]
    [clojure.string       :as str]
    [env]
-   [landing.agora.domain :as domain]
+   [landing.agora.document-domain :as domain]
    [landing.language     :as language]))
 
 (def ^:private allowed-host-re
@@ -66,10 +66,16 @@
    "name" (if (str/blank? title) (humanize name) title)
    "url" (str base "/agora/" lang "/ki/" (enc name) "/" major)})
 
+(defn- prose
+  "A document's prose, from the unified `:text` key with a legacy `:statement`/`:body`
+  fallback for rows not yet migrated."
+  [doc]
+  (or (:text doc) (:statement doc) (:body doc)))
+
 (defn- description-of
-  "A ~160-char, single-line summary from the KI's statement."
-  [ki]
-  (let [s (-> (or (:output-statement ki) "")
+  "A ~160-char, single-line summary from the document's prose."
+  [doc]
+  (let [s (-> (or (prose doc) "")
               (str/replace #"\s+" " ")
               str/trim)]
     (if (> (count s) 160) (str (subs s 0 157) "…") s)))
@@ -121,7 +127,7 @@
                                 "description" desc
                                 "inLanguage" lang
                                 "url" url}
-                         (:output-statement ki) (assoc "articleBody" (:output-statement ki))
+                         (prose ki) (assoc "articleBody" (prose ki))
                          (:published-at ki) (assoc "datePublished" (:published-at ki))
                          (:author ki) (assoc "author"
                                              {"@type" "Person"
@@ -143,7 +149,7 @@
   canonical, OpenGraph and an schema.org Article."
   [base lang art-name art-major art]
   (let [title (title-of art art-name)
-        desc (description-of {:output-statement (body->text (:body art))})
+        desc (description-of {:text (body->text (prose art))})
         url (str base "/agora/" lang "/article/" (enc art-name) "/" art-major)]
     (str/join "\n"
               [(str "<title>" (esc title) " — Agora</title>")

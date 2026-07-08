@@ -3,15 +3,15 @@
   incremental updates self-heals. Needs no external cron; started/stopped with the
   app via Mount."
   (:require
-   [auto-core.log    :as core-log]
-   [landing.agora.ki :as ki]
-   [mount.core       :refer [defstate]])
+   [auto-core.log          :as core-log]
+   [landing.agora.document :as document]
+   [mount.core             :refer [defstate]])
   (:import (java.util.concurrent Executors ScheduledExecutorService TimeUnit)))
 
 (defn- rebuild!
   []
   (try (core-log/info "Agora: rebuilding successor index")
-       (ki/rebuild-successor-index!)
+       (document/rebuild-successor-index!)
        (catch Throwable e (core-log/error-exception e "Agora: successor index rebuild failed"))))
 
 (defn- start

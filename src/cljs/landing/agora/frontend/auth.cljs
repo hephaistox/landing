@@ -6,10 +6,10 @@
   (:require
    ["altcha"] ;; registers the <altcha-widget> web component (self-hosted PoW captcha)
    ["altcha/i18n/fr-fr"] ;; registers French widget strings ($altcha.i18n "fr-fr"); must load after "altcha"
-   [clojure.string              :as str]
-   [landing.agora.frontend.i18n :as i18n]
-   [landing.agora.frontend.ui   :as ui]
-   [re-frame.core               :as rf]
+   [clojure.string                    :as str]
+   [landing.agora.frontend.i18n       :as i18n]
+   [landing.agora.frontend.ui-commons :as ui]
+   [re-frame.core                     :as rf]
    [superstructor.re-frame.fetch-fx]))
 
 ;; ---------------------------------------------------------------------------

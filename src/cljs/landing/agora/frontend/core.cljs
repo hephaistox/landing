@@ -14,7 +14,9 @@
    [cljs.pprint                         :refer [pprint]]
    [landing.agora.frontend.article-view :as article-view]
    [landing.agora.frontend.auth         :as auth]
+   [landing.agora.frontend.author-view  :as author-view]
    [landing.agora.frontend.i18n         :as i18n]
+   [landing.agora.frontend.document-view :as document-view]
    [landing.agora.frontend.ki-view      :as ki-view]
    [landing.language                    :as language]
    [pushy.core                          :as pushy]
@@ -57,6 +59,11 @@
     (re-find #"^/agora/([a-z]{2})/admin/?(?:[?#].*)?$" path)
     {:kind :admin
      :lang (second (re-find #"^/agora/([a-z]{2})/admin" path))}
+    (re-find #"^/agora/([a-z]{2})/author/([^/?#]+)/?(?:[?#].*)?$" path)
+    (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/author/([^/?#]+)" path)]
+      {:kind :author
+       :lang lang
+       :id (js/decodeURIComponent id)})
     (re-find #"^/agora/([a-z]{2})/new/?(?:[?#].*)?$" path)
     {:kind :new
      :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
@@ -238,6 +245,23 @@
                                 :loading? false)
                          (cache-put ck a)))))
 
+;; Author profile: the author card + their documents + last activity, scoped to the
+;; interface language. Cached by [:author id lang].
+(defn- route-changed-fetch-author
+  [db id lang]
+  (let [ck [:author id lang]
+        entry (get-in db [:cache ck])
+        fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
+    (if fresh?
+      {:db (assoc db :view {:kind :author :data (:data entry)} :loading? false :error nil)}
+      {:db (assoc db :loading? true :error nil)
+       :fetch {:method :get
+               :url (str "/agora/api/author/" (js/encodeURIComponent id) "?lang=" lang)
+               :headers {"Accept" "application/json"}
+               :response-content-types {#"application/json" :json}
+               :on-success [::fetch-author-ok ck]
+               :on-failure [::fetch-failed]}})))
+
 (rf/reg-event-fx
  ::route-changed
  (fn [{:keys [db]} [_ {:keys [kind id name major lang]}]]
@@ -275,6 +299,7 @@
                                 :loading? false
                                 :error nil)}
        :article-public (route-changed-fetch-article-public db name major lang)
+       :author (route-changed-fetch-author db id (i18n/current db))
        (route-changed-fetch db kind id)))))
 
 (rf/reg-event-db ::fetch-ok
@@ -285,6 +310,13 @@
                                        :data data}
                                 :loading? false)
                          (cache-put [kind id] data)))))
+
+(rf/reg-event-db ::fetch-author-ok
+                 (fn [db [_ ck response]]
+                   (let [a (:body response)]
+                     (-> db
+                         (assoc :view {:kind :author :data a} :loading? false)
+                         (cache-put ck a)))))
 
 (rf/reg-event-db ::fetch-failed
                  (fn [db [_ response]]
@@ -329,6 +361,43 @@
             (fn [db [_ ki-name ki-major lang]]
               (get-in db [:cache [:ki-public lang ki-name ki-major] :data])))
 
+;; Generic (any-type) by-major fetch + sub — used by hover previews of a node
+;; (KI or article) wherever we only hold its identity (e.g. the admin page).
+(rf/reg-event-fx :agora/ensure-by-major
+                 (fn [{:keys [db]} [_ type doc-name doc-major lang]]
+                   (let [ck [:node-public type lang doc-name doc-major]]
+                     (when-not (get-in db [:cache ck])
+                       {:fetch {:method :get
+                                :url (str "/agora/api/" type
+                                          "/by/" (js/encodeURIComponent doc-name)
+                                          "/" doc-major
+                                          "?lang=" lang)
+                                :headers {"Accept" "application/json"}
+                                :response-content-types {#"application/json" :json}
+                                :on-success [::cite-ok ck]
+                                :on-failure [::fetch-failed]}}))))
+
+(rf/reg-sub :agora/node-doc
+            (fn [db [_ type doc-name doc-major lang]]
+              (get-in db [:cache [:node-public type lang doc-name doc-major] :data])))
+
+;; Generic (any-type) by-**id** fetch + sub — a *pinned* version. Unlike by-major
+;; (which resolves to the latest minor), this returns the exact version, so a hover
+;; preview of a former version shows *that* version's content. Used by admin deep-links
+;; to a specific version.
+(rf/reg-event-fx :agora/ensure-by-id
+                 (fn [{:keys [db]} [_ type id]]
+                   (let [ck [:node type id]]
+                     (when-not (get-in db [:cache ck])
+                       {:fetch {:method :get
+                                :url (str "/agora/api/" type "/" id)
+                                :headers {"Accept" "application/json"}
+                                :response-content-types {#"application/json" :json}
+                                :on-success [::cite-ok ck]
+                                :on-failure [::fetch-failed]}}))))
+
+(rf/reg-sub :agora/node-doc-by-id (fn [db [_ type id]] (get-in db [:cache [:node type id] :data])))
+
 ;; Called after a successful edit: ingest the new version locally and navigate to
 ;; it — no refetch.
 (rf/reg-event-fx :agora/edited
@@ -348,6 +417,29 @@
                          ck [:article-public lang (:name art) (:major art)]]
                      {:db (cache-put db ck art)
                       :agora/navigate (i18n/article-permalink lang art)})))
+
+;; Remove an input edge via the input field (the ✕ on an input card) — DELETE the edge
+;; on the server, which forks a new minor (also stripping the inline citation from the
+;; text). Then ingest the returned version and navigate to it, exactly like an edit, so
+;; removal is a first-class input-field action rather than hand-editing the text.
+(rf/reg-event-fx :agora/drop-input
+                 (fn [{:keys [db]} [_ type id input]]
+                   {:db (assoc db :loading? true :error nil)
+                    :fetch {:method :delete
+                            :url (str "/agora/api/" type "/" id "/inputs")
+                            :headers {"Content-Type" "application/json"
+                                      "Accept" "application/json"}
+                            :body (js/JSON.stringify (clj->js input))
+                            :response-content-types {#"application/json" :json}
+                            :on-success [::input-dropped type]
+                            :on-failure [::fetch-failed]}}))
+
+(rf/reg-event-fx ::input-dropped
+                 (fn [_ [_ type response]]
+                   (let [doc (:body response)]
+                     (when (:id doc)
+                       {:dispatch [(if (= type "article") :agora/article-edited :agora/edited)
+                                   doc]}))))
 
 ;; Programmatic navigation: drive Pushy so it pushState's and dispatches the
 ;; route change, same as an intercepted link click.
@@ -408,6 +500,18 @@
 ;; assoc-ing the error body — the admin table iterates :admin-tnrs.
 (rf/reg-event-db ::admin-tnrs-failed (fn [db _] (assoc db :admin-tnrs [])))
 
+(rf/reg-event-db ::admin-issues-ok (fn [db [_ resp]] (assoc db :admin-issues (:body resp))))
+(rf/reg-event-db ::admin-issues-failed (fn [db _] (assoc db :admin-issues [])))
+
+(rf/reg-event-fx ::admin-issues-fetch
+                 (fn [_ _]
+                   {:fetch {:method :get
+                            :url "/agora/api/admin/issues"
+                            :headers {"Accept" "application/json"}
+                            :response-content-types {#"application/json" :json}
+                            :on-success [::admin-issues-ok]
+                            :on-failure [::admin-issues-failed]}}))
+
 (rf/reg-event-fx :agora/admin-fetch
                  (fn [_ _]
                    {:fetch {:method :get
@@ -415,27 +519,31 @@
                             :headers {"Accept" "application/json"}
                             :response-content-types {#"application/json" :json}
                             :on-success [::admin-tnrs-ok]
-                            :on-failure [::admin-tnrs-failed]}}))
+                            :on-failure [::admin-tnrs-failed]}
+                    :dispatch [::admin-issues-fetch]}))
 
 (defn- admin-post
-  [url ki-name ki-major]
+  [url type doc-name lang doc-major]
   {:method :post
    :url url
    :headers {"Content-Type" "application/json"
              "Accept" "application/json"}
-   :body (js/JSON.stringify (clj->js {:name ki-name
-                                      :major ki-major}))
+   :body (js/JSON.stringify (clj->js {:type type
+                                      :name doc-name
+                                      :lang lang
+                                      :major doc-major}))
    :response-content-types {#"application/json" :json}
    :on-success [:agora/admin-fetch]
    :on-failure [:agora/admin-fetch]})
 
 (rf/reg-event-fx :agora/admin-drop
-                 (fn [_ [_ ki-name ki-major]]
-                   {:fetch (admin-post "/agora/api/admin/drop-tnr" ki-name ki-major)}))
+                 (fn [_ [_ type doc-name lang doc-major]]
+                   {:fetch (admin-post "/agora/api/admin/drop-tnr" type doc-name lang doc-major)}))
 
 (rf/reg-event-fx :agora/admin-compact
-                 (fn [_ [_ ki-name ki-major]]
-                   {:fetch (admin-post "/agora/api/admin/compact-tnr" ki-name ki-major)}))
+                 (fn [_ [_ type doc-name lang doc-major]]
+                   {:fetch
+                    (admin-post "/agora/api/admin/compact-tnr" type doc-name lang doc-major)}))
 
 (rf/reg-sub ::view (fn [db _] (:view db)))
 ;; The cached document for a KI id (nil until a neighbour fetch lands).
@@ -467,8 +575,8 @@
     (cond
       (= kind :new) [ki-view/creation-form]
       (= kind :article-new) [article-view/article-new-form]
-      (= kind :preferences) [ki-view/preferences-page]
-      (= kind :admin) [ki-view/admin-page]
+      (= kind :preferences) [document-view/preferences-page]
+      (= kind :admin) [document-view/admin-page]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind
@@ -477,14 +585,15 @@
              ;; editable page for signed-in ones. Reactive on the auth sub, so
              ;; it swaps the moment /me resolves after a hard load.
              :ki-public (if user [ki-view/ki-page data] [ki-view/public-ki-page data])
-             :home [ki-view/landing-page data]
-             :discover [ki-view/discover-page data]
+             :home [document-view/landing-page data]
+             :discover [document-view/discover-page data]
              :articles [article-view/articles-discover data]
              :article [article-view/article-card data]
              :article-public [article-view/article-card data]
+             :author [author-view/author-page data]
              nil)
       error [error-view error]
-      loading? [ki-view/loading-view @(rf/subscribe [::loading-kind])]
+      loading? [document-view/loading-view @(rf/subscribe [::loading-kind])]
       :else nil)))
 
 (defn root-view
@@ -495,12 +604,12 @@
   [:div {:style {:display "flex"
                  :flex-direction "column"
                  :min-height "100vh"}}
-   [ki-view/header]
+   [document-view/header]
    [:main {:style {:flex "1 0 auto"}}
     [app-view]]
-   [ki-view/site-footer]
+   [document-view/site-footer]
    [auth/auth-modal]
-   [ki-view/translation-editor]])
+   [document-view/translation-editor]])
 
 (defn ^:dev/after-load mount-root
   []

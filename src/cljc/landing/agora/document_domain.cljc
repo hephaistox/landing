@@ -1,9 +1,9 @@
-(ns landing.agora.domain
+(ns landing.agora.document-domain
   "The Agora knowledge-graph domain: the vocabulary and the pure rules for wiring KIs
   together, shared by the backend and the frontend (cljc).
 
   No I/O and no persistence format. Effectful lookups (`latest-of`, load, persist)
-  and EDN (de)serialization are supplied by the adapters — `landing.agora.ki` on the
+  and EDN (de)serialization are supplied by the `landing.agora.document` adapter on the
   server, the SPA on the client. Persistence (SQL, cache) and transport (HTTP) are
   adapters *around* this core, so the wiring logic lives in exactly one place and one
   technology.
@@ -11,34 +11,54 @@
   A KI's identity is its **TNLR** = (type, name, lang, major), where `type` is the
   object type (`ki` / `objection`, the T); its latest minor is the current version.
   Its epistemic register is a separate `kind`. Its inputs are declared as TNLRs and
-  each pinned to a concrete predecessor id.")
+  each pinned to a concrete predecessor id."
+  (:require
+   [clojure.string :as str]))
 
 (def kinds
   "The epistemic `kind`s — canonical domain data for a KI's kind, in display order.
-  Each carries its accent colour and its conceptual `family` (`derived` — has inputs;
-  `verifiable` — settles at a date; `foundation` — a declared starting point). The set
-  is NOT enforced by the DB; the API validates against it and the UI renders from it."
+  Each carries its accent colour, its conceptual `family` (`derived` — has inputs;
+  `verifiable` — settles at a date; `foundation` — a declared starting point), and a
+  pointer to the KI that *defines* it: `:def-name` + `:def-major` (the definition KI's
+  identity name and major). The rest of that identity is implied — its `type` is `ki`,
+  its `minor` resolves automatically to the latest, and its `lang` is the reader's
+  interface language — so only name + major need to be declared here (see `kind-def`).
+  The set is NOT enforced by the DB; the API validates against it and the UI renders it."
   [{:id :inference
     :color "#2c5aa0"
-    :family :derived}
+    :family :derived
+    :def-name "type-inference"
+    :def-major 1}
    {:id :prediction
     :color "#0b7285"
-    :family :verifiable}
+    :family :verifiable
+    :def-name "type-prediction"
+    :def-major 1}
    {:id :postulate
     :color "#6741d9"
-    :family :foundation}
+    :family :foundation
+    :def-name "type-postulate"
+    :def-major 1}
    {:id :definition
     :color "#a61e8c"
-    :family :foundation}
+    :family :foundation
+    :def-name "type-definition"
+    :def-major 1}
    {:id :position
     :color "#b9770e"
-    :family :foundation}
+    :family :foundation
+    :def-name "type-position"
+    :def-major 1}
    {:id :belief
     :color "#2b8a3e"
-    :family :foundation}
+    :family :foundation
+    :def-name "type-belief"
+    :def-major 1}
    {:id :credo
     :color "#c92a2a"
-    :family :foundation}])
+    :family :foundation
+    :def-name "type-credo"
+    :def-major 1}])
 
 (def kind-ids "The kind ids (keywords), in display order." (mapv :id kinds))
 
@@ -50,8 +70,20 @@
   "kind name (string) → conceptual family (keyword)."
   (into {} (map (juxt (comp name :id) :family)) kinds))
 
+(def kind-def
+  "kind name (string) → the identity of the KI that defines it: `{:type :name :major}`.
+  `type` is always `ki` and `minor` is omitted (it resolves to the latest via by-major);
+  the caller supplies the reader's `:lang`. This is the single source of the kind ↔
+  definition-KI link — the badge (frontend) and the type seed (backend) both read it, so
+  the `type-<kind>` slug convention lives in exactly one place."
+  (into {}
+        (map (juxt (comp name :id)
+                   (fn [{:keys [def-name def-major]}]
+                     {:type "ki" :name def-name :major def-major})))
+        kinds))
+
 (def object-types
-  "The identity T values (object types sharing the single AGORA_NODE table)."
+  "The identity T values (object types sharing the single AGORA_DOCUMENT table)."
   [:ki :objection :article])
 
 ;; --- article KI-citation grammar ---------------------------------------------
@@ -82,6 +114,20 @@
                :major (parse-major mj)}))
        (distinct)
        (vec)))
+
+(defn strip-cite
+  "Remove every `[[ki:<name>@<major>…]]` citation of (`name`, `major`) from `text`,
+  leaving its display text — the custom label if the token had one, else the bare name —
+  as plain prose. Used when an input is dropped from the input field: the inline mention
+  stays readable, but the citation (and therefore the input edge, which is derived from
+  the text) is gone and can't be re-derived on the next edit."
+  [text name major]
+  (if (str/blank? text)
+    text
+    (str/replace text
+                 cite-pattern
+                 (fn [[whole nm mj label]]
+                   (if (and (= nm name) (= (parse-major mj) major)) (or label nm) whole)))))
 
 ;; --- TNLR --------------------------------------------------------------------
 

@@ -3,7 +3,7 @@
 
   Currently: Sun Tzŭ's *The Art of War* (Lionel Giles' 1910 translation, Project
   Gutenberg #132, public domain), parsed one KI per numbered verse into
-  `resources/agora/seed/art-of-war.edn`. Each KI is stamped with:
+  `env/seed/agora/seed/art-of-war.edn`. Each KI is stamped with:
 
    - `:author \"Sun Tzŭ\"` — the reasoning's author (shown on the page, fed to
      schema.org). Distinct from `:owner-id`, the accountable account that can edit.
@@ -97,7 +97,7 @@
   the successor index. Idempotent; the reseed calls this first. Returns rows removed."
   []
   (let [n (-> (node/q! db/ds
-                       ["DELETE FROM AGORA_NODE WHERE type = ? AND name LIKE ?"
+                       ["DELETE FROM AGORA_DOCUMENT WHERE type = ? AND name LIKE ?"
                         ki-type
                         (str source-prefix "%")])
               first
@@ -139,7 +139,7 @@
   then clear caches. Preserves `AGORA_USER` (accounts) and any `type='article'`
   rows. Take a mysqldump backup first. Returns rows removed."
   []
-  (let [n (-> (node/q! db/ds ["DELETE FROM AGORA_NODE WHERE type = ?" ki-type])
+  (let [n (-> (node/q! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = ?" ki-type])
               first
               :next.jdbc/update-count)]
     (node/q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])
