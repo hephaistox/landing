@@ -41,7 +41,7 @@ A KI can be reached via multiple independent sets of inputs — disjunctive ante
 
 ### KI Types
 
-Every KI carries an **epistemic kind** (field `kind`) the claimer chooses — one of six flat values: `inference / prediction / postulate / position / belief / credo`. **As implemented today, the type is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic type"). The per-type differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The six values fall into three conceptual families:
+Every KI carries an **epistemic kind** (field `kind`) the claimer chooses — one of values: `inference / prediction ...`. **As implemented today, the type is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic type"). The per-type differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The six values fall into three conceptual families:
 
 **Derived KI** — the standard case. Has inputs, produces a logical consequence. Challenged by counterexample or ambiguity challenge. Confidence reflects how well the reasoning chain has survived scrutiny.
 

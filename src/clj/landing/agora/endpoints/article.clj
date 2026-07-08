@@ -1,7 +1,7 @@
 (ns landing.agora.endpoints.article
-  "HTTP routes for reading articles: list (discover), by permanent identity
-  (name + major → latest minor), and by concrete id. Read-only and anonymous, mirroring
-  landing.agora.endpoints.ki. Article authoring is a later slice."
+  "HTTP routes for articles, mirroring landing.agora.endpoints.ki: reads (list /
+  by permanent identity / by id) are anonymous; create and edit require a session
+  and produce immutable versions (edit → a new minor)."
   (:require
    [landing.agora.article             :as article]
    [landing.agora.endpoints.error     :as error]
@@ -77,6 +77,22 @@
       {:status 401
        :body {:error "login required"}})))
 
+(def edit-article-handler
+  "Edit article :id → a new minor version (title/body change; cited KIs re-parsed from
+  the new body), owned by the logged-in user. 201 with the new version, 404 if the
+  article is unknown, 401 if not logged in."
+  (fn [req]
+    (if-let [uid (get-in req [:session :user-id])]
+      (let [id (get-in req [:parameters :path :id])]
+        (if-let [a (article/edit-article id uid (get-in req [:parameters :body]))]
+          {:status 201
+           :body a}
+          {:status 404
+           :body {:error "Article not found"
+                  :id id}}))
+      {:status 401
+       :body {:error "login required"}})))
+
 (defn article-collection-route
   "The article collection: GET lists latest-minor articles (?lang=)."
   [prefix]
@@ -101,6 +117,27 @@
                                 lang-schema]
                                [:body body-schema]]}
            :summary "Create a new article (major 1, minor 0)"}}])
+
+(defn edit-article-route
+  "Edit an article by id → a new minor version. POST /api/article/:id/edit."
+  [prefix]
+  [prefix
+   {;; :conflicting — the 5-segment API path overlaps the `/agora/:lang/article/…`
+    ;; page route for the detector; reitit's matcher prefers the literal `api`.
+    :conflicting true
+    :post {:coercion coercion
+           :handler edit-article-handler
+           :muuntaja m/instance
+           :operationId "agora-edit-article"
+           :parameters {:path [:map [:id :string]]
+                        :body [:map
+                               [:title {:optional true}
+                                title-schema]
+                               [:body {:optional true}
+                                body-schema]]}
+           :summary "Edit an article — produces a new minor version (immutable)"
+           :swagger {:tags #{:agora}}
+           :middleware (conj mw (:middleware-fn throttle/authoring-rate-limiter))}}])
 
 (defn article-by-major-route
   "Public permanent identity: GET /api/article/by/:name/:major → latest minor."

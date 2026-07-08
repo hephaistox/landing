@@ -27,6 +27,9 @@
    {:id :postulate
     :color "#6741d9"
     :family :foundation}
+   {:id :definition
+    :color "#a61e8c"
+    :family :foundation}
    {:id :position
     :color "#b9770e"
     :family :foundation}

@@ -66,9 +66,10 @@
     (fetch-ki id)))
 
 (defn- content-of
-  "The immutable content map carried forward from a source node (its authored fields)."
+  "The immutable content map carried forward from a source node (its authored fields).
+  `:source` (a provenance/citation map on seeded KIs) is carried so it survives edits."
   [n]
-  (select-keys n [:kind :title :statement :author :owner-id :inputs]))
+  (select-keys n [:kind :title :statement :author :owner-id :inputs :source]))
 
 (defn- new-minor!
   "Insert a new minor of the concept `src` (same name/major/lang) with the given

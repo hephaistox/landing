@@ -6,7 +6,8 @@
    [landing.agora.endpoints.admin     :refer [admin-routes]]
    [landing.agora.endpoints.article   :refer [article-by-major-route
                                               article-collection-route
-                                              article-route]]
+                                              article-route
+                                              edit-article-route]]
    [landing.agora.endpoints.auth      :refer [auth-routes]]
    [landing.agora.endpoints.ki        :refer [by-major-route
                                               edit-ki-route
@@ -128,6 +129,7 @@
     (public-shell-route "/agora/:lang/articles")
     (article-collection-route "/agora/api/article")
     (article-by-major-route "/agora/api/article/by/:name/:major")
+    (edit-article-route "/agora/api/article/:id/edit")
     (article-route "/agora/api/article/:id")
     (article-page-route "/agora/:lang/article/:name/:major")
     (app-shell-route "/agora/:lang/new")

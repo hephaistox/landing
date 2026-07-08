@@ -339,6 +339,16 @@
                               (cache-put [:ki id] ki))
                       :agora/navigate (i18n/ki-id (i18n/current db) id)})))
 
+;; Called after a successful article edit: refresh the permalink's cache entry with
+;; the new minor and navigate there, so the reader sees the edit (not the stale
+;; cached version). Mirrors :agora/edited for KIs.
+(rf/reg-event-fx :agora/article-edited
+                 (fn [{:keys [db]} [_ art]]
+                   (let [lang (i18n/current db)
+                         ck [:article-public lang (:name art) (:major art)]]
+                     {:db (cache-put db ck art)
+                      :agora/navigate (i18n/article-permalink lang art)})))
+
 ;; Programmatic navigation: drive Pushy so it pushState's and dispatches the
 ;; route change, same as an intercepted link click.
 (rf/reg-fx :agora/navigate (fn [url] (pushy/set-token! @history url)))

@@ -156,28 +156,51 @@
 ;; Article
 ;; ---------------------------------------------------------------------------
 
+(declare article-edit-form)
+
 (defn article-card
-  "Render one article map (as returned by GET /api/article/:id)."
-  [{:keys [title body published-at]}]
-  [:article {:style {:width "44em"
-                     :max-width "100%"
-                     :box-sizing "border-box"
-                     :margin "1em auto"
-                     :padding "1.5em"
-                     :font-family "system-ui, sans-serif"}}
-   [:h1 {:style {:font-size "1.8em"
-                 :line-height "1.2"
-                 :margin "0 0 0.2em"}}
-    title]
-   [:div {:style {:color "#888"
-                  :font-size "0.85em"
-                  :margin-bottom "1.3em"}}
-    (or (fmt/utc published-at) "—")]
-   (into [:div {:style {:font-size "1.05em"
-                        :line-height "1.65"
-                        :color "#222"}}]
-         (map-indexed (fn [i para] ^{:key i} [paragraph para])
-                      (remove str/blank? (str/split (or body "") #"\n\n+"))))])
+  "Render one article map (as returned by GET /api/article/:id). A logged-in visitor
+  gets an Edit action; editing forks the article into a new minor version (any
+  contributor can edit — the fork model)."
+  [{:keys [id title body published-at]
+    :as art}]
+  (let [{edit-id :id} @(rf/subscribe [::edit])
+        user @(rf/subscribe [::auth/user])
+        lang @(rf/subscribe [::i18n/lang])]
+    (if (= edit-id id)
+      [article-edit-form]
+      [:article {:style {:width "44em"
+                         :max-width "100%"
+                         :box-sizing "border-box"
+                         :margin "1em auto"
+                         :padding "1.5em"
+                         :font-family "system-ui, sans-serif"}}
+       [:h1 {:style {:font-size "1.8em"
+                     :line-height "1.2"
+                     :margin "0 0 0.2em"}}
+        title]
+       [:div {:style {:color "#888"
+                      :font-size "0.85em"
+                      :margin-bottom "1.3em"}}
+        (or (fmt/utc published-at) "—")]
+       (into [:div {:style {:font-size "1.05em"
+                            :line-height "1.65"
+                            :color "#222"}}]
+             (map-indexed (fn [i para] ^{:key i} [paragraph para])
+                          (remove str/blank? (str/split (or body "") #"\n\n+"))))
+       (when user
+         [:div {:style {:margin-top "1.6em"
+                        :padding-top "1em"
+                        :border-top "1px solid #eee"}}
+          [:button {:on-click #(rf/dispatch [::edit-open art])
+                    :style {:padding "0.4em 0.9em"
+                            :border "1px solid #b9770e"
+                            :background "transparent"
+                            :color "#b9770e"
+                            :border-radius "0.3em"
+                            :cursor "pointer"
+                            :font-size "0.9em"}}
+           (str "✎ " (i18n/t lang :article-form/edit))]])])))
 
 ;; ---------------------------------------------------------------------------
 ;; Article discover
@@ -279,6 +302,47 @@
                  (fn [{:keys [db]} [_ resp]]
                    {:db (dissoc db ::form ::ki-search)
                     :agora/navigate (i18n/article-permalink (i18n/current db) (:body resp))}))
+
+;; ---- Edit an existing article → a new minor version ----
+
+(rf/reg-sub ::edit (fn [db _] (::edit db)))
+(rf/reg-event-db ::edit-open
+                 (fn [db [_ art]]
+                   (assoc db
+                          ::edit
+                          {:id (:id art)
+                           :title (:title art)
+                           :body (:body art)
+                           :saving? false})))
+(rf/reg-event-db ::edit-close (fn [db _] (dissoc db ::edit ::ki-search)))
+(rf/reg-event-db ::edit-set (fn [db [_ k v]] (assoc-in db [::edit k] v)))
+
+(rf/reg-event-db ::edit-failed
+                 (fn [db [_ resp]]
+                   (js/console.error "[agora] article edit failed:" (clj->js resp))
+                   (update db ::edit dissoc :saving?)))
+
+(rf/reg-event-fx ::edit-save
+                 (fn [{:keys [db]} _]
+                   (let [{:keys [id title body]} (::edit db)]
+                     {:db (assoc-in db [::edit :saving?] true)
+                      :fetch {:method :post
+                              :url (str "/agora/api/article/" id "/edit")
+                              :headers {"Content-Type" "application/json"
+                                        "Accept" "application/json"}
+                              :body (js/JSON.stringify (clj->js {:title title
+                                                                 :body body}))
+                              :response-content-types {#"application/json" :json}
+                              :on-success [::edit-saved]
+                              :on-failure [::edit-failed]}})))
+
+(rf/reg-event-fx ::edit-saved
+                 (fn [{:keys [db]} [_ resp]]
+                   (let [art (:body resp)]
+                     (if (:id art)
+                       {:db (dissoc db ::edit ::ki-search)
+                        :dispatch [:agora/article-edited art]}
+                       {:db (assoc-in db [::edit :saving?] false)}))))
 
 (defn- ki-insert-search
   "A KI search box; clicking a result calls `(insert! {:name :major})` to splice a
@@ -446,4 +510,107 @@
                        :border-radius "0.3em"
                        :text-decoration "none"
                        :color "#444"}}
+           (i18n/t lang :article-form/cancel)]]]))))
+
+(defn article-edit-form
+  "In-place editor rendered on the article card for a logged-in visitor: title + body
+  with the same KI-insert search as authoring. Saving POSTs /article/:id/edit → a new
+  minor version (a fork), then navigates to the article's permalink."
+  []
+  (let [node (atom nil)
+        fit! (fn []
+               (when-let [el @node]
+                 (set! (.. el -style -height) "auto")
+                 (set! (.. el -style -height) (str (.-scrollHeight el) "px"))))
+        insert! (fn [k]
+                  (when-let [el @node]
+                    (let [tag (str "[[ki:" (:name k) "@" (:major k) "]]")
+                          v (or (.-value el) "")
+                          s (.-selectionStart el)
+                          e (.-selectionEnd el)
+                          v' (str (subs v 0 s) tag (subs v e))]
+                      (rf/dispatch-sync [::edit-set :body v'])
+                      (js/setTimeout (fn []
+                                       (.focus el)
+                                       (let [pos (+ s (count tag))] (.setSelectionRange el pos pos))
+                                       (fit!))
+                                     0))))]
+    (fn []
+      (let [{:keys [title body saving?]} @(rf/subscribe [::edit])
+            lang @(rf/subscribe [::i18n/lang])
+            label {:font-size "0.8em"
+                   :color "#555"
+                   :margin-bottom "0.3em"}
+            field {:width "100%"
+                   :box-sizing "border-box"
+                   :padding "0.5em"
+                   :font-family "inherit"
+                   :font-size "0.95em"
+                   :border "1px solid #ccc"
+                   :border-radius "0.3em"
+                   :margin-bottom "0.8em"}
+            blank? (or (str/blank? title) (str/blank? body))]
+        [:div {:style {:width "44em"
+                       :max-width "100%"
+                       :box-sizing "border-box"
+                       :margin "1em auto"
+                       :padding "1.5em"
+                       :background "#fff"
+                       :border "1px solid #e2ddd2"
+                       :border-radius "0.6em"
+                       :font-family "system-ui, sans-serif"}}
+         [ui/on-escape #(rf/dispatch [::edit-close])]
+         [:h1 {:style {:font-size "1.3em"
+                       :margin "0 0 0.8em"}}
+          (i18n/t lang :article-form/edit-title)]
+         [:div {:style label}
+          (i18n/t lang :article-form/title)]
+         [:input {:type "text"
+                  :value (or title "")
+                  :on-change #(rf/dispatch [::edit-set :title (.. % -target -value)])
+                  :style field}]
+         [:div {:style label}
+          (i18n/t lang :article-form/body)]
+         [:textarea {:ref (fn [el] (reset! node el) (when el (js/setTimeout fit! 0)))
+                     :placeholder (i18n/t lang :article-form/body-ph)
+                     :value (or body "")
+                     :on-change
+                     (fn [e] (rf/dispatch [::edit-set :body (.. e -target -value)]) (fit!))
+                     :style {:width "100%"
+                             :box-sizing "border-box"
+                             :resize "none"
+                             :overflow "hidden"
+                             :min-height "10em"
+                             :padding "0.6em"
+                             :font-family "inherit"
+                             :font-size "1.02em"
+                             :line-height "1.55"
+                             :border "1px solid #ccc"
+                             :border-radius "0.3em"}}]
+         [:div {:style {:font-size "0.8em"
+                        :color "#888"
+                        :margin "0.2em 0"}}
+          (i18n/t lang :article-form/insert-ki)]
+         [ki-insert-search insert!]
+         [:div {:style {:display "flex"
+                        :gap "0.5em"
+                        :margin-top "1em"}}
+          [:button {:on-click (when-not (or blank? saving?) #(rf/dispatch [::edit-save]))
+                    :disabled (boolean (or blank? saving?))
+                    :style {:padding "0.4em 0.9em"
+                            :border "none"
+                            :background "#b9770e"
+                            :color "#fff"
+                            :border-radius "0.3em"
+                            :cursor (if (or blank? saving?) "default" "pointer")}}
+           (if saving?
+             (i18n/t lang :article-form/saving)
+             (i18n/t lang :article-form/save))]
+          [:button {:on-click #(rf/dispatch [::edit-close])
+                    :style {:padding "0.4em 0.9em"
+                            :border "1px solid #ccc"
+                            :background "#fff"
+                            :border-radius "0.3em"
+                            :cursor "pointer"
+                            :color "#444"}}
            (i18n/t lang :article-form/cancel)]]]))))
