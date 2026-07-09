@@ -13,14 +13,14 @@
      for this source (`… WHERE name LIKE 'aow-%'`).
 
   Meant to be run from a REPL against the DB, not wired into the app. Nothing here
-  runs automatically. All writes go through `node/insert-node!` so pins + the
+  runs automatically. All writes go through `store/insert-document!` so pins + the
   successor index stay consistent; `AGORA_USER` is never touched."
   (:require
-   [clojure.edn        :as edn]
-   [clojure.java.io    :as io]
-   [landing.agora.auth :as auth]
-   [landing.agora.db   :as db]
-   [landing.agora.node :as node]))
+   [clojure.edn                  :as edn]
+   [clojure.java.io              :as io]
+   [landing.agora.auth           :as auth]
+   [landing.agora.db             :as db]
+   [landing.agora.document-store :as store]))
 
 (def ^:private ki-type "ki")
 (def ^:private source-prefix "aow-")
@@ -60,7 +60,7 @@
 
 (defn- topo-order
   "Order KIs so every KI is inserted after the KIs it declares as inputs (DFS
-  post-order over the intra-seed edges). insert-node! resolves each input's pin by
+  post-order over the intra-seed edges). insert-document! resolves each input's pin by
   looking up its latest id, so premises must already exist. Throws on a cycle."
   [kis]
   (let [by-name (into {} (map (juxt :name identity)) kis)
@@ -88,7 +88,8 @@
   for the seed so the KIs are owned by a real, accountable account."
   []
   (some->> (seq auth/admin-emails)
-           (map #(first (node/q! db/ds ["SELECT id FROM AGORA_USER WHERE email = ?" %] node/kebab)))
+           (map #(first
+                  (store/q! db/ds ["SELECT id FROM AGORA_USER WHERE email = ?" %] store/kebab)))
            (keep :id)
            first))
 
@@ -96,41 +97,43 @@
   "Remove every KI from this source (matched by the `aow-` name marker) and rebuild
   the successor index. Idempotent; the reseed calls this first. Returns rows removed."
   []
-  (let [n (-> (node/q! db/ds
-                       ["DELETE FROM AGORA_DOCUMENT WHERE type = ? AND name LIKE ?"
-                        ki-type
-                        (str source-prefix "%")])
+  (let [n (-> (store/q! db/ds
+                        ["DELETE FROM AGORA_DOCUMENT WHERE type = ? AND name LIKE ?"
+                         ki-type
+                         (str source-prefix "%")])
               first
               :next.jdbc/update-count)]
-    (node/rebuild-successor-index!)
+    (store/rebuild-successor-index!)
     n))
 
 (defn seed-art-of-war!
-  "Insert all Art-of-War KIs owned by `owner-id` (default: the resolved platform
-  owner), wired with the `curated-edges`. Clears any existing `aow-` KIs first, so it
-  is safe to re-run. Inserts in topological order so each edge's pin resolves.
-  Returns {:inserted n :edges m}. Throws if no owner-id can be resolved — pass one."
-  ([] (seed-art-of-war! (resolve-owner-id)))
+  "Insert all Art-of-War KIs owned by `owner-id`, wired with the `curated-edges`. By
+  default the owner is **Sun Tzŭ himself** — a real (login-less) `AGORA_USER` external
+  person (`auth/find-or-create-external!`), so the author byline links to his profile and
+  every author in the graph is a real person (only the platform's own \"Agora\" is
+  seed-special). Clears any existing `aow-` KIs first, so it is safe to re-run. Inserts in
+  topological order so each edge's pin resolves. Returns {:inserted n :edges m}."
+  ([] (seed-art-of-war! (:id (auth/find-or-create-external! author))))
   ([owner-id]
    (assert owner-id "No owner-id: pass one, or have the admin account sign in first.")
    (delete-art-of-war!)
    (let [kis (topo-order (attach-edges (:kis (art-of-war))))]
      (doseq [{:keys [name lang kind title statement source inputs]} kis]
-       (node/insert-node! {:id (node/uuid)
-                           :type ki-type
-                           :name name
-                           :lang (or lang "en")
-                           :major 1
-                           :minor 0}
-                          {:kind kind
-                           :title title
-                           :statement statement
-                           :inputs inputs
-                           :author author
-                           :owner-id owner-id
-                           :published-at (node/now-iso)
-                           :source source}))
-     (node/rebuild-successor-index!)
+       (store/insert-document! {:id (store/uuid)
+                                :type ki-type
+                                :name name
+                                :lang (or lang "en")
+                                :major 1
+                                :minor 0}
+                               {:kind kind
+                                :title title
+                                :statement statement
+                                :inputs inputs
+                                :author author
+                                :owner-id owner-id
+                                :published-at (store/now-iso)
+                                :source source}))
+     (store/rebuild-successor-index!)
      {:inserted (count kis)
       :edges (reduce + (map (comp count val) curated-edges))})))
 
@@ -139,9 +142,9 @@
   then clear caches. Preserves `AGORA_USER` (accounts) and any `type='article'`
   rows. Take a mysqldump backup first. Returns rows removed."
   []
-  (let [n (-> (node/q! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = ?" ki-type])
+  (let [n (-> (store/q! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = ?" ki-type])
               first
               :next.jdbc/update-count)]
-    (node/q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])
-    (node/clear-caches!)
+    (store/q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])
+    (store/clear-caches!)
     n))

@@ -6,11 +6,11 @@
   injected into the shell `<head>` at serve time — and a sitemap is generated from
   the DB so every KI permalink is crawlable."
   (:require
-   [cheshire.core        :as json]
-   [clojure.string       :as str]
+   [cheshire.core                 :as json]
+   [clojure.string                :as str]
    [env]
    [landing.agora.document-domain :as domain]
-   [landing.language     :as language]))
+   [landing.language              :as language]))
 
 (def ^:private allowed-host-re
   "Hosts we will echo into absolute URLs in production — the hephaistox domains
@@ -66,6 +66,21 @@
    "name" (if (str/blank? title) (humanize name) title)
    "url" (str base "/agora/" lang "/ki/" (enc name) "/" major)})
 
+(defn- ref->citation
+  "A schema.org CreativeWork for a bibliographic reference (a cited external source):
+  the work's title, its author (Person), publication year and publisher — declaring the
+  document's external provenance as linked data (`citation`)."
+  [{:keys [title year editor author-name]}]
+  (cond-> {"@type" "CreativeWork"
+           "name" title}
+    author-name (assoc "author"
+                       {"@type" "Person"
+                        "name" author-name})
+    year (assoc "datePublished" (str year))
+    (not (str/blank? editor)) (assoc "publisher"
+                                     {"@type" "Organization"
+                                      "name" editor})))
+
 (defn- prose
   "A document's prose, from the unified `:text` key with a legacy `:statement`/`:body`
   fallback for rows not yet migrated."
@@ -120,22 +135,25 @@
               (meta-prop "og:url" url)
               (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
               (meta-name "twitter:card" "summary")
-              (json-ld (cond-> {"@context" "https://schema.org"
-                                "@type" "Article"
-                                "headline" title
-                                "name" title
-                                "description" desc
-                                "inLanguage" lang
-                                "url" url}
-                         (prose ki) (assoc "articleBody" (prose ki))
-                         (:published-at ki) (assoc "datePublished" (:published-at ki))
-                         (:author ki) (assoc "author"
-                                             {"@type" "Person"
-                                              "name" (:author ki)})
-                         ;; the reasoning edges: this KI is derived from
-                         ;; its input KIs (declared as linked works)
-                         (seq (:inputs ki)) (assoc "isBasedOn"
-                                                   (mapv #(ref-entry base %) (:inputs ki)))))]))))
+              (json-ld
+               (cond-> {"@context" "https://schema.org"
+                        "@type" "Article"
+                        "headline" title
+                        "name" title
+                        "description" desc
+                        "inLanguage" lang
+                        "url" url}
+                 (prose ki) (assoc "articleBody" (prose ki))
+                 (:published-at ki) (assoc "datePublished" (:published-at ki))
+                 (:author ki) (assoc "author"
+                                     {"@type" "Person"
+                                      "name" (:author ki)})
+                 ;; the reasoning edges: this KI is derived from
+                 ;; its input KIs (declared as linked works)
+                 (seq (:inputs ki)) (assoc "isBasedOn" (mapv #(ref-entry base %) (:inputs ki)))
+                 ;; external provenance: the sources it cites
+                 (seq (:references ki)) (assoc "citation"
+                                               (mapv ref->citation (:references ki)))))]))))
 
 (defn- body->text
   "Plain-text of an article body for a meta description: each `[[ki:…]]` citation
@@ -172,7 +190,9 @@
                           (:published-at art) (assoc "datePublished" (:published-at art))
                           (:author art) (assoc "author"
                                                {"@type" "Person"
-                                                "name" (:author art)})))])))
+                                                "name" (:author art)})
+                          (seq (:references art))
+                          (assoc "citation" (mapv ref->citation (:references art)))))])))
 
 (def ^:private home-copy
   "Localized marketing title/description for the home/landing page — mirrors the SPA

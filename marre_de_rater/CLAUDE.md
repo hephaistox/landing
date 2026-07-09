@@ -319,17 +319,50 @@ real probe costs (Q3). Each validates a slice of the search model (Q2).
   - No `<category>` means TV can only answer "is *this* movie on", not "any movie" —
     fine for UC-A.
 
-#### 🔴 Sandbox #2 — movie on VOD (TMDB) — planned
+#### ✅ Sandbox #2 — movie on VOD (`scripts/vod_movie.clj`) — BUILT & VALIDATED
 
-- **UC:** UC-A, VOD source. **Source:** [TMDB](https://www.themoviedb.org/)
-  `GET /movie/{id}/watch/providers` (JustWatch data) → per-region provider
-  availability, e.g. `{:results {:FR {:flatrate ["Netflix" …]}}}`. Free API key.
-  Resolve title→id via `GET /search/movie` first.
-- **Probe:** `(vod-movie-probe subject ctx)` → a hit per provider streaming it in
-  `(:region ctx)` — returns **all** providers (interpretation layer narrows/widens,
-  see monetization).
+- **UC:** UC-A, VOD source. **Source:** [TMDB](https://www.themoviedb.org/) — two
+  calls: `GET /search/{movie|tv}?query=` resolves the title to a **TMDB identity**
+  (id + official title + genres), then `GET /{movie|tv}/{id}/watch/providers` gives
+  per-region availability (JustWatch data), e.g. `{:results {:FR {:flatrate ["Netflix"
+  …] :rent … :buy …}}}`. Free API key (read from `TMDB_API_KEY`).
+- **Probe:** pure `(vod-probe subject ctx)`, `ctx {:region :fr :api-key …}` → a hit per
+  provider offering it in the region (flatrate/rent/buy). Returns **all** providers
+  (interpretation narrows/widens — monetization, Q9).
+- **This probe pays off three earlier findings:**
+  - **Canonical identity (Q11)** — the TMDB id/official title is exactly the subject
+    identity the TV probe lacked (fixes "Scooby-Doo & Batman"); it's what will make
+    cross-probe consolidation possible.
+  - **Kind resolution (Q10)** — `media_type` + genres classify movie/tv/anime properly
+    (what epg.pw couldn't).
+  - **State vs event (Q2b)** — availability is a *state*: `:when` is nil and `:hit-id`
+    has **no timestamp**, so the engine notifies **once** on appearance, not daily.
+    (Contrast the TV probe, whose hit-id includes airing time → each airing notifies.)
 - **Consequence:** availability-by-region comes from TMDB/JustWatch, so we do **not**
   log into the user's Netflix/Amazon — Q8 resolved.
+- **Validated live** (2026-07-09, real TMDB key):
+  - `"Dune"` :us → HBO Max (flatrate) + Amazon/Apple/Google/YouTube/Fandango/Plex
+    (rent/buy); `"batman"` :fr → 29 offers; `"Le Seigneur des anneaux"` :fr → 29 offers;
+    `"zzz-nonexistent-movie-xyz"` → **0**.
+  - **Full engine tick over `intents.edn`**: assign fans out `i-lotr`→[:tv :vod],
+    `i-batman`→[:tv :vod], `i-dune-en`→**[:vod] only** (the `:en` intent the FR TV feed
+    rejects is served solely by the region-agnostic VOD probe — routing proven). TICK 1
+    emitted TV **and** VOD notifications; TICK 2 → **nothing new** (memory dedup holds).
+- **Two learnings feeding the model:**
+  - **Popularity-top resolution is lossy (feeds Q11).** `search` returns TMDB's *single*
+    popularity-ranked best guess, which for a vague query is often the **wrong work**:
+    `"batman"` → *Batman Begins* (not the 1989 film or the character), `"Le Seigneur des
+    anneaux"` → *…Le Retour du roi* (the **3rd** film, not the 1st). Same disambiguation
+    gap as TV's "Scooby-Doo & Batman", now on the VOD side — free text → one silent guess.
+    → the subject must be **resolved to a chosen TMDB id up front** (a disambiguation
+    step at subject-creation time), not re-guessed per probe run. (See Q11, now widened.)
+  - **Provider fan-out is raw noise (concrete P1 evidence for Q9).** One movie yields
+    **~29 hits** (every provider × flatrate/rent/buy). Emitting 29 notifications for
+    "Dune is on VOD" is exactly the noise **P1** forbids. Probes are right to return
+    everything (they stay provider-agnostic for monetization), but the
+    **interpretation/consolidation layer MUST collapse the fan-out into ONE high-value
+    notification** ("Dune is now streamable — HBO Max + 6 rental options"). Live proof
+    that Q9/Q11 are load-bearing, not cosmetic.
 
 #### ✅ Engine sandbox (`scripts/engine.clj` + `scripts/intents.edn`) — BUILT & VALIDATED
 
@@ -375,15 +408,15 @@ Legend: 🔴 TODO · 🟡 IN PROGRESS · ⏸️ PAUSE · ✅ DONE
 | Q1  | 🔴 TODO        | **Name & namespace.** Final app name? Code namespace (`landing.mdr`? `landing.watch`?) and URL prefix (`/mdr`? `/watch`?)?                                                                                                                                                                                                                                                                     |
 | Q2  | 🟡 IN PROGRESS | **The search model.** Contract decided (probe = pure fn `(subject ctx → hits)`; engine owns de-dup). Two user use cases: **UC-A** "await availability of a known work" (movie via TV+VOD; *state* flavour) and **UC-B** "follow a creator for new activity" (artist/author; *event-stream* flavour, multi-probe). **Done only when both are proven by sandboxed probes sharing one contract.** |
 | Q2b | ⏸️ PAUSE        | **Re-notify policy / `:hit-id` granularity** (engine concern). Parked until probes exist.                                                                                                                                                                                                                                                                                                      |
-| Q3  | 🟡 IN PROGRESS | **The sandbox.** Location decided: `marre_de_rater/scripts/*.clj`, disposable, REPL-run via `load-file`. **Sandbox #1 (TV) built & validated live.** Next: #2 VOD (TMDB), #3 concert (Bandsintown). Open: fixture capture for repeatable tests.                                                                                                                                                |
+| Q3  | 🟡 IN PROGRESS | **The sandbox.** Location decided: `marre_de_rater/scripts/*.clj`, disposable, REPL-run via `load-file`. **Sandbox #1 (TV) and #2 (VOD/TMDB) both built & validated live**, wired through the engine. Next: #3 concert (Bandsintown, UC-B). Open: fixture capture for repeatable tests.                                                                                                        |
 | Q4  | 🟡 IN PROGRESS | **Sources / providers.** VOD = **TMDB `watch/providers`** (decided, search #1). Concerts = Bandsintown (likely). TV listings = still open (regional/scraped). ToS review per source pending.                                                                                                                                                                                                   |
 | Q5  | 🔴 TODO        | **Notification channel.** How is the user notified — email, web push, in-app inbox? Reuse anything from landing (contact email infra)?                                                                                                                                                                                                                                                         |
 | Q6  | 🔴 TODO        | **Scheduling cadence & de-dup.** How often does each search run? Global sweep vs per-watch cadence? How do we avoid notifying twice for the same hit?                                                                                                                                                                                                                                          |
 | Q7  | 🔴 TODO        | **Storage schema.** Table name; which fields are promoted to indexed columns vs left in the edn blob; how a user's connected-provider credentials (if any) are stored.                                                                                                                                                                                                                         |
 | Q8  | ✅ DONE        | **Connected accounts.** Resolved for VOD: availability comes from TMDB/JustWatch **by region**, so we do **not** log into the user's Netflix/Amazon. (Revisit only if a future source genuinely needs account access.)                                                                                                                                                                         |
-| Q9  | 🔴 TODO        | **Interpretation layer & monetization.** Notifications are *wide* (surface availability the user can't currently access). How does interpretation turn raw results into messages, apply user prefs, and place **paid offers** (e.g. a VOD provider paying to be featured)? Business model detail.                                                                                              |
+| Q9  | 🔴 TODO        | **Interpretation layer & monetization.** Notifications are *wide* (surface availability the user can't currently access). How does interpretation turn raw results into messages, apply user prefs, and place **paid offers** (e.g. a VOD provider paying to be featured)? **Live evidence it's load-bearing:** one movie = ~29 raw VOD hits (provider × flatrate/rent/buy); this layer MUST collapse them to ONE notification or it violates P1. Business model detail.                                    |
 | Q10 | 🔴 TODO        | **Content-kind taxonomy.** Subject carries `:kinds` (`#{:movie :tv-show :anime}` \| `:all`). Is *anime* a form or a genre (anime films exist)? One facet or two (form × genre)? Resolved where — TMDB `media_type` + Animation genre — and carried on the subject.                                                                                                                          |
-| Q11 | 🔴 TODO        | **Consolidation: same-event across probes.** One real-world event (movie now watchable) may be found by several probes (TV / cinema / VOD) → one **Event** with a **1→many** link to sources. What key defines "same event" (canonical subject id + event-type + time window)? How are sources ranked/merged for the notification?                                                          |
+| Q11 | 🔴 TODO        | **Consolidation & subject identity.** Two faces of one problem. (a) *Same-event across probes:* one real-world event (movie now watchable) found by TV / cinema / VOD → one **Event** with a **1→many** link to sources; what key defines "same event" (canonical subject id + event-type + time window)? (b) *Up-front disambiguation (live finding):* both probes resolve a free-text query to **one silent guess** — TV's "Scooby-Doo & Batman", VOD's `batman`→*Batman Begins* / `Le Seigneur des anneaux`→*Le Retour du roi*. The subject must be **pinned to a chosen TMDB id at creation time** (a disambiguation step), then probes filter to *that* work — not re-guess per run. Same canonical id then powers (a).                          |
 
 ---
 *Maintainer note: keep this list current. When a question is settled, mark it ✅ and

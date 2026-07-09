@@ -16,14 +16,12 @@
 
 (def ^:private author-handler
   (fn [req]
-    (let [id   (get-in req [:parameters :path :id])
+    (let [id (get-in req [:parameters :path :id])
           lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
       (if-let [profile (auth/author-profile id)]
-        (let [{:keys [kis last-activity]} (document/by-author id lang)]
+        (let [{:keys [documents last-activity]} (document/by-author id lang)]
           {:status 200
-           :body (assoc profile
-                        :kis kis
-                        :last-activity last-activity)})
+           :body (assoc profile :documents documents :last-activity last-activity)})
         {:status 404
          :body {:error "author not found"}}))))
 
@@ -46,5 +44,7 @@
     {:get {:handler author-handler
            :operationId "agora-author"
            :parameters {:path [:map [:id :string]]
-                        :query [:map [:lang {:optional true} [:string {:max 8}]]]}
+                        :query [:map
+                                [:lang {:optional true}
+                                 [:string {:max 8}]]]}
            :summary "Public author profile: card, documents, last activity"}}]])

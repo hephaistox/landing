@@ -74,14 +74,22 @@ A KI's **content language** is part of its identity (`Lang`). A concept can exis
 
 Consequences:
 
-- **Inputs are pinned per language.** A KI's inputs are stored in its `envelope`, each pinned by **TNLR** (which includes Language) to a concrete predecessor `id` — so a French KI's inputs point at French predecessors. Translating a KI creates target-language siblings of its inputs and pins to them; the read still **falls back** to another language when a translation doesn't exist yet (the UI shows a "a version exists in your language" banner when relevant). (This replaced the earlier language-neutral `(Name, Major)` edge table.)
+- **Inputs are pinned per language.** A KI's inputs are stored in its immutable `content.:inputs`, each pinned by **TNLR** (which includes Language) to a concrete predecessor `id` — so a French KI's inputs point at French predecessors. Translating a KI creates target-language siblings of its inputs and pins to them; the read still **falls back** to another language when a translation doesn't exist yet (the UI shows a "a version exists in your language" banner when relevant). (This replaced the earlier language-neutral `(Name, Major)` edge table.)
 - **`Name` is a language-neutral identity slug** (used in URLs, edges, translation grouping). It is *not* the display heading. A separate, per-language, editable **`title`** field holds the human-readable heading (e.g. *"Préférer la confiance à la logique"*); when absent the UI falls back to a humanized form of the slug.
 - **Two independent language dials.** (1) A **content language**, fixed in the permalink `/agora/<lang>/ki/<name>/<major>` — sharing a link forces that language. (2) An **interface-language preference** — a stored user setting (localStorage for everyone; `AGORA_USER.lang` for logged-in users, loaded at login) that drives the chrome, the discover feed and search. Changing the preference never changes the language of a KI permalink you are viewing. Set on the Preferences page.
 - Translation authoring copies the source text as a starting point and offers a best-effort machine-translation suggestion (MyMemory) the author validates; the title is translated too. Direct inputs are duplicated alongside so the immediate graph exists in the new language.
 
 ### Timestamp & Provenance
 
-Every KI carries an immutable timestamp for each version. This is a proof of intellectual antecedence — the claimer can establish that they formulated this reasoning before it became mainstream, before an academic paper covered it, before the fact resolved. The timestamp is public, indexed by Google, and incontestable. A forked version carries its own timestamp; antecedence belongs to the original branch. This is a strong claimer motivation: beyond convincing others, they are protecting their intellectual authorship.
+Every KI carries an immutable timestamp for each version — a proof of intellectual antecedence: the claimer formulated this reasoning before it became mainstream, before a paper covered it, before the fact resolved. It is public and indexed by Google (a strong social signal, though not yet cryptographically anchored — see *Integrity & timestamp anchoring*). A forked version carries its own timestamp; antecedence belongs to the original branch. Beyond convincing others, the claimer is protecting their intellectual authorship.
+
+### Sources & References
+
+Beyond `[[ki:…]]` **inputs** (which cite other KIs), a document may cite **external sources** — bibliographic provenance. A **source** is a reusable *work* (`AGORA_SOURCE`): an author (a person in `AGORA_USER`, possibly login-less/external), title, year, editor. A document's `content.:references` is a list of `{:source-id :locator}` — the source plus a per-citation locator (page / chapter / entry). Authoring: search existing sources (author/title/year), reuse recent ones in one click, or create a new source + author inline; a source is edited *in place* (shared, not versioned — an edit updates every citing document). References render on the page (author → profile), attribute the cited author on discover cards, and are emitted as schema.org `citation`.
+
+### Integrity & timestamp anchoring — designed, deferred
+
+`content.:published-at` is self-asserted: a claim, backdatable, only as trustworthy as the operator. Fine while the graph is operator-seeded, but it does not survive a **skeptical reader** or a **priority dispute**. Intended mechanism (deferred, Layer 2+): a per-version **content hash chained to its predecessor** (tamper-*evident*, but not tamper-*proof* against the operator — a single-operator service has no proof-of-work/consensus), plus an **external anchor** — a periodic Merkle root committed to Bitcoin via **OpenTimestamps** (free, no chain to run). That yields an un-forgeable "existed by time T": the *upper bound* that wins a priority dispute (an OTS proof is bound to one hash, so it cannot be reused for other content, and a faked-early `:published-at` has no matching anchor). It is **not retroactive** (covers only content anchored after it ships) and deferring costs nothing — content is already immutable, so the hash + anchor are purely additive later.
 
 ---
 
@@ -336,7 +344,17 @@ This makes AI a challenger assistant built into the authoring flow — the oppos
 
 ## 12. Feature Layers
 
-> **Implementation status.** Layer 1 is essentially built, plus several things beyond the original slice list: full **internationalisation** (content language in identity, interface-language preference, translation-by-name, per-language `title` — see "Language & Translation"), **Google + email/password auth** (#38), **server-rendered SEO** — OpenGraph + schema.org `Article` with `isBasedOn` graph edges, dynamic `sitemap.xml`, `robots.txt` (#39), and an **admin maintenance page** (list/compact/drop KI lineages). Every "PostgreSQL schema" below is implemented in **MySQL** (`resources/agora/migrations/`). The Objection system, confidence score, fork/merge and article authoring UI remain deferred to Layer 2.
+> **Implementation status (current — the authoritative "what's built").** Layer 1 is built, plus much beyond the original slices. The slice list below is the historical MVP breakdown; every "PostgreSQL schema" in it is actually **MySQL** (`resources/agora/migrations/`), and the table is `AGORA_DOCUMENT` (KIs and articles unified in one polymorphic table — no separate article table). Built beyond Layer 1:
+> - **Unified document engine** — KIs and articles are the same `type` rows over one engine (`landing.agora.document`); prose is one `:text` field (a KI's "statement" and an article's "body" merged). Full **article** authoring/editing/translation, not just seeded.
+> - **i18n** — content language in identity, interface-language preference, translation-by-name, per-language `title`.
+> - **Auth** — Google OAuth + email/password (#38); admin allowlist via `AGORA_ADMIN_EMAILS` env var. **People** = `AGORA_USER`, extended to hold login-less `provider='external'` cited authors (incl. the platform author "Agora"); each person has a public `/agora/<lang>/author/:id` profile.
+> - **Sources / references** — documents cite external bibliographic **sources** (`AGORA_SOURCE`: author→person, title, year, editor), pinned per citation with a locator, stored in `content.:references`; authored via a search-modal + person-picker; rendered on the page, attributed on discover cards, and emitted as schema.org `citation`. See "Sources & References".
+> - **Epistemic types are self-hosted** — each `kind` is described by a `definition`-kind KI (slug `type-<kind>`); the kind→definition link is domain data (`document-domain/kind-def`).
+> - **SEO** — server-rendered OpenGraph + schema.org `Article` (`isBasedOn` inputs, `citation` sources), dynamic `sitemap.xml`, `robots.txt` (#39).
+> - **Admin** — maintenance page (list/compact/drop lineages) + a **consistency scan** (dangling + self references, all versions).
+> - **Timestamp anchoring** — designed, deferred (see "Integrity & timestamp anchoring").
+>
+> The Objection system, confidence score, and fork/merge remain deferred to Layer 2.
 
 ### Layer 1 — First Deployable
 
@@ -430,43 +448,26 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 ### Stack
 
-- **Backend** — Clojure (Ring/Reitit), part of the `landing` app (Agora is a product inside it, served under `/agora`).
-- **Frontend** — ClojureScript + React (Reagent/re-frame), its own shadow-cljs build (`:agora`), a single-page app.
-- **Hosting** — Clever Cloud.
-- **Database** — **MySQL** (the existing Clever Cloud addon, shared with the landing contact form — *not* PostgreSQL as the original spec assumed). Just four tables: `AGORA_NODE` (documents), `AGORA_SUCCESSOR` (derived reverse-edge cache), `AGORA_ARTICLE`, `AGORA_USER`. Schema in `resources/agora/migrations/`.
-- **Object storage** — all text is stored **inline** on its own row (KI statements on `AGORA_NODE`, article bodies on `AGORA_ARTICLE`); one read gets the whole record. There is no separate blob store.
-- **Auth** — session cookie + **OAuth (Google)** and **email/password** (bcrypt). Facebook is wired in the model but deferred.
+- **Backend** — Clojure (Ring/Reitit), part of the `landing` app; Agora is served under `/agora`.
+- **Frontend** — ClojureScript + Reagent/re-frame, own shadow-cljs `:agora` build (SPA). Layered: `document-view` (shared engine + chrome) with thin `ki-view` / `article-view` / `author-view` on top; none depend on each other.
+- **Hosting** — Clever Cloud. **DB** — MySQL (the shared addon, also used by the contact form). The addon caps at **5 connections split across dev/la/prod**, so the HikariCP pool is small and per-env: `AGORA_DB_POOL_MAX` (default 2; recommend prod 2, la/dev 1).
+- **Auth** — session cookie + Google OAuth + email/password (bcrypt). Admin allowlist is env-driven (`AGORA_ADMIN_EMAILS`). Facebook deferred.
+- **Tables** (`resources/agora/migrations/`, applied manually via `scripts/agora_db.clj`): `AGORA_DOCUMENT` (KIs **and** articles — one polymorphic table), `AGORA_SUCCESSOR` (derived reverse-edge cache), `AGORA_USER` (accounts **and** login-less `provider='external'` cited people), `AGORA_SOURCE` (reusable bibliographic works). All text stored inline; no blob store.
 
 ### Read model — document + caches (reads ≫ writes)
 
-The workload is overwhelmingly reads (thousands of reads per minor creation), so graph traversal and version resolution are **precomputed on write and cached**, not done in SQL per read. See `landing.agora.ki` and `landing.agora.cache`.
+Graph traversal and version resolution are **precomputed on write and cached**, never done in SQL per read. Engine: `landing.agora.document` (+ `landing.agora.node`, the SQL/cache adapter; `landing.agora.cache`, Caffeine). Pure wiring/pin/successor rules live in `landing.agora.document-domain` (cljc).
 
-- **TNLR** = (Type, Name, Language, major Release) — the full identity minus `minor`; it names a concept-lineage in one language whose latest minor is the current version.
-- **A KI is a document, keyed by `id`.** The only columns are the identity keys — `id`, `type` (the object type, T), `name`, `lang`, `major`, `minor` — so PK/indexes never parse EDN. Everything else is two EDN blobs: **immutable `content`** (`{:kind :title :statement :author :owner-id :published-at :inputs [TNLR…]}`, never updated after insert) and **mutable `computed`** (`{:pins {tnlr-key → id}}`, re-resolved on writes). All wiring/pin/successor rules are pure functions in `landing.agora.domain` (cljc); `landing.agora.ki` is the SQL/cache adapter.
-- **An input has two halves.** The **declaration** (which concept — a TNLR) is *authored*, part of the KI's meaning, and lives in immutable `content.:inputs`. The **pin** (which exact predecessor version — an id) is *derived* and lives in mutable `computed.:pins`. So changing inputs versions the KI (`add`/`drop-input` → a new **minor**, under the same permalink, and successors re-pin to it), while re-resolving a pin does not.
-- **Re-pin on write, not on read.** Creating a new minor of concept X re-pins X's successors: each successor's `computed.:pins` entry for X is rewritten to the new id — a mutable update, no version (that's "resolution updates happen only when we create a new one"). There is no client-side or per-read version resolution.
-- **Reverse edges = the `AGORA_SUCCESSOR` cache table** (input-TNLR → successor **id**). A node can't know its own successors, so this is precomputed from every envelope. It is a **cache**: safe to drop, rebuilt incrementally on write and fully **every 24h** by `landing.agora.scheduler` (calls `ki/rebuild-successor-index!`).
-- **In-memory caches (Caffeine, `landing.agora.cache`)** front all of it: `id → document`, TNLR → successors / versions, name → translations. A KI page with 2 inputs is **~3 cheap reads** (the KI + each input by id, for its title); warm cache hits touch MySQL 0 times (down from ~19 before).
-- **Frontend cache** (`core.cljs`) — a bounded LRU (≤1000) of documents by id; the old client-side latest-minor resolution is gone.
+- **TNLR** = (Type, Name, Lang, major Release) — identity minus `minor`; names a lineage whose latest minor is current.
+- **A document is a row keyed by `id`.** Columns are only the identity keys (`id`, `type`, `name`, `lang`, `major`, `minor`) so indexes never parse EDN. Everything else is two EDN blobs: **immutable `content`** (`{:kind :title :text :author :owner-id :published-at :inputs [TNLR…] :references [{:source-id :locator}…]}`, never updated after insert) and **mutable `computed`** (`{:pins {tnlr-key → id}}`). A KI's "statement" and an article's "body" are the same `:text` slot.
+- **Inputs = the `[[ki:…]]` citations in `:text`** (parsed on write). An input's *declaration* (a TNLR) lives in `content.:inputs`; its *pin* (the exact predecessor id) in `computed.:pins`. Changing inputs → a new **minor** (same permalink; successors re-pin); re-resolving a pin does not, and is never done client-side.
+- **Reverse edges = `AGORA_SUCCESSOR`** (input-TNLR → successor id) — a cache rebuilt incrementally on write and fully every 24h (`landing.agora.scheduler`).
+- **References** are resolved (source-id → work + author) on read by `landing.agora.source` (cached); their authors are `AGORA_USER` people. Confidence, once computed, also lives in mutable `computed` — never in the immutable content.
+- **Caches** (Caffeine) front everything (`id → document`, TNLR → successors/versions, name → translations); warm hits touch MySQL 0 times. Frontend keeps a bounded LRU (≤1000) of documents by id.
 
-### Confidence Storage
+### Cost
 
-Confidence is a navigation signal, not the primary epistemic mechanism — that role belongs to the objection system. Its live computed value belongs in the node **`computed`** blob (the mutable part, alongside the pins), recomputed as objection states change — never in the immutable content.
-
-### Graph Model
-
-MySQL is a key-value document store here (`AGORA_NODE` by id) plus one derived reverse-index cache table (`AGORA_SUCCESSOR`). Forward edges live in each node's `envelope`; there is no join-heavy edge table. A dedicated graph database is unnecessary at this scale.
-
-### Search
-
-Full text search is needed from day one. Elasticsearch is the main cost variable. For MVP, consider deferring to AI-assisted vector search (embeddings stored cheaply, semantic search without Elasticsearch infrastructure) to keep costs low at small scale.
-
-### Cost Profile (Clever Cloud)
-
-- PostgreSQL XS — ~€15/month
-- Text storage — inline on each row (no separate store or cost)
-- Search — main cost variable, possibly deferred
-- **Total MVP** — under €100/month
+MySQL addon + one Clever app; under €100/month at MVP. Full-text search is the main future cost variable (may defer to embeddings/vector search rather than Elasticsearch).
 
 ---
 

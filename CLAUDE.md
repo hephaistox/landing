@@ -91,17 +91,14 @@ API under `/agora/api` is the SPA's backend.
 | `GET /agora/sitemap.xml`                                                 | `shell/sitemap-route`               | Dynamic sitemap of every KI permalink (SEO).                                     |
 | `GET /agora/:lang/ki/:name/:major`                                       | `shell/ki-page-route`               | Public KI **permalink** shell with server-rendered SEO (OpenGraph + schema.org). |
 | `GET /agora/:lang/discover`, `/preferences`                              | `shell/public-shell-route`          | Public shells with generic SEO head.                                             |
-| `GET /agora/:lang/{new,ki/:id,article/:id,admin}`                        | `shell/app-shell-route`             | Authoring/app shells (`noindex`; not canonical content).                         |
+| `GET /agora/:lang/{new,ki/:id,article/:id,author/:id,admin}`             | `shell/app-shell-route`             | Authoring/app shells (`noindex`; not canonical content).                         |
 | `/agora/api/auth/{register,login,logout,me,lang,google,google/callback}` | `agora.endpoints.auth`              | Accounts + session (email/password + Google OAuth) and the language preference.  |
-| `/agora/api/admin/{tnrs,drop-tnr,compact-tnr}`                           | `agora.endpoints.admin`             | Maintenance (list/prune KI lineages); **owner-only**.                            |
-| `GET\|POST /agora/api/ki`                                                | `ki/ki-collection-route`            | Search KIs (`GET ?q`) / create a KI (`POST`).                                    |
-| `GET /agora/api/ki/by/:name/:major`                                      | `ki/by-major-route`                 | Latest-minor KI behind a permalink (drives the permalink page).                  |
-| `GET /agora/api/ki/:id`                                                  | `ki/ki-route`                       | A KI by concrete version id.                                                     |
-| `POST /agora/api/ki/:id/edit`                                            | `ki/edit-ki-route`                  | Produce a new minor version (immutable edit).                                    |
-| `POST /agora/api/ki/:id/translate`                                       | `ki/translate-ki-route`             | Create a language sibling of a KI + its inputs.                                  |
-| `POST /agora/api/translate`                                              | `ki/translate-suggest-route`        | Best-effort machine-translation suggestion (authoring aid).                      |
-| `POST\|DELETE /agora/api/ki/:id/inputs`                                  | `ki/inputs-route`                   | Add / drop an input edge.                                                        |
-| `GET /agora/api/article/:id`                                             | `agora.endpoints.article`           | Fetch a seeded article.                                                          |
+| `/agora/api/admin/{tnrs,issues,drop-tnr,compact-tnr}`                    | `agora.endpoints.admin`             | Maintenance + consistency scan; **owner-only**.                                  |
+| `/agora/api/{ki,article}` + `/by/:name/:major`, `/:id`, `/:id/{edit,translate,inputs}` | `endpoints.document` (`document-routes`, **one generic set mounted per type**) | The whole KI/article surface: list/search, create, by-permalink, by-id, edit (new minor), translate, add/drop input. KIs and articles share this engine. |
+| `POST /agora/api/translate`                                              | `endpoints.document`                | Best-effort machine-translation suggestion (authoring aid).                      |
+| `GET /agora/api/author/:id`                                              | `agora.endpoints.author`            | Public author profile: card + the person's documents + last activity.            |
+| `GET\|POST /agora/api/people`                                            | `agora.endpoints.people`            | Search people (source-author picker) / create a login-less external person.      |
+| `GET\|POST /agora/api/source` + `GET /recent`, `POST /:id`               | `agora.endpoints.source`            | Bibliographic sources: search / create / recent / edit.                          |
 
 **Why the look-alike routes are actually distinct.** Several routes touch the same
 concept but answer different questions — the distinction is the reason they exist:

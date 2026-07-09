@@ -79,7 +79,9 @@
   (into {}
         (map (juxt (comp name :id)
                    (fn [{:keys [def-name def-major]}]
-                     {:type "ki" :name def-name :major def-major})))
+                     {:type "ki"
+                      :name def-name
+                      :major def-major})))
         kinds))
 
 (def object-types

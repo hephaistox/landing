@@ -16,10 +16,12 @@
     (require 'landing.agora.types-seed)
     (landing.agora.types-seed/seed!)"
   (:require
-   [clojure.edn          :as edn]
-   [clojure.java.io      :as io]
+   [clojure.edn                   :as edn]
+   [clojure.java.io               :as io]
+   [landing.agora.auth            :as auth]
+   [landing.agora.db              :as db]
    [landing.agora.document-domain :as domain]
-   [landing.agora.node   :as node]))
+   [landing.agora.document-store  :as store]))
 
 (def ^:private defs
   "kind keyword → {:title :statement} (French), read from the seed resource."
@@ -31,22 +33,40 @@
   "Insert a `definition` KI for every epistemic kind that doesn't yet have one, and
   clear the read caches. Returns the slugs it created (empty on a no-op re-run)."
   []
-  (let [created (doall
+  (let [agora (auth/find-or-create-external! "Agora")
+        created (doall
                  (for [{kw :id} domain/kinds
-                       :let [{slug :name mj :major} (get domain/kind-def (name kw))
+                       :let [{slug :name
+                              mj :major}
+                             (get domain/kind-def (name kw))
                              {:keys [title statement]} (get defs kw)]
-                       :when (and title
-                                  (nil? (node/resolve-latest-id "ki" slug mj lang)))]
-                   (do
-                     (node/insert-node!
-                      {:id (node/uuid) :type "ki" :name slug :lang lang :major mj :minor 0}
-                      {:kind        "definition"
-                       :title       title
-                       :text        statement
-                       :inputs      []
-                       :author      "Agora"
-                       :owner-id    nil
-                       :published-at (node/now-iso)})
-                     slug)))]
-    (node/clear-caches!)
+                       :when (and title (nil? (store/resolve-latest-id "ki" slug mj lang)))]
+                   (do (store/insert-document! {:id (store/uuid)
+                                                :type "ki"
+                                                :name slug
+                                                :lang lang
+                                                :major mj
+                                                :minor 0}
+                                               {:kind "definition"
+                                                :title title
+                                                :text statement
+                                                :inputs []
+                                                ;; the platform is a normal (login-less) AGORA_USER, not a nil owner
+                                                :author (:display-name agora)
+                                                :owner-id (:id agora)
+                                                :published-at (store/now-iso)})
+                       slug)))]
+    (store/clear-caches!)
     (vec created)))
+
+(defn reseed!
+  "Delete every type-definition KI and re-create them owned by the (login-less) \"Agora\"
+  person. Use once to migrate definitions seeded before Agora became a real account — a
+  plain `seed!` skips existing types, so it can't fix their nil owner. REPL-only,
+  destructive; the type KIs have no inputs and aren't cited, so nothing dangles."
+  []
+  (doseq [{kw :id} domain/kinds
+          :let [{slug :name} (get domain/kind-def (name kw))]]
+    (store/q! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = 'ki' AND name = ?" slug]))
+  (store/clear-caches!)
+  (seed!))

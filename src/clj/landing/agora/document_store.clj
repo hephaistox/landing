@@ -1,13 +1,13 @@
-(ns landing.agora.node
+(ns landing.agora.document-store
   "Shared adapter for AGORA_DOCUMENT — the single polymorphic table holding every object
-  type (KIs, articles, later objections). SQL + Caffeine caches around the pure domain
-  (landing.agora.document-domain).
+  type (all document types today; objections later). SQL + Caffeine caches around the pure
+  domain (landing.agora.document-domain).
 
   A row keeps only the identity columns — `id`, `type` (object type, the T), `name`,
   `lang`, `major`, `minor` — plus two EDN blobs: immutable `content` and mutable
   `computed` ({:pins {tnlr-key → id}}). Type-specific view shaping and writes live in
   landing.agora.document, which calls these primitives so that all
-  node I/O, successor indexing and cache eviction stay in one place (and one cache)."
+  document I/O, successor indexing and cache eviction stay in one place (and one cache)."
   (:require
    [auto-core.log                 :as core-log]
    [clojure.edn                   :as edn]
@@ -50,9 +50,9 @@
              {:pins {}})))
 (defn encode-pins [pins] (pr-str {:pins pins}))
 
-;; --- id → node document (cached): identity columns + content + resolved pins
+;; --- id → document (cached): identity columns + content + resolved pins
 
-(defn- load-node
+(defn- load-document
   [id]
   (when-let
     [row
@@ -65,11 +65,11 @@
            (decode-content (:content row))
            {:pins (decode-pins (:computed row))})))
 
-(def ^:private node-cache
-  "id → node document (identity + immutable content + resolved pins)."
-  (cache/loading 20000 load-node))
+(def ^:private document-cache
+  "id → document (identity + immutable content + resolved pins)."
+  (cache/loading 20000 load-document))
 
-(defn fetch-node "The node document for `id` (cached), or nil." [id] (cache/fetch node-cache id))
+(defn fetch-document "The document for `id` (cached), or nil." [id] (cache/fetch document-cache id))
 
 ;; --- Lineage indexes (cached): successors, versions, translations.
 
@@ -90,7 +90,7 @@
        kebab)))))
 
 (defn successors-of
-  "ids of nodes that declare `tnlr-key` as an input."
+  "ids of documents that declare `tnlr-key` as an input."
   [tnlr-key]
   (cache/fetch successors-cache tnlr-key))
 
@@ -164,7 +164,7 @@
 
 (defn clear-caches!
   []
-  (cache/clear! node-cache)
+  (cache/clear! document-cache)
   (cache/clear! successors-cache)
   (cache/clear! versions-cache)
   (cache/clear! translations-cache))
@@ -200,7 +200,7 @@
       (when-let [row (q1! db/ds ["SELECT computed FROM AGORA_DOCUMENT WHERE id = ?" sid] kebab)]
         (let [pins' (domain/repin (decode-pins (:computed row)) t new-id)]
           (q! db/ds ["UPDATE AGORA_DOCUMENT SET computed = ? WHERE id = ?" (encode-pins pins') sid])
-          (cache/evict! node-cache sid))))))
+          (cache/evict! document-cache sid))))))
 
 ;; --- Write
 
@@ -235,12 +235,12 @@
      lang]
     kebab)))
 
-(defn insert-node!
+(defn insert-document!
   "Insert one immutable version. `ident` = {:id :type :name :lang :major :minor};
   `content` is the immutable map (incl. its declared `:inputs`); pins are resolved from
   those declarations, and the declared inputs are indexed as successors."
   [{:keys [id name lang major minor]
-    node-type :type}
+    doc-type :type}
    content]
   (let [tnlrs (:inputs content)]
     (q!
@@ -248,7 +248,7 @@
      ["INSERT INTO AGORA_DOCUMENT (id, type, name, lang, major, minor, content, computed)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       id
-      node-type
+      doc-type
       name
       lang
       major
@@ -258,7 +258,7 @@
     (index-successors! id tnlrs)))
 
 (defn rebuild-successor-index!
-  "Recompute AGORA_SUCCESSOR from every node's declared inputs, and drop the in-memory
+  "Recompute AGORA_SUCCESSOR from every document's declared inputs, and drop the in-memory
   caches. Safe to run any time; run daily to heal drift."
   []
   (q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])

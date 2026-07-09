@@ -60,10 +60,56 @@
   account-creation date. Deliberately excludes email and any private field — this is
   shown on the public author page, to anyone."
   [id]
-  (jdbc/execute-one!
-   db/ds
-   ["SELECT id, display_name, avatar_url, created_at FROM AGORA_USER WHERE id = ?" id]
-   {:builder-fn rs/as-unqualified-kebab-maps}))
+  (jdbc/execute-one! db/ds
+                     ["SELECT id, display_name, avatar_url, created_at FROM AGORA_USER WHERE id = ?"
+                      id]
+                     {:builder-fn rs/as-unqualified-kebab-maps}))
+
+(defn create-external-person!
+  "Create a login-less **external** person — a cited author with no account (e.g.
+  \"Sun Tzu\"), stored as an AGORA_USER row with `provider='external'` and no
+  email/password. Returns {:id :display-name}. Used when granting a source whose author
+  isn't a platform member."
+  [display-name]
+  (let [id (str (UUID/randomUUID))
+        name (str/trim (or display-name ""))]
+    (jdbc/execute!
+     db/ds
+     ["INSERT INTO AGORA_USER (id, provider, display_name, created_at)
+       VALUES (?, 'external', ?, UTC_TIMESTAMP())"
+      id
+      name])
+    {:id id
+     :display-name name}))
+
+(defn find-or-create-external!
+  "The external (login-less) person named exactly `display-name`, creating it if absent.
+  Used for platform/seed authors (e.g. \"Agora\", cited historical figures) so they are
+  normal `AGORA_USER` rows with real profiles — not nil-owner author strings. Returns
+  {:id :display-name}."
+  [display-name]
+  (let [nm (str/trim (or display-name ""))]
+    (or
+     (jdbc/execute-one!
+      db/ds
+      ["SELECT id, display_name FROM AGORA_USER
+            WHERE provider = 'external' AND display_name = ? LIMIT 1"
+       nm]
+      {:builder-fn rs/as-unqualified-kebab-maps})
+     (create-external-person! nm))))
+
+(defn search-people
+  "People whose display name matches `q` — [{:id :display-name}…], for the author
+  picker (both real accounts and external cited people). Blank `q` → []."
+  [q]
+  (if (str/blank? q)
+    []
+    (jdbc/execute!
+     db/ds
+     ["SELECT id, display_name FROM AGORA_USER
+        WHERE display_name LIKE ? ORDER BY display_name LIMIT 20"
+      (str "%" (str/trim q) "%")]
+     {:builder-fn rs/as-unqualified-kebab-maps})))
 
 (defn set-lang!
   "Persist the user's preferred interface language, and return the updated public

@@ -1,31 +1,23 @@
 (ns landing.agora.document
-  "The single engine for versioned AGORA_DOCUMENT documents. KIs, articles (and future
-  types) are all `type` rows here, sharing one implementation: create / edit /
-  fetch, explicit inputs (add / drop), translate, search, discovery, admin and
-  sitemap are all generic. Per-type differences are parameters in `types` — the
-  place to add a flag when a new behavioural difference appears.
+  "The single engine for versioned AGORA_DOCUMENT documents. Every document type is a
+  `type` row here, sharing one implementation: create / edit / fetch, explicit inputs
+  (add / drop), translate, search, discovery, admin and sitemap are all generic — the
+  engine has no per-type behaviour of its own, so it never branches on a specific type.
 
-  All graph decisions live in the domain; this ns only does the type-parameterised
-  I/O on top of the shared node primitives (landing.agora.node)."
+  All graph decisions live in the domain; this ns only does the generic I/O on top of the
+  shared storage primitives (landing.agora.document-store)."
   (:require
-   [clojure.string       :as str]
-   [landing.agora.db     :as db]
+   [clojure.string                :as str]
+   [landing.agora.db              :as db]
    [landing.agora.document-domain :as domain]
-   [landing.agora.node   :as node]
-   [landing.language     :as language])
+   [landing.agora.document-store  :as store]
+   [landing.agora.source          :as source]
+   [landing.language              :as language])
   (:import (java.text Normalizer Normalizer$Form)))
 
-(def types
-  "The registry of object types. Every feature is available to every type; entries only
-  capture where behaviour genuinely differs (currently nothing — KIs and articles are
-  the same engine, differing only in UI vocabulary). Add a type by adding an entry."
-  {"ki" {}
-   "article" {}})
-
-;; Every document's prose lives under one content key, `:text` — a KI's "statement" and
-;; an article's "body" were the same slot under two names; they are unified here. A
-;; node's inputs ARE the `[[ki:…]]` citations in that text (parsed on write), so citing
-;; a KI inline is how you formalise an input edge.
+;; Every document's prose lives under one content key, `:text` (older rows used per-type
+;; `:statement`/`:body`, unified here). A document's inputs ARE the `[[ki:…]]` citations in
+;; that text (parsed on write) — an in-text citation is an input edge.
 (defn text-of
   "A document's prose, from the unified `:text` key — falling back to the legacy
   per-type keys (`:statement`/`:body`) for rows written before the fields were unified.
@@ -38,7 +30,9 @@
   drop the legacy ones, so every written version stores prose under exactly one key."
   [content]
   (if-let [t (text-of content)]
-    (-> content (assoc :text t) (dissoc :statement :body))
+    (-> content
+        (assoc :text t)
+        (dissoc :statement :body))
     content))
 
 (def ^:private carried
@@ -46,38 +40,41 @@
   `:published-at` is re-stamped each version). The legacy `:statement`/`:body` are kept
   so a not-yet-migrated old row carries its prose forward — `normalize-text` then folds
   it into `:text` on write."
-  [:kind :title :text :statement :body :author :owner-id :inputs :source])
+  [:kind :title :text :statement :body :author :owner-id :inputs :source :references])
 
 ;; ---------------------------------------------------------------------------
 ;; Read — the endpoint-facing view (generic across types)
 ;; ---------------------------------------------------------------------------
 
 (defn view
-  "Endpoint view of an already-fetched node `n`: resolved input refs, successor ids,
+  "Endpoint view of an already-fetched document `doc`: resolved input refs, successor ids,
   version lineage and translations. `:pins` is dropped; `:owner-id` is renamed to the
   public `:author-id` (the owning account, used to link the author badge to its profile
   page) — nil for unowned/seeded documents. Uniform across types."
-  [n]
-  (let [tnlr (domain/tnlr-key n)
-        inputs (domain/input-refs (:inputs n) (:pins n))]
-    (-> n
+  [doc]
+  (let [tnlr (domain/tnlr-key doc)
+        inputs (domain/input-refs (:inputs doc) (:pins doc))]
+    (-> doc
         (assoc :inputs inputs
-               :author-id (:owner-id n)
-               :successors (mapv (fn [sid] {:id sid}) (node/successors-of tnlr))
-               :versions (node/versions-of tnlr)
-               :translations (node/translations-of (:type n) (:name n) (:lang n)))
+               :author-id (:owner-id doc)
+               ;; raw [{:source-id :locator}…] → resolved works (author/title/year/editor
+               ;; + locator), dropping any whose source was deleted
+               :references (source/resolve-refs (:references doc))
+               :successors (mapv (fn [sid] {:id sid}) (store/successors-of tnlr))
+               :versions (store/versions-of tnlr)
+               :translations (store/translations-of (:type doc) (:name doc) (:lang doc)))
         (dissoc :owner-id :pins))))
 
 (defn fetch
   "The document `id` as the endpoint view, or nil if unknown."
   [id]
-  (when-let [n (node/fetch-node id)] (view n)))
+  (when-let [doc (store/fetch-document id)] (view doc)))
 
 (defn fetch-by-major
   "The latest-minor document of (type, name, major) in `lang` (cross-language
   fallback) — the permanent public identity — or nil."
   [type name major lang]
-  (when-let [id (node/resolve-latest-id type name major lang)] (fetch id)))
+  (when-let [id (store/resolve-latest-id type name major lang)] (fetch id)))
 
 ;; ---------------------------------------------------------------------------
 ;; Write
@@ -85,7 +82,7 @@
 
 (defn- inputs-of
   "The inputs for a document: the `[[ki:…]]` citations parsed from its `:text`. Inputs
-  are exactly the in-text citations, so citing a KI inline formalises an input edge."
+  are exactly the in-text citations, so an in-text citation is an input edge."
   [_type content _declared lang]
   (domain/cite-refs (or (text-of content) "") lang))
 
@@ -104,7 +101,7 @@
   "True when a lineage (type, name, lang, major 1) already exists — i.e. the slug is
   taken in this language."
   [type name lang]
-  (some? (node/resolve-latest-id type name 1 lang)))
+  (some? (store/resolve-latest-id type name 1 lang)))
 
 (defn unique-name
   "`base` if free (in this type+lang at major 1), else `base-2`, `base-3`… — so a
@@ -121,56 +118,55 @@
   stored as given), re-pin successors onto it, return the new document view."
   [src content]
   (let [{:keys [type name lang major]} src
-        new-id (node/uuid)]
-    (node/insert-node! {:id new-id
-                        :type type
-                        :name name
-                        :lang lang
-                        :major major
-                        :minor (node/next-minor type name lang major)}
-                       (normalize-text (assoc content :published-at (node/now-iso))))
-    (node/repin-successors! type name lang major new-id)
-    (node/evict-lineage! type name lang major)
+        new-id (store/uuid)]
+    (store/insert-document! {:id new-id
+                             :type type
+                             :name name
+                             :lang lang
+                             :major major
+                             :minor (store/next-minor type name lang major)}
+                            (normalize-text (assoc content :published-at (store/now-iso))))
+    (store/repin-successors! type name lang major new-id)
+    (store/evict-lineage! type name lang major)
     (fetch new-id)))
 
 (defn create
   "Create a brand-new document (major 1, minor 0) of `type`. `content` holds the
-  authored fields (`:title`, `:lang`, `:text`, and `:kind` for KIs). The identity `name`
+  authored fields (`:title`, `:lang`, `:text`, and `:kind` for kind-bearing types). The identity `name`
   is derived from the title (slug, de-clashed) unless one is given explicitly. Inputs
   are derived from the `:text` citations. Returns the view."
   [type
    owner-id
    {:keys [name lang title]
     :as content}]
-  (let [id (node/uuid)
+  (let [id (store/uuid)
         lang (or lang language/default-lang)
         name (unique-name type (if (str/blank? name) (slugify title) name) lang)
         inputs (inputs-of type content (:inputs content) lang)]
-    (node/insert-node! {:id id
-                        :type type
-                        :name name
-                        :lang lang
-                        :major 1
-                        :minor 0}
-                       (normalize-text
-                        (-> content
-                            (dissoc :name :lang)
-                            (assoc :inputs inputs
-                                   :author (node/author-name owner-id)
-                                   :owner-id owner-id
-                                   :published-at (node/now-iso)))))
-    (node/evict-lineage! type name lang 1)
+    (store/insert-document! {:id id
+                             :type type
+                             :name name
+                             :lang lang
+                             :major 1
+                             :minor 0}
+                            (normalize-text (-> content
+                                                (dissoc :name :lang)
+                                                (assoc :inputs inputs
+                                                       :author (store/author-name owner-id)
+                                                       :owner-id owner-id
+                                                       :published-at (store/now-iso)))))
+    (store/evict-lineage! type name lang 1)
     (fetch id)))
 
 (defn edit
   "Edit document `id` → a new minor. `changes` overrides authored fields (nils are
-  ignored → the old value is kept). Inputs are carried forward, or re-derived from
-  the body for :inputs-from-body types. nil if `id` is unknown."
+  ignored → the old value is kept). Inputs are re-derived from the edited text. nil if
+  `id` is unknown."
   [id owner-id changes]
-  (when-let [src (node/fetch-node id)]
+  (when-let [src (store/fetch-document id)]
     (let [merged (merge (select-keys src carried)
                         (into {} (remove (comp nil? val) changes))
-                        {:author (node/author-name owner-id)
+                        {:author (store/author-name owner-id)
                          :owner-id owner-id})
           inputs (inputs-of (:type src) merged (:inputs merged) (:lang src))]
       (new-minor! src (assoc merged :inputs inputs)))))
@@ -185,8 +181,8 @@
     in-major :major}]
   (when-let [{:keys [type lang]
               :as src}
-             (node/fetch-node id)]
-    (if (node/resolve-latest-id type in-name in-major lang)
+             (store/fetch-document id)]
+    (if (store/resolve-latest-id type in-name in-major lang)
       (let [t {:type type
                :name in-name
                :lang lang
@@ -197,7 +193,7 @@
           (new-minor! src
                       (merge (select-keys src carried)
                              {:inputs inputs
-                              :author (node/author-name owner-id)
+                              :author (store/author-name owner-id)
                               :owner-id owner-id}))))
       (fetch id))))
 
@@ -213,16 +209,16 @@
     in-major :major}]
   (when-let [{:keys [type lang]
               :as src}
-             (node/fetch-node id)]
-    (let [t    {:type type
-                :name in-name
-                :lang lang
-                :major in-major}
+             (store/fetch-document id)]
+    (let [t {:type type
+             :name in-name
+             :lang lang
+             :major in-major}
           text (text-of src)]
       (new-minor! src
                   (cond-> (merge (select-keys src carried)
                                  {:inputs (domain/drop-declared (:inputs src) t)
-                                  :author (node/author-name owner-id)
+                                  :author (store/author-name owner-id)
                                   :owner-id owner-id})
                     text (assoc :text (domain/strip-cite text in-name in-major)))))))
 
@@ -233,46 +229,46 @@
   [id to-lang owner-id overrides]
   (when-let [{:keys [type name major]
               :as src}
-             (node/fetch-node id)]
-    (when-not (node/lang-exists? type name major to-lang)
-      (let [author (node/author-name owner-id)
-            declarations (mapv
-                          (fn [{in-name :name
-                                in-major :major
-                                in-lang :lang}]
-                            (when-not (node/lang-exists? type in-name in-major to-lang)
-                              (when-let [s (node/fetch-node
-                                            (node/resolve-latest-id type in-name in-major in-lang))]
-                                (node/insert-node! {:id (node/uuid)
-                                                    :type type
-                                                    :name in-name
-                                                    :lang to-lang
-                                                    :major in-major
-                                                    :minor 0}
-                                                   (merge (select-keys s carried)
-                                                          {:inputs []
-                                                           :author author
-                                                           :owner-id owner-id
-                                                           :published-at (node/now-iso)}))
-                                (node/evict-lineage! type in-name to-lang in-major)))
-                            {:type type
-                             :name in-name
-                             :lang to-lang
-                             :major in-major})
-                          (:inputs src))]
-        (node/insert-node! {:id (node/uuid)
-                            :type type
-                            :name name
-                            :lang to-lang
-                            :major major
-                            :minor 0}
-                           (merge (select-keys src carried)
-                                  (into {} (remove (comp nil? val) overrides))
-                                  {:inputs declarations
-                                   :author author
-                                   :owner-id owner-id
-                                   :published-at (node/now-iso)}))
-        (node/evict-lineage! type name to-lang major)))
+             (store/fetch-document id)]
+    (when-not (store/lang-exists? type name major to-lang)
+      (let [author (store/author-name owner-id)
+            declarations
+            (mapv (fn [{in-name :name
+                        in-major :major
+                        in-lang :lang}]
+                    (when-not (store/lang-exists? type in-name in-major to-lang)
+                      (when-let [s (store/fetch-document
+                                    (store/resolve-latest-id type in-name in-major in-lang))]
+                        (store/insert-document! {:id (store/uuid)
+                                                 :type type
+                                                 :name in-name
+                                                 :lang to-lang
+                                                 :major in-major
+                                                 :minor 0}
+                                                (merge (select-keys s carried)
+                                                       {:inputs []
+                                                        :author author
+                                                        :owner-id owner-id
+                                                        :published-at (store/now-iso)}))
+                        (store/evict-lineage! type in-name to-lang in-major)))
+                    {:type type
+                     :name in-name
+                     :lang to-lang
+                     :major in-major})
+                  (:inputs src))]
+        (store/insert-document! {:id (store/uuid)
+                                 :type type
+                                 :name name
+                                 :lang to-lang
+                                 :major major
+                                 :minor 0}
+                                (merge (select-keys src carried)
+                                       (into {} (remove (comp nil? val) overrides))
+                                       {:inputs declarations
+                                        :author author
+                                        :owner-id owner-id
+                                        :published-at (store/now-iso)}))
+        (store/evict-lineage! type name to-lang major)))
     (fetch-by-major type name major to-lang)))
 
 ;; ---------------------------------------------------------------------------
@@ -281,15 +277,18 @@
 
 (defn- card
   "A discovery/search card from a row with a `content` blob — enough to render a preview
-  card (identity, kind, title, prose excerpt) and its byline (author · date)."
+  card (identity, kind, title, prose excerpt) and its byline. `:references` is resolved
+  (cheap, cached) so the card can attribute the cited source's author; when there are
+  none, the byline `:author` is the document's own (original) author."
   [row]
-  (let [c (node/decode-content (:content row))]
+  (let [c (store/decode-content (:content row))]
     (assoc (select-keys row [:id :type :name :lang :major :minor])
            :kind (:kind c)
            :title (:title c)
            :text (text-of c)
            :author (:author c)
            :author-id (:owner-id c)
+           :references (source/resolve-refs (:references c))
            :published-at (:published-at c))))
 
 (defn search
@@ -301,7 +300,7 @@
     (let [like (str "%" q "%")]
       (mapv
        card
-       (node/q!
+       (store/q!
         db/ds
         ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content FROM AGORA_DOCUMENT k
                 WHERE k.type = ? AND k.lang = ?
@@ -314,14 +313,14 @@
          lang
          like
          like]
-        node/kebab)))))
+        store/kebab)))))
 
 (defn list-latest
   "Up to 10 latest-minor documents of `type`, sampled at random, scoped to `lang`."
   [type lang]
   (mapv
    card
-   (node/q!
+   (store/q!
     db/ds
     ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content FROM AGORA_DOCUMENT k
             WHERE k.type = ? AND k.lang = ?
@@ -331,14 +330,14 @@
             ORDER BY RAND() LIMIT 10"
      type
      lang]
-    node/kebab)))
+    store/kebab)))
 
 (defn list-recent
-  "Latest-minor documents of `type` scoped to `lang`, most recent first (article
-  discover). published-at lives in the content blob, so sort after decoding."
+  "Latest-minor documents of `type` scoped to `lang`, most recent first (the recent
+  documents feed). published-at lives in the content blob, so sort after decoding."
   [type lang]
   (->>
-    (node/q!
+    (store/q!
      db/ds
      ["SELECT a.id, a.type, a.name, a.lang, a.major, a.minor, a.content FROM AGORA_DOCUMENT a
            WHERE a.type = ? AND a.lang = ?
@@ -347,62 +346,104 @@
                               AND a2.major = a.major AND a2.lang = a.lang)"
       type
       lang]
-     node/kebab)
+     store/kebab)
     (mapv card)
     (sort-by :published-at #(compare %2 %1))
     vec))
 
-(defn by-author
-  "The documents owned by account `author-id` (any type), latest minor per lineage,
-  scoped to `lang`, as cards (most recent first) — plus `:last-activity`, the newest
-  publication timestamp across them. `owner-id` lives in the content blob, so we filter
-  after decoding; a `content LIKE` prefilter keeps the scan bounded before decoding."
+(defn- owned-by
+  "Latest-minor documents in `lang` OWNED by account `author-id` (its own claims).
+  `owner-id` lives in the content blob → `content LIKE` prefilter, confirmed on decode."
   [author-id lang]
-  (let [mine (->> (node/q!
-                   db/ds
-                   ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
-                       FROM AGORA_DOCUMENT k
-                      WHERE k.lang = ? AND k.content LIKE ?
-                        AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
-                                       WHERE k2.type = k.type AND k2.name = k.name
-                                         AND k2.major = k.major AND k2.lang = k.lang)"
-                    lang
-                    (str "%" author-id "%")]
-                   node/kebab)
-                  ;; the LIKE is a cheap prefilter (the id could appear elsewhere in the
-                  ;; blob); confirm on the decoded owner-id.
-                  (filter #(= author-id (:owner-id (node/decode-content (:content %)))))
-                  (mapv card)
-                  (sort-by :published-at #(compare %2 %1))
-                  vec)]
-    {:kis mine
-     :last-activity (->> mine (keep :published-at) sort last)}))
+  (->>
+    (store/q!
+     db/ds
+     ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
+            FROM AGORA_DOCUMENT k
+           WHERE k.lang = ? AND k.content LIKE ?
+             AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
+                            WHERE k2.type = k.type AND k2.name = k.name
+                              AND k2.major = k.major AND k2.lang = k.lang)"
+      lang
+      (str "%" author-id "%")]
+     store/kebab)
+    (filter #(= author-id (:owner-id (store/decode-content (:content %)))))
+    (mapv card)))
+
+(defn- sourced-by
+  "Latest-minor documents in `lang` that CITE a source authored by `author-id` — works
+  that *quote* this person (as opposed to `owned-by`'s own claims). Joins each doc to the
+  author's sources by a `content LIKE '%source-id%'` prefilter, confirmed on the decoded
+  `:references`. This is why a cited figure (e.g. Sun Tzu) has a populated profile even
+  though they own nothing."
+  [author-id lang]
+  (let [src-ids (into #{}
+                      (map :id)
+                      (store/q! db/ds
+                                ["SELECT id FROM AGORA_SOURCE WHERE person_id = ?" author-id]
+                                store/kebab))]
+    (if (empty? src-ids)
+      []
+      (->>
+        (store/q!
+         db/ds
+         ["SELECT DISTINCT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
+                FROM AGORA_DOCUMENT k
+                JOIN AGORA_SOURCE s
+                  ON s.person_id = ? AND k.content LIKE CONCAT('%', s.id, '%')
+               WHERE k.lang = ?
+                 AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
+                                WHERE k2.type = k.type AND k2.name = k.name
+                                  AND k2.major = k.major AND k2.lang = k.lang)"
+          author-id
+          lang]
+         store/kebab)
+        (filter (fn [r]
+                  (some #(src-ids (:source-id %))
+                        (:references (store/decode-content (:content r))))))
+        (mapv card)))))
+
+(defn by-author
+  "Everything attributed to person `author-id` in `lang`: documents they OWN (their own
+  claims) plus documents that CITE them as a source author (works that quote them),
+  latest minor per lineage, deduped by id, most recent first — plus `:last-activity`."
+  [author-id lang]
+  (let [all (->> (concat (owned-by author-id lang) (sourced-by author-id lang))
+                 (reduce (fn [m c] (assoc m (:id c) c)) {}) ; dedupe by id
+                 vals
+                 (sort-by :published-at #(compare %2 %1))
+                 vec)]
+    {:documents all
+     :last-activity (->> all
+                         (keep :published-at)
+                         sort
+                         last)}))
 
 (defn list-tnrs
   "All lineages (name, major) of `type` with version/language/latest counts (admin)."
   [type]
-  (node/q!
+  (store/q!
    db/ds
    ["SELECT name, major, COUNT(*) AS versions, COUNT(DISTINCT lang) AS langs, MAX(minor) AS latest
       FROM AGORA_DOCUMENT WHERE type = ? GROUP BY name, major ORDER BY name, major"
     type]
-   node/kebab))
+   store/kebab))
 
 (defn all-tnrs
-  "Every lineage of every type (KI + article + …), **one row per language version** —
+  "Every lineage of every type (all types), **one row per language version** —
   (type, name, lang, major) with its version count and latest minor. The admin table."
   []
-  (node/q!
+  (store/q!
    db/ds
    ["SELECT type, name, lang, major, COUNT(*) AS versions, MAX(minor) AS latest
       FROM AGORA_DOCUMENT GROUP BY type, name, lang, major ORDER BY type, name, major, lang"]
-   node/kebab))
+   store/kebab))
 
 (defn delete-tnr!
   "Drop a single language version of a lineage — (type, name, lang, major) — plus its
   successor-index rows (targeted, so no full rebuild). Returns rows removed."
   [type doc-name lang doc-major]
-  (node/q!
+  (store/q!
    db/ds
    ["DELETE FROM AGORA_SUCCESSOR
       WHERE (input_type = ? AND input_name = ? AND input_lang = ? AND input_major = ?)
@@ -417,14 +458,14 @@
     lang
     doc-major])
   (let [n (:next.jdbc/update-count
-           (node/q1!
+           (store/q1!
             db/ds
             ["DELETE FROM AGORA_DOCUMENT WHERE type = ? AND name = ? AND lang = ? AND major = ?"
              type
              doc-name
              lang
              doc-major]))]
-    (node/clear-caches!)
+    (store/clear-caches!)
     n))
 
 (defn compact-tnr!
@@ -434,7 +475,7 @@
   (let
     [latest
      (:latest
-      (node/q1!
+      (store/q1!
        db/ds
        ["SELECT MAX(minor) AS latest FROM AGORA_DOCUMENT
                             WHERE type = ? AND name = ? AND lang = ? AND major = ?"
@@ -442,11 +483,11 @@
         doc-name
         lang
         doc-major]
-       node/kebab))
+       store/kebab))
      n
      (or
       (:next.jdbc/update-count
-       (node/q1!
+       (store/q1!
         db/ds
         ["DELETE FROM AGORA_DOCUMENT
                             WHERE type = ? AND name = ? AND lang = ? AND major = ? AND minor < ?"
@@ -456,19 +497,19 @@
          doc-major
          latest]))
       0)]
-    (node/clear-caches!)
+    (store/clear-caches!)
     n))
 
 (defn sitemap-rows
   "Every public permalink of `type` as {:name :major :lang :lastmod}."
   [type]
-  (->> (node/q! db/ds
-                ["SELECT name, major, lang, content FROM AGORA_DOCUMENT WHERE type = ?" type]
-                node/kebab)
+  (->> (store/q! db/ds
+                 ["SELECT name, major, lang, content FROM AGORA_DOCUMENT WHERE type = ?" type]
+                 store/kebab)
        (map (fn [r]
               (assoc (select-keys r [:name :major :lang])
                      :published-at
-                     (:published-at (node/decode-content (:content r))))))
+                     (:published-at (store/decode-content (:content r))))))
        (group-by (juxt :name :major :lang))
        (mapv (fn [[[name major lang] rows]]
                {:name name
@@ -477,24 +518,26 @@
                 ;; latest publication across this lineage's minors. ISO-8601 strings
                 ;; sort lexicographically = chronologically; `max-key` can't be used
                 ;; (it compares keys with `>`, which is numbers-only).
-                :lastmod (->> (keep :published-at rows) sort last)}))))
+                :lastmod (->> (keep :published-at rows)
+                              sort
+                              last)}))))
 
 (defn rebuild-successor-index!
-  "Recompute AGORA_SUCCESSOR from every node's declared inputs (all types), dropping
-  the in-memory caches. Delegates to the shared node layer; run daily."
+  "Recompute AGORA_SUCCESSOR from every document's declared inputs (all types), dropping
+  the in-memory caches. Delegates to the shared storage layer; run daily."
   []
-  (node/rebuild-successor-index!))
+  (store/rebuild-successor-index!))
 
 (defn consistency-issues
-  "Scan **every version** of every node for reference problems (see the *Consistency
+  "Scan **every version** of every document for reference problems (see the *Consistency
   rules* in agora/CLAUDE.md):
 
    - **`:broken`** — a **dangling reference**: an input edge / in-text `[[ki:…]]`
-     citation pointing at a KI that does not exist (in any language). Inputs and
+     citation pointing at a lineage that does not exist (in any language). Inputs and
      citations are the same thing under the model, so this catches a non-existing input
      *and* a non-existing quote.
    - **`:self`** — a **self-reference**: the document cites its own lineage
-     (same type + name + major). A node cannot be an input of itself — that is a
+     (same type + name + major). A document cannot be an input of itself — that is a
      degenerate cycle — so it is reported even though the target exists.
 
   Runs over current *and* former versions. Returns a vector of
@@ -502,36 +545,40 @@
   {:name :major :lang}; `:id` pins the exact version so the admin can deep-link to it."
   []
   (let [;; Every existing identity (any minor, any language) as [type name major] —
-        ;; a referenced KI is live iff its lineage appears here (matches the engine's
+        ;; a referenced lineage is live iff it appears here (matches the engine's
         ;; cross-language fallback). Fetched ONCE and checked in memory, so the scan is
         ;; two queries total rather than one per reference (which floods the DB pool).
-        existing (into
-                  #{}
-                  (map (juxt :type :name :major))
-                  (node/q! db/ds ["SELECT DISTINCT type, name, major FROM AGORA_DOCUMENT"] node/kebab))
-        ref-id (fn [r] [(or (:type r) "ki") (:name r) (:major r)])]
-    (->> (node/q! db/ds
-                  ["SELECT id, type, name, lang, major, minor, content FROM AGORA_DOCUMENT"]
-                  node/kebab)
-         (keep (fn [row]
-                 (let [c (node/decode-content (:content row))
-                       lang (:lang row)
-                       text (text-of c)
-                       self [(:type row) (:name row) (:major row)]
-                       refs (distinct (concat (:inputs c) (domain/cite-refs (or text "") lang)))
-                       broken (->> refs
-                                   (remove (fn [r] (existing (ref-id r))))
-                                   (map #(select-keys % [:name :major :lang]))
-                                   distinct
-                                   vec)
-                       self-refs (->> refs
-                                      (filter (fn [r] (= (ref-id r) self)))
-                                      (map #(select-keys % [:name :major :lang]))
-                                      distinct
-                                      vec)]
-                   (when (or (seq broken) (seq self-refs))
-                     (assoc (select-keys row [:id :type :name :lang :major :minor])
-                            :title (:title c)
-                            :broken broken
-                            :self self-refs)))))
+        existing (into #{}
+                       (map (juxt :type :name :major))
+                       (store/q! db/ds
+                                 ["SELECT DISTINCT type, name, major FROM AGORA_DOCUMENT"]
+                                 store/kebab))
+        ;; every ref carries its own :type (inputs are typed TNLRs; in-text citations
+        ;; resolve to typed refs), so identity is [type name major]
+        ref-id (fn [r] [(:type r) (:name r) (:major r)])]
+    (->> (store/q! db/ds
+                   ["SELECT id, type, name, lang, major, minor, content FROM AGORA_DOCUMENT"]
+                   store/kebab)
+         (keep
+          (fn [row]
+            (let [c (store/decode-content (:content row))
+                  lang (:lang row)
+                  text (text-of c)
+                  self [(:type row) (:name row) (:major row)]
+                  refs (distinct (concat (:inputs c) (domain/cite-refs (or text "") lang)))
+                  broken (->> refs
+                              (remove (fn [r] (existing (ref-id r))))
+                              (map #(select-keys % [:name :major :lang]))
+                              distinct
+                              vec)
+                  self-refs (->> refs
+                                 (filter (fn [r] (= (ref-id r) self)))
+                                 (map #(select-keys % [:name :major :lang]))
+                                 distinct
+                                 vec)]
+              (when (or (seq broken) (seq self-refs))
+                (assoc (select-keys row [:id :type :name :lang :major :minor])
+                       :title (:title c)
+                       :broken broken
+                       :self self-refs)))))
          vec)))

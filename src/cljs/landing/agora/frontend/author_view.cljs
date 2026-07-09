@@ -4,16 +4,16 @@
   grid of the documents they own. Read-only and anonymous. Intentionally small; it grows
   richer as more per-author signals (objections, confidence, forks) are implemented."
   (:require
-   [clojure.string                 :as str]
-   [landing.agora.frontend.cite    :as cite]
-   [landing.agora.frontend.fmt     :as fmt]
-   [landing.agora.frontend.i18n    :as i18n]
+   [clojure.string                       :as str]
+   [landing.agora.frontend.cite          :as cite]
    [landing.agora.frontend.document-view :as document-view]
-   [reagent.core                   :as r]
-   [re-frame.core                  :as rf]))
+   [landing.agora.frontend.fmt           :as fmt]
+   [landing.agora.frontend.i18n          :as i18n]
+   [re-frame.core                        :as rf]
+   [reagent.core                         :as r]))
 
 (defn- matches?
-  "Client-side filter for the KI list: case-insensitive substring over title/name/text."
+  "Client-side filter for the document list: case-insensitive substring over title/name/text."
   [q node]
   (let [q (str/lower-case (str/trim q))]
     (or (str/blank? q)
@@ -23,12 +23,12 @@
 
 (defn author-page
   "Render an author profile map {:display-name :avatar-url :created-at :last-activity
-  :kis [...]}. The search box filters the grid locally."
+  :documents [...]}. The search box filters the grid locally."
   [_author]
   (let [q (r/atom "")]
-    (fn [{:keys [display-name avatar-url created-at last-activity kis]}]
-      (let [lang     @(rf/subscribe [::i18n/lang])
-            filtered (filterv #(matches? @q %) kis)]
+    (fn [{:keys [display-name avatar-url created-at last-activity documents]}]
+      (let [lang @(rf/subscribe [::i18n/lang])
+            filtered (filterv #(matches? @q %) documents)]
         [:div {:style {:max-width "72em"
                        :margin "1.5em auto"
                        :padding "0 0.8em"
@@ -72,14 +72,14 @@
          [:div {:style {:color "#888"
                         :font-size "0.82em"
                         :margin-bottom "0.8em"}}
-          (str (count filtered) " / " (count kis) " " (i18n/t lang :author/kis))]
+          (str (count filtered) " / " (count documents) " " (i18n/t lang :author/kis))]
          ;; --- grid ---
          (if (seq filtered)
            (into [:div {:style {:display "grid"
-                                :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
+                                :grid-template-columns
+                                "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
                                 :gap "0.9em"}}]
-                 (for [k filtered]
-                   ^{:key (:id k)} [document-view/discover-card lang k]))
+                 (for [k filtered] ^{:key (:id k)} [document-view/discover-card lang k]))
            [:p {:style {:color "#aaa"
                         :margin "1.5em 0"}}
             (i18n/t lang :author/no-kis)])]))))

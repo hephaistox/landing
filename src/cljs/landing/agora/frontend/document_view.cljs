@@ -1,17 +1,17 @@
 (ns landing.agora.frontend.document-view
-  "The shared Agora document engine — everything common to KIs and articles, so both
-  page layers (`ki-view`, `article-view`) sit on top of it and neither depends on the
-  other.
+  "The shared Agora document engine — everything common to every document type, with **no
+  knowledge of any specific type**. It exposes *features*, not type behaviour: whatever
+  varies is either derived from a document's own data (a URL from its `:type`, a badge from
+  whether it has a `:kind`) or taken as a parameter. The thin per-type facades (`ki-view`,
+  `article-view`) choose those parameters and are what `core` calls; the generic page/form
+  components they build on live in `view`/`edit`.
 
   Holds: the graph layout (`node-frame` with input/successor mini-cards and connectors),
-  the badges (`kind-badge`/`lang-badge`/`type-badge`), `byline`, `version-picker`, the
+  the badges (`kind-badge`/`lang-badge`/`doc-badge`), `byline`, `version-picker`, the
   language switcher `languages-control` and the whole translate flow (`translation-editor`
   + `::translate-*` events), `discover-card`/`add-card`/`fab`, `input-drop-fn`, the JSON
   request helper `json-req`, the auth `gated` helper, and the app chrome (header, footer,
-  search, discover/landing/preferences/admin pages, loading skeletons).
-
-  KI-page-specific pieces (the KI card, the create/edit forms and their `::edit`/`::new`
-  events) live in `ki-view`; article-specific pieces in `article-view`."
+  search, loading skeletons)."
   (:require
    [clojure.string                    :as str]
    [landing.agora.document-domain     :as document-domain]
@@ -80,21 +80,6 @@
                     :padding "0.15em 0.45em"
                     :border-radius "0.25em"}}
      lang]))
-
-(defn- humanize
-  "Turn a slug name (`confidence-is-partial`) into a readable title
-  (`Confidence is partial`). Falls back to the raw string if blank."
-  [s]
-  (let [t (-> (or s "")
-              (str/replace #"[-_]+" " ")
-              str/trim)]
-    (if (str/blank? t) (or s "") (str (str/upper-case (subs t 0 1)) (subs t 1)))))
-
-(defn display-title
-  "What to show as a KI's heading: its per-language `title` when set, else a
-  humanized form of the identity slug `name`."
-  [title name]
-  (if (str/blank? title) (humanize name) title))
 
 (defn byline
   "The document's authorship line: 'author · date'. The author (copper) links to their
@@ -168,10 +153,10 @@
   (r/with-let
    [open? (r/atom false)]
    (let [user @(rf/subscribe [::auth/user])
-         ;; the node's text (unified) seeds the translation; permalink builder is type-specific
+         ;; the node's text (unified) seeds the translation; the sibling permalink is built
+         ;; generically from this node's own `:type` (no type branching here)
          source-text (cite/node-text node)
-         lang-href (fn [l entry]
-                     (if (= type "article") (i18n/article-permalink l entry) (i18n/ki l entry)))
+         lang-href (fn [l entry] (i18n/doc-permalink l type (:name entry) (:major entry)))
          present (into {ki-lang {:lang ki-lang
                                  :name ki-name
                                  :major major
@@ -247,14 +232,13 @@
                       (get language/language-name l l)]
                :else [:button {:on-click (fn []
                                            (reset! open? false)
-                                           (rf/dispatch [::translate-open
-                                                         {:doc-id id
-                                                          :type type
-                                                          :source-lang ki-lang
-                                                          :target-lang l
-                                                          :source-text source-text
-                                                          :source-title (display-title ki-title
-                                                                                       ki-name)}]))
+                                           (rf/dispatch [::translate-open {:doc-id id
+                                                                           :type type
+                                                                           :source-lang ki-lang
+                                                                           :target-lang l
+                                                                           :source-text source-text
+                                                                           :source-title
+                                                                           ki-title}]))
                                :title (i18n/t ui-lang :ki/create-translation)
                                :style {:text-align "left"
                                        :padding "0.4em 0.5em"
@@ -288,7 +272,7 @@
    {:db (assoc db
                ::translate-form
                {:doc-id doc-id
-                :type (or type "ki")
+                :type type
                 :source-lang source-lang
                 :target-lang target-lang
                 :source-text source-text
@@ -335,7 +319,7 @@
                    (let [{:keys [doc-id type target-lang title translation]} (::translate-form db)]
                      {:db (assoc-in db [::translate-form :saving?] true)
                       :fetch (json-req :post
-                                       (str "/agora/api/" (or type "ki") "/" doc-id "/translate")
+                                       (str "/agora/api/" type "/" doc-id "/translate")
                                        {:lang target-lang
                                         :title title
                                         :text translation}
@@ -352,107 +336,23 @@
                    (let [{:keys [id type]} (:body resp)]
                      (if id
                        {:db (dissoc db ::translate-form)
-                        :dispatch [:agora/goto
-                                   (if (= type "article")
-                                     (i18n/article target-lang id)
-                                     (i18n/ki-id target-lang id))]}
+                        :dispatch [:agora/goto (i18n/doc-url target-lang type id)]}
                        {:db (assoc-in db [::translate-form :saving?] false)}))))
 
 ;; ---- Create a new KI (standalone form, #34) ----
 
-(def ^:private version-tag-style
+(def version-tag-style
   {:color "#aaa"
    :font-size "0.72em"
    :font-family "monospace"})
 
 (defn permalink
-  "The public permanent URL of a KI ref in language `lang`:
-  /agora/{lang}/ki/{name}/{major}."
-  [lang k]
-  (i18n/ki lang k))
+  "The public permanent URL (name + major) of a document ref in language `lang`, built
+  from the ref's own `:type` — so it works for any document type."
+  [lang doc]
+  (i18n/doc-permalink lang (:type doc) (:name doc) (:major doc)))
 
 ;; ---- Full-text search box (#37) — searches name + statement, links to pages ----
-
-(rf/reg-sub ::search (fn [db _] (::search db)))
-(rf/reg-event-db ::search-clear (fn [db _] (dissoc db ::search)))
-
-(rf/reg-event-fx ::search-input
-                 (fn [{:keys [db]} [_ q]]
-                   (if (str/blank? q)
-                     {:db (assoc db
-                                 ::search
-                                 {:q q
-                                  :results []})}
-                     {:db (assoc-in db [::search :q] q)
-                      :fetch {:method :get
-                              :url (str "/agora/api/ki?lang=" (i18n/current db)
-                                        "&q=" (js/encodeURIComponent q))
-                              :headers {"Accept" "application/json"}
-                              :response-content-types {#"application/json" :json}
-                              :on-success [::search-ok]
-                              :on-failure [::op-failed]}})))
-
-(rf/reg-event-db ::search-ok (fn [db [_ resp]] (assoc-in db [::search :results] (:body resp))))
-
-(defn search-box
-  "A search input that queries name + output statement and shows matches as a
-  dropdown of links to public KI pages."
-  []
-  (let [{:keys [q results]} @(rf/subscribe [::search])
-        lang @(rf/subscribe [::i18n/lang])]
-    [:div {:style {:position "relative"
-                   :width "100%"}}
-     [:input {:type "text"
-              :placeholder (i18n/t lang :search/placeholder)
-              :value (or q "")
-              :on-change #(rf/dispatch [::search-input (.. % -target -value)])
-              :style {:width "100%"
-                      :box-sizing "border-box"
-                      :padding "0.55em"
-                      :font-size "1em"
-                      :border "1px solid #ccc"
-                      :border-radius "0.4em"}}]
-     (when (and (not (str/blank? q)) (seq results))
-       (into [:div {:style {:position "absolute"
-                            :z-index 20
-                            :left 0
-                            :right 0
-                            :margin-top "0.2em"
-                            :background "#fff"
-                            :border "1px solid #ddd"
-                            :border-radius "0.4em"
-                            :box-shadow "0 4px 12px rgba(0,0,0,0.1)"
-                            :max-height "20em"
-                            :overflow-y "auto"}}]
-             (for [k results]
-               ^{:key (:id k)}
-               [:a {:href (permalink lang k)
-                    :on-click #(rf/dispatch [::search-clear])
-                    :style {:display "flex"
-                            :align-items "center"
-                            :gap "0.5em"
-                            :padding "0.5em 0.7em"
-                            :text-decoration "none"
-                            :color "inherit"
-                            :border-bottom "1px solid #f0f0f0"}}
-                [kind-badge (:kind k)]
-                [:span {:style {:font-weight 600}}
-                 (:name k)]
-                [:span {:style version-tag-style}
-                 (str "v" (:major k) "." (:minor k))]])))
-     (when (and (not (str/blank? q)) (empty? results))
-       [:div {:style {:position "absolute"
-                      :z-index 20
-                      :left 0
-                      :right 0
-                      :margin-top "0.2em"
-                      :background "#fff"
-                      :border "1px solid #ddd"
-                      :border-radius "0.4em"
-                      :padding "0.5em 0.7em"
-                      :color "#aaa"
-                      :font-size "0.9em"}}
-        (i18n/t lang :search/no-matches)])]))
 
 (defn gated
   "For an authoring action, returns [on-click dim?]. Logged in → runs `action`;
@@ -465,108 +365,6 @@
                .preventDefault)
        (rf/dispatch [::auth/open :login]))
      true]))
-
-(defn header
-  "Shared Agora header (Hephaistox dark/copper theme): the two discover links, search
-  and auth controls. Creation is a `+` card at the end of each discover grid, not a
-  header link. The interface language is a preference, set on the Preferences page —
-  not here; a signed-in visitor gets the editable page automatically when viewing a KI."
-  []
-  (let [lang @(rf/subscribe [::i18n/lang])]
-    [:header {:class "agora-header"
-              :style {:background "#1b1a17"
-                      :color "#e8e2d6"
-                      :border-bottom "2px solid #b9770e"}}
-     [:a {:href (i18n/home lang)
-          :style {:font-family "Georgia, 'Cormorant Garamond', serif"
-                  :font-size "1.4em"
-                  :font-weight 700
-                  :letter-spacing "0.03em"
-                  :color "#d99a2b"
-                  :text-decoration "none"}}
-      "Agora"]
-     ;; Just the two discover links; creation is a `+` card on each discover grid.
-     (let [link (fn [label href] [:a {:key href
-                                      :href href
-                                      :style {:color "#e8e2d6"
-                                              :text-decoration "none"
-                                              :opacity 0.85}}
-                                  label])]
-       [:nav {:style {:display "flex"
-                      :align-items "center"
-                      :gap "1.1em"
-                      :font-size "0.9em"
-                      :flex-wrap "wrap"}}
-        (link (i18n/t lang :nav/discover-ki) (i18n/discover lang))
-        (link (i18n/t lang :nav/discover-articles) (i18n/articles lang))])
-     [:div {:class "agora-header__search"}
-      [search-box]]
-     [:div {:class "agora-header__auth"}
-      [auth/auth-controls]]]))
-
-(def ^:private footer-legal
-  "Legal / info links, adapted from the hephaistox.com landing footer. Paths are
-  under the language root of the main site (outside Agora)."
-  [[:footer/home "index.html"]
-   [:footer/legal-notice "articles/legal-notice.html"]
-   [:footer/privacy "articles/privacy.html"]
-   [:footer/disclaimer "articles/disclaimer.html"]
-   [:footer/who-are-we "articles/who-are-we.html"]])
-
-(def ^:private footer-social
-  "Social links as FontAwesome brand icons, mirroring the hephaistox.com footer."
-  [["LinkedIn" "fa-linkedin" "https://www.linkedin.com/company/hephaistox"]
-   ["Facebook" "fa-facebook-f" "https://www.facebook.com/profile.php?id=61586135248424"]
-   ["YouTube" "fa-youtube" "https://www.youtube.com/@HephaistoxSC"]
-   ["GitHub" "fa-github" "https://github.com/hephaistox"]])
-
-(defn site-footer
-  "Agora footer, adapted from the hephaistox.com landing footer: legal/info links
-  (to the main site, language-rooted), social icons, and copyright. Themed to
-  match the header (dark/copper)."
-  []
-  (let [lang @(rf/subscribe [::i18n/lang])
-        link {:color "#d9b38c"
-              :text-decoration "none"
-              :font-size "0.85em"}
-        row {:display "flex"
-             :flex-wrap "wrap"
-             :justify-content "center"
-             :gap "0.4em 1.2em"
-             :margin-bottom "0.9em"}]
-    [:footer {:style {:flex-shrink 0
-                      :padding "1.6em 1.2em"
-                      :background "#1b1a17"
-                      :color "#e8e2d6"
-                      :border-top "2px solid #b9770e"
-                      :text-align "center"
-                      :font-family "system-ui, sans-serif"}}
-     (into [:div {:style row}]
-           (concat [^{:key "prefs"}
-                    [:a {:href (i18n/preferences lang)
-                         :style link}
-                     (i18n/t lang :nav/preferences)]]
-                   (for [[k path] footer-legal]
-                     ^{:key path}
-                     [:a {:href (str "/" lang "/" path)
-                          :style link}
-                      (i18n/t lang k)])))
-     (into [:div {:style (assoc row :gap "0.2em 1.4em" :font-size "1.35em")}]
-           (for [[label icon url] footer-social]
-             ^{:key label}
-             [:a {:href url
-                  :target "_blank"
-                  :rel "noopener noreferrer"
-                  :title label
-                  :aria-label label
-                  :style {:color "#d9b38c"
-                          :text-decoration "none"
-                          :line-height 1
-                          :padding "0.15em"}}
-              [:i {:class (str "fa-brands " icon)}]]))
-     [:div {:style {:font-size "0.8em"
-                    :color "#8a8377"}}
-      "Hephaistox © 2026"]]))
 
 (defn version-picker
   "Current version; clicking reveals an in-order strip of every version. `link-fn`
@@ -614,7 +412,7 @@
 (defn- mini-card
   "A compact neighbour card linking to `link`. When `on-drop` is given, a ✕
   removes the link (used for input links when editing)."
-  [{c-name :name
+  [{c-title :title
     c-type :kind
     :keys [major minor]}
    link
@@ -640,7 +438,7 @@
       (str "v" major "." minor)]]
     [:div {:style {:font-weight 600
                    :font-size "0.9em"}}
-     c-name]]
+     c-title]]
    (when on-drop
      [:button {:on-click on-drop
                :title (i18n/t @(rf/subscribe [::i18n/lang]) :ki/remove-input)
@@ -898,29 +696,32 @@
       [language-mismatch-notice lang doc]
       (when (seq successors) [:<> [connector] [neighbours-row successors link-fn nil]])])))
 
-(defn type-badge
-  "A node's badge: a KI's coloured kind badge, or a neutral grey 'Article' chip."
-  [{:keys [type kind]}]
-  (if (= "article" type)
-    [:span {:style {:font-size "0.62em"
-                    :font-weight 700
-                    :letter-spacing "0.05em"
-                    :text-transform "uppercase"
-                    :color "#fff"
-                    :background "#8a8175"
-                    :padding "0.2em 0.6em"
-                    :border-radius "0.25em"}}
-     (i18n/t @(rf/subscribe [::i18n/lang]) :type/article)]
-    [kind-badge kind]))
+(defn doc-badge
+  "A document's badge — a feature of the *document*, not its type, so there is no type
+  branching: a document that carries an epistemic `:kind` shows its coloured kind badge
+  (optionally `:link?`ed to its definition); a document without a kind shows a neutral grey
+  chip labelled from its own `:type` (the `:type/<type>` i18n key)."
+  ([doc] (doc-badge doc nil))
+  ([{:keys [type kind]} {:keys [link?]}]
+   (if kind
+     [kind-badge kind {:link? link?}]
+     [:span {:style {:font-size "0.62em"
+                     :font-weight 700
+                     :letter-spacing "0.05em"
+                     :text-transform "uppercase"
+                     :color "#fff"
+                     :background "#8a8175"
+                     :padding "0.2em 0.6em"
+                     :border-radius "0.25em"}}
+      (i18n/t @(rf/subscribe [::i18n/lang]) (keyword "type" type))])))
 
 (defn discover-card
-  "A preview card for a node (KI or article) in a discover grid: its badge (a KI's
-  kind, or an 'Article' chip), version, title, an excerpt of its text (citations
-  flattened, clamped so the grid stays even), and the publication date."
+  "A preview card for a document in a discover grid: its badge (a kind badge, or a neutral
+  type chip), version, title, an excerpt of its text (citations flattened, clamped so the
+  grid stays even), and the publication date."
   [lang node]
-  (let [article? (= "article" (:type node))
-        excerpt (cite/plain-text (cite/node-text node))]
-    [:a {:href (if article? (i18n/article-permalink lang node) (permalink lang node))
+  (let [excerpt (cite/plain-text (cite/node-text node))]
+    [:a {:href (permalink lang node)
          :style {:display "flex"
                  :flex-direction "column"
                  :gap "0.55em"
@@ -935,14 +736,14 @@
      [:div {:style {:display "flex"
                     :align-items "center"
                     :gap "0.5em"}}
-      [type-badge node]
+      [doc-badge node]
       [:span {:style version-tag-style}
        (str "v" (:major node) "." (:minor node))]]
      [:div {:style {:font-weight 700
                     :font-size "1.02em"
                     :line-height 1.25
                     :color "#2a2723"}}
-      (display-title (:title node) (:name node))]
+      (:title node)]
      [:div {:style {:font-size "0.9em"
                     :line-height 1.4
                     :color "#555"
@@ -955,13 +756,25 @@
      [:div {:style {:margin-top "auto"
                     :color "#888"
                     :font-size "0.8em"}}
-      (when-let [a (:author node)]
-        [:span
-         [:span {:style {:color "#b9770e"
-                         :font-weight 600}}
-          a]
-         " · "])
-      (or (fmt/utc (:published-at node)) "—")]]))
+      ;; attribution on its own line
+      (let [src-authors (distinct (keep :author-name (:references node)))]
+        (if (seq src-authors)
+          ;; the KI quotes a source → attribute the cited author(s)
+          [:div {:title (i18n/t lang :card/quotes)}
+           "📖 "
+           [:span {:style {:color "#b9770e"
+                           :font-weight 600}}
+            (str/join ", " src-authors)]]
+          ;; no source → the byline author is this document's own (original) author
+          (when-let [a (:author node)]
+            [:div
+             [:span {:style {:color "#b9770e"
+                             :font-weight 600}}
+              a]
+             [:span {:style {:font-style "italic"}}
+              (str " · " (i18n/t lang :card/original))]])))
+      ;; timestamp always on its own line
+      [:div (or (fmt/utc (:published-at node)) "—")]]]))
 
 (defn add-card
   "A dashed 'create' tile for the end of a discover grid — a large + linking to `href`.
@@ -1000,501 +813,33 @@
        :aria-label label}
    "+"])
 
-(defn- landing-hero
-  "The marketing banner atop the landing page: eyebrow, pitch, the primary explore /
-  publish actions, and a reassurance line — so the value prop lands above the fold."
-  [lang]
-  [:section {:style {:background "linear-gradient(160deg, #1b1a17, #262019)"
-                     :color "#e8e2d6"
-                     :border-radius "0.8em"
-                     :padding "2.6em 1.4em"
-                     :margin-bottom "1.4em"
-                     :text-align "center"}}
-   [:div {:style {:font-size "0.78em"
-                  :font-weight 700
-                  :text-transform "uppercase"
-                  :letter-spacing "0.14em"
-                  :color "#d69a3a"
-                  :margin-bottom "0.9em"}}
-    (i18n/t lang :home/eyebrow)]
-   [:h1 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
-                 :font-size "clamp(1.7em, 4.4vw, 2.7em)"
-                 :line-height "1.16"
-                 :margin "0 0 0.5em"
-                 :color "#f0e6d2"}}
-    (i18n/t lang :landing/headline)]
-   [:p {:style {:max-width "42em"
-                :margin "0 auto 1.5em"
-                :font-size "1.08em"
-                :line-height "1.6"
-                :color "#c9c1b2"}}
-    (i18n/t lang :home/subtitle)]
-   [:div {:style {:display "flex"
-                  :flex-wrap "wrap"
-                  :gap "0.7em"
-                  :justify-content "center"}}
-    [:a {:href (i18n/discover lang)
-         :style {:padding "0.65em 1.4em"
-                 :background "#b9770e"
-                 :color "#fff"
-                 :border-radius "0.4em"
-                 :font-weight 600
-                 :text-decoration "none"}}
-     (i18n/t lang :home/cta-explore)]
-    [:a {:href (i18n/new-ki lang)
-         :style {:padding "0.65em 1.4em"
-                 :background "transparent"
-                 :color "#e8e2d6"
-                 :border "1px solid #b9770e"
-                 :border-radius "0.4em"
-                 :text-decoration "none"}}
-     (i18n/t lang :home/cta-publish)]]
-   [:div {:style {:margin-top "1.3em"
-                  :font-size "0.82em"
-                  :color "#8f8776"}}
-    (i18n/t lang :home/trust)]])
-
-(defn- landing-spotlight
-  "A live example — one real KI from the graph, rendered prominently so a first-time
-  visitor sees what a Knowledge Item is."
-  [lang k]
-  [:a {:href (permalink lang k)
-       :style {:display "block"
-               :border "1px solid #e2ddd2"
-               :border-left "4px solid #b9770e"
-               :border-radius "0.6em"
-               :background "#fff"
-               :padding "1.1em 1.3em"
-               :margin-bottom "1.6em"
-               :text-decoration "none"
-               :color "inherit"}}
-   [:div {:style {:font-size "0.72em"
-                  :text-transform "uppercase"
-                  :letter-spacing "0.06em"
-                  :color "#b9770e"
-                  :margin-bottom "0.55em"}}
-    (i18n/t lang :landing/example-label)]
-   [:div {:style {:display "flex"
-                  :align-items "center"
-                  :gap "0.6em"
-                  :margin-bottom "0.45em"}}
-    [kind-badge (:kind k)]
-    [:span {:style {:font-weight 700
-                    :font-size "1.15em"}}
-     (or (:title k) (:name k))]]
-   [:p {:style {:margin "0 0 0.5em"
-                :color "#333"
-                :line-height "1.55"}}
-    (cite/node-text k)]
-   [:span {:style {:color "#b9770e"
-                   :font-weight 600
-                   :font-size "0.9em"}}
-    (i18n/t lang :landing/explore)]])
-
-(defn- home-section-heading
-  "Serif section title, centered — the recurring divider between landing sections."
-  [text]
-  [:h2 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
-                :font-size "clamp(1.4em, 3.2vw, 2em)"
-                :color "#1b1a17"
-                :text-align "center"
-                :margin "0 0 0.8em"}}
-   text])
-
-(defn- home-mini-node
-  "One illustrative card in the reasoning diagram: a coloured type tag over its text.
-  Pure illustration (not live data), so the labels are plain words, not KI kinds."
-  [tag color text]
-  [:div {:style {:flex "1 1 15em"
-                 :max-width "22em"
-                 :background "#fff"
-                 :border "1px solid #e6e0d4"
-                 :border-left (str "4px solid " color)
-                 :border-radius "0.55em"
-                 :padding "0.85em 1em"
-                 :box-shadow "0 1px 3px rgba(0,0,0,0.06)"
-                 :text-align "left"}}
-   [:div {:style {:font-size "0.66em"
-                  :font-weight 700
-                  :text-transform "uppercase"
-                  :letter-spacing "0.09em"
-                  :color color
-                  :margin-bottom "0.35em"}}
-    tag]
-   [:div {:style {:color "#2a2621"
-                  :line-height "1.45"}}
-    text]])
-
-(defn- reasoning-diagram
-  "The page's main 'picture': a self-contained illustration of a Knowledge Item
-  chain — a definition and an observation feeding a conclusion, plus a live-looking
-  objection — so a newcomer instantly sees what the graph is made of."
-  [lang]
-  [:div {:style {:background "#faf7f1"
-                 :border "1px solid #ece5d8"
-                 :border-radius "0.8em"
-                 :padding "1.7em 1.3em"}}
-   [:div {:style {:display "flex"
-                  :flex-wrap "wrap"
-                  :gap "0.9em"
-                  :justify-content "center"}}
-    [home-mini-node (i18n/t lang :home/tag-definition) "#6741d9" (i18n/t lang :home/ex-definition)]
-    [home-mini-node
-     (i18n/t lang :home/tag-observation)
-     "#0b7285"
-     (i18n/t lang :home/ex-observation)]]
-   [:div {:style {:text-align "center"
-                  :color "#b9770e"
-                  :font-size "1.5em"
-                  :line-height 1
-                  :margin "0.55em 0"}}
-    "↓"]
-   [:div {:style {:display "flex"
-                  :justify-content "center"}}
-    [home-mini-node (i18n/t lang :home/tag-conclusion) "#2c5aa0" (i18n/t lang :home/ex-conclusion)]]
-   [:div {:style {:max-width "30em"
-                  :margin "1.2em auto 0"
-                  :background "#fff4f4"
-                  :border "1px dashed #e0a0a0"
-                  :border-radius "0.55em"
-                  :padding "0.65em 0.95em"
-                  :color "#8a3a3a"
-                  :font-size "0.92em"
-                  :line-height "1.45"}}
-    [:span {:style {:font-weight 700
-                    :margin-right "0.45em"}}
-     "⚔"]
-    (i18n/t lang :home/ex-objection)]])
-
-(defn- home-step
-  "One numbered step in the 'how it works' row."
-  [n title body]
-  [:div {:style {:flex "1 1 14em"
-                 :min-width "12em"}}
-   [:div {:style {:width "2.2em"
-                  :height "2.2em"
-                  :border-radius "50%"
-                  :background "#b9770e"
-                  :color "#fff"
-                  :font-weight 700
-                  :display "flex"
-                  :align-items "center"
-                  :justify-content "center"
-                  :margin-bottom "0.6em"}}
-    n]
-   [:h3 {:style {:margin "0 0 0.3em"
-                 :color "#1b1a17"
-                 :font-size "1.05em"}}
-    title]
-   [:p {:style {:margin 0
-                :color "#5c5648"
-                :line-height "1.5"}}
-    body]])
-
-(defn- home-feature
-  "One feature tile: an emoji glyph, a title and a one-liner."
-  [glyph title body]
-  [:div {:style {:background "#fff"
-                 :border "1px solid #ece5d8"
-                 :border-radius "0.6em"
-                 :padding "1.1em"}}
-   [:div {:style {:font-size "1.6em"
-                  :margin-bottom "0.35em"}}
-    glyph]
-   [:h3 {:style {:margin "0 0 0.25em"
-                 :font-size "1em"
-                 :color "#1b1a17"}}
-    title]
-   [:p {:style {:margin 0
-                :color "#5c5648"
-                :font-size "0.92em"
-                :line-height "1.5"}}
-    body]])
-
-(defn- prediction-example
-  "One illustrated example prediction: a trigger glyph, a PREDICTION badge, the claim,
-  and a line on how/when it resolves. Copy-only teaser — no evaluation behind it yet."
-  [glyph claim resolves]
-  [:div {:style {:flex "1 1 16em"
-                 :background "#fff"
-                 :border "1px solid #cfe0e3"
-                 :border-left "4px solid #0b7285"
-                 :border-radius "0.6em"
-                 :padding "1.1em 1.2em"}}
-   [:div {:style {:display "flex"
-                  :align-items "center"
-                  :gap "0.5em"
-                  :margin-bottom "0.55em"}}
-    [:span {:style {:font-size "1.35em"}} glyph]
-    [kind-badge "prediction"]]
-   [:p {:style {:margin "0 0 0.6em"
-                :color "#1b1a17"
-                :font-weight 600
-                :font-size "1.02em"
-                :line-height "1.4"}}
-    claim]
-   [:p {:style {:margin 0
-                :color "#5c5648"
-                :font-size "0.88em"
-                :line-height "1.5"}}
-    resolves]])
-
-(defn- prediction-teaser
-  "The prediction pitch: a lead, two example predictions (date-triggered vs
-  event-triggered — the two ways a claim resolves), and a note on settlement."
-  [lang]
-  [:div
-   [:p {:style {:max-width "40em"
-                :margin "0 auto 1.4em"
-                :text-align "center"
-                :color "#5c5648"
-                :line-height "1.6"}}
-    (i18n/t lang :home/predict-lead)]
-   [:div {:style {:display "flex"
-                  :flex-wrap "wrap"
-                  :gap "1em"
-                  :justify-content "center"}}
-    [prediction-example "📅"
-     (i18n/t lang :home/predict-date-claim)
-     (i18n/t lang :home/predict-date-resolve)]
-    [prediction-example "⚡"
-     (i18n/t lang :home/predict-event-claim)
-     (i18n/t lang :home/predict-event-resolve)]]
-   [:p {:style {:max-width "40em"
-                :margin "1.4em auto 0"
-                :text-align "center"
-                :color "#8a7a55"
-                :font-size "0.9em"
-                :font-style "italic"}}
-    (i18n/t lang :home/predict-footer)]])
-
-(defn landing-page
-  "The Agora home/landing page (`/agora/<lang>`): a marketing hero, an illustrated
-  'anatomy of a claim', the pain it solves, how it works, a feature grid, the
-  prediction pitch, a live example KI from the graph, and a closing call to action.
-  The full browse grid lives on the discover page."
-  [kis]
-  (let [lang @(rf/subscribe [::i18n/lang])]
-    [:div {:style {:max-width "60em"
-                   :margin "1.5em auto"
-                   :padding "0 0.9em"
-                   :font-family "system-ui, sans-serif"}}
-     [landing-hero lang]
-     ;; Anatomy of a claim — the illustrated centrepiece
-     [:section {:style {:margin "2.6em 0"}}
-      [home-section-heading (i18n/t lang :home/anatomy-title)]
-      [:p {:style {:max-width "40em"
-                   :margin "0 auto 1.2em"
-                   :text-align "center"
-                   :color "#5c5648"
-                   :line-height "1.6"}}
-       (i18n/t lang :home/anatomy-lead)]
-      [reasoning-diagram lang]]
-     ;; The pain it solves
-     [:section {:style {:background "#1b1a17"
-                        :color "#e8e2d6"
-                        :border-radius "0.8em"
-                        :padding "2.2em 1.6em"
-                        :margin "2.6em 0"
-                        :text-align "center"}}
-      [:h2 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
-                    :font-size "clamp(1.4em, 3.4vw, 2em)"
-                    :margin "0 0 0.55em"
-                    :color "#f0e6d2"}}
-       (i18n/t lang :home/problem-title)]
-      [:p {:style {:max-width "40em"
-                   :margin "0 auto"
-                   :line-height "1.7"
-                   :color "#c9c1b2"}}
-       (i18n/t lang :home/problem-body)]]
-     ;; How it works — three steps
-     [:section {:style {:margin "2.6em 0"}}
-      [home-section-heading (i18n/t lang :home/how-title)]
-      [:div {:style {:display "flex"
-                     :flex-wrap "wrap"
-                     :gap "1.4em"}}
-       [home-step "1" (i18n/t lang :home/how-1-title) (i18n/t lang :home/how-1-body)]
-       [home-step "2" (i18n/t lang :home/how-2-title) (i18n/t lang :home/how-2-body)]
-       [home-step "3" (i18n/t lang :home/how-3-title) (i18n/t lang :home/how-3-body)]]]
-     ;; Feature grid
-     [:section {:style {:margin "2.6em 0"}}
-      [home-section-heading (i18n/t lang :home/features-title)]
-      (into
-       [:div {:style {:display "grid"
-                      :grid-template-columns "repeat(auto-fit, minmax(min(16em, 100%), 1fr))"
-                      :gap "0.9em"}}]
-       [[home-feature "🔗" (i18n/t lang :home/feat-terms-title) (i18n/t lang :home/feat-terms-body)]
-        [home-feature
-         "⚔️"
-         (i18n/t lang :home/feat-objection-title)
-         (i18n/t lang :home/feat-objection-body)]
-        [home-feature
-         "🌳"
-         (i18n/t lang :home/feat-versions-title)
-         (i18n/t lang :home/feat-versions-body)]
-        [home-feature "🕒" (i18n/t lang :home/feat-time-title) (i18n/t lang :home/feat-time-body)]
-        [home-feature
-         "📉"
-         (i18n/t lang :home/feat-confidence-title)
-         (i18n/t lang :home/feat-confidence-body)]
-        [home-feature
-         "🌍"
-         (i18n/t lang :home/feat-lang-title)
-         (i18n/t lang :home/feat-lang-body)]])]
-     ;; Predictions — put a claim on the record
-     [:section {:style {:margin "2.6em 0"}}
-      [home-section-heading (i18n/t lang :home/predict-title)]
-      [prediction-teaser lang]]
-     ;; A real KI from the graph
-     (when-let [k (first kis)]
-       [:section {:style {:margin "2.6em 0"}}
-        [home-section-heading (i18n/t lang :home/live-title)]
-        [landing-spotlight lang k]])
-     ;; Closing call to action
-     [:section {:style {:background "linear-gradient(160deg, #b9770e, #8a5709)"
-                        :color "#fff"
-                        :border-radius "0.8em"
-                        :padding "2.4em 1.6em"
-                        :margin "2.6em 0 1em"
-                        :text-align "center"}}
-      [:h2 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
-                    :font-size "clamp(1.4em, 3.4vw, 2em)"
-                    :margin "0 0 0.5em"}}
-       (i18n/t lang :home/cta-title)]
-      [:p {:style {:max-width "36em"
-                   :margin "0 auto 1.3em"
-                   :line-height "1.6"
-                   :color "#fbe6cf"}}
-       (i18n/t lang :home/cta-body)]
-      [:div {:style {:display "flex"
-                     :flex-wrap "wrap"
-                     :gap "0.7em"
-                     :justify-content "center"}}
-       [:a {:href (i18n/new-ki lang)
-            :style {:padding "0.7em 1.5em"
-                    :background "#1b1a17"
-                    :color "#f0e6d2"
-                    :border-radius "0.4em"
-                    :font-weight 600
-                    :text-decoration "none"}}
-        (i18n/t lang :home/cta-publish)]
-       [:a {:href (i18n/discover lang)
-            :style {:padding "0.7em 1.5em"
-                    :background "transparent"
-                    :color "#fff"
-                    :border "1px solid rgba(255,255,255,0.7)"
-                    :border-radius "0.4em"
-                    :text-decoration "none"}}
-        (i18n/t lang :home/cta-explore)]]]]))
-
-(defn discover-page
-  "Focused KI discovery (`/agora/<lang>/discover`): a responsive grid of recent KIs,
-  ending with a `+` card, plus a mobile FAB. Search lives in the shared header."
-  [kis]
-  (let [lang @(rf/subscribe [::i18n/lang])]
+(defn discover-grid
+  "A responsive discover grid of preview cards for `:items`, ending with a `+` add-card and
+  a mobile FAB pointing at `(new-href-fn lang)`. `:heading-key` is optional (omitted when
+  nil); `:tagline-key` sits above the grid; `:new-label-key` labels the add-card/FAB.
+  Generic over document type — each per-type facade supplies the i18n keys + create route."
+  [{:keys [heading-key tagline-key items new-href-fn new-label-key]}]
+  (let [lang @(rf/subscribe [::i18n/lang])
+        new-href (new-href-fn lang)
+        new-label (i18n/t lang new-label-key)]
     [:div {:style {:max-width "72em"
                    :margin "1.5em auto"
                    :padding "0 0.8em"
                    :font-family "system-ui, sans-serif"}}
-     [:h1 {:style {:font-size "1.4em"
-                   :margin "0 0 0.2em"
-                   :color "#1b1a17"}}
-      (i18n/t lang :discover/heading)]
+     (when heading-key
+       [:h1 {:style {:font-size "1.4em"
+                     :margin "0 0 0.2em"
+                     :color "#1b1a17"}}
+        (i18n/t lang heading-key)])
      [:p {:style {:color "#666"
-                  :margin "0 0 1.1em"}}
-      (i18n/t lang :discover/tagline)]
+                  :margin (if heading-key "0 0 1.1em" "0 0 1em")}}
+      (i18n/t lang tagline-key)]
      (into [:div {:style {:display "grid"
                           :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
                           :gap "0.9em"}}]
-           (conj (mapv (fn [k] ^{:key (:id k)} [discover-card lang k]) kis)
-                 ^{:key "__add__"} [add-card (i18n/new-ki lang) (i18n/t lang :nav/new-ki)]))
-     [fab (i18n/new-ki lang) (i18n/t lang :nav/new-ki)]]))
-
-;; ===========================================================================
-;; Loading placeholders (skeletons)
-;; ===========================================================================
-
-(defn- skel
-  "A shimmering placeholder block (`.agora-skel` / `@keyframes agora-pulse` in the
-  ki.html shell)."
-  [style]
-  [:div {:class "agora-skel"
-         :style style}])
-
-(defn- skeleton-card
-  "Card-shaped placeholder matching a KI card's silhouette."
-  []
-  [:div {:style (assoc card-style :display "flex" :flex-direction "column" :gap "0.7em")}
-   [skel {:width "9em"
-          :height "1.1em"}]
-   [skel {:width "70%"
-          :height "1.5em"}]
-   [skel {:width "6em"
-          :height "0.8em"}]
-   [skel {:height "0.9em"}]
-   [skel {:height "0.9em"}]
-   [skel {:width "85%"
-          :height "0.9em"}]])
-
-(defn- skeleton-ki-page
-  []
-  [:div {:style {:display "flex"
-                 :flex-direction "column"
-                 :align-items "center"
-                 :padding "1em 0.6em 2em"}}
-   [skeleton-card]])
-
-(defn- skeleton-discover
-  []
-  [:div {:style {:max-width "72em"
-                 :margin "1.5em auto"
-                 :padding "0 0.8em"}}
-   [skel {:width "22em"
-          :max-width "80%"
-          :height "1.1em"
-          :margin-bottom "1.2em"}]
-   (into [:div {:style {:display "grid"
-                        :grid-template-columns "repeat(auto-fill, minmax(17em, 1fr))"
-                        :gap "0.9em"}}]
-         (for [i (range 6)]
-           ^{:key i}
-           [:div {:style {:display "flex"
-                          :flex-direction "column"
-                          :gap "0.6em"
-                          :min-height "9em"
-                          :padding "0.9em 1em"
-                          :border "1px solid #e2ddd2"
-                          :border-radius "0.6em"
-                          :background "#fff"}}
-            [skel {:width "6em"
-                   :height "1em"}]
-            [skel {:width "80%"
-                   :height "1.25em"}]
-            [skel {:height "0.8em"}]
-            [skel {:width "90%"
-                   :height "0.8em"}]
-            [skel {:width "60%"
-                   :height "0.8em"}]]))])
-
-(defn loading-view
-  "Skeleton placeholder shown while a page's data loads, matched to the target
-  `kind` so the layout does not jump when the content arrives."
-  [kind]
-  (case kind
-    (:home :discover :articles) [skeleton-discover]
-    [skeleton-ki-page]))
-
-;; ===========================================================================
-;; Preferences page — a settings surface meant to grow over time
-;; ===========================================================================
-
-(defn- provider-label
-  "Human name for how the account signs in."
-  [lang provider]
-  (case provider
-    "google" "Google"
-    "facebook" "Facebook"
-    (i18n/t lang :prefs/via-password)))
+           (conj (mapv (fn [it] ^{:key (:id it)} [discover-card lang it]) items)
+                 ^{:key "__add__"} [add-card new-href new-label]))
+     [fab new-href new-label]]))
 
 (defn language-selector
   "A language chooser: a badge per supported language, the selected one highlighted.
@@ -1519,277 +864,3 @@
                             :cursor "pointer"}}
            l])))
 
-(defn- pref-field
-  "A label / value row for the account section."
-  [label value]
-  [:div {:style {:display "flex"
-                 :justify-content "space-between"
-                 :gap "1em"
-                 :padding "0.35em 0"
-                 :border-bottom "1px solid #f0eee8"}}
-   [:span {:style {:color "#888"
-                   :font-size "0.9em"}}
-    label]
-   [:span {:style {:font-weight 600
-                   :text-align "right"
-                   :word-break "break-word"}}
-    value]])
-
-(defn preferences-page
-  "User preferences: account details (alias, login, sign-in method) and the
-  interface language. A home for further settings later. Works for anyone — the
-  language is cached locally and, when logged in, persisted to the account."
-  []
-  (let [lang @(rf/subscribe [::i18n/lang])
-        user @(rf/subscribe [::auth/user])
-        section-title {:font-size "1.05em"
-                       :margin "1.2em 0 0.5em"
-                       :color "#2a2723"}]
-    [:div {:style (assoc card-style :margin "1.5em auto")}
-     [:h1 {:style {:font-size "1.3em"
-                   :margin "0 0 0.3em"}}
-      (i18n/t lang :prefs/title)]
-     ;; ---- Account ----
-     [:h2 {:style section-title}
-      (i18n/t lang :prefs/account)]
-     (if user
-       [:div {:style {:display "flex"
-                      :align-items "center"
-                      :gap "0.8em"}}
-        (when-let [avatar (:avatar-url user)]
-          [:img {:src avatar
-                 :alt (:display-name user)
-                 :referrer-policy "no-referrer"
-                 :style {:width "3em"
-                         :height "3em"
-                         :border-radius "50%"
-                         :object-fit "cover"
-                         :border "1px solid #d99a2b"}}])
-        [:div {:style {:flex "1 1 auto"}}
-         [pref-field (i18n/t lang :auth/alias) (:display-name user)]
-         [pref-field (i18n/t lang :auth/email) (:email user)]
-         [pref-field (i18n/t lang :prefs/connection) (provider-label lang (:provider user))]]]
-       [:div {:style {:color "#888"
-                      :font-style "italic"}}
-        (i18n/t lang :prefs/not-signed-in)])
-     ;; ---- Language ----
-     [:h2 {:style section-title}
-      (i18n/t lang :form/language)]
-     [language-selector lang #(rf/dispatch [:agora/set-lang %])]]))
-
-;; ===========================================================================
-;; Admin page — prune KI lineages (TNRs)
-;; ===========================================================================
-
-(rf/reg-sub ::admin-tnrs (fn [db _] (:admin-tnrs db)))
-(rf/reg-sub ::admin-issues (fn [db _] (:admin-issues db)))
-
-(defn- consistency-panel
-  "Admin: nodes with dangling references (a broken input / citation). Shown above the
-  lineage table so data errors surface immediately."
-  [lang issues]
-  (let [bad? (seq issues)]
-    [:div {:style {:margin "0 0 1.4em"
-                   :border (str "1px solid " (if bad? "#e0a0a0" "#cfe0cf"))
-                   :border-radius "0.5em"
-                   :padding "0.8em 1em"
-                   :background (if bad? "#fff4f4" "#f2f8f2")}}
-     [:div {:style {:font-weight 700
-                    :color (if bad? "#8a3a3a" "#3a7a3a")
-                    :margin-bottom (if bad? "0.6em" "0")}}
-      (str (if bad? "⚠ " "✓ ")
-           (i18n/t lang :admin/issues-title)
-           (when bad? (str " (" (count issues) ")")))]
-     (if-not bad?
-       [:div {:style {:color "#3a7a3a"
-                      :font-size "0.9em"}}
-        (i18n/t lang :admin/issues-none)]
-       (into
-        [:ul {:style {:margin 0
-                      :padding-left "1.2em"
-                      :font-size "0.9em"}}]
-        (for [i issues]
-          ^{:key (str (:type i) "/" (:name i) "/" (:lang i) "/" (:major i) "." (:minor i))}
-          [:li {:style {:margin "0.25em 0"}}
-           [cite/node-link
-            i
-            (str (:type i)
-                 " · "
-                 (or (:title i) (:name i))
-                 " ("
-                 (:lang i)
-                 " v"
-                 (:major i)
-                 "."
-                 (:minor i)
-                 ")")]
-           [:span {:style {:color "#666"}}
-            (when (seq (:broken i))
-              (str " → " (i18n/t lang :admin/issues-broken)
-                   ": " (str/join ", " (map (fn [b] (str (:name b) "@" (:major b))) (:broken i)))))
-            (when (seq (:self i))
-              (str " → " (i18n/t lang :admin/issues-self)
-                   ": " (str/join ", "
-                                  (map (fn [b] (str (:name b) "@" (:major b))) (:self i)))))]])))]))
-
-(def ^:private admin-btn
-  {:font-size "0.8em"
-   :padding "0.25em 0.7em"
-   :border-radius "0.3em"
-   :cursor "pointer"
-   :border "1px solid #ccc"
-   :background "#fff"})
-
-(defn- admin-actions
-  "The action cell for one TNR row: Compact / Drop, with a two-step inline confirm
-  (no native dialog)."
-  [lang confirm t]
-  (let [c @confirm
-        same? (and c
-                   (= (:type c) (:type t))
-                   (= (:name c) (:name t))
-                   (= (:lang c) (:lang t))
-                   (= (:major c) (:major t)))
-        target {:type (:type t)
-                :name (:name t)
-                :lang (:lang t)
-                :major (:major t)}]
-    (if same?
-      [:span {:style {:display "inline-flex"
-                      :gap "0.3em"
-                      :align-items "center"}}
-       [:span {:style {:font-size "0.8em"
-                       :color "#c92a2a"}}
-        (i18n/t lang :admin/confirm)]
-       [:button {:on-click (fn []
-                             (rf/dispatch
-                              [(if (= :drop (:action c)) :agora/admin-drop :agora/admin-compact)
-                               (:type t)
-                               (:name t)
-                               (:lang t)
-                               (:major t)])
-                             (reset! confirm nil))
-                 :style (assoc admin-btn :border "1px solid #c92a2a" :color "#c92a2a")}
-        "✓"]
-       [:button {:on-click #(reset! confirm nil)
-                 :style admin-btn}
-        "✕"]]
-      [:span {:style {:display "inline-flex"
-                      :gap "0.4em"}}
-       [:button {:on-click #(reset! confirm (assoc target :action :compact))
-                 :style admin-btn}
-        (i18n/t lang :admin/compact)]
-       [:button {:on-click #(reset! confirm (assoc target :action :drop))
-                 :style (assoc admin-btn :border "1px solid #c92a2a" :color "#c92a2a")}
-        (i18n/t lang :admin/drop)]])))
-
-(defn admin-page
-  "Maintenance page: every KI lineage (TNR = name + major) with counts, and
-  per-row actions to keep only the latest minor (per language) or drop it entirely.
-  Logged-in only."
-  []
-  (r/with-let
-   [confirm (r/atom nil) lang-filter (r/atom nil)]
-   (let [lang @(rf/subscribe [::i18n/lang])
-         user @(rf/subscribe [::auth/user])
-         tnrs @(rf/subscribe [::admin-tnrs])
-         issues @(rf/subscribe [::admin-issues])
-         ;; the admin's local language: the chosen filter, or your interface language
-         ;; until you pick one. `:all` shows every language (and a Language column).
-         flt (if (nil? @lang-filter) lang @lang-filter)
-         all? (= :all flt)
-         shown (if all? tnrs (filter #(= flt (:lang %)) tnrs))
-         th {:text-align "left"
-             :padding "0.4em 0.6em"
-             :border-bottom "2px solid #e2ddd2"
-             :color "#888"
-             :font-size "0.8em"}
-         td {:padding "0.4em 0.6em"
-             :border-bottom "1px solid #f0eee8"}]
-     [:div {:style {:max-width "56em"
-                    :margin "1.5em auto"
-                    :padding "0 0.8em"
-                    :font-family "system-ui, sans-serif"}}
-      [:h1 {:style {:font-size "1.3em"
-                    :margin "0 0 0.8em"}}
-       (i18n/t lang :admin/title)]
-      (when (:admin user) [consistency-panel lang issues])
-      ;; Language filter — defaults to your selected language (so the table matches it);
-      ;; "All languages" shows every version and adds a Language column.
-      (when (:admin user)
-        [:div {:style {:display "flex"
-                       :align-items "center"
-                       :gap "0.5em"
-                       :margin "0 0 1em"}}
-         [:span {:style {:font-size "0.85em"
-                         :color "#888"}}
-          (i18n/t lang :admin/language)]
-         [:select {:value (if all? "__all__" flt)
-                   :on-change #(let [v (.. % -target -value)]
-                                 (reset! lang-filter (if (= v "__all__") :all v)))
-                   :style {:font-size "0.9em"
-                           :padding "0.25em 0.4em"
-                           :border "1px solid #ccc"
-                           :border-radius "0.3em"}}
-          [:option {:value "__all__"}
-           (i18n/t lang :admin/all-langs)]
-          (for [l language/languages]
-            ^{:key l}
-            [:option {:value l}
-             (get language/language-name l l)])]])
-      (cond
-        (not user) [:div {:style {:color "#888"
-                                  :font-style "italic"}}
-                    (i18n/t lang :admin/login-required)]
-        (not (:admin user)) [:div {:style {:color "#888"
-                                           :font-style "italic"}}
-                             (i18n/t lang :admin/not-authorized)]
-        (empty? shown) [:div {:style {:color "#aaa"
-                                      :font-style "italic"}}
-                        (i18n/t lang :admin/empty)]
-        :else [:table {:style {:width "100%"
-                               :border-collapse "collapse"}}
-               [:thead
-                [:tr
-                 [:th {:style th}
-                  (i18n/t lang :admin/type)]
-                 [:th {:style th}
-                  (i18n/t lang :form/name)]
-                 (when all?
-                   [:th {:style th}
-                    (i18n/t lang :admin/language)])
-                 [:th {:style th}
-                  (i18n/t lang :admin/major)]
-                 [:th {:style th}
-                  (i18n/t lang :admin/versions)]
-                 [:th {:style th}
-                  (i18n/t lang :admin/latest)]
-                 [:th {:style th}]]]
-               (into [:tbody]
-                     (for [t shown]
-                       ^{:key (str (:type t) "/" (:name t) "/" (:lang t) "/" (:major t))}
-                       [:tr
-                        [:td {:style td}
-                         [:span {:style {:font-size "0.7em"
-                                         :font-weight 700
-                                         :letter-spacing "0.04em"
-                                         :text-transform "uppercase"
-                                         :color "#fff"
-                                         :background
-                                         (if (= "article" (:type t)) "#8a8175" "#2c5aa0")
-                                         :padding "0.15em 0.5em"
-                                         :border-radius "0.25em"}}
-                          (:type t)]]
-                        [:td {:style (assoc td :font-weight 600)}
-                         [cite/node-link t (:name t)]]
-                        (when all?
-                          [:td {:style td}
-                           (str/upper-case (:lang t))])
-                        [:td {:style td}
-                         (:major t)]
-                        [:td {:style td}
-                         (:versions t)]
-                        [:td {:style td}
-                         (str "v" (:major t) "." (:latest t))]
-                        [:td {:style (assoc td :text-align "right")}
-                         [admin-actions lang confirm t]]]))])])))

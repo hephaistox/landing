@@ -90,12 +90,18 @@
     :home/feat-lang-title "Dans toutes les langues"
     :home/feat-lang-body "Un concept vit dans chaque langue, relié par son identité."
     :home/predict-title "Prédisez, publiquement"
-    :home/predict-lead "Annoncez ce qui va arriver — et quand cela se tranchera. Votre prédiction est horodatée et publique : la preuve que vous l'aviez dit, avant que ce soit évident."
-    :home/predict-date-claim "« D'ici 2027, la voiture électrique se vendra plus que le thermique en Europe. »"
-    :home/predict-date-resolve "Se résout à une date. L'échéance arrivée, la prédiction est évaluée — le temps la déclenche."
-    :home/predict-event-claim "« La prochaine tempête qui touchera Brest provoquera une coupure de courant. »"
-    :home/predict-event-resolve "Se résout sur un événement. Quand il survient, la réalité tranche — c'est le monde qui la déclenche."
-    :home/predict-footer "À l'échéance ou à l'événement, la prédiction est confirmée ou réfutée — quoi qu'en pense la communauté. (bientôt)"
+    :home/predict-lead
+    "Annoncez ce qui va arriver — et quand cela se tranchera. Votre prédiction est horodatée et publique : la preuve que vous l'aviez dit, avant que ce soit évident."
+    :home/predict-date-claim
+    "« D'ici 2027, la voiture électrique se vendra plus que le thermique en Europe. »"
+    :home/predict-date-resolve
+    "Se résout à une date. L'échéance arrivée, la prédiction est évaluée — le temps la déclenche."
+    :home/predict-event-claim
+    "« La prochaine tempête qui touchera Brest provoquera une coupure de courant. »"
+    :home/predict-event-resolve
+    "Se résout sur un événement. Quand il survient, la réalité tranche — c'est le monde qui la déclenche."
+    :home/predict-footer
+    "À l'échéance ou à l'événement, la prédiction est confirmée ou réfutée — quoi qu'en pense la communauté. (bientôt)"
     :home/live-title "Un exemple réel, tiré du graphe"
     :home/cta-title "Rendez votre raisonnement impossible à ignorer."
     :home/cta-body
@@ -147,6 +153,27 @@
     :author/kis "savoirs"
     :author/no-kis "Aucun savoir ne correspond."
     :author/unknown "Auteur inconnu"
+    :source/heading "Sources"
+    :source/find "Trouver une source"
+    :source/find-title "Trouver une source"
+    :source/create-title "Nouvelle source"
+    :source/edit-title "Modifier la source"
+    :source/save "Enregistrer"
+    :source/create-new "Créer"
+    :source/find-existing "Rechercher"
+    :source/author "Auteur"
+    :source/author-ph "Rechercher ou créer un auteur…"
+    :source/title "Titre"
+    :source/year "Année"
+    :source/editor "Éditeur"
+    :source/locator-ph "page / entrée…"
+    :source/recent "Récentes :"
+    :source/new-person "Nouvel auteur"
+    :source/add "Ajouter la source"
+    :source/no-results "Aucune source trouvée."
+    :ref/remove "Retirer la référence"
+    :card/quotes "Cite une source"
+    :card/original "auteur original"
     :prefs/account "Compte"
     :prefs/connection "Méthode de connexion"
     :prefs/via-password "E-mail et mot de passe"
@@ -282,12 +309,16 @@
     :home/feat-lang-title "Any language"
     :home/feat-lang-body "A concept lives in every language, linked by identity."
     :home/predict-title "Predict, on the record"
-    :home/predict-lead "State what will happen — and when it settles. Your prediction is timestamped and public: proof you called it, before it became obvious."
+    :home/predict-lead
+    "State what will happen — and when it settles. Your prediction is timestamped and public: proof you called it, before it became obvious."
     :home/predict-date-claim "\"By 2027, EVs will outsell combustion cars in Europe.\""
-    :home/predict-date-resolve "Resolves on a date. When the deadline arrives, the prediction is evaluated — time triggers it."
+    :home/predict-date-resolve
+    "Resolves on a date. When the deadline arrives, the prediction is evaluated — time triggers it."
     :home/predict-event-claim "\"The next storm to hit Brest will cause a power outage.\""
-    :home/predict-event-resolve "Resolves on an event. When it happens, reality decides — the world triggers it."
-    :home/predict-footer "At the deadline or the event, the prediction is confirmed or refuted — whatever the crowd believed. (coming soon)"
+    :home/predict-event-resolve
+    "Resolves on an event. When it happens, reality decides — the world triggers it."
+    :home/predict-footer
+    "At the deadline or the event, the prediction is confirmed or refuted — whatever the crowd believed. (coming soon)"
     :home/live-title "See a real one, from the graph"
     :home/cta-title "Make your reasoning impossible to ignore."
     :home/cta-body "Publish your first step. Reading is free; contributing takes a minute."
@@ -338,6 +369,27 @@
     :author/kis "items"
     :author/no-kis "No knowledge item matches."
     :author/unknown "Unknown author"
+    :source/heading "Sources"
+    :source/find "Find a source"
+    :source/find-title "Find a source"
+    :source/create-title "New source"
+    :source/edit-title "Edit source"
+    :source/save "Save"
+    :source/create-new "Create"
+    :source/find-existing "Search"
+    :source/author "Author"
+    :source/author-ph "Search or create an author…"
+    :source/title "Title"
+    :source/year "Year"
+    :source/editor "Editor"
+    :source/locator-ph "page / entry…"
+    :source/recent "Recent:"
+    :source/new-person "New author"
+    :source/add "Add source"
+    :source/no-results "No source found."
+    :ref/remove "Remove reference"
+    :card/quotes "Quotes a source"
+    :card/original "original author"
     :prefs/account "Account"
     :prefs/connection "Sign-in method"
     :prefs/via-password "Email & password"
@@ -446,6 +498,21 @@
   "Public permalink of a KI (name + major) in `lang`."
   [lang {:keys [name major]}]
   (str (base lang) "/ki/" (js/encodeURIComponent name) "/" major))
+
+;; --- Generic, type-driven document URLs ------------------------------------
+;; Every document type shares one URL shape, with its `:type` as the path segment:
+;;   permalink  /agora/<lang>/<type>/<name>/<major>   (latest minor of an identity)
+;;   by-id      /agora/<lang>/<type>/<id>             (one concrete version)
+;; so the generic engine builds URLs from a document's own `:type` — it never needs to
+;; know which types exist.
+(defn doc-permalink
+  "Public permalink of any document — `/agora/<lang>/<type>/<name>/<major>`."
+  [lang type name major]
+  (str (base lang) "/" type "/" (js/encodeURIComponent name) "/" major))
+(defn doc-url
+  "App URL of one concrete document version — `/agora/<lang>/<type>/<id>`."
+  [lang type id]
+  (str (base lang) "/" type "/" id))
 
 ;; ---------------------------------------------------------------------------
 ;; State

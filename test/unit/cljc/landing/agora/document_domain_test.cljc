@@ -1,7 +1,7 @@
 (ns landing.agora.document-domain-test
   "Pure domain rules — no database, no adapter. Runs in clj (and would in cljs)."
   (:require
-   [clojure.test         :refer [deftest is testing]]
+   [clojure.test                  :refer [deftest is testing]]
    [landing.agora.document-domain :as sut]))
 
 (def t-a

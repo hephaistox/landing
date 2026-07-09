@@ -10,7 +10,7 @@
   document op) is a standalone route here too."
   (:require
    [landing.agora.document            :as document]
-   [landing.agora.document-domain              :as domain]
+   [landing.agora.document-domain     :as domain]
    [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.translate           :as translate]
    [landing.language                  :as language]
@@ -48,6 +48,18 @@
 (def ^:private kind-enum (into [:enum] (map name domain/kind-ids)))
 (def ^:private input-ref-schema [:map [:name name-schema] [:major :int]])
 
+;; A document's bibliographic references — each pins a source (AGORA_SOURCE) + a locator
+;; (page/chapter/line/entry). Stored raw in immutable content; resolved to full works in
+;; `document/view`. `[]` clears; absent (nil) carries the old value forward on edit.
+(def ^:private references-schema
+  [:vector {:max 100}
+   [:map
+    [:source-id
+     [:string {:min 1
+               :max 64}]]
+    [:locator {:optional true}
+     [:maybe [:string {:max 500}]]]]])
+
 (def ^:private throttled [(:middleware-fn throttle/authoring-rate-limiter)])
 
 (defn- uid [req] (get-in req [:session :user-id]))
@@ -66,27 +78,31 @@
          :create-body [:map
                        [:name {:optional true}
                         name-schema]
-                       [:title {:optional true}
-                        [:maybe [:string {:max 200}]]]
+                       [:title title-schema]
                        [:kind kind-enum]
                        [:lang {:optional true}
                         lang-schema]
-                       [:text statement-schema]]
+                       [:text statement-schema]
+                       [:references {:optional true}
+                        references-schema]]
          :to-create (fn [b]
                       {:name (:name b)
                        :title (:title b)
                        :kind (:kind b)
                        :lang (:lang b)
-                       :text (:text b)})
+                       :text (:text b)
+                       :references (:references b)})
          :edit-body [:map
-                     [:title {:optional true}
-                      [:maybe [:string {:max 200}]]]
+                     [:title title-schema]
                      [:kind kind-enum]
-                     [:text statement-schema]]
+                     [:text statement-schema]
+                     [:references {:optional true}
+                      references-schema]]
          :to-edit (fn [b]
                     {:title (:title b)
                      :kind (:kind b)
-                     :text (:text b)})
+                     :text (:text b)
+                     :references (:references b)})
          :translate-body [:map
                           [:lang lang-schema]
                           [:title {:optional true}
@@ -103,20 +119,26 @@
                             [:title title-schema]
                             [:lang {:optional true}
                              lang-schema]
-                            [:text body-schema]]
+                            [:text body-schema]
+                            [:references {:optional true}
+                             references-schema]]
               :to-create (fn [b]
                            {:name (:name b)
                             :title (:title b)
                             :lang (:lang b)
-                            :text (:text b)})
+                            :text (:text b)
+                            :references (:references b)})
               :edit-body [:map
                           [:title {:optional true}
                            title-schema]
                           [:text {:optional true}
-                           body-schema]]
+                           body-schema]
+                          [:references {:optional true}
+                           references-schema]]
               :to-edit (fn [b]
                          {:title (:title b)
-                          :text (:text b)})
+                          :text (:text b)
+                          :references (:references b)})
               :translate-body [:map
                                [:lang lang-schema]
                                [:title {:optional true}

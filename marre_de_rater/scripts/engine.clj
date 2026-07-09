@@ -17,10 +17,13 @@
     4. GATHER   — collect the new events, grouped per probe.
     5. NOTIFY   — every new event triggers a notification (a println for now).
 
-  Only the TV probe (mdr.scripts.tv-movie/tv-probe) is registered so far.
+  Two probes are registered: :tv (mdr.scripts.tv-movie) and :vod (mdr.scripts.vod-movie).
+  The assign layer routes each intent to whichever can serve it — e.g. an :en intent
+  the FR-only TV feed rejects is still served by the region-agnostic VOD probe.
 
-  --- REPL usage (landing repo root) ---
-    (load-file \"marre_de_rater/scripts/tv_movie.clj\")   ; the probe — load FIRST
+  --- REPL usage (landing repo root; VOD needs TMDB_API_KEY in env) ---
+    (load-file \"marre_de_rater/scripts/tv_movie.clj\")   ; load probes FIRST
+    (load-file \"marre_de_rater/scripts/vod_movie.clj\")
     (load-file \"marre_de_rater/scripts/engine.clj\")
     (in-ns 'mdr.scripts.engine)
     (tick! \"marre_de_rater/scripts/intents.edn\")         ; 1st run → notifications
@@ -28,15 +31,28 @@
   (:require
    [clojure.edn :as edn]))
 
-;; --- bridge to the (load-file'd) probe namespace -------------------------
+;; --- bridge to the (load-file'd) probe namespaces ------------------------
 
 (defn- tv-var [n] (resolve (symbol "mdr.scripts.tv-movie" (name n))))
+(defn- vod-var [n] (resolve (symbol "mdr.scripts.vod-movie" (name n))))
 
-(defn- ensure-epg!
+(defn- ensure-loaded!
   []
   (when-not (tv-var 'tv-probe)
     (throw (ex-info "load marre_de_rater/scripts/tv_movie.clj FIRST" {})))
+  (when-not (vod-var 'vod-probe)
+    (throw (ex-info "load marre_de_rater/scripts/vod_movie.clj FIRST" {}))))
+
+(defn- ensure-epg!
+  []
   (when (nil? @@(tv-var 'epg)) (println "engine: loading EPG (~16MB)…") ((tv-var 'load-epg!))))
+
+(defn- lang->region
+  [lang]
+  (case lang
+    :fr :fr
+    :en :us
+    :fr))
 
 ;; --- probe registry ------------------------------------------------------
 ;; Each probe declares WHAT it can find (:finds?) and HOW to turn a user intent into
@@ -53,7 +69,14 @@
     :translate (fn [intent]
                  {:title (:query intent)
                   :kinds (if (= :all (:kind intent)) :all #{(:kind intent)})})
-    :run (fn [subject ctx] ((tv-var 'tv-probe) subject ctx))}])
+    :run (fn [subject ctx] ((tv-var 'tv-probe) subject ctx))}
+   {:id :vod
+    ;; TMDB serves any language/region → finds video content regardless of :lang
+    :finds? (fn [intent] (contains? #{:movie :tv-show :all} (:kind intent)))
+    :translate (fn [intent]
+                 {:title (:query intent)
+                  :kinds (if (= :all (:kind intent)) :all #{(:kind intent)})})
+    :run (fn [subject ctx] ((vod-var 'vod-probe) subject ctx))}])
 
 ;; --- MEMORY (persists across ticks; the engine's recollection) -----------
 
@@ -86,10 +109,12 @@
 
 (defn execute
   "Run every assignment's probe and flatten to events. An event = one probe hit,
-  tagged with its probe + originating intent."
+  tagged with its probe + originating intent. Each probe gets a ctx enriched with a
+  :region derived from the intent's :lang."
   [assignments ctx]
   (vec (for [{:keys [intent probe run subject]} assignments
-             hit (run subject ctx)]
+             :let [ectx (assoc ctx :region (lang->region (:lang intent)))]
+             hit (run subject ectx)]
          {:event-id (:hit-id hit)
           :probe probe
           :intent-id (:id intent)
@@ -99,6 +124,7 @@
           :kind (:kind hit)
           :when (:when hit)
           :where (:where hit)
+          :offer (:offer hit)
           :duration-min (:duration-min hit)})))
 
 ;; =========================================================================
@@ -125,16 +151,19 @@
 ;; =========================================================================
 
 (defn notify!
-  "Emit a notification per new event. Placeholder for real delivery."
+  "Emit a notification per new event. Placeholder for real delivery. TV events show the
+  airing time; VOD events show the offer type (availability is a state, no time)."
   [events]
   (doseq [e events]
-    (println (format "🔔 %-6s [%s→%s] %s — %s @ %s"
-                     (str (name (:probe e)) ":")
-                     (:query e)
-                     (:owner e)
-                     (:title e)
-                     (:when e)
-                     (:where e)))))
+    (let [detail (if (:when e)
+                   (str (:when e) " @ " (:where e)) ; TV airing
+                   (str (name (or (:offer e) :available)) " @ " (:where e)))] ; VOD state
+      (println (format "🔔 %-5s [%s→%s] %s — %s"
+                       (str (name (:probe e)) ":")
+                       (:query e)
+                       (:owner e)
+                       (:title e)
+                       detail)))))
 
 ;; --- orchestration -------------------------------------------------------
 
@@ -143,9 +172,10 @@
   events gathered per probe; prints a notification for each."
   ([intents-path] (tick! intents-path {}))
   ([intents-path ctx]
-   (ensure-epg!)
+   (ensure-loaded!)
    (let [intents (load-intents intents-path)
          assignments (assign intents)     ; L1
+         _ (when (some #(= :tv (:probe %)) assignments) (ensure-epg!))
          events (execute assignments ctx) ; L2
          new-events (dedupe-new events)   ; L3
          by-probe (gather new-events)]    ; L4

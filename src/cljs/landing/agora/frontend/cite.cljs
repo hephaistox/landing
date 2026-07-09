@@ -7,8 +7,9 @@
   The grammar lives once in `domain/cite-pattern`, so the renderer here and the
   backend citation extractor never drift.
 
-  This ns is deliberately low-level (no dependency on ki-view/article-view) so both
-  screens can use it; it renders its own small kind/lang badges to stay decoupled."
+  This ns is deliberately low-level (no dependency on the `view`/`edit` page layers) so
+  both read and authoring screens can use it; it renders its own small kind/lang badges to
+  stay decoupled."
   (:require
    [clojure.string                :as str]
    [landing.agora.document-domain :as domain]
