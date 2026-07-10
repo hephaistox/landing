@@ -42,6 +42,13 @@
   (-> (java.net.URLEncoder/encode (str s) "UTF-8")
       (str/replace "+" "%20")))
 
+(defn- key-of
+  "A document's permalink key — `<cid>~<title-slug>` (or bare `<cid>` when the title yields
+  no slug). `cid` is the document's `name`; every char is URL-path-safe (`[a-z0-9-~]`), so
+  no encoding is needed. The slug tracks the current title; resolution keeps only the cid."
+  [cid title]
+  (domain/permalink-slug cid title))
+
 (defn- esc
   "Escape text for use inside an HTML attribute or element."
   [s]
@@ -66,7 +73,7 @@
   [base {:keys [name title major lang]}]
   {"@type" "CreativeWork"
    "name" (if (str/blank? title) (humanize name) title)
-   "url" (str base "/agora/" lang "/ki/" (enc name) "/" major)})
+   "url" (str base "/agora/" lang "/ki/" (key-of name title) "/" major)})
 
 (defn- ref->citation
   "A schema.org CreativeWork for a bibliographic reference (a cited external source):
@@ -112,13 +119,15 @@
 (defn- hreflang-alts
   "`<link rel=alternate hreflang>` alternates for a `type` permalink `(name, major)` across
   the concept's languages `langs` (each `{:lang …}`), so search engines unify the language
-  siblings (which share a `name` under the translation-by-name model)."
-  [base type doc-name major langs]
+  siblings (which share the cid `name`). The decorative slug uses the focal `title` for all
+  alternates — resolution is by cid, so a per-language slug is only a nicety and each still
+  resolves + canonicalizes correctly."
+  [base type doc-name title major langs]
   (for [{l :lang} langs]
     (str "<link rel=\"alternate\" hreflang=\""
          (esc l)
          "\" href=\""
-         (esc (str base "/agora/" l "/" type "/" (enc doc-name) "/" major))
+         (esc (str base "/agora/" l "/" type "/" (key-of doc-name title) "/" major))
          "\"/>")))
 
 (defn ki-head
@@ -128,7 +137,7 @@
   [base lang ki-name ki-major ki]
   (let [title (title-of ki ki-name)
         desc (description-of ki)
-        url (str base "/agora/" lang "/ki/" (enc ki-name) "/" ki-major)
+        url (str base "/agora/" lang "/ki/" (key-of ki-name title) "/" ki-major)
         langs (into [{:lang lang}] (:translations ki))]
     (str/join
      "\n"
@@ -136,7 +145,7 @@
               (meta-name "description" desc)
               (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")]
              ;; hreflang alternates across the concept's languages
-             (hreflang-alts base "ki" ki-name ki-major langs)
+             (hreflang-alts base "ki" ki-name title ki-major langs)
              [(meta-prop "og:type" "article")
               (meta-prop "og:site_name" "Agora")
               (meta-prop "og:title" title)
@@ -177,7 +186,7 @@
   [base lang art-name art-major art]
   (let [title (title-of art art-name)
         desc (description-of {:text (body->text (prose art))})
-        url (str base "/agora/" lang "/article/" (enc art-name) "/" art-major)
+        url (str base "/agora/" lang "/article/" (key-of art-name title) "/" art-major)
         langs (into [{:lang lang}] (:translations art))]
     (str/join
      "\n"
@@ -186,7 +195,7 @@
        (meta-name "description" desc)
        (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")]
       ;; hreflang alternates across the concept's languages
-      (hreflang-alts base "article" art-name art-major langs)
+      (hreflang-alts base "article" art-name title art-major langs)
       [(meta-prop "og:type" "article")
        (meta-prop "og:site_name" "Agora")
        (meta-prop "og:title" title)
@@ -335,7 +344,7 @@
   "A list item linking to a neighbouring document's permalink."
   [base {:keys [type name lang major title]}]
   (str "<li><a href=\""
-       (esc (str base "/agora/" lang "/" (or type "ki") "/" (enc name) "/" major))
+       (esc (str base "/agora/" lang "/" (or type "ki") "/" (key-of name title) "/" major))
        "\">"
        (esc (if (str/blank? title) (humanize name) title))
        "</a></li>"))
@@ -483,13 +492,16 @@
                           (for [a language/languages]
                             {:lang a
                              :path (str "/agora/" a)}))))
-         ;; document permalinks (all types), hreflang-linked across their languages
+         ;; document permalinks (all types), hreflang-linked across their languages. Each
+         ;; language version's URL carries its own title-slug (`<cid>~<slug>`); resolution
+         ;; is by the shared cid `nm`.
          (str/join (for [[[type nm mj] versions] by-concept
-                         {:keys [lang lastmod]} versions
-                         :let [path (fn [l] (str "/agora/" l "/" type "/" (enc nm) "/" mj))
-                               alts (map (fn [v]
-                                           {:lang (:lang v)
-                                            :path (path (:lang v))})
-                                         versions)]]
-                     (url (path lang) (iso-date lastmod) alts)))
+                         {:keys [lang lastmod title]} versions
+                         :let [vpath (fn [v]
+                                       (str "/agora/" (:lang v) "/" type "/"
+                                            (key-of nm (:title v)) "/" mj))
+                               alts (map (fn [v] {:lang (:lang v) :path (vpath v)}) versions)]]
+                     (url (str "/agora/" lang "/" type "/" (key-of nm title) "/" mj)
+                          (iso-date lastmod)
+                          alts)))
          "</urlset>\n")))

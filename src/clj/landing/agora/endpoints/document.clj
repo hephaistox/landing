@@ -175,6 +175,9 @@
                      (let [{n :name
                             mj :major}
                            (get-in req [:parameters :path])
+                           ;; the path segment is the permalink key `<cid>~<slug>` (or a bare
+                           ;; cid) — resolve by the immutable cid, ignoring the slug
+                           n (domain/cid-of n)
                            lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
                        (if-let [d (document/fetch-by-major type n mj lang)]
                          {:status 200

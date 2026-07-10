@@ -99,7 +99,14 @@
   repl {:doc "Clojure repl"
         :override-builtin true
         :requires [[auto-build.tasks.repl :as build-repl]]
-        :task (-> (build-repl/repl level1-header "." (current-task) [:env-dev :test-clj] 7051)
+        ;; :env-seed puts the seed namespaces (types-seed / art-of-war-seed) on the REPL
+        ;; classpath too, so one REPL can both compile-check and run seeds. Extra path only,
+        ;; no deps, no side effects on startup.
+        :task (-> (build-repl/repl level1-header
+                                   "."
+                                   (current-task)
+                                   [:env-dev :test-clj :env-seed]
+                                   7051)
                   exit)}
   repl-fe {:doc "Clojure repl for frontend"
            :override-builtin true

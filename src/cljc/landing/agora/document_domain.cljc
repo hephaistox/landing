@@ -15,6 +15,45 @@
   (:require
    [clojure.string :as str]))
 
+;; --- Identity slug & cid --------------------------------------------------------------
+;; A document's `name` is an opaque, stable **cid** — never derived from the title. The
+;; human URL carries a decorative `<cid>~<title-slug>` key (cid first, then the readable
+;; slug); `~` never occurs in a slug or a cid, so the cid is recovered as everything
+;; *before* the first `~`. Shared clj/cljs so the server (SEO/sitemap) and the SPA build
+;; byte-identical URLs and resolve them the same way.
+
+(defn slugify
+  "A URL slug from a title: `\"L'Être\"` → `\"l-etre\"`. Accents stripped, every run of
+  non-alphanumerics becomes one `-`. Blank → \"untitled\"."
+  [s]
+  (let [stripped #?(:clj (-> (java.text.Normalizer/normalize (or s "") java.text.Normalizer$Form/NFD)
+                             (str/replace #"\p{M}+" ""))
+                    :cljs (-> (.normalize (or s "") "NFD")
+                              (str/replace #"[\u0300-\u036f]" "")))
+        base (-> stripped
+                 str/lower-case
+                 (str/replace #"[^a-z0-9]+" "-")
+                 (str/replace #"(^-+)|(-+$)" ""))]
+    (if (str/blank? base) "untitled" base)))
+
+(defn permalink-slug
+  "A document's decorative URL key — `<cid>~<title-slug>` (or bare `<cid>` when the title
+  yields no slug). Resolution keeps only the cid (see `cid-of`), so the URL tracks the
+  current title while references resolve by the immutable cid."
+  [cid title]
+  (let [s (slugify title)
+        ;; cap the decorative part so a long title can't bloat the URL (or exceed the
+        ;; API path limit); trim a trailing `-` left by the cut
+        s (str/replace (subs s 0 (min 80 (count s))) #"-+$" "")]
+    (if (or (str/blank? s) (= s "untitled")) cid (str cid "~" s))))
+
+(defn cid-of
+  "The stable cid parsed from a permalink key `<cid>~<slug>` (or a bare `<cid>`) — the part
+  before the first `~`."
+  [k]
+  (let [k (str k)]
+    (if-let [i (str/index-of k "~")] (subs k 0 i) k)))
+
 (def kinds
   "The epistemic `kind`s — canonical domain data for a KI's kind, in display order.
   Each carries its accent colour, its conceptual `family` (`derived` — has inputs;

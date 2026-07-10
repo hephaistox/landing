@@ -12,8 +12,7 @@
    [landing.agora.document-domain :as domain]
    [landing.agora.document-store  :as store]
    [landing.agora.source          :as source]
-   [landing.language              :as language])
-  (:import (java.text Normalizer Normalizer$Form)))
+   [landing.language              :as language]))
 
 ;; Every document's prose lives under one content key, `:text` (older rows used per-type
 ;; `:statement`/`:body`, unified here). A document's inputs ARE the `[[ki:…]]` citations in
@@ -102,42 +101,29 @@
   [_type content _declared lang]
   (domain/cite-refs (or (text-of content) "") lang))
 
-(defn slugify
-  "A URL/identity slug from a title: `\"Le paradis\"` → `\"le-paradis\"`. Accents are
-  stripped, everything non-alphanumeric becomes a single `-`. Blank → \"untitled\"."
-  [s]
-  (let [base (-> (Normalizer/normalize (or s "") Normalizer$Form/NFD)
-                 (str/replace #"\p{M}+" "")
-                 str/lower-case
-                 (str/replace #"[^a-z0-9]+" "-")
-                 (str/replace #"(^-+)|(-+$)" ""))]
-    (if (str/blank? base) "untitled" base)))
+;; `slugify` / `permalink-slug` / `cid-of` live in `landing.agora.document-domain` (cljc)
+;; so the SPA builds and resolves identical URLs. `gen-cid` needs the DB (uniqueness), so
+;; it stays here.
 
-(defn author-scoped-slug
-  "A new document's identity slug: `title` (or an explicitly-given name) slugified, then
-  suffixed with the author's own slug — so two people can use the same title without
-  colliding (owner-scoped names, per the identity model). A blank author yields no suffix.
-  `\"Je crois en Dieu\"` by *Anthony Caumond* → `\"je-crois-en-dieu-anthony-caumond\"`. Any
-  residual clash (same author, same title) is still de-clashed by `unique-name`."
-  [title author]
-  (let [base (slugify title)]
-    (if (str/blank? author) base (str base "-" (slugify author)))))
+(def ^:private cid-chars
+  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-(defn- name-exists?
-  "True when a lineage (type, name, lang, major 1) already exists — i.e. the slug is
-  taken in this language."
-  [type name lang]
-  (some? (store/resolve-latest-id type name 1 lang)))
+(defn gen-cid
+  "A short, opaque, URL-safe identity key — 10 base62 chars (62¹⁰ ≈ 8.4×10¹⁷). A document's
+  `name` is a cid: it is NEVER derived from the title, so editing the title never moves it
+  and inbound citations/pins (which reference `name`) never dangle. (Seeded documents keep
+  their readable stable names — `type-inference`, `aow-1-4` — which serve as their cids just
+  as well.)"
+  []
+  (apply str (repeatedly 10 #(nth cid-chars (rand-int 62)))))
 
-(defn unique-name
-  "`base` if free (in this type+lang at major 1), else `base-2`, `base-3`… — so a
-  generated slug never clashes with an existing lineage."
-  [type base lang]
-  (if-not (name-exists? type base lang)
-    base
-    (loop [i 2]
-      (let [candidate (str base "-" i)]
-        (if (name-exists? type candidate lang) (recur (inc i)) candidate)))))
+(defn unique-cid
+  "A freshly generated cid no document already uses. Collisions in 62¹⁰ are negligible, but
+  we check to be safe."
+  []
+  (loop []
+    (let [c (gen-cid)]
+      (if (store/cid-taken? c) (recur) c))))
 
 (defn- new-minor!
   "Insert a new minor of the concept `src` with `content` (its declared `:inputs` are
@@ -159,20 +145,18 @@
 (defn create
   "Create a brand-new document (major 1, minor 0) of `type`. `content` holds the authored
   fields (`:title`, `:lang`, `:text`, and `:kind` for kind-bearing types). The identity
-  `name` is a slug derived from the title, suffixed with the author's slug and de-clashed
-  (see `author-scoped-slug`) — set once at creation and **stable thereafter** (it lives in
-  URLs, edges and citations; editing the title never rewrites it). Inputs are derived from
-  the `:text` citations. Returns the view."
+  `name` is an opaque **cid** (`gen-cid`) — never derived from the title, so it lives in
+  URLs, edges and citations **immutably**; editing the title only moves the decorative URL
+  slug (see `permalink-slug`), never the cid. Inputs are derived from the `:text` citations.
+  Returns the view."
   [type
    owner-id
-   {:keys [name lang title]
+   {:keys [name lang]
     :as content}]
   (let [id (store/uuid)
         lang (or lang language/default-lang)
         author (store/author-name owner-id)
-        name (unique-name type
-                          (author-scoped-slug (if (str/blank? name) title name) author)
-                          lang)
+        name (if (str/blank? name) (unique-cid) name)
         inputs (inputs-of type content (:inputs content) lang)]
     (store/insert-document! {:id id
                              :type type
@@ -551,11 +535,20 @@
   denormalized `published_at` column — no content decode — so it scales and can later be
   keyset-paginated into a chunked sitemap index."
   []
-  (store/q! db/ds
-            ["SELECT type, name, major, lang, MAX(published_at) AS lastmod
-               FROM AGORA_DOCUMENT
-              GROUP BY type, name, major, lang"]
-            store/kebab))
+  (->> (store/q! db/ds
+                 ["SELECT d.type, d.name, d.major, d.lang, d.content, g.lastmod
+                     FROM AGORA_DOCUMENT d
+                     JOIN (SELECT type, name, major, lang, MAX(minor) AS latest,
+                                  MAX(published_at) AS lastmod
+                             FROM AGORA_DOCUMENT
+                            GROUP BY type, name, major, lang) g
+                       ON d.type = g.type AND d.name = g.name AND d.major = g.major
+                          AND d.lang = g.lang AND d.minor = g.latest"]
+                 store/kebab)
+       (mapv (fn [{:keys [content] :as r}]
+               (-> r
+                   (assoc :title (:title (store/decode-content content)))
+                   (dissoc :content))))))
 
 (defn rebuild-successor-index!
   "Recompute AGORA_SUCCESSOR from every document's declared inputs (all types), dropping

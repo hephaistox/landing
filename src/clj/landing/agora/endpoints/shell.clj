@@ -9,12 +9,13 @@
      head, since they are not public content and must not compete with the
      canonical permalink."
   (:require
-   [clojure.java.io        :as io]
-   [landing.agora.auth     :as auth]
-   [landing.agora.document :as document]
-   [landing.agora.seo      :as seo]
-   [landing.endpoints.html :refer [html-middlewares]]
-   [landing.language       :as language]))
+   [clojure.java.io               :as io]
+   [landing.agora.auth            :as auth]
+   [landing.agora.document        :as document]
+   [landing.agora.document-domain :as domain]
+   [landing.agora.seo             :as seo]
+   [landing.endpoints.html        :refer [html-middlewares]]
+   [landing.language              :as language]))
 
 (def ^:private public-template
   "The raw SPA shell, read once; a head is injected per request."
@@ -70,6 +71,8 @@
     (let [{:keys [lang name major]} (:path-params req)
           lang (language/normalize lang)
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
+          ;; the path segment is `<cid>~<slug>` (or bare cid); resolve by the cid
+          name (domain/cid-of name)
           ki (document/fetch-by-major "ki" name major-n lang)
           base (seo/base-url req)
           head (if ki
@@ -121,6 +124,8 @@
     (let [{:keys [lang name major]} (:path-params req)
           lang (language/normalize lang)
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
+          ;; the path segment is `<cid>~<slug>` (or bare cid); resolve by the cid
+          name (domain/cid-of name)
           art (document/fetch-by-major "article" name major-n lang)
           base (seo/base-url req)
           head (if art

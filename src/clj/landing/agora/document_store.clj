@@ -235,6 +235,12 @@
      lang]
     kebab)))
 
+(defn cid-taken?
+  "True when any document already uses `cid` as its `name` (identity key) — so a freshly
+  generated cid can be checked for the (negligible) chance of collision."
+  [cid]
+  (some? (q1! db/ds ["SELECT id FROM AGORA_DOCUMENT WHERE name = ? LIMIT 1" cid] kebab)))
+
 (defn insert-document!
   "Insert one immutable version. `ident` = {:id :type :name :lang :major :minor};
   `content` is the immutable map (incl. its declared `:inputs`); pins are resolved from

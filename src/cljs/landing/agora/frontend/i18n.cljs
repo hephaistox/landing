@@ -16,8 +16,9 @@
 
   Path builders take a language explicitly. `t`/`::lang` use the preference."
   (:require
-   [landing.language :as language]
-   [re-frame.core    :as rf]))
+   [landing.agora.document-domain :as domain]
+   [landing.language              :as language]
+   [re-frame.core                 :as rf]))
 
 ;; ---------------------------------------------------------------------------
 ;; Dictionary
@@ -492,16 +493,18 @@
 (defn articles "The article discover page." [lang] (str (base lang) "/articles"))
 (defn new-article "The article authoring page." [lang] (str (base lang) "/article/new"))
 (defn article-permalink
-  "Public permalink of an article (name + major) in `lang`."
-  [lang {:keys [name major]}]
-  (str (base lang) "/article/" (js/encodeURIComponent name) "/" major))
+  "Public permalink of an article in `lang` — `/agora/<lang>/article/<cid>~<title-slug>/<major>`.
+  `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
+  [lang m]
+  (str (base lang) "/article/" (domain/permalink-slug (:name m) (:title m)) "/" (:major m)))
 (defn preferences [lang] (str (base lang) "/preferences"))
 (defn admin [lang] (str (base lang) "/admin"))
 (defn author "The author profile page for account `id`." [lang id] (str (base lang) "/author/" id))
 (defn ki
-  "Public permalink of a KI (name + major) in `lang`."
-  [lang {:keys [name major]}]
-  (str (base lang) "/ki/" (js/encodeURIComponent name) "/" major))
+  "Public permalink of a KI in `lang` — `/agora/<lang>/ki/<cid>~<title-slug>/<major>`.
+  `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
+  [lang m]
+  (str (base lang) "/ki/" (domain/permalink-slug (:name m) (:title m)) "/" (:major m)))
 
 ;; --- Generic, type-driven document URLs ------------------------------------
 ;; Every document type shares one URL shape, with its `:type` as the path segment:
@@ -510,9 +513,10 @@
 ;; so the generic engine builds URLs from a document's own `:type` — it never needs to
 ;; know which types exist.
 (defn doc-permalink
-  "Public permalink of any document — `/agora/<lang>/<type>/<name>/<major>`."
-  [lang type name major]
-  (str (base lang) "/" type "/" (js/encodeURIComponent name) "/" major))
+  "Public permalink of any document — `/agora/<lang>/<type>/<cid>~<title-slug>/<major>`.
+  `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
+  [lang type m]
+  (str (base lang) "/" type "/" (domain/permalink-slug (:name m) (:title m)) "/" (:major m)))
 (defn doc-url
   "App URL of one concrete document version — `/agora/<lang>/<type>/<id>`."
   [lang type id]

@@ -156,7 +156,7 @@
          ;; the node's text (unified) seeds the translation; the sibling permalink is built
          ;; generically from this node's own `:type` (no type branching here)
          source-text (cite/node-text node)
-         lang-href (fn [l entry] (i18n/doc-permalink l type (:name entry) (:major entry)))
+         lang-href (fn [l entry] (i18n/doc-permalink l type entry))
          present (into {ki-lang {:lang ki-lang
                                  :name ki-name
                                  :major major
@@ -350,7 +350,7 @@
   "The public permanent URL (name + major) of a document ref in language `lang`, built
   from the ref's own `:type` — so it works for any document type."
   [lang doc]
-  (i18n/doc-permalink lang (:type doc) (:name doc) (:major doc)))
+  (i18n/doc-permalink lang (:type doc) doc))
 
 ;; ---- Full-text search box (#37) — searches name + statement, links to pages ----
 
