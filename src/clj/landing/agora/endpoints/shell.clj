@@ -10,6 +10,7 @@
      canonical permalink."
   (:require
    [clojure.java.io        :as io]
+   [landing.agora.auth     :as auth]
    [landing.agora.document :as document]
    [landing.agora.seo      :as seo]
    [landing.endpoints.html :refer [html-middlewares]]
@@ -73,8 +74,9 @@
           base (seo/base-url req)
           head (if ki
                  (seo/ki-head base lang name major-n ki)
-                 (seo/generic-head base lang (str "/ki/" name "/" major-n) "Agora" "Agora"))]
-      (html-response (seo/inject @public-template head lang)))))
+                 (seo/generic-head base lang (str "/ki/" name "/" major-n) "Agora" "Agora"))
+          body (when ki (seo/document-body base lang ki (document/resolve-successors ki) name))]
+      (html-response (seo/inject @public-template head lang body)))))
 
 (defn home-page-response
   "Serve the Agora home/landing shell (`/agora/<lang>`) with its own SEO head —
@@ -123,8 +125,9 @@
           base (seo/base-url req)
           head (if art
                  (seo/article-head base lang name major-n art)
-                 (seo/generic-head base lang (str "/article/" name "/" major-n) "Agora" "Agora"))]
-      (html-response (seo/inject @public-template head lang)))))
+                 (seo/generic-head base lang (str "/article/" name "/" major-n) "Agora" "Agora"))
+          body (when art (seo/document-body base lang art (document/resolve-successors art) name))]
+      (html-response (seo/inject @public-template head lang body)))))
 
 (defn article-page-route
   "Serve the public article permalink shell with server-rendered SEO metadata."
@@ -135,14 +138,39 @@
                  :middleware html-middlewares
                  :summary "Public article permalink (SEO head injected)"}}])
 
+(def author-page-response
+  "Serve the public author-profile shell with per-author SEO (name, canonical, OpenGraph,
+  schema.org Person) and a server-rendered author→documents hub, so a crawler reaches all
+  of a person's documents from one indexable page."
+  (fn [req]
+    (let [{:keys [lang id]} (:path-params req)
+          lang (language/normalize lang)
+          base (seo/base-url req)
+          profile (auth/author-profile id)
+          head (if profile
+                 (seo/author-head base lang id profile)
+                 (seo/generic-head base lang (str "/author/" id) "Agora" "Agora"))
+          body (when profile
+                 (seo/author-body base lang profile (:documents (document/by-author id lang))))]
+      (html-response (seo/inject @public-template head lang body)))))
+
+(defn author-page-route
+  "Serve the public author profile shell (indexable, SEO head + author→documents hub)."
+  [prefix]
+  [prefix {:conflicting true
+           :get {:swagger {:tags #{:agora}}
+                 :handler author-page-response
+                 :middleware html-middlewares
+                 :summary "Public author profile (SEO head + hub)"}}])
+
 (def sitemap-response
-  "sitemap.xml of all KI permalinks + discover pages, generated from the DB so it
-  reflects every publication."
+  "sitemap.xml of every document permalink (KIs + articles) + the home/discover/articles
+  hubs, generated from the DB so it reflects every publication."
   (fn [req]
     {:status 200
      :headers {"Content-Type" "application/xml; charset=utf-8"
                "Cache-Control" "public, max-age=3600"}
-     :body (seo/sitemap-xml (seo/base-url req) (document/sitemap-rows "ki"))}))
+     :body (seo/sitemap-xml (seo/base-url req) (document/sitemap-rows))}))
 
 (defn sitemap-route
   [prefix]

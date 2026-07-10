@@ -1,10 +1,12 @@
 (ns landing.agora.seo
   "Server-rendered SEO for Agora's public pages (#39).
 
-  Crawlers and social-media unfurlers read the raw HTML, before the SPA runs, so
-  the discoverable metadata (title, description, OpenGraph, schema.org JSON-LD) is
-  injected into the shell `<head>` at serve time — and a sitemap is generated from
-  the DB so every KI permalink is crawlable."
+  Crawlers and social-media unfurlers read the raw HTML, before the SPA runs, so both the
+  discoverable metadata (title, description, OpenGraph, schema.org JSON-LD) injected into
+  the shell `<head>` AND a minimal static content **body** (`document-body`: prose with
+  citation links, input/successor edges, references) placed inside `#agora-app` are
+  rendered at serve time — the SPA replaces the body on mount. A sitemap is generated from
+  the DB so every permalink is crawlable."
   (:require
    [cheshire.core                 :as json]
    [clojure.string                :as str]
@@ -107,6 +109,18 @@
            (str/replace "</" "<\\/"))
        "</script>"))
 
+(defn- hreflang-alts
+  "`<link rel=alternate hreflang>` alternates for a `type` permalink `(name, major)` across
+  the concept's languages `langs` (each `{:lang …}`), so search engines unify the language
+  siblings (which share a `name` under the translation-by-name model)."
+  [base type doc-name major langs]
+  (for [{l :lang} langs]
+    (str "<link rel=\"alternate\" hreflang=\""
+         (esc l)
+         "\" href=\""
+         (esc (str base "/agora/" l "/" type "/" (enc doc-name) "/" major))
+         "\"/>")))
+
 (defn ki-head
   "SEO `<head>` fragment for a KI permalink: title, description, canonical +
   hreflang alternates, OpenGraph, and an schema.org Article with name,
@@ -122,12 +136,7 @@
               (meta-name "description" desc)
               (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")]
              ;; hreflang alternates across the concept's languages
-             (for [{l :lang} langs]
-               (str "<link rel=\"alternate\" hreflang=\""
-                    (esc l)
-                    "\" href=\""
-                    (esc (str base "/agora/" l "/ki/" (enc ki-name) "/" ki-major))
-                    "\"/>"))
+             (hreflang-alts base "ki" ki-name ki-major langs)
              [(meta-prop "og:type" "article")
               (meta-prop "og:site_name" "Agora")
               (meta-prop "og:title" title)
@@ -163,36 +172,41 @@
   (str/replace (or body "") domain/cite-pattern (fn [[_ nm _major txt]] (or txt (humanize nm)))))
 
 (defn article-head
-  "SEO `<head>` for an article permalink: title, description (from the body),
-  canonical, OpenGraph and an schema.org Article."
+  "SEO `<head>` for an article permalink: title, description (from the body), canonical +
+  hreflang alternates, OpenGraph and an schema.org Article."
   [base lang art-name art-major art]
   (let [title (title-of art art-name)
         desc (description-of {:text (body->text (prose art))})
-        url (str base "/agora/" lang "/article/" (enc art-name) "/" art-major)]
-    (str/join "\n"
-              [(str "<title>" (esc title) " — Agora</title>")
-               (meta-name "description" desc)
-               (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")
-               (meta-prop "og:type" "article")
-               (meta-prop "og:site_name" "Agora")
-               (meta-prop "og:title" title)
-               (meta-prop "og:description" desc)
-               (meta-prop "og:url" url)
-               (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
-               (meta-name "twitter:card" "summary")
-               (json-ld (cond-> {"@context" "https://schema.org"
-                                 "@type" "Article"
-                                 "headline" title
-                                 "name" title
-                                 "description" desc
-                                 "inLanguage" lang
-                                 "url" url}
-                          (:published-at art) (assoc "datePublished" (:published-at art))
-                          (:author art) (assoc "author"
-                                               {"@type" "Person"
-                                                "name" (:author art)})
-                          (seq (:references art))
-                          (assoc "citation" (mapv ref->citation (:references art)))))])))
+        url (str base "/agora/" lang "/article/" (enc art-name) "/" art-major)
+        langs (into [{:lang lang}] (:translations art))]
+    (str/join
+     "\n"
+     (concat
+      [(str "<title>" (esc title) " — Agora</title>")
+       (meta-name "description" desc)
+       (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")]
+      ;; hreflang alternates across the concept's languages
+      (hreflang-alts base "article" art-name art-major langs)
+      [(meta-prop "og:type" "article")
+       (meta-prop "og:site_name" "Agora")
+       (meta-prop "og:title" title)
+       (meta-prop "og:description" desc)
+       (meta-prop "og:url" url)
+       (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
+       (meta-name "twitter:card" "summary")
+       (json-ld (cond-> {"@context" "https://schema.org"
+                         "@type" "Article"
+                         "headline" title
+                         "name" title
+                         "description" desc
+                         "inLanguage" lang
+                         "url" url}
+                  (:published-at art) (assoc "datePublished" (:published-at art))
+                  (:author art) (assoc "author"
+                                       {"@type" "Person"
+                                        "name" (:author art)})
+                  (seq (:references art))
+                  (assoc "citation" (mapv ref->citation (:references art)))))]))))
 
 (def ^:private home-copy
   "Localized marketing title/description for the home/landing page — mirrors the SPA
@@ -234,11 +248,17 @@
                        (meta-name "twitter:card" "summary")]))))
 
 (defn generic-head
-  "Generic OpenGraph for a non-KI public page (e.g. discover)."
+  "Generic OpenGraph + **`robots noindex`** for the non-canonical public pages this serves:
+  the rotating discover / articles feeds and the preferences page (thin aggregations of
+  links to already-indexed permalinks — the sitemap enumerates the corpus and the home page
+  is the indexable hub, so the feeds shouldn't compete for crawl budget), and the
+  not-found fallbacks of the permalink/author shells. OpenGraph is kept so the pages still
+  unfurl when shared."
   [base lang path title desc]
   (str/join "\n"
             [(str "<title>" (esc title) "</title>")
              (meta-name "description" desc)
+             (meta-name "robots" "noindex")
              (meta-prop "og:type" "website")
              (meta-prop "og:site_name" "Agora")
              (meta-prop "og:title" title)
@@ -254,15 +274,172 @@
   (str "<title>" (esc title) "</title>\n<meta name=\"robots\" content=\"noindex\"/>"))
 
 (defn inject
-  "Return `template` with the existing <title> dropped, `head` injected before
-  </head>, and the document language set to `lang`."
-  [template head lang]
-  (-> template
-      (str/replace #"(?is)<title>.*?</title>" "")
-      ;; `lang` is escaped here as defence-in-depth; callers also normalize it to a
-      ;; supported code, so an attacker cannot break out of the attribute.
-      (str/replace #"<html lang=\"[^\"]*\"" (str "<html lang=\"" (esc lang) "\""))
-      (str/replace "</head>" (str head "\n</head>"))))
+  "Return `template` with the existing <title> dropped, `head` injected before </head>,
+  and the document language set to `lang`. With a non-nil `body` (public document pages),
+  the static server-rendered content is placed inside the `#agora-app` mount node — a
+  crawler/no-JS agent sees it, and the SPA replaces it on mount."
+  ([template head lang] (inject template head lang nil))
+  ([template head lang body]
+   (cond-> template
+     :always (str/replace #"(?is)<title>.*?</title>" "")
+     ;; `lang` is escaped here as defence-in-depth; callers also normalize it to a
+     ;; supported code, so an attacker cannot break out of the attribute.
+     :always (str/replace #"<html lang=\"[^\"]*\"" (str "<html lang=\"" (esc lang) "\""))
+     :always (str/replace "</head>" (str head "\n</head>"))
+     ;; The static body is wrapped in `#agora-ssr`. An inline head script adds `js` to
+     ;; <html>, and `html.js #agora-ssr{display:none}` hides it before the first paint — so
+     ;; a JS visitor never sees it flash (the SPA then replaces #agora-app on mount), a
+     ;; no-JS visitor still sees it, and text crawlers read it regardless of CSS.
+     body (str/replace "<div id=\"agora-app\"></div>"
+                       (str "<div id=\"agora-app\"><div id=\"agora-ssr\">" body "</div></div>")))))
+
+;; ---------------------------------------------------------------------------
+;; Server-rendered content body (progressive enhancement)
+;;
+;; Public permalink pages ship a minimal, static HTML rendering of the document — its
+;; prose (with citations as links), its input/successor edges, and its references — inside
+;; #agora-app, so crawlers and no-JS agents see the content and can walk the reasoning
+;; graph. The SPA replaces it on mount. Latest minor only; version history is JS-only.
+;; ---------------------------------------------------------------------------
+
+(defn- day
+  "The date part (YYYY-MM-DD) of an ISO timestamp string, or nil."
+  [x]
+  (let [s (str x)] (when (seq s) (subs s 0 (min 10 (count s))))))
+
+(defn- cite->link
+  "Replacement fn for `domain/cite-pattern`: an in-prose `[[ki:name@major]]` citation →
+  an `<a>` to that KI's permalink (text = the custom label, else the humanized name)."
+  [base lang]
+  (fn [[_ nm mj txt]]
+    (str "<a href=\"" (esc (str base "/agora/" lang "/ki/" (enc nm) "/" mj)) "\">"
+         (esc (or txt (humanize nm)))
+         "</a>")))
+
+(defn- prose-html
+  "The document's prose as HTML paragraphs: escaped, with `[[ki:…]]` citations turned into
+  links and blank lines splitting paragraphs."
+  [base lang text]
+  (->> (str/split (or text "") #"\n[ \t]*\n")
+       (map str/trim)
+       (remove str/blank?)
+       (map (fn [para]
+              (str "<p>"
+                   (-> (esc para)
+                       (str/replace domain/cite-pattern (cite->link base lang))
+                       (str/replace "\n" "<br/>"))
+                   "</p>")))
+       (str/join "\n")))
+
+(defn- neighbour-li
+  "A list item linking to a neighbouring document's permalink."
+  [base {:keys [type name lang major title]}]
+  (str "<li><a href=\""
+       (esc (str base "/agora/" lang "/" (or type "ki") "/" (enc name) "/" major))
+       "\">"
+       (esc (if (str/blank? title) (humanize name) title))
+       "</a></li>"))
+
+(defn- neighbour-section
+  [base heading items]
+  (when (seq items)
+    (str "<section><h2>" heading "</h2><ul>"
+         (str/join (map #(neighbour-li base %) items))
+         "</ul></section>")))
+
+(defn document-body
+  "A minimal, static HTML body for a public permalink — `doc` is a
+  `document/fetch-by-major` view and `successors` a `document/resolve-successors` list.
+  Server-rendered so crawlers/no-JS agents get the content and the reasoning-graph edges
+  before the SPA runs; the SPA replaces #agora-app on mount. Latest minor only."
+  [base lang {:keys [major minor kind author author-id published-at inputs references]
+              :as doc}
+   successors
+   doc-name]
+  (let [title* (title-of doc doc-name)
+        home (str base "/agora/" lang)]
+    (str
+     "<main style=\"max-width:44em;margin:1.5em auto;padding:0 1em;font-family:system-ui,sans-serif;line-height:1.5\">"
+     "<nav><a href=\"" (esc home) "\">Agora</a> · <a href=\"" (esc (str home "/discover"))
+     "\">Discover</a></nav>"
+     "<article>"
+     "<h1>" (esc title*) "</h1>"
+     "<p>"
+     (when-not (str/blank? kind) (str "<strong>" (esc (humanize kind)) "</strong> · "))
+     (cond
+       author-id (str "<a href=\"" (esc (str home "/author/" author-id)) "\">" (esc author) "</a>")
+       author (esc author)
+       :else "")
+     (when-let [d (day published-at)] (str " · <time>" (esc d) "</time>"))
+     " · v" major "." minor
+     "</p>"
+     "<div>" (prose-html base lang (prose doc)) "</div>"
+     (neighbour-section base "Based on" inputs)
+     (neighbour-section base "Used by" successors)
+     (when (seq references)
+       (str "<section><h2>References</h2><ul>"
+            (str/join
+             (map (fn [{:keys [title year editor author-name]}]
+                    (str "<li>"
+                         (when author-name (str (esc author-name) ", "))
+                         "<cite>" (esc title) "</cite>"
+                         (when year (str " (" (esc year) ")"))
+                         (when-not (str/blank? editor) (str ", " (esc editor)))
+                         "</li>"))
+                  references))
+            "</ul></section>"))
+     "</article></main>")))
+
+(defn- author-name-of
+  [profile]
+  (let [d (:display-name profile)] (if (str/blank? d) "Author" d)))
+
+(defn author-head
+  "SEO `<head>` for a public author page: title, description, canonical, OpenGraph profile
+  and a schema.org ProfilePage/Person."
+  [base lang author-id profile]
+  (let [nm (author-name-of profile)
+        url (str base "/agora/" lang "/author/" author-id)
+        desc (str "Documents and reasoning by " nm " on Agora.")]
+    (str/join
+     "\n"
+     [(str "<title>" (esc nm) " — Agora</title>")
+      (meta-name "description" desc)
+      (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")
+      (meta-prop "og:type" "profile")
+      (meta-prop "og:site_name" "Agora")
+      (meta-prop "og:title" nm)
+      (meta-prop "og:description" desc)
+      (meta-prop "og:url" url)
+      (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
+      (json-ld {"@context" "https://schema.org"
+                "@type" "ProfilePage"
+                "mainEntity" (cond-> {"@type" "Person"
+                                      "name" nm
+                                      "url" url}
+                               (not (str/blank? (:avatar-url profile)))
+                               (assoc "image" (:avatar-url profile)))})])))
+
+(defn author-body
+  "Static HTML for a public author page — the author card + a linked list of their
+  documents — so crawlers get an author→documents hub. `documents` are `by-author` cards."
+  [base lang profile documents]
+  (let [nm (author-name-of profile)
+        home (str base "/agora/" lang)]
+    (str
+     "<main style=\"max-width:44em;margin:1.5em auto;padding:0 1em;font-family:system-ui,sans-serif;line-height:1.5\">"
+     "<nav><a href=\"" (esc home) "\">Agora</a> · <a href=\"" (esc (str home "/discover"))
+     "\">Discover</a></nav>"
+     "<h1>" (esc nm) "</h1>"
+     (when-let [d (day (:created-at profile))]
+       (str "<p>Member since <time>" (esc d) "</time></p>"))
+     "<h2>Documents</h2>"
+     (if (seq documents)
+       (str "<ul>"
+            (str/join (map (fn [d] (neighbour-li base (update d :lang #(or % lang)))) documents))
+            "</ul>")
+       "<p>No documents yet.</p>")
+     "</main>")))
 
 ;; ---------------------------------------------------------------------------
 ;; Sitemap
@@ -275,11 +452,12 @@
           (subs 0 (min 10 (count (str x))))))
 
 (defn sitemap-xml
-  "A sitemap of every KI permalink (one <url> per language, cross-linked with
-  hreflang alternates) plus the per-language discover pages. `rows` are
-  {:name :major :lang :lastmod} from the DB."
+  "A sitemap of every document permalink — all types (one <url> per language, cross-linked
+  with hreflang alternates) — plus the per-language home page. The discover/articles feeds
+  are `noindex`, so they are excluded (a sitemap must not list noindex URLs). `rows` are
+  {:type :name :major :lang :lastmod} from the DB, one per lineage."
   [base rows]
-  (let [by-concept (group-by (juxt :name :major) rows)
+  (let [by-concept (group-by (juxt :type :name :major) rows)
         url (fn [path lastmod alts]
               (str "  <url>\n"
                    "    <loc>"
@@ -297,24 +475,18 @@
     (str "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
          "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"\n"
          "        xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n"
-         ;; home / landing pages
+         ;; home / landing pages (the only indexable hub; the discover/articles feeds are
+         ;; `noindex`, so they are deliberately NOT listed here)
          (str/join (for [l language/languages]
                      (url (str "/agora/" l)
                           nil
                           (for [a language/languages]
                             {:lang a
                              :path (str "/agora/" a)}))))
-         ;; discover pages
-         (str/join (for [l language/languages]
-                     (url (str "/agora/" l "/discover")
-                          nil
-                          (for [a language/languages]
-                            {:lang a
-                             :path (str "/agora/" a "/discover")}))))
-         ;; KI permalinks
-         (str/join (for [[[nm mj] versions] by-concept
+         ;; document permalinks (all types), hreflang-linked across their languages
+         (str/join (for [[[type nm mj] versions] by-concept
                          {:keys [lang lastmod]} versions
-                         :let [path (fn [l] (str "/agora/" l "/ki/" (enc nm) "/" mj))
+                         :let [path (fn [l] (str "/agora/" l "/" type "/" (enc nm) "/" mj))
                                alts (map (fn [v]
                                            {:lang (:lang v)
                                             :path (path (:lang v))})

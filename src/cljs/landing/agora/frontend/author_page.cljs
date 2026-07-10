@@ -1,4 +1,4 @@
-(ns landing.agora.frontend.author-view
+(ns landing.agora.frontend.author-page
   "The public author profile page (reached by clicking any author badge): the author's
   card — name, avatar, account-creation date and last-activity — above a **searchable**
   grid of the documents they own. Read-only and anonymous. Intentionally small; it grows
@@ -6,7 +6,7 @@
   (:require
    [clojure.string                       :as str]
    [landing.agora.frontend.cite          :as cite]
-   [landing.agora.frontend.document-view :as document-view]
+   [landing.agora.frontend.document-page :as document-page]
    [landing.agora.frontend.fmt           :as fmt]
    [landing.agora.frontend.i18n          :as i18n]
    [re-frame.core                        :as rf]
@@ -79,7 +79,7 @@
                                 :grid-template-columns
                                 "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
                                 :gap "0.9em"}}]
-                 (for [k filtered] ^{:key (:id k)} [document-view/discover-card lang k]))
+                 (for [k filtered] ^{:key (:id k)} [document-page/discover-card lang k]))
            [:p {:style {:color "#aaa"
                         :margin "1.5em 0"}}
             (i18n/t lang :author/no-kis)])]))))

@@ -3,11 +3,11 @@
   type knowledge. It renders from the document's own fields (permalink/version URLs from
   its `:type`, badge from its `:kind`) and takes the per-type authoring bits as a `cfg` map
   from the facade (see `edit`): only the read card's edit pencil and the in-place edit form
-  consult `cfg`; everything else is derived. The per-type facades (`ki-view`/`article-view`)
+  consult `cfg`; everything else is derived. The per-type facades (`ki-page`/`article-page`)
   supply `cfg` and are what `core` calls. A nil `cfg` means read-only (the public page)."
   (:require
    [landing.agora.frontend.cite          :as cite]
-   [landing.agora.frontend.document-view :as    dv
+   [landing.agora.frontend.document-page :as    dv
                                          :refer [byline
                                                  card-style
                                                  doc-badge

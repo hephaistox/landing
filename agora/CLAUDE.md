@@ -449,7 +449,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 ### Stack
 
 - **Backend** — Clojure (Ring/Reitit), part of the `landing` app; Agora is served under `/agora`.
-- **Frontend** — ClojureScript + Reagent/re-frame, own shadow-cljs `:agora` build (SPA). Layered: `document-view` (shared engine + chrome) with thin `ki-view` / `article-view` / `author-view` on top; none depend on each other.
+- **Frontend** — ClojureScript + Reagent/re-frame, own shadow-cljs `:agora` build (SPA). Layered, type-agnostic engine + thin per-type facades: `document-page` (shared widget/chrome engine, no type knowledge) → `view`/`edit` (generic page composition + authoring, driven by a `cfg`) → `ki-page` / `article-page` / `author-page` (thin facades that supply each type's `cfg` and are what `core` calls). The strings `"ki"`/`"article"` live only in the facades.
 - **Hosting** — Clever Cloud. **DB** — MySQL (the shared addon, also used by the contact form). The addon caps at **5 connections split across dev/la/prod**, so the HikariCP pool is small and per-env: `AGORA_DB_POOL_MAX` (default 2; recommend prod 2, la/dev 1).
 - **Auth** — session cookie + Google OAuth + email/password (bcrypt). Admin allowlist is env-driven (`AGORA_ADMIN_EMAILS`). Facebook deferred.
 - **Tables** (`resources/agora/migrations/`, applied manually via `scripts/agora_db.clj`): `AGORA_DOCUMENT` (KIs **and** articles — one polymorphic table), `AGORA_SUCCESSOR` (derived reverse-edge cache), `AGORA_USER` (accounts **and** login-less `provider='external'` cited people), `AGORA_SOURCE` (reusable bibliographic works). All text stored inline; no blob store.

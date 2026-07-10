@@ -1,9 +1,9 @@
-(ns landing.agora.frontend.document-view
+(ns landing.agora.frontend.document-page
   "The shared Agora document engine — everything common to every document type, with **no
   knowledge of any specific type**. It exposes *features*, not type behaviour: whatever
   varies is either derived from a document's own data (a URL from its `:type`, a badge from
-  whether it has a `:kind`) or taken as a parameter. The thin per-type facades (`ki-view`,
-  `article-view`) choose those parameters and are what `core` calls; the generic page/form
+  whether it has a `:kind`) or taken as a parameter. The thin per-type facades (`ki-page`,
+  `article-page`) choose those parameters and are what `core` calls; the generic page/form
   components they build on live in `view`/`edit`.
 
   Holds: the graph layout (`node-frame` with input/successor mini-cards and connectors),

@@ -76,6 +76,22 @@
   [type name major lang]
   (when-let [id (store/resolve-latest-id type name major lang)] (fetch id)))
 
+(defn resolve-successors
+  "Enrich a fetched doc's successor ids (`:successors` = `[{:id}…]`) with linkable
+  identity `{:id :type :name :lang :major :title}` — used by the server-rendered 'Used by'
+  section so the graph's downward edges are crawlable. Each lookup is Caffeine-cached."
+  [doc]
+  (into []
+        (keep (fn [{:keys [id]}]
+                (when-let [s (store/fetch-document id)]
+                  {:id id
+                   :type (:type s)
+                   :name (:name s)
+                   :lang (:lang s)
+                   :major (:major s)
+                   :title (:title s)})))
+        (:successors doc)))
+
 ;; ---------------------------------------------------------------------------
 ;; Write
 ;; ---------------------------------------------------------------------------
@@ -96,6 +112,16 @@
                  (str/replace #"[^a-z0-9]+" "-")
                  (str/replace #"(^-+)|(-+$)" ""))]
     (if (str/blank? base) "untitled" base)))
+
+(defn author-scoped-slug
+  "A new document's identity slug: `title` (or an explicitly-given name) slugified, then
+  suffixed with the author's own slug — so two people can use the same title without
+  colliding (owner-scoped names, per the identity model). A blank author yields no suffix.
+  `\"Je crois en Dieu\"` by *Anthony Caumond* → `\"je-crois-en-dieu-anthony-caumond\"`. Any
+  residual clash (same author, same title) is still de-clashed by `unique-name`."
+  [title author]
+  (let [base (slugify title)]
+    (if (str/blank? author) base (str base "-" (slugify author)))))
 
 (defn- name-exists?
   "True when a lineage (type, name, lang, major 1) already exists — i.e. the slug is
@@ -131,17 +157,22 @@
     (fetch new-id)))
 
 (defn create
-  "Create a brand-new document (major 1, minor 0) of `type`. `content` holds the
-  authored fields (`:title`, `:lang`, `:text`, and `:kind` for kind-bearing types). The identity `name`
-  is derived from the title (slug, de-clashed) unless one is given explicitly. Inputs
-  are derived from the `:text` citations. Returns the view."
+  "Create a brand-new document (major 1, minor 0) of `type`. `content` holds the authored
+  fields (`:title`, `:lang`, `:text`, and `:kind` for kind-bearing types). The identity
+  `name` is a slug derived from the title, suffixed with the author's slug and de-clashed
+  (see `author-scoped-slug`) — set once at creation and **stable thereafter** (it lives in
+  URLs, edges and citations; editing the title never rewrites it). Inputs are derived from
+  the `:text` citations. Returns the view."
   [type
    owner-id
    {:keys [name lang title]
     :as content}]
   (let [id (store/uuid)
         lang (or lang language/default-lang)
-        name (unique-name type (if (str/blank? name) (slugify title) name) lang)
+        author (store/author-name owner-id)
+        name (unique-name type
+                          (author-scoped-slug (if (str/blank? name) title name) author)
+                          lang)
         inputs (inputs-of type content (:inputs content) lang)]
     (store/insert-document! {:id id
                              :type type
@@ -152,7 +183,7 @@
                             (normalize-text (-> content
                                                 (dissoc :name :lang)
                                                 (assoc :inputs inputs
-                                                       :author (store/author-name owner-id)
+                                                       :author author
                                                        :owner-id owner-id
                                                        :published-at (store/now-iso)))))
     (store/evict-lineage! type name lang 1)
@@ -431,13 +462,25 @@
 
 (defn all-tnrs
   "Every lineage of every type (all types), **one row per language version** —
-  (type, name, lang, major) with its version count and latest minor. The admin table."
+  (type, name, lang, major) with its version count, latest minor, and the latest minor's
+  `:title` (the human heading the admin table shows in place of the identity slug). One
+  query: a self-join pins each lineage's latest-minor row, whose content yields the title."
   []
-  (store/q!
-   db/ds
-   ["SELECT type, name, lang, major, COUNT(*) AS versions, MAX(minor) AS latest
-      FROM AGORA_DOCUMENT GROUP BY type, name, lang, major ORDER BY type, name, major, lang"]
-   store/kebab))
+  (->> (store/q!
+        db/ds
+        ["SELECT d.type, d.name, d.lang, d.major, d.content, g.versions, g.latest
+            FROM AGORA_DOCUMENT d
+            JOIN (SELECT type, name, lang, major, COUNT(*) AS versions, MAX(minor) AS latest
+                    FROM AGORA_DOCUMENT
+                   GROUP BY type, name, lang, major) g
+              ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                 AND d.major = g.major AND d.minor = g.latest
+           ORDER BY d.type, d.name, d.major, d.lang"]
+        store/kebab)
+       (mapv (fn [{:keys [content] :as r}]
+               (-> r
+                   (assoc :title (:title (store/decode-content content)))
+                   (dissoc :content))))))
 
 (defn delete-tnr!
   "Drop a single language version of a lineage — (type, name, lang, major) — plus its
@@ -501,26 +544,18 @@
     n))
 
 (defn sitemap-rows
-  "Every public permalink of `type` as {:name :major :lang :lastmod}."
-  [type]
-  (->> (store/q! db/ds
-                 ["SELECT name, major, lang, content FROM AGORA_DOCUMENT WHERE type = ?" type]
-                 store/kebab)
-       (map (fn [r]
-              (assoc (select-keys r [:name :major :lang])
-                     :published-at
-                     (:published-at (store/decode-content (:content r))))))
-       (group-by (juxt :name :major :lang))
-       (mapv (fn [[[name major lang] rows]]
-               {:name name
-                :major major
-                :lang lang
-                ;; latest publication across this lineage's minors. ISO-8601 strings
-                ;; sort lexicographically = chronologically; `max-key` can't be used
-                ;; (it compares keys with `>`, which is numbers-only).
-                :lastmod (->> (keep :published-at rows)
-                              sort
-                              last)}))))
+  "Every public permalink — **all** document types — as {:type :name :major :lang :lastmod},
+  one row per lineage (type, name, lang, major). `lastmod` is the lineage's latest
+  publication date (`MAX(published_at)`, an ISO-8601 string that sorts chronologically), so
+  a crawler re-fetches a permalink only when its current version changed. Pure SQL over the
+  denormalized `published_at` column — no content decode — so it scales and can later be
+  keyset-paginated into a chunked sitemap index."
+  []
+  (store/q! db/ds
+            ["SELECT type, name, major, lang, MAX(published_at) AS lastmod
+               FROM AGORA_DOCUMENT
+              GROUP BY type, name, major, lang"]
+            store/kebab))
 
 (defn rebuild-successor-index!
   "Recompute AGORA_SUCCESSOR from every document's declared inputs (all types), dropping

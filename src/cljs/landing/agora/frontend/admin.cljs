@@ -112,6 +112,42 @@
                  :style (assoc admin-btn :border "1px solid #c92a2a" :color "#c92a2a")}
         (i18n/t lang :admin/drop)]])))
 
+(def ^:private sitemap-limit 50000)
+(def ^:private sitemap-warn 30000)
+
+(defn- sitemap-gauge
+  "How close the sitemap is to the 50,000-URL single-file limit. Every permalink is one
+  `(type, name, lang, major)` lineage = one TNR row, so `n` (the TNR count) *is* the
+  sitemap's URL count. Green well under, amber past ~30k, red at the cap — the point to
+  split into a chunked sitemap index (issue #7)."
+  [lang n]
+  (let [pct (min 100 (/ (* 100.0 n) sitemap-limit))
+        color (cond (>= n sitemap-limit) "#c92a2a"
+                    (>= n sitemap-warn) "#b9770e"
+                    :else "#2f9e44")]
+    [:div {:style {:margin "0 0 1.2em"}}
+     [:div {:style {:display "flex"
+                    :justify-content "space-between"
+                    :font-size "0.82em"
+                    :color "#666"
+                    :margin-bottom "0.25em"}}
+      [:span (i18n/t lang :admin/sitemap-urls)]
+      [:span {:style {:font-variant-numeric "tabular-nums"}}
+       (str (.toLocaleString n) " / " (.toLocaleString sitemap-limit))]]
+     [:div {:style {:height "0.55em"
+                    :background "#eee"
+                    :border-radius "0.3em"
+                    :overflow "hidden"}}
+      [:div {:style {:height "100%"
+                     :width (str pct "%")
+                     :background color
+                     :transition "width 0.3s"}}]]
+     (when (>= n sitemap-warn)
+       [:div {:style {:font-size "0.75em"
+                      :color color
+                      :margin-top "0.25em"}}
+        (i18n/t lang :admin/sitemap-near-limit)])]))
+
 (defn admin-page
   "Maintenance page: every KI lineage (TNR = name + major) with counts, and
   per-row actions to keep only the latest minor (per language) or drop it entirely.
@@ -143,6 +179,7 @@
                     :margin "0 0 0.8em"}}
        (i18n/t lang :admin/title)]
       (when (:admin user) [consistency-panel lang issues])
+      (when (:admin user) [sitemap-gauge lang (count tnrs)])
       ;; Language filter — defaults to your selected language (so the table matches it);
       ;; "All languages" shows every version and adds a Language column.
       (when (:admin user)
@@ -210,7 +247,9 @@
                                          :border-radius "0.25em"}}
                           (:type t)]]
                         [:td {:style (assoc td :font-weight 600)}
-                         [cite/node-link t (:name t)]]
+                         ;; show the human title (the identity slug is internal); fall back
+                         ;; to the slug only if a row somehow has no title
+                         [cite/node-link t (or (:title t) (:name t))]]
                         (when all?
                           [:td {:style td}
                            (str/upper-case (:lang t))])

@@ -1,7 +1,7 @@
 (ns landing.agora.frontend.edit
   "Generic authoring components + events for **any** document type — no type knowledge of
   its own. The in-place edit card, the standalone create form, and their re-frame events
-  are all driven by a `cfg` map supplied by the per-type facade (`ki-view`/`article-view`):
+  are all driven by a `cfg` map supplied by the per-type facade (`ki-page`/`article-page`):
 
     cfg = {:type        \"ki\"                 ; REST path segment + identity
            :show-kind?  true                  ; render the epistemic-kind selector?
@@ -16,7 +16,7 @@
    [landing.agora.document-domain        :as domain]
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.cite          :as cite]
-   [landing.agora.frontend.document-view :as    dv
+   [landing.agora.frontend.document-page :as    dv
                                          :refer [byline
                                                  card-style
                                                  json-req

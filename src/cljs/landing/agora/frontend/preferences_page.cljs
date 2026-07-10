@@ -1,9 +1,9 @@
-(ns landing.agora.frontend.preferences
+(ns landing.agora.frontend.preferences-page
   "The preferences page (`/agora/<lang>/preferences`): the interface-language chooser and
   the account section."
   (:require
    [landing.agora.frontend.auth          :as auth]
-   [landing.agora.frontend.document-view :as    dv
+   [landing.agora.frontend.document-page :as    dv
                                          :refer [card-style language-selector]]
    [landing.agora.frontend.i18n          :as i18n]
    [re-frame.core                        :as rf]))

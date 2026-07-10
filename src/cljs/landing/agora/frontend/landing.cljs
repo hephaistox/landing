@@ -4,7 +4,7 @@
   teaser, a live example KI, and a closing call to action."
   (:require
    [landing.agora.frontend.cite          :as cite]
-   [landing.agora.frontend.document-view :as    dv
+   [landing.agora.frontend.document-page :as    dv
                                          :refer [kind-badge permalink]]
    [landing.agora.frontend.i18n          :as i18n]
    [re-frame.core                        :as rf]))
@@ -109,32 +109,6 @@
                 :text-align "center"
                 :margin "0 0 0.8em"}}
    text])
-
-(defn- home-mini-node
-  "One illustrative card in the reasoning diagram: a coloured type tag over its text.
-  Pure illustration (not live data), so the labels are plain words, not KI kinds."
-  [tag color text]
-  [:div {:style {:flex "1 1 15em"
-                 :max-width "22em"
-                 :background "#fff"
-                 :border "1px solid #e6e0d4"
-                 :border-left (str "4px solid " color)
-                 :border-radius "0.55em"
-                 :padding "0.85em 1em"
-                 :box-shadow "0 1px 3px rgba(0,0,0,0.06)"
-                 :text-align "left"}}
-   [:div {:style {:font-size "0.66em"
-                  :font-weight 700
-                  :text-transform "uppercase"
-                  :letter-spacing "0.09em"
-                  :color color
-                  :margin-bottom "0.35em"}}
-    tag]
-   [:div {:style {:color "#2a2621"
-                  :line-height "1.45"}}
-    text]])
-
-
 
 (defn- home-step
   "One numbered step in the 'how it works' row."

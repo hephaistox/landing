@@ -3,6 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Mark that JS is available before the first paint, so the server-rendered SEO
+         body (#agora-ssr, present for crawlers / no-JS) is hidden for JS visitors and
+         never flashes before the SPA mounts. -->
+    <script>
+      document.documentElement.classList.add('js');
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23b9770e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='19' fill='%23fff' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E"
@@ -17,6 +23,12 @@
         /* never let a too-wide child cause a horizontal scroll that leaves the
            full-bleed header/footer short of the viewport edge on tiny screens. */
         overflow-x: hidden;
+      }
+      /* The server-rendered SEO body is for crawlers / no-JS only; hide it as soon as
+         JS is confirmed (see the head script) so it never flashes before the SPA mounts.
+         React replaces #agora-app's children (incl. #agora-ssr) on mount. */
+      html.js #agora-ssr {
+        display: none;
       }
       /* Loading placeholders (see ki-view skeletons). */
       @keyframes agora-pulse {

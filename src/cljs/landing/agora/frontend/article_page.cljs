@@ -1,11 +1,11 @@
-(ns landing.agora.frontend.article-view
+(ns landing.agora.frontend.article-page
   "Thin **article facade** over the generic document components (`view`/`edit`). It picks
   the article's feature values — no kind selector, the article authoring labels, the create
   form's cancel target — and exposes the entry points `core` renders. All shared rendering
   lives in the generic layer; this ns only configures it for the article type, so the
   string `\"article\"` and its labels live here rather than in the type-agnostic engine."
   (:require
-   [landing.agora.frontend.document-view :as dv]
+   [landing.agora.frontend.document-page :as dv]
    [landing.agora.frontend.edit          :as edit]
    [landing.agora.frontend.i18n          :as i18n]
    [landing.agora.frontend.view          :as view]))

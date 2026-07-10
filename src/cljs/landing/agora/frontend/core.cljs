@@ -11,23 +11,23 @@
   re-pins successors, so there is no client-side version resolution — neighbour
   refs are used as returned."
   (:require
-   [cljs.pprint                          :refer [pprint]]
-   [landing.agora.frontend.admin         :as admin]
-   [landing.agora.frontend.article-view  :as article-view]
-   [landing.agora.frontend.auth          :as auth]
-   [landing.agora.frontend.author-view   :as author-view]
-   [landing.agora.frontend.chrome        :as chrome]
-   [landing.agora.frontend.document-view :as document-view]
-   [landing.agora.frontend.edit          :as edit]
-   [landing.agora.frontend.i18n          :as i18n]
-   [landing.agora.frontend.ki-view       :as ki-view]
-   [landing.agora.frontend.landing       :as landing]
-   [landing.agora.frontend.loading       :as loading]
-   [landing.agora.frontend.preferences   :as preferences]
-   [landing.language                     :as language]
-   [pushy.core                           :as pushy]
-   [re-frame.core                        :as rf]
-   [reagent.dom                          :as rdom]
+   [cljs.pprint                             :refer [pprint]]
+   [landing.agora.frontend.admin            :as admin]
+   [landing.agora.frontend.article-page     :as article-page]
+   [landing.agora.frontend.auth             :as auth]
+   [landing.agora.frontend.author-page      :as author-page]
+   [landing.agora.frontend.chrome           :as chrome]
+   [landing.agora.frontend.document-page    :as document-page]
+   [landing.agora.frontend.edit             :as edit]
+   [landing.agora.frontend.i18n             :as i18n]
+   [landing.agora.frontend.ki-page          :as ki-page]
+   [landing.agora.frontend.landing          :as landing]
+   [landing.agora.frontend.loading          :as loading]
+   [landing.agora.frontend.preferences-page :as preferences-page]
+   [landing.language                        :as language]
+   [pushy.core                              :as pushy]
+   [re-frame.core                           :as rf]
+   [reagent.dom                             :as rdom]
    [superstructor.re-frame.fetch-fx]))
 
 (goog-define ENV "dev")
@@ -576,24 +576,24 @@
         loading? @(rf/subscribe [::loading?])
         error @(rf/subscribe [::error])]
     (cond
-      (= kind :new) [ki-view/create-form]
-      (= kind :article-new) [article-view/create-form]
-      (= kind :preferences) [preferences/preferences-page]
+      (= kind :new) [ki-page/create-form]
+      (= kind :article-new) [article-page/create-form]
+      (= kind :preferences) [preferences-page/preferences-page]
       (= kind :admin) [admin/admin-page]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind
-             :ki [ki-view/page data]
+             :ki [ki-page/page data]
              ;; A KI permalink renders read-only for anonymous visitors and the
              ;; editable page for signed-in ones. Reactive on the auth sub, so
              ;; it swaps the moment /me resolves after a hard load.
-             :ki-public (if user [ki-view/page data] [ki-view/public-page data])
+             :ki-public (if user [ki-page/page data] [ki-page/public-page data])
              :home [landing/landing-page data]
-             :discover [ki-view/discover data]
-             :articles [article-view/discover data]
-             :article [article-view/page data]
-             :article-public [article-view/page data]
-             :author [author-view/author-page data]
+             :discover [ki-page/discover data]
+             :articles [article-page/discover data]
+             :article [article-page/page data]
+             :article-public [article-page/page data]
+             :author [author-page/author-page data]
              nil)
       error [error-view error]
       loading? [loading/loading-view @(rf/subscribe [::loading-kind])]
@@ -612,7 +612,7 @@
     [app-view]]
    [chrome/site-footer]
    [auth/auth-modal]
-   [document-view/translation-editor]])
+   [document-page/translation-editor]])
 
 (defn ^:dev/after-load mount-root
   []

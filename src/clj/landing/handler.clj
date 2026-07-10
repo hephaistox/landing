@@ -10,6 +10,7 @@
    [landing.agora.endpoints.people    :refer [people-routes]]
    [landing.agora.endpoints.shell     :refer [app-shell-route
                                               article-page-route
+                                              author-page-route
                                               home-shell-route
                                               ki-page-route
                                               public-shell-route
@@ -124,7 +125,7 @@
     (app-shell-route "/agora/:lang/new")
     (app-shell-route "/agora/:lang/ki/:id")
     (app-shell-route "/agora/:lang/article/:id")
-    (app-shell-route "/agora/:lang/author/:id")
+    (author-page-route "/agora/:lang/author/:id")
     (app-shell-route "/agora/:lang/admin")
     (api-swagger "/api")
     (w3c-validate-route "/w3c-validate")]
@@ -151,6 +152,18 @@
            :headers {"Location" (str base uri (when-let [q (:query-string req)] (str "?" q)))}}
           (handler req))))))
 
+(defn wrap-strip-trailing-slash
+  "Normalize the request URI by dropping any trailing slash (except the root `/`) before
+  routing, so `/agora/en/discover/` resolves the same route as `/agora/en/discover`
+  instead of 404-ing. Each page's `<link rel=canonical>` still points at the slash-less
+  form, so search engines consolidate on one URL."
+  [handler]
+  (fn [req]
+    (let [uri (:uri req)]
+      (handler (if (and (> (count uri) 1) (str/ends-with? uri "/"))
+                 (assoc req :uri (str/replace uri #"/+$" ""))
+                 req)))))
+
 (defn handler
   []
   (-> (rring/ring-handler (router)
@@ -163,4 +176,7 @@
                                     ;; HTTPS-only in prod so the session cookie
                                     ;; never travels over plain HTTP
                                     :secure (= :prod env/env)}})
-      wrap-agora-canonical-host))
+      wrap-agora-canonical-host
+      ;; outermost: normalize the URI (drop trailing slash) before any host-redirect
+      ;; or routing sees it
+      wrap-strip-trailing-slash))

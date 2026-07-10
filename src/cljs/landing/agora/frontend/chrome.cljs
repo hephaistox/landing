@@ -4,7 +4,7 @@
   (:require
    [clojure.string                       :as str]
    [landing.agora.frontend.auth          :as auth]
-   [landing.agora.frontend.document-view :as    dv
+   [landing.agora.frontend.document-page :as    dv
                                          :refer [kind-badge permalink version-tag-style]]
    [landing.agora.frontend.i18n          :as i18n]
    [re-frame.core                        :as rf]

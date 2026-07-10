@@ -245,8 +245,9 @@
   (let [tnlrs (:inputs content)]
     (q!
      db/ds
-     ["INSERT INTO AGORA_DOCUMENT (id, type, name, lang, major, minor, content, computed)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+     ["INSERT INTO AGORA_DOCUMENT
+         (id, type, name, lang, major, minor, content, computed, published_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
       id
       doc-type
       name
@@ -254,8 +255,24 @@
       major
       minor
       (encode-content content)
-      (encode-pins (domain/pin-all tnlrs latest-of))])
+      (encode-pins (domain/pin-all tnlrs latest-of))
+      ;; denormalized copy of content.:published-at for sortable/rangeable reads
+      (:published-at content)])
     (index-successors! id tnlrs)))
+
+(defn backfill-published-at!
+  "One-off: populate the denormalized `published_at` column from each row's
+  `content.:published-at`. Run once from a REPL after applying migration 004; new writes
+  set it directly. Idempotent — only touches rows where the column is still NULL. Returns
+  the number of rows updated."
+  []
+  (reduce (fn [n {:keys [id content]}]
+            (if-let [p (:published-at (decode-content content))]
+              (do (q! db/ds ["UPDATE AGORA_DOCUMENT SET published_at = ? WHERE id = ?" p id])
+                  (inc n))
+              n))
+          0
+          (q! db/ds ["SELECT id, content FROM AGORA_DOCUMENT WHERE published_at IS NULL"] kebab)))
 
 (defn rebuild-successor-index!
   "Recompute AGORA_SUCCESSOR from every document's declared inputs, and drop the in-memory
