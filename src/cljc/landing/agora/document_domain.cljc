@@ -123,6 +123,71 @@
                       :major def-major})))
         kinds))
 
+;; --- Kind-guided statement scaffold ---------------------------------------------------
+;; Each epistemic kind (except the open `inference`) scaffolds the opening of the statement,
+;; so the kind is enforced by the grammar rather than being a decorative badge. Two shapes:
+;;   - author-attributed (belief/credo/position/postulate/prediction): "<author> <verb> that "
+;;   - term contract (definition): "<term> means "
+;; `inference` has no scaffold (free-form). Only the author's **body** is stored in `:text`;
+;; the prefix is DERIVED here (shared clj + cljs) so it stays correct as kind/author change
+;; and the SPA can render it instantly, without waiting on the read endpoint.
+
+(def statement-say
+  "kind (string) → {:subject :author|:term, :phrase {lang → connector}} — the scaffold for
+  that kind's statement opening. Absent for the open `inference` (free-form)."
+  {"belief"     {:subject :author :phrase {"en" "believes that" "fr" "croit que"}}
+   "credo"      {:subject :author :phrase {"en" "affirms that"  "fr" "professe que"}}
+   "position"   {:subject :author :phrase {"en" "holds that"    "fr" "soutient que"}}
+   "postulate"  {:subject :author :phrase {"en" "posits that"   "fr" "postule que"}}
+   "prediction" {:subject :author :phrase {"en" "predicts that" "fr" "prédit que"}}
+   "definition" {:subject :term   :phrase {"en" "means"         "fr" "signifie"}}})
+
+(defn statement-subject-kind
+  "Whether `kind`'s prefix subject is the `:author` or the `:term`, or nil for a free-form
+  kind (`inference`)."
+  [kind]
+  (:subject (get statement-say kind)))
+
+(defn- cap-first
+  [s]
+  (let [s (str s)]
+    (if (str/blank? s) s (str (str/upper-case (subs s 0 1)) (subs s 1)))))
+
+(defn statement-prefix
+  "The kind-guided opening (with a trailing space) for a statement in `lang`, or nil for a
+  free-form kind. `subject` is the attributed author (author-kinds) or the defined term
+  (definition). E.g. (\"belief\" \"en\" \"Sun Tzŭ\") → \"Sun Tzŭ believes that \"."
+  [kind lang subject]
+  (when-let [{:keys [phrase]} (get statement-say kind)]
+    (when-let [connector (or (get phrase lang) (get phrase "en"))]
+      (when-not (str/blank? subject)
+        (str (cap-first subject) " " connector " ")))))
+
+(defn attributed-author
+  "The person a statement is attributed to: the cited source's author if the document cites
+  a source, else the document's own author. One source per document, so unambiguous."
+  [doc]
+  (or (:author-name (:source doc)) (:author doc)))
+
+(defn statement-prefix-of
+  "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil
+  for a free-form kind. Rendered *separately* from the body so the citation-parsed prose can
+  follow a plain-text prefix (read page, editor label)."
+  [doc lang]
+  (let [kind (:kind doc)
+        subject (case (statement-subject-kind kind)
+                  :author (attributed-author doc)
+                  :term (:title doc)
+                  nil)]
+    (statement-prefix kind lang subject)))
+
+(defn compose-statement
+  "The full statement sentence for `doc` in `lang`: the kind-guided prefix + the authored
+  `body`. Author-kinds prepend `<attributed-author> <verb> that `; `definition` prepends
+  `<title> means `; free-form kinds (`inference`) return the body unchanged."
+  [doc lang body]
+  (str (statement-prefix-of doc lang) body))
+
 (def object-types
   "The identity T values (object types sharing the single AGORA_DOCUMENT table)."
   [:ki :objection :article])

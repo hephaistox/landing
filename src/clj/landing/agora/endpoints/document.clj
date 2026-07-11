@@ -48,17 +48,15 @@
 (def ^:private kind-enum (into [:enum] (map name domain/kind-ids)))
 (def ^:private input-ref-schema [:map [:name name-schema] [:major :int]])
 
-;; A document's bibliographic references — each pins a source (AGORA_SOURCE) + a locator
-;; (page/chapter/line/entry). Stored raw in immutable content; resolved to full works in
-;; `document/view`. `[]` clears; absent (nil) carries the old value forward on edit.
-(def ^:private references-schema
-  [:vector {:max 100}
-   [:map
-    [:source-id
-     [:string {:min 1
-               :max 64}]]
-    [:locator {:optional true}
-     [:maybe [:string {:max 500}]]]]])
+;; A document cites at most **one** source (a `type="source"` document) + a locator
+;; (page/chapter/line). The client sends `{:source-id :locator}` (source-id = the source
+;; work's cid); `document/create`/`edit` store it as a reference `{:name :major :locator}` in
+;; `content.:source`, resolved on read. A blank `:source-id` clears it; absent (nil) carries
+;; the old reference forward on edit.
+(def ^:private source-schema
+  [:map
+   [:source-id [:string {:max 64}]]
+   [:locator {:optional true} [:maybe [:string {:max 500}]]]])
 
 (def ^:private throttled [(:middleware-fn throttle/authoring-rate-limiter)])
 
@@ -83,26 +81,26 @@
                        [:lang {:optional true}
                         lang-schema]
                        [:text statement-schema]
-                       [:references {:optional true}
-                        references-schema]]
+                       [:source {:optional true}
+                        source-schema]]
          :to-create (fn [b]
                       {:name (:name b)
                        :title (:title b)
                        :kind (:kind b)
                        :lang (:lang b)
                        :text (:text b)
-                       :references (:references b)})
+                       :source (:source b)})
          :edit-body [:map
                      [:title title-schema]
                      [:kind kind-enum]
                      [:text statement-schema]
-                     [:references {:optional true}
-                      references-schema]]
+                     [:source {:optional true}
+                      source-schema]]
          :to-edit (fn [b]
                     {:title (:title b)
                      :kind (:kind b)
                      :text (:text b)
-                     :references (:references b)})
+                     :source (:source b)})
          :translate-body [:map
                           [:lang lang-schema]
                           [:title {:optional true}
@@ -120,25 +118,25 @@
                             [:lang {:optional true}
                              lang-schema]
                             [:text body-schema]
-                            [:references {:optional true}
-                             references-schema]]
+                            [:source {:optional true}
+                             source-schema]]
               :to-create (fn [b]
                            {:name (:name b)
                             :title (:title b)
                             :lang (:lang b)
                             :text (:text b)
-                            :references (:references b)})
+                            :source (:source b)})
               :edit-body [:map
                           [:title {:optional true}
                            title-schema]
                           [:text {:optional true}
                            body-schema]
-                          [:references {:optional true}
-                           references-schema]]
+                          [:source {:optional true}
+                           source-schema]]
               :to-edit (fn [b]
                          {:title (:title b)
                           :text (:text b)
-                          :references (:references b)})
+                          :source (:source b)})
               :translate-body [:map
                                [:lang lang-schema]
                                [:title {:optional true}

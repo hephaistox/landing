@@ -7,10 +7,11 @@
 
    - `:author \"Sun Tzŭ\"` — the reasoning's author (shown on the page, fed to
      schema.org). Distinct from `:owner-id`, the accountable account that can edit.
-   - a structured `:source` citation map (work / translator / verse ref / license)
-     preserved in the immutable content for later official quoting.
+   - a `content.:source` reference `{:name \"aow-source\" :major 1 :locator \"I.1\"}` —
+     each verse cites the one shared *The Art of War* **source document** (`type=source`,
+     owned by Sun Tzŭ), with the verse number as its per-citation locator.
    - a `name` slug prefixed `aow-<chapter>-<verse>` — the durable, queryable marker
-     for this source (`… WHERE name LIKE 'aow-%'`).
+     for this source (`… WHERE name LIKE 'aow-%'`, which also sweeps the `aow-source` work).
 
   Meant to be run from a REPL against the DB, not wired into the app. Nothing here
   runs automatically. All writes go through `store/insert-document!` so pins + the
@@ -94,17 +95,41 @@
            first))
 
 (defn delete-art-of-war!
-  "Remove every KI from this source (matched by the `aow-` name marker) and rebuild
-  the successor index. Idempotent; the reseed calls this first. Returns rows removed."
+  "Remove every document from this source (matched by the `aow-` name marker — the KIs
+  **and** the shared `aow-source` work) and rebuild the successor index. Idempotent; the
+  reseed calls this first. Returns rows removed."
   []
   (let [n (-> (store/q! db/ds
-                        ["DELETE FROM AGORA_DOCUMENT WHERE type = ? AND name LIKE ?"
-                         ki-type
-                         (str source-prefix "%")])
+                        ["DELETE FROM AGORA_DOCUMENT WHERE name LIKE ?" (str source-prefix "%")])
               first
               :next.jdbc/update-count)]
     (store/rebuild-successor-index!)
     n))
+
+(def ^:private source-name
+  "Stable name (cid) of the shared 'The Art of War' source document — the citation ref every
+  verse KI points at. `aow-` prefixed so the reseed delete sweeps it too."
+  "aow-source")
+
+(defn- seed-source!
+  "Insert the shared *The Art of War* **source document** (`type=source`), owned by Sun Tzŭ
+  (so his profile and every verse's attribution resolve through it). Returns its name."
+  [owner-id]
+  (store/insert-document! {:id (store/uuid)
+                           :type "source"
+                           :name source-name
+                           :lang "en"
+                           :major 1
+                           :minor 0}
+                          {:kind "source"
+                           :title "The Art of War"
+                           :year 1910
+                           :editor "Lionel Giles (trans.), Project Gutenberg #132"
+                           :inputs []
+                           :author author
+                           :owner-id owner-id
+                           :published-at (store/now-iso)})
+  source-name)
 
 (defn seed-art-of-war!
   "Insert all Art-of-War KIs owned by `owner-id`, wired with the `curated-edges`. By
@@ -117,6 +142,7 @@
   ([owner-id]
    (assert owner-id "No owner-id: pass one, or have the admin account sign in first.")
    (delete-art-of-war!)
+   (seed-source! owner-id)
    (let [kis (topo-order (attach-edges (:kis (art-of-war))))]
      (doseq [{:keys [name lang kind title statement source inputs]} kis]
        (store/insert-document! {:id (store/uuid)
@@ -132,7 +158,11 @@
                                 :author author
                                 :owner-id owner-id
                                 :published-at (store/now-iso)
-                                :source source}))
+                                ;; cite the shared work with the verse ref as locator — the
+                                ;; per-KI half of the source model (`{:name :major :locator}`)
+                                :source {:name source-name
+                                         :major 1
+                                         :locator (:ref source)}}))
      (store/rebuild-successor-index!)
      {:inserted (count kis)
       :edges (reduce + (map (comp count val) curated-edges))})))

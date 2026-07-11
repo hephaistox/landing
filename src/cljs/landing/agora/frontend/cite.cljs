@@ -210,27 +210,42 @@
          (when (and @hover? doc) [ki-hover-card doc])]))))
 
 (defn- paragraph
-  "One text paragraph, with any KI citations resolved to `ki-cite`s."
-  [para]
-  (into [:p {:style {:margin "0 0 1em"}}]
-        (map (fn [seg] (if (string? seg) seg [ki-cite seg])) (parse-segments para))))
+  "One text paragraph, with any KI citations resolved to `ki-cite`s. An optional `lead`
+  hiccup is placed inline at the very start (so a boxed statement prefix flows into the prose)."
+  ([para] (paragraph para nil))
+  ([para lead]
+   (into [:p {:style {:margin "0 0 1em"}}]
+         (concat (when lead [lead])
+                 (map (fn [seg] (if (string? seg) seg [ki-cite seg])) (parse-segments para))))))
 
 (defn render-text
   "Render a node's text (statement/body) as paragraphs (blank line = paragraph
-  break), resolving inline `[[ki:…]]` citations to living KI links."
-  [text]
-  (into [:div]
-        (map-indexed (fn [i para] ^{:key i} [paragraph para])
-                     (remove str/blank? (str/split (or text "") #"\n\n+")))))
+  break), resolving inline `[[ki:…]]` citations to living KI links. An optional `lead` hiccup
+  is placed inline at the start of the **first** paragraph (e.g. the kind-guided statement
+  prefix as a boxed pill), so the whole thing reads as one flowing line."
+  ([text] (render-text text nil))
+  ([text lead]
+   (let [paras (remove str/blank? (str/split (or text "") #"\n\n+"))]
+     (if (empty? paras)
+       (if lead [:div [:p {:style {:margin "0 0 1em"}} lead]] [:div])
+       (into [:div]
+             (map-indexed (fn [i para] ^{:key i} [paragraph para (when (zero? i) lead)])
+                          paras))))))
 
 (defn plain-text
-  "`text` with its `[[ki:…]]` citations flattened to their label (custom text, or a
-  humanized slug) — for excerpts/previews where rendering live links would be too
-  heavy (e.g. a discover grid of many cards)."
-  [text]
-  (->> (parse-segments (or text ""))
-       (map (fn [seg] (if (string? seg) seg (or (:text seg) (humanize (:name seg))))))
-       (apply str)))
+  "`text` with its `[[ki:…]]` citations flattened to a label — for excerpts/previews where
+  rendering live links would be too heavy (e.g. a discover grid of many cards). A citation's
+  label is its custom text, else the cited KI's title from the optional `titles` map
+  (`{cid → title}`), else a humanized slug. Since names are opaque cids, the `titles` map is
+  what keeps a card excerpt readable."
+  ([text] (plain-text text nil))
+  ([text titles]
+   (->> (parse-segments (or text ""))
+        (map (fn [seg]
+               (if (string? seg)
+                 seg
+                 (or (:text seg) (get titles (:name seg)) (humanize (:name seg))))))
+        (apply str))))
 
 (defn citations
   "The set of KIs cited in `text`, as {:name :major} — the node's declared inputs."

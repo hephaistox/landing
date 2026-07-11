@@ -34,12 +34,31 @@
         (dissoc :statement :body))
     content))
 
+(defn- normalize-source
+  "Store `content.:source` as a **reference** to a shared source *document*: `{:name
+  <source-cid> :major :locator}`. The client sends a raw `{:source-id :locator}` (source-id =
+  the source work's cid); a blank source-id clears the reference; an already-normalized ref
+  (carried forward on a new minor) is kept. So changing which source is cited, or its locator,
+  is a new version — while the source *work* itself is a shared, independently-versioned
+  document (see landing.agora.source)."
+  [content]
+  (let [src (:source content)]
+    (cond
+      (nil? src) content
+      (:name src) content                                       ;; already a ref (carried forward)
+      (str/blank? (:source-id src)) (assoc content :source nil)  ;; explicit clear
+      :else (assoc content :source {:name (:source-id src)
+                                    :major 1
+                                    :locator (:locator src)}))))
+
 (def ^:private carried
   "Immutable content keys carried forward on a new minor (everything authored;
   `:published-at` is re-stamped each version). The legacy `:statement`/`:body` are kept
   so a not-yet-migrated old row carries its prose forward — `normalize-text` then folds
   it into `:text` on write."
-  [:kind :title :text :statement :body :author :owner-id :inputs :source :references])
+  ;; `:source` is the single cited-source **reference** (`{:name :major :locator}`; resolved on
+  ;; read). `:year`/`:editor` are the extra fields a `type=source` document carries.
+  [:kind :title :text :statement :body :author :owner-id :inputs :source :year :editor])
 
 ;; ---------------------------------------------------------------------------
 ;; Read — the endpoint-facing view (generic across types)
@@ -56,9 +75,8 @@
     (-> doc
         (assoc :inputs inputs
                :author-id (:owner-id doc)
-               ;; raw [{:source-id :locator}…] → resolved works (author/title/year/editor
-               ;; + locator), dropping any whose source was deleted
-               :references (source/resolve-refs (:references doc))
+               ;; resolve the source *reference* to the shared work's display fields
+               :source (source/resolve-ref (:source doc) (:lang doc))
                :successors (mapv (fn [sid] {:id sid}) (store/successors-of tnlr))
                :versions (store/versions-of tnlr)
                :translations (store/translations-of (:type doc) (:name doc) (:lang doc)))
@@ -137,7 +155,8 @@
                              :lang lang
                              :major major
                              :minor (store/next-minor type name lang major)}
-                            (normalize-text (assoc content :published-at (store/now-iso))))
+                            (normalize-source
+                             (normalize-text (assoc content :published-at (store/now-iso)))))
     (store/repin-successors! type name lang major new-id)
     (store/evict-lineage! type name lang major)
     (fetch new-id)))
@@ -164,12 +183,13 @@
                              :lang lang
                              :major 1
                              :minor 0}
-                            (normalize-text (-> content
-                                                (dissoc :name :lang)
-                                                (assoc :inputs inputs
-                                                       :author author
-                                                       :owner-id owner-id
-                                                       :published-at (store/now-iso)))))
+                            (normalize-source
+                             (normalize-text (-> content
+                                                 (dissoc :name :lang)
+                                                 (assoc :inputs inputs
+                                                        :author author
+                                                        :owner-id owner-id
+                                                        :published-at (store/now-iso))))))
     (store/evict-lineage! type name lang 1)
     (fetch id)))
 
@@ -290,20 +310,36 @@
 ;; Discovery / search / admin — all type-parameterised
 ;; ---------------------------------------------------------------------------
 
+(defn- cite-titles
+  "For a card excerpt: each cited KI's current title, as `[{:name <cid> :title …}…]` — a
+  JSON-safe vector, NOT a cid-keyed map (JSON would keywordize the cid keys). A flattened
+  excerpt can't `humanize` an opaque cid, so it needs the resolved title. Lookups are
+  Caffeine-cached and a card cites few KIs, so this is cheap."
+  [content lang]
+  (into []
+        (keep (fn [{:keys [name major]}]
+                (when-let [id (store/resolve-latest-id "ki" name major lang)]
+                  (when-let [d (store/fetch-document id)]
+                    {:name name
+                     :title (:title d)}))))
+        (domain/cite-refs (or (text-of content) "") lang)))
+
 (defn- card
   "A discovery/search card from a row with a `content` blob — enough to render a preview
-  card (identity, kind, title, prose excerpt) and its byline. `:references` is resolved
-  (cheap, cached) so the card can attribute the cited source's author; when there are
-  none, the byline `:author` is the document's own (original) author."
+  card (identity, kind, title, prose excerpt) and its byline. `:source` is resolved from the
+  document's source *reference* to the cited work's display fields, so the card can attribute
+  the cited author; when there is none, the byline `:author` is the document's own author.
+  `:cite-titles` resolves the excerpt's citations to titles (names are opaque cids)."
   [row]
   (let [c (store/decode-content (:content row))]
     (assoc (select-keys row [:id :type :name :lang :major :minor])
            :kind (:kind c)
            :title (:title c)
+           :cite-titles (cite-titles c (:lang row))
            :text (text-of c)
            :author (:author c)
            :author-id (:owner-id c)
-           :references (source/resolve-refs (:references c))
+           :source (source/resolve-ref (:source c) (:lang row))
            :published-at (:published-at c))))
 
 (defn search
@@ -387,35 +423,27 @@
 
 (defn- sourced-by
   "Latest-minor documents in `lang` that CITE a source authored by `author-id` — works
-  that *quote* this person (as opposed to `owned-by`'s own claims). Joins each doc to the
-  author's sources by a `content LIKE '%source-id%'` prefilter, confirmed on the decoded
-  `:references`. This is why a cited figure (e.g. Sun Tzu) has a populated profile even
-  though they own nothing."
+  that *quote* this person (as opposed to `owned-by`'s own claims). A source is now a
+  document owned by its author, so this finds the author's source cids (`source/names-of-author`)
+  then the non-source documents whose `content.:source` reference points at one of them. This
+  is why a cited figure (e.g. Sun Tzu) has a populated profile even though they claim nothing."
   [author-id lang]
-  (let [src-ids (into #{}
-                      (map :id)
-                      (store/q! db/ds
-                                ["SELECT id FROM AGORA_SOURCE WHERE person_id = ?" author-id]
-                                store/kebab))]
-    (if (empty? src-ids)
+  (let [src-names (source/names-of-author author-id)]
+    (if (empty? src-names)
       []
       (->>
         (store/q!
          db/ds
-         ["SELECT DISTINCT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
+         ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
                 FROM AGORA_DOCUMENT k
-                JOIN AGORA_SOURCE s
-                  ON s.person_id = ? AND k.content LIKE CONCAT('%', s.id, '%')
-               WHERE k.lang = ?
+               WHERE k.lang = ? AND k.type <> 'source'
                  AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
                                 WHERE k2.type = k.type AND k2.name = k.name
                                   AND k2.major = k.major AND k2.lang = k.lang)"
-          author-id
           lang]
          store/kebab)
         (filter (fn [r]
-                  (some #(src-ids (:source-id %))
-                        (:references (store/decode-content (:content r))))))
+                  (contains? src-names (:name (:source (store/decode-content (:content r)))))))
         (mapv card)))))
 
 (defn by-author
@@ -528,12 +556,13 @@
     n))
 
 (defn sitemap-rows
-  "Every public permalink — **all** document types — as {:type :name :major :lang :lastmod},
-  one row per lineage (type, name, lang, major). `lastmod` is the lineage's latest
-  publication date (`MAX(published_at)`, an ISO-8601 string that sorts chronologically), so
-  a crawler re-fetches a permalink only when its current version changed. Pure SQL over the
-  denormalized `published_at` column — no content decode — so it scales and can later be
-  keyset-paginated into a chunked sitemap index."
+  "Every public permalink — the crawlable document types — as {:type :name :major :lang
+  :lastmod}, one row per lineage (type, name, lang, major). `type='source'` is **excluded**:
+  sources are shared works with no public permalink shell of their own. `lastmod` is the
+  lineage's latest publication date (`MAX(published_at)`, an ISO-8601 string that sorts
+  chronologically), so a crawler re-fetches a permalink only when its current version changed.
+  Pure SQL over the denormalized `published_at` column — no content decode — so it scales and
+  can later be keyset-paginated into a chunked sitemap index."
   []
   (->> (store/q! db/ds
                  ["SELECT d.type, d.name, d.major, d.lang, d.content, g.lastmod
@@ -541,6 +570,7 @@
                      JOIN (SELECT type, name, major, lang, MAX(minor) AS latest,
                                   MAX(published_at) AS lastmod
                              FROM AGORA_DOCUMENT
+                            WHERE type <> 'source'
                             GROUP BY type, name, major, lang) g
                        ON d.type = g.type AND d.name = g.name AND d.major = g.major
                           AND d.lang = g.lang AND d.minor = g.latest"]

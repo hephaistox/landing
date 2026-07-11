@@ -6,6 +6,8 @@
   consult `cfg`; everything else is derived. The per-type facades (`ki-page`/`article-page`)
   supply `cfg` and are what `core` calls. A nil `cfg` means read-only (the public page)."
   (:require
+   [clojure.string                       :as str]
+   [landing.agora.document-domain        :as domain]
    [landing.agora.frontend.cite          :as cite]
    [landing.agora.frontend.document-page :as    dv
                                          :refer [byline
@@ -22,9 +24,25 @@
    [landing.agora.frontend.source        :as source]
    [re-frame.core                        :as rf]))
 
+(defn- prefix-pill
+  "The kind-guided statement opening, shown as an inline rounded box — flagging it as
+  hard-coded scaffold (not authored prose) while still flowing on the same line as the body."
+  [prefix]
+  [:span {:style {:display "inline-block"
+                  :background "#f4efe4"
+                  :border "1px solid #d9c9a8"
+                  :border-radius "0.4em"
+                  :padding "0 0.4em"
+                  :margin-right "0.35em"
+                  :color "#8a7a55"
+                  :font-weight 500
+                  :white-space "nowrap"
+                  :vertical-align "baseline"}}
+   (str/trim prefix)])
+
 (defn- read-card
   "The central card in read mode: type badge, language switcher, version picker, title,
-  byline, the prose (with living citations) and the references. When `cfg` is given (an
+  byline, the prose (with living citations) and the cited source. When `cfg` is given (an
   editable page) a login-gated pencil opens the in-place editor; the public page passes
   nil (read-only)."
   [{doc-type :type
@@ -69,8 +87,12 @@
      [:div {:style {:font-size "1.05em"
                     :line-height "1.5"
                     :color "#222"}}
-      [cite/render-text (cite/node-text doc)]]
-     [source/references-view (:references doc)]]))
+      ;; the kind-guided opening is part of the statement, but hard-coded (not authored) —
+      ;; so it flows INLINE at the start of the first line, marked as a rounded box (pill)
+      [cite/render-text (cite/node-text doc)
+       (when-let [prefix (domain/statement-prefix-of doc lang)]
+         [prefix-pill prefix])]]
+     [source/source-view (:source doc)]]))
 
 (defn- central
   "The central card: the edit form when this doc's editor is open (only possible on an

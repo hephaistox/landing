@@ -720,7 +720,12 @@
   type chip), version, title, an excerpt of its text (citations flattened, clamped so the
   grid stays even), and the publication date."
   [lang node]
-  (let [excerpt (cite/plain-text (cite/node-text node))]
+  ;; prepend the kind-guided opening (derived, not stored) so the card reads as the full
+  ;; statement ("Sun Tzŭ holds that …") — nil for the free-form `inference` kind. Citations
+  ;; are flattened to the cited KI's title (`:cite-titles`, since names are opaque cids).
+  (let [titles (into {} (map (juxt :name :title)) (:cite-titles node))
+        excerpt (str (document-domain/statement-prefix-of node lang)
+                     (cite/plain-text (cite/node-text node) titles))]
     [:a {:href (permalink lang node)
          :style {:display "flex"
                  :flex-direction "column"
@@ -757,14 +762,14 @@
                     :color "#888"
                     :font-size "0.8em"}}
       ;; attribution on its own line
-      (let [src-authors (distinct (keep :author-name (:references node)))]
-        (if (seq src-authors)
-          ;; the KI quotes a source → attribute the cited author(s)
+      (let [src-author (:author-name (:source node))]
+        (if src-author
+          ;; the KI quotes a source → attribute the cited author
           [:div {:title (i18n/t lang :card/quotes)}
            "📖 "
            [:span {:style {:color "#b9770e"
                            :font-weight 600}}
-            (str/join ", " src-authors)]]
+            src-author]]
           ;; no source → the byline author is this document's own (original) author
           (when-let [a (:author node)]
             [:div

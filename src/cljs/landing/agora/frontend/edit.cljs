@@ -86,7 +86,7 @@
                            :title (:title doc)
                            :kind (:kind doc)
                            :text (cite/node-text doc)
-                           :references (:references doc)
+                           :source (:source doc)
                            ;; citations present when editing began — to warn if an input
                            ;; reference gets removed before saving.
                            :orig-cites (cite/citations (cite/node-text doc))
@@ -98,7 +98,7 @@
 
 (rf/reg-event-fx ::edit-save
                  (fn [{:keys [db]} _]
-                   (let [{:keys [type id title kind text references orig-cites]} (::edit db)
+                   (let [{:keys [type id title kind text source orig-cites]} (::edit db)
                          removed? (seq (remove (cite/citations text) orig-cites))]
                      (if (and removed?
                               (not (js/confirm (i18n/t (i18n/current db) :cite/removed-warning))))
@@ -110,7 +110,7 @@
                                          ;; (e.g. an article) simply omits it — no type check needed
                                          (cond-> {:title title
                                                   :text text
-                                                  :references (source/strip-display references)}
+                                                  :source (source/strip-source source)}
                                            kind (assoc :kind kind))
                                          [::saved-ok]
                                          [::op-failed])}))))
@@ -130,14 +130,14 @@
 
 (rf/reg-event-fx ::new-submit
                  (fn [{:keys [db]} _]
-                   (let [{:keys [type show-kind? title kind lang text references]} (::new db)]
+                   (let [{:keys [type show-kind? title kind lang text source]} (::new db)]
                      {:db (assoc-in db [::new :submitting?] true)
                       :fetch (json-req :post
                                        (str "/agora/api/" type)
                                        (cond-> {:title title
                                                 :lang (or lang (i18n/current db))
                                                 :text text
-                                                :references (source/strip-display references)}
+                                                :source (source/strip-source source)}
                                          show-kind? (assoc :kind (or kind "inference")))
                                        [::saved-ok]
                                        [::op-failed])})))
@@ -172,17 +172,35 @@
    :border-radius "0.3em"
    :margin-bottom "0.8em"})
 
+(defn- prefix-label
+  "Read-only preview of the kind-guided opening the stored body will follow, derived live
+  from the form's `kind`/`title`/`source` and the authoring user (the source's author when a
+  source is set, else the user). Nothing for the free-form `inference` kind — so the author
+  writes only the body, and the grammar is enforced without being stored."
+  [{:keys [kind title source]} author-name lang]
+  (when-let [p (domain/statement-prefix-of {:kind kind
+                                            :title title
+                                            :source source
+                                            :author author-name}
+                                           lang)]
+    [:div {:style {:font-size "0.9em"
+                   :color "#8a7a55"
+                   :font-style "italic"
+                   :margin-bottom "0.3em"}}
+     p]))
+
 (defn edit-form
   "The central card in edit mode (a new minor): metadata row (kind selector when
   `:show-kind?`, language badge, next-version tag), editable title, byline, the citation
-  editor over the prose, and the references editor — all in place on the card. `cfg` is the
+  editor over the prose, and the source editor — all in place on the card. `cfg` is the
   facade's config (`:labels`, `:show-kind?`)."
   [{doc-name :name
     doc-lang :lang
     :keys [major minor published-at author]}
    {:keys [show-kind? labels]}]
-  (let [{:keys [title kind text references saving? error]} @(rf/subscribe [::edit])
-        lang @(rf/subscribe [::i18n/lang])]
+  (let [{:keys [title kind text source saving? error]} @(rf/subscribe [::edit])
+        lang @(rf/subscribe [::i18n/lang])
+        user @(rf/subscribe [::auth/user])]
     [:article {:style card-style}
      [:div {:style {:display "flex"
                     :align-items "center"
@@ -207,13 +225,14 @@
                       :border "1px solid #eee"
                       :border-radius "0.3em"}}]
      [byline author published-at]
+     [prefix-label {:kind kind :title title :source source} (:display-name user) lang]
      [cite/citation-editor
       text
       #(rf/dispatch [::edit-set :text %])
       (lbl lang labels :text-ph)
       doc-name]
      [:div {:style {:margin-top "0.8em"}}
-      [source/references-editor references #(rf/dispatch [::edit-set :references %])]]
+      [source/source-editor source #(rf/dispatch [::edit-set :source %])]]
      (when error
        [:div {:style {:color "#c92a2a"
                       :font-size "0.85em"
@@ -242,13 +261,13 @@
 (defn create-form
   "Standalone create form driven entirely by the facade's `cfg` (`:type`, `:show-kind?`,
   `:cancel-route`, `:labels`): title, an optional kind selector, language, the citation
-  editor over the prose, and references. `with-let` resets the shared `::new` state on
+  editor over the prose, and its source. `with-let` resets the shared `::new` state on
   mount so switching types never carries stale fields."
   [{:keys [show-kind? cancel-route labels]
     :as cfg}]
   (r/with-let
    [_ (rf/dispatch-sync [::new-reset cfg])]
-   (let [{:keys [title kind text references submitting?]
+   (let [{:keys [title kind text source submitting?]
           form-lang :lang}
          @(rf/subscribe [::new])
          user @(rf/subscribe [::auth/user])
@@ -280,9 +299,11 @@
        [language-selector (or form-lang lang) #(rf/dispatch [::new-set :lang %])]]
       [:div {:style label-style}
        (lbl lang labels :text)]
+      [prefix-label {:kind (or kind "inference") :title title :source source} (:display-name user)
+       lang]
       [cite/citation-editor text #(rf/dispatch [::new-set :text %]) (lbl lang labels :text-ph)]
       [:div {:style {:margin "0.9em 0 0.2em"}}
-       [source/references-editor references #(rf/dispatch [::new-set :references %])]]
+       [source/source-editor source #(rf/dispatch [::new-set :source %])]]
       [:div {:style {:display "flex"
                      :gap "0.5em"
                      :margin-top "0.9em"}}
