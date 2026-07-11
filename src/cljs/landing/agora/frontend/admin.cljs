@@ -2,13 +2,14 @@
   "The admin/maintenance page (`/agora/<lang>/admin`, owner-only): the lineage table, the
   reference-consistency panel, and the prune/compact actions, with their `::admin-*` events."
   (:require
-   [clojure.string              :as str]
-   [landing.agora.frontend.auth :as auth]
-   [landing.agora.frontend.cite :as cite]
-   [landing.agora.frontend.i18n :as i18n]
-   [landing.language            :as language]
-   [re-frame.core               :as rf]
-   [reagent.core                :as r]))
+   [clojure.string                :as str]
+   [landing.agora.document-domain :as domain]
+   [landing.agora.frontend.auth   :as auth]
+   [landing.agora.frontend.cite   :as cite]
+   [landing.agora.frontend.i18n   :as i18n]
+   [landing.language              :as language]
+   [re-frame.core                 :as rf]
+   [reagent.core                  :as r]))
 
 (rf/reg-sub ::admin-tnrs (fn [db _] (:admin-tnrs db)))
 (rf/reg-sub ::admin-issues (fn [db _] (:admin-issues db)))
@@ -122,9 +123,10 @@
   split into a chunked sitemap index (issue #7)."
   [lang n]
   (let [pct (min 100 (/ (* 100.0 n) sitemap-limit))
-        color (cond (>= n sitemap-limit) "#c92a2a"
-                    (>= n sitemap-warn) "#b9770e"
-                    :else "#2f9e44")]
+        color (cond
+                (>= n sitemap-limit) "#c92a2a"
+                (>= n sitemap-warn) "#b9770e"
+                :else "#2f9e44")]
     [:div {:style {:margin "0 0 1.2em"}}
      [:div {:style {:display "flex"
                     :justify-content "space-between"
@@ -147,6 +149,32 @@
                       :color color
                       :margin-top "0.25em"}}
         (i18n/t lang :admin/sitemap-near-limit)])]))
+
+(defn- rebuild-button
+  "Admin: recompute the derived caches (currently the successor index) **now**, instead of
+  waiting for the daily scheduler — issue #70."
+  [lang]
+  (r/with-let [state (r/atom nil)] ; nil | :busy | :done
+              [:div {:style {:margin "0 0 1.4em"}}
+               [:button {:disabled (= @state :busy)
+                         :on-click (fn []
+                                     (reset! state :busy)
+                                     (-> (js/fetch "/agora/api/admin/rebuild"
+                                                   #js {:method "POST"
+                                                        :headers #js {"Accept" "application/json"}})
+                                         (.then (fn [_] (reset! state :done)))
+                                         (.catch (fn [_] (reset! state nil)))))
+                         :style {:padding "0.4em 0.9em"
+                                 :border "1px solid #b9770e"
+                                 :background "#fff"
+                                 :color "#b9770e"
+                                 :border-radius "0.3em"
+                                 :cursor (if (= @state :busy) "default" "pointer")}}
+                (i18n/t lang
+                        (case @state
+                          :busy :admin/rebuild-busy
+                          :done :admin/rebuild-done
+                          :admin/rebuild))]]))
 
 (defn admin-page
   "Maintenance page: every KI lineage (TNR = name + major) with counts, and
@@ -179,6 +207,7 @@
                     :margin "0 0 0.8em"}}
        (i18n/t lang :admin/title)]
       (when (:admin user) [consistency-panel lang issues])
+      (when (:admin user) [rebuild-button lang])
       (when (:admin user) [sitemap-gauge lang (count tnrs)])
       ;; Language filter — defaults to your selected language (so the table matches it);
       ;; "All languages" shows every version and adds a Language column.
@@ -213,51 +242,66 @@
         (empty? shown) [:div {:style {:color "#aaa"
                                       :font-style "italic"}}
                         (i18n/t lang :admin/empty)]
-        :else [:table {:style {:width "100%"
-                               :border-collapse "collapse"}}
-               [:thead
-                [:tr
-                 [:th {:style th}
-                  (i18n/t lang :admin/type)]
-                 [:th {:style th}
-                  (i18n/t lang :form/name)]
-                 (when all?
-                   [:th {:style th}
-                    (i18n/t lang :admin/language)])
-                 [:th {:style th}
-                  (i18n/t lang :admin/major)]
-                 [:th {:style th}
-                  (i18n/t lang :admin/versions)]
-                 [:th {:style th}
-                  (i18n/t lang :admin/latest)]
-                 [:th {:style th}]]]
-               (into [:tbody]
-                     (for [t shown]
-                       ^{:key (str (:type t) "/" (:name t) "/" (:lang t) "/" (:major t))}
-                       [:tr
-                        [:td {:style td}
-                         [:span {:style {:font-size "0.7em"
-                                         :font-weight 700
-                                         :letter-spacing "0.04em"
-                                         :text-transform "uppercase"
-                                         :color "#fff"
-                                         :background
-                                         (if (= "article" (:type t)) "#8a8175" "#2c5aa0")
-                                         :padding "0.15em 0.5em"
-                                         :border-radius "0.25em"}}
-                          (:type t)]]
-                        [:td {:style (assoc td :font-weight 600)}
-                         ;; show the human title (the identity slug is internal); fall back
-                         ;; to the slug only if a row somehow has no title
-                         [cite/node-link t (or (:title t) (:name t))]]
-                        (when all?
-                          [:td {:style td}
-                           (str/upper-case (:lang t))])
-                        [:td {:style td}
-                         (:major t)]
-                        [:td {:style td}
-                         (:versions t)]
-                        [:td {:style td}
-                         (str "v" (:major t) "." (:latest t))]
-                        [:td {:style (assoc td :text-align "right")}
-                         [admin-actions lang confirm t]]]))])])))
+        :else
+        [:table {:style {:width "100%"
+                         :border-collapse "collapse"}}
+         [:thead
+          [:tr
+           [:th {:style th}
+            (i18n/t lang :admin/type)]
+           [:th {:style th}
+            (i18n/t lang :admin/kind)]
+           [:th {:style th}
+            (i18n/t lang :form/name)]
+           (when all?
+             [:th {:style th}
+              (i18n/t lang :admin/language)])
+           [:th {:style th}
+            (i18n/t lang :admin/major)]
+           [:th {:style th}
+            (i18n/t lang :admin/versions)]
+           [:th {:style th}
+            (i18n/t lang :admin/latest)]
+           [:th {:style th}]]]
+         (into
+          [:tbody]
+          (for [t shown]
+            ^{:key (str (:type t) "/" (:name t) "/" (:lang t) "/" (:major t))}
+            [:tr
+             [:td {:style td}
+              [:span {:style {:font-size "0.7em"
+                              :font-weight 700
+                              :letter-spacing "0.04em"
+                              :text-transform "uppercase"
+                              :color "#fff"
+                              :background (if (= "article" (:type t)) "#8a8175" "#2c5aa0")
+                              :padding "0.15em 0.5em"
+                              :border-radius "0.25em"}}
+               (:type t)]]
+             [:td {:style td}
+              ;; the epistemic kind badge (kind colour) — articles have none
+              (when-let [k (:kind t)]
+                [:span {:style {:font-size "0.7em"
+                                :font-weight 700
+                                :letter-spacing "0.04em"
+                                :text-transform "uppercase"
+                                :color "#fff"
+                                :background (get domain/kind-color k "#666")
+                                :padding "0.15em 0.5em"
+                                :border-radius "0.25em"}}
+                 (i18n/t lang (keyword "kind" k))])]
+             [:td {:style (assoc td :font-weight 600)}
+              ;; show the human title (the identity slug is internal); fall back
+              ;; to the slug only if a row somehow has no title
+              [cite/node-link t (or (:title t) (:name t))]]
+             (when all?
+               [:td {:style td}
+                (str/upper-case (:lang t))])
+             [:td {:style td}
+              (:major t)]
+             [:td {:style td}
+              (:versions t)]
+             [:td {:style td}
+              (str "v" (:major t) "." (:latest t))]
+             [:td {:style (assoc td :text-align "right")}
+              [admin-actions lang confirm t]]]))])])))

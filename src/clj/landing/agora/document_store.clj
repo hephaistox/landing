@@ -289,3 +289,26 @@
     (index-successors! id (:inputs (decode-content content))))
   (clear-caches!)
   :ok)
+
+(defn rebuild-pins!
+  "Recompute every document's `computed.:pins` from its declared `content.:inputs` — exactly
+  what `insert-document!` does on write — healing any pin drift (e.g. a successor whose
+  `repin-successors!` was missed while the reverse index was stale). Independent of
+  AGORA_SUCCESSOR: each doc's pins are resolved straight from its own inputs via `latest-of`,
+  so it needs no prior successor rebuild. Only rows whose pins actually change are written.
+  Drops the caches. Returns the number of documents re-pinned."
+  []
+  (let [changed (reduce (fn [n {:keys [id content computed]}]
+                          (let [pins (decode-pins computed)
+                                pins' (domain/pin-all (:inputs (decode-content content)) latest-of)]
+                            (if (= pins pins')
+                              n
+                              (do (q! db/ds
+                                      ["UPDATE AGORA_DOCUMENT SET computed = ? WHERE id = ?"
+                                       (encode-pins pins')
+                                       id])
+                                  (inc n)))))
+                        0
+                        (q! db/ds ["SELECT id, content, computed FROM AGORA_DOCUMENT"] kebab))]
+    (clear-caches!)
+    changed))

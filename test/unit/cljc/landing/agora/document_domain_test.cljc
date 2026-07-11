@@ -85,3 +85,7 @@
             {:tnlr t-b
              :successor-id "s"}]
            (sut/successor-tuples "s" [t-a t-b])))))
+
+(deftest slugify-test
+  (is (= "le-chien" (sut/slugify "Le chien")))
+  (is (= "l-avocat-est-il-mangeable" (sut/slugify "L'avocat est-il mangeable?"))))

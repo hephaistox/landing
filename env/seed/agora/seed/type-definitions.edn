@@ -1,32 +1,64 @@
 ;; Canonical definitions of the epistemic KI *types*, seeded as `definition`-kind KIs
 ;; (slug `type-<kind>`, major 1) so each type is itself described by a KI the kind
-;; badge links to. French only for now — English translations added later.
-;; Keyed by the kind id (see landing.agora.document-domain/kinds).
-{:belief
- {:statement
-  "Un fondement déclaré, dans un registre personnel, philosophique ou spirituel. Des croyances incompatibles coexistent durablement : la plateforme rend le désaccord lisible plutôt que d'imposer une résolution qui n'existe pas."
-  :title "Croyance"}
- :credo
- {:statement
-  "Un fondement déclaré, dans un registre proche du manifeste : conviction forte, presque militante. Il invite à la confrontation des valeurs plutôt qu'à la contestation logique."
-  :title "Credo"}
+;; badge links to. Keyed by the kind id, then by language (`"fr"` / `"en"`) — each language
+;; is seeded as a sibling KI sharing the `type-<kind>` name (translation-by-name).
+;;
+;; Each `:statement` completes the hard-coded definition prefix — the page renders
+;; "<title> est un mot qui signifie <statement>" / "<title> is a word meaning <statement>"
+;; (document-domain/compose-statement) — so its first paragraph is the *definiens* (lower-case,
+;; grammatically continuing the connector). A **second paragraph** (blank-line separated) says
+;; how a KI of that kind can be objected to.
+{:assumption
+ {"en"
+  {:statement
+   "a foundation declared provisionally: a supposition granted for the sake of the reasoning, without claiming it is true.\n\nIt is not refuted directly: you relax it or swap in a different supposition, then watch how the conclusions that depend on it are affected."
+   :title "Assumption"}
+  "fr"
+  {:statement
+   "un fondement déclaré à titre provisoire : une supposition admise pour les besoins du raisonnement, sans prétendre qu'elle soit vraie.\n\nOn ne la réfute pas directement : on la relâche ou on lui substitue une supposition différente, puis on observe comment les conclusions qui en dépendent s'en trouvent affectées."
+   :title "Supposition"}}
+ :belief
+ {"en"
+  {:statement
+   "a foundation you hold as given and stand by, whatever the register — personal, philosophical, civic or formal.\n\nIt is not refuted by counterexample: a belief is contested only by an incompatible belief, and the platform keeps the rival variants with their objection histories rather than forcing a resolution that does not exist."
+   :title "Belief"}
+  "fr"
+  {:statement
+   "un fondement que l'on tient pour acquis et que l'on assume, quel qu'en soit le registre — personnel, philosophique, civique ou formel.\n\nOn ne la réfute pas par contre-exemple : une croyance ne se conteste que par une croyance incompatible, et la plateforme conserve les variantes rivales avec leur histoire d'objections plutôt que d'imposer une résolution qui n'existe pas."
+   :title "Croyance"}}
  :definition
- {:statement
-  "Un Knowledge Item dont la sortie est un contrat sémantique : il fixe ce qu'un terme signifie dans le graphe. Les définitions sont elles-mêmes contestables — on peut montrer qu'un terme est ambigu ou qu'une définition exclut des cas pertinents. Les termes clés des autres KI renvoient à leur définition."
-  :title "Définition"}
+ {"en"
+  {:statement
+   "a semantic contract that fixes the meaning of a term in the graph; the key terms of other statements link to it.\n\nA definition is not contested in itself: you set a different definition of the same word against it. The graph then surfaces the ambiguity — several competing definitions for one term — instead of deciding."
+   :title "Definition"}
+  "fr"
+  {:statement
+   "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient.\n\nUne définition ne se conteste pas en elle-même : on lui oppose une autre définition du même mot. Le graphe fait alors apparaître l'ambiguïté — plusieurs définitions concurrentes pour un terme — au lieu de trancher."
+   :title "Définition"}}
  :inference
- {:statement
-  "Un savoir dérivé : à partir d'entrées tenues pour vraies, une conséquence logique s'ensuit. C'est le cas standard d'un Knowledge Item. On le conteste par contre-exemple ou par objection d'ambiguïté ; sa confiance reflète la manière dont sa chaîne de raisonnement a résisté à l'examen."
-  :title "Inférence"}
- :position
- {:statement
-  "Un fondement déclaré, dans un registre civique, politique ou argumentatif : une position prise. Elle ne se conteste pas par contre-exemple mais par une position incompatible, chaque camp conservant sa propre histoire d'objections."
-  :title "Position"}
- :postulate
- {:statement
-  "Un fondement déclaré, dans un registre formel, scientifique ou mathématique. Sans entrées, il n'est pas ancré dans une réalité observable et ne peut être falsifié par contre-exemple : il ne se conteste que par un fondement incompatible."
-  :title "Postulat"}
+ {"en"
+  {:statement
+   "derived knowledge: from inputs held to be true, a logical consequence follows.\n\nIt is contested by counterexample — a case where the implication fails — or by an ambiguity objection on one of its terms; its confidence reflects how well its chain of reasoning has withstood scrutiny."
+   :title "Inference"}
+  "fr"
+  {:statement
+   "un savoir dérivé : à partir d'entrées tenues pour vraies, une conséquence logique s'ensuit.\n\nOn la conteste par contre-exemple — un cas où l'implication échoue — ou par une objection d'ambiguïté sur l'un de ses termes ; sa confiance reflète la résistance de sa chaîne de raisonnement à l'examen."
+   :title "Inférence"}}
  :prediction
- {:statement
-  "Un savoir vérifiable : sa vérité sera tranchée par un événement observable, éventuellement à une date future. Avant résolution, les objections portent sur la solidité du raisonnement ; à la résolution, la réalité tranche et le débat se clôt — confirmé ou réfuté, quelle que soit la confiance de la communauté."
-  :title "Prédiction"}}
+ {"en"
+  {:statement
+   "verifiable knowledge whose truth will be settled by an observable event, possibly in the future.\n\nBefore resolution, objections bear on the soundness of the reasoning; at resolution, reality decides and the debate closes — confirmed or refuted, whatever the community's confidence."
+   :title "Prediction"}
+  "fr"
+  {:statement
+   "un savoir vérifiable dont la vérité sera tranchée par un événement observable, éventuellement futur.\n\nAvant résolution, les objections portent sur la solidité du raisonnement ; à la résolution, la réalité tranche et le débat se clôt — confirmé ou réfuté, quelle que soit la confiance de la communauté."
+   :title "Prédiction"}}
+ :source
+ {"en"
+  {:statement
+   "an external cited work — book, article, page… — serving as bibliographic provenance: not a reasoning step but a shared document (title, author, year, editor, URL) that one work reuses across several citations, each giving its own location (page, chapter, verse).\n\nIt is not contested like a piece of reasoning: you can discuss its accuracy, the edition chosen, or the attribution, but the work itself remains a shared provenance."
+   :title "Source"}
+  "fr"
+  {:statement
+   "une œuvre externe citée — livre, article, page… — servant de provenance bibliographique : non pas une étape de raisonnement, mais un document partagé (titre, auteur, année, éditeur, URL) qu'un même ouvrage réutilise à travers plusieurs citations, chacune précisant sa localisation (page, chapitre, verset).\n\nOn ne la conteste pas comme un raisonnement : on peut en discuter l'exactitude, l'édition retenue ou l'attribution, mais l'œuvre elle-même reste une provenance partagée."
+   :title "Source"}}}

@@ -4,10 +4,10 @@
   the graph self-hosting its own vocabulary: `type-inference`, `type-definition`, … are
   ordinary nodes, versionable and citable like any other.
 
-  Idempotent: a type whose `type-<kind>` lineage already exists (in any language, per the
-  engine's cross-language fallback) is left untouched, so re-running only fills gaps.
-  French only for now; English titles/statements are added later via the normal
-  translate flow.
+  Idempotent per (type, language): a `type-<kind>` in a language that already exists is left
+  untouched, so re-running only fills gaps. Seeded in **French and English** (see
+  `type-definitions.edn`); each language is a sibling KI sharing the `type-<kind>` name
+  (translation-by-name), so a reader gets the definition in their own language.
 
   Lives in the `env/seed` environment (not `src`), added to the classpath by the
   `:env-seed` alias. Dev points at the shared **production** MySQL, so run it from a
@@ -24,10 +24,13 @@
    [landing.agora.document-store  :as store]))
 
 (def ^:private defs
-  "kind keyword → {:title :statement} (French), read from the seed resource."
+  "kind keyword → {lang → {:title :statement}}, read from the seed resource."
   (edn/read-string (slurp (io/resource "agora/seed/type-definitions.edn"))))
 
-(def ^:private lang "fr")
+(def ^:private langs
+  "Languages a type-definition is seeded in — each a sibling KI sharing the `type-<kind>` name
+  (translation-by-name)."
+  ["fr" "en"])
 
 (defn seed!
   "Insert a `definition` KI for every epistemic kind that doesn't yet have one, and
@@ -36,11 +39,14 @@
   (let [agora (auth/find-or-create-external! "Agora")
         created (doall
                  (for [{kw :id} domain/kinds
+                       lang langs
                        :let [{slug :name
                               mj :major}
                              (get domain/kind-def (name kw))
-                             {:keys [title statement]} (get defs kw)]
-                       :when (and title (nil? (store/resolve-latest-id "ki" slug mj lang)))]
+                             {:keys [title statement]} (get-in defs [kw lang])]
+                       ;; EXACT-language existence — `resolve-latest-id` would cross-language
+                       ;; fall back (and, having just seeded `fr`, wrongly skip `en`)
+                       :when (and title (not (store/lang-exists? "ki" slug mj lang)))]
                    (do (store/insert-document! {:id (store/uuid)
                                                 :type "ki"
                                                 :name slug
@@ -55,7 +61,7 @@
                                                 :author (:display-name agora)
                                                 :owner-id (:id agora)
                                                 :published-at (store/now-iso)})
-                       slug)))]
+                       [slug lang])))]
     (store/clear-caches!)
     (vec created)))
 

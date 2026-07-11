@@ -123,7 +123,9 @@
                       :font-size "0.9em"
                       :flex-wrap "wrap"}}
         (link (i18n/t lang :nav/discover-ki) (i18n/discover lang))
-        (link (i18n/t lang :nav/discover-articles) (i18n/articles lang))])
+        (link (i18n/t lang :nav/discover-articles) (i18n/articles lang))
+        (link (i18n/t lang :nav/authors) (i18n/authors lang))
+        (link (i18n/t lang :nav/sources) (i18n/sources lang))])
      [:div {:class "agora-header__search"}
       [search-box]]
      [:div {:class "agora-header__auth"}

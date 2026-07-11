@@ -19,6 +19,7 @@
    [landing.agora.frontend.chrome           :as chrome]
    [landing.agora.frontend.document-page    :as document-page]
    [landing.agora.frontend.edit             :as edit]
+   [landing.agora.frontend.find-page        :as find-page]
    [landing.agora.frontend.i18n             :as i18n]
    [landing.agora.frontend.ki-page          :as ki-page]
    [landing.agora.frontend.landing          :as landing]
@@ -37,8 +38,12 @@
    :article "/agora/api/article/"})
 
 (def ^:private cache-ttl-ms
-  "How long a cached resource stays fresh before it is refetched (4 hours)."
-  (* 4 60 60 1000))
+  "How long a cached resource stays fresh before it is refetched. Kept short: documents are
+  edited (each edit is a new minor), and the cache holds both the focal view and neighbour
+  previews — a long TTL means a stale permalink/preview until a hard refresh. A local edit
+  busts its whole lineage immediately (see `cache-evict-lineage`); this TTL only bounds how
+  long an edit made *elsewhere* (another tab/user) can look stale."
+  (* 30 1000))
 
 (defn path->route
   "Parse an Agora SPA path into {:kind …}, or nil when it is not an Agora route
@@ -56,6 +61,12 @@
     (re-find #"^/agora/([a-z]{2})/articles/?(?:[?#].*)?$" path)
     {:kind :articles
      :lang (second (re-find #"^/agora/([a-z]{2})/articles" path))}
+    (re-find #"^/agora/([a-z]{2})/authors/?(?:[?#].*)?$" path)
+    {:kind :authors
+     :lang (second (re-find #"^/agora/([a-z]{2})/authors" path))}
+    (re-find #"^/agora/([a-z]{2})/sources/?(?:[?#].*)?$" path)
+    {:kind :sources
+     :lang (second (re-find #"^/agora/([a-z]{2})/sources" path))}
     (re-find #"^/agora/([a-z]{2})/article/new/?(?:[?#].*)?$" path)
     {:kind :article-new
      :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
@@ -123,6 +134,20 @@
            (if (> (count entries) cache-max-entries)
              (into {} (take-last cache-max-entries (sort-by (comp :at val) entries)))
              entries))))
+
+(defn- cache-evict-lineage
+  "Drop every cached entry belonging to the same lineage as `doc` — same (type, name, major),
+  any minor / id / language / cache key. Used after a local write so the focal view, the
+  permalink (`[:*-public …]`), the neighbour previews and the old-minor id all refetch fresh
+  instead of serving the pre-edit version until the TTL lapses."
+  [db {:keys [type name major]}]
+  (update db
+          :cache
+          (fn [cache]
+            (into {}
+                  (remove (fn [[_ {d :data}]]
+                            (and (= (:type d) type) (= (:name d) name) (= (:major d) major))))
+                  cache))))
 
 ;; ---------------------------------------------------------------------------
 ;; State
@@ -303,6 +328,17 @@
        :home (route-changed-fetch-list db (i18n/current db) :home)
        :discover (route-changed-fetch-list db (i18n/current db) :discover)
        :articles (route-changed-fetch-article-list db (i18n/current db))
+       ;; the browse-by-author / browse-by-source views self-fetch (local search state)
+       :authors {:db (assoc db
+                            :view {:kind :authors
+                                   :data nil}
+                            :loading? false
+                            :error nil)}
+       :sources {:db (assoc db
+                            :view {:kind :sources
+                                   :data nil}
+                            :loading? false
+                            :error nil)}
        :article-new {:db (assoc db
                                 :view {:kind :article-new
                                        :data nil}
@@ -420,6 +456,9 @@
                          id (:id doc)]
                      {:db (-> db
                               (edit/close-panels)
+                              ;; bust the whole lineage first (old minor + permalink + previews),
+                              ;; then cache the freshly saved version by its new id
+                              (cache-evict-lineage doc)
                               (cache-put [(keyword type) id] doc))
                       :agora/navigate (i18n/doc-url (i18n/current db) type id)})))
 
@@ -579,6 +618,8 @@
       (= kind :new) [ki-page/create-form]
       (= kind :article-new) [article-page/create-form]
       (= kind :preferences) [preferences-page/preferences-page]
+      (= kind :authors) [find-page/authors-page]
+      (= kind :sources) [find-page/sources-page]
       (= kind :admin) [admin/admin-page]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.

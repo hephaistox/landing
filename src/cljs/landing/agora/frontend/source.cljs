@@ -1,16 +1,18 @@
 (ns landing.agora.frontend.source
-  "The one bibliographic source of a document — authoring + display, shared by the KI and
-  article forms.
+  "Bibliographic sources — authoring + display. Two roles (see agora/CLAUDE.md §Sources):
 
-  A document cites **at most one** source (`{:id :title :year :editor :author-name
-  :author-id :locator}`) — a source *work* document, `:id` = its cid, plus a `:locator`
-  (page/entry).
-  Two sources are two pieces of knowledge → two documents; combining them is an inference
-  that stands apart. Three ways to set it: a **recent-source chip** (one click), the
-  **\"Find a source\" search modal** (author/title/year filters), or **creating a new
-  source** (with an author person-picker). `strip-source` reduces it to the
-  `{:source-id :locator}` the API stores. Low-level (no dependency on the page
-  namespaces), like `cite`."
+   1. **A source-editor for a `kind=source` KI** (a *quotation*): pick/create the shared
+      **work** (`AGORA_SOURCE` — author / title / year / editor / url) via the `\"Find a
+      source\" search modal` (or a recent chip), plus this quotation's own `:locator`.
+      `strip-source` reduces it to the `{:source-id :locator}` the API stores. Shown by the
+      forms **only when kind=source** — other KIs never *attach* a source.
+
+   2. **Quotes for a KI that quotes sources**: a KI relates to a source by *quoting* a
+      `kind=source` KI (an edge-only input; `cite`'s search box routes such a pick to
+      `on-quote`). `add-quote`/`strip-quotes` manage the list, `quotes-list` renders the
+      authoring chips, `quotes-view` the read-page list (title · work-author · locator).
+
+  Low-level (no dependency on the page namespaces), like `cite`."
   (:require
    [clojure.string                    :as str]
    [landing.agora.frontend.i18n       :as i18n]
@@ -29,6 +31,25 @@
     {:source-id (:id src)
      :locator (:locator src)}
     {:source-id ""}))
+
+;; --- quotes (a KI quoting kind=source KIs) ----------------------------------
+(defn strip-quotes
+  "Reduce the editor's quotes (resolved source-KIs) to the `[{:name :major}…]` the API stores
+  (they become edge-only inputs)."
+  [quotes]
+  (mapv #(select-keys % [:name :major]) (or quotes [])))
+
+(defn add-quote
+  "Add a picked source-KI (a search-result card) to `quotes`, deduped by (name, major).
+  Keeps display fields (`:title`, work `:author-name`) for the chip; `strip-quotes` drops them."
+  [quotes k]
+  (let [q {:name (:name k)
+           :major (:major k)
+           :title (:title k)
+           :author-name (:author-name (:source k))}]
+    (if (some #(and (= (:name %) (:name q)) (= (:major %) (:major q))) quotes)
+      (vec quotes)
+      (conj (vec quotes) q))))
 
 ;; --- tiny fetch helpers (raw fetch, like cite.cljs) -------------------------
 (defn- GET*
@@ -146,7 +167,8 @@
                                      :display-name (:author-name s)})
                      (reset! draft {:title (:title s)
                                     :year (str (or (:year s) ""))
-                                    :editor (or (:editor s) "")}))]
+                                    :editor (or (:editor s) "")
+                                    :url (or (:url s) "")}))]
     (fn [on-pick on-close]
       (let [lang @(rf/subscribe [::i18n/lang])
             run-search (fn []
@@ -290,6 +312,11 @@
                        :style field
                        :value (or (:editor @draft) "")
                        :on-change #(swap! draft assoc :editor (.. % -target -value))}]]
+             [:input {:type "url"
+                      :placeholder (i18n/t lang :source/url-ph)
+                      :style (assoc field :margin-bottom "0.7em")
+                      :value (or (:url @draft) "")
+                      :on-change #(swap! draft assoc :url (.. % -target -value))}]
              [:button
               {:disabled (or @busy? (nil? @author) (str/blank? (:title @draft)))
                :style {:padding "0.45em 1em"
@@ -307,7 +334,8 @@
                         {:person-id (:id @author)
                          :title (:title @draft)
                          :year (let [y (:year @draft)] (when-not (str/blank? y) (js/parseInt y 10)))
-                         :editor (:editor @draft)}
+                         :editor (:editor @draft)
+                         :url (:url @draft)}
                         (fn [s] (reset! busy? false) (reset! editing-id nil) (on-pick s))))}
               (i18n/t lang (if @editing-id :source/save :source/add))]])]]))))
 
@@ -381,10 +409,45 @@
             (fn [s] (set-source! (assoc s :locator "")) (reset! open? false))
             #(reset! open? false)])]))))
 
+;; --- quotes chosen while authoring ------------------------------------------
+(defn quotes-list
+  "The source quotes chosen for a document (authoring): each shows the quoted source-KI's title
+  + its work author, with a remove ✕. Adding is done via the citation search box (`on-quote`)."
+  [quotes set-quotes!]
+  (when (seq quotes)
+    (let [lang @(rf/subscribe [::i18n/lang])
+          qs (vec quotes)]
+      [:div {:style {:margin "0.4em 0"}}
+       [:div {:style {:font-size "0.8em"
+                      :color "#555"
+                      :margin-bottom "0.2em"}}
+        (i18n/t lang :quote/heading)]
+       (into [:div]
+             (for [[i q] (map-indexed vector qs)]
+               ^{:key (str (:name q) "-" i)}
+               [:div {:style {:display "flex"
+                              :align-items "center"
+                              :gap "0.5em"
+                              :margin-bottom "0.25em"}}
+                [:span {:style {:flex "1 1 auto"
+                                :font-size "0.88em"}}
+                 "❝ "
+                 (:title q)
+                 (when (:author-name q)
+                   [:span {:style {:color "#8a7a55"}}
+                    (str " — " (:author-name q))])]
+                [:button {:title (i18n/t lang :ref/remove)
+                          :on-click #(set-quotes! (into (subvec qs 0 i) (subvec qs (inc i))))
+                          :style {:border "none"
+                                  :background "transparent"
+                                  :color "#c92a2a"
+                                  :cursor "pointer"}}
+                 "✕"]]))])))
+
 ;; --- read-only display on the page ------------------------------------------
 (defn source-view
   "Render a document's one resolved source under the card (author → profile link,
-  title, year, editor, locator). Nothing when there is none."
+  title, year, editor, locator, and a link when the work has a URL). Nothing when none."
   [src]
   (when (:id src)
     (let [lang @(rf/subscribe [::i18n/lang])]
@@ -413,4 +476,46 @@
         (when-not (str/blank? (:editor src)) (str " · " (:editor src)))
         (when-not (str/blank? (:locator src))
           [:span {:style {:color "#888"}}
-           (str " — " (:locator src))])]])))
+           (str " — " (:locator src))])
+        (when-not (str/blank? (:url src))
+          [:span
+           " · "
+           [:a {:href (:url src)
+                :target "_blank"
+                :rel "noopener noreferrer"
+                :style {:color "#b9770e"
+                        :text-decoration "none"}}
+            (i18n/t lang :source/link)]])]])))
+
+(defn quotes-view
+  "Read display of the source-KIs a document **quotes** — each links to the quotation (a
+  `kind=source` KI) and shows its work author + locator. Nothing when none."
+  [quotes]
+  (when (seq quotes)
+    (let [lang @(rf/subscribe [::i18n/lang])]
+      [:div {:style {:margin-top "1.1em"}}
+       [:div {:style {:font-weight 700
+                      :color "#8a7a55"
+                      :font-size "0.82em"
+                      :text-transform "uppercase"
+                      :letter-spacing "0.04em"
+                      :margin-bottom "0.35em"}}
+        (i18n/t lang :quote/heading)]
+       (into [:ul {:style {:margin 0
+                           :padding-left "1.2em"
+                           :color "#555"
+                           :font-size "0.9em"
+                           :line-height "1.5"}}]
+             (for [q quotes]
+               ^{:key (str (:name q) "-" (:major q))}
+               [:li
+                "❝ "
+                [:a {:href (i18n/ki lang q)
+                     :style {:color "#b9770e"
+                             :text-decoration "none"
+                             :font-weight 600}}
+                 (:title q)]
+                (when-not (str/blank? (:author-name q)) (str " — " (:author-name q)))
+                (when-not (str/blank? (:locator q))
+                  [:span {:style {:color "#888"}}
+                   (str " (" (:locator q) ")")])]))])))

@@ -60,8 +60,7 @@
      (i18n/t lang :home/cta-publish)]]
    [:div {:style {:margin-top "1.3em"
                   :font-size "0.82em"
-                  :color "#8f8776"}}
-    (i18n/t lang :home/trust)]])
+                  :color "#8f8776"}}]])
 
 (defn- landing-spotlight
   "A live example — one real KI from the graph, rendered prominently so a first-time

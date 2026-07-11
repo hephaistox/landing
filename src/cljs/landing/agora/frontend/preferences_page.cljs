@@ -13,7 +13,6 @@
   [lang provider]
   (case provider
     "google" "Google"
-    "facebook" "Facebook"
     (i18n/t lang :prefs/via-password)))
 
 (defn- pref-field

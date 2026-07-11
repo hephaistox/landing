@@ -56,6 +56,16 @@
                      {:status 200
                       :body {:deleted (document/compact-tnr! type name lang major)}})))))
 
+(def rebuild-handler
+  ;; Recompute the derived caches on demand instead of waiting for the daily scheduler. Today
+  ;; the only derived cache is the successor index (`AGORA_SUCCESSOR`); add others here if any.
+  (fn [req]
+    (admin-guard req
+                 (fn []
+                   (document/rebuild-successor-index!)
+                   {:status 200
+                    :body {:rebuilt true}}))))
+
 (defn admin-routes
   [prefix]
   [prefix {:coercion coercion
@@ -84,4 +94,8 @@
     {:post {:handler compact-tnr-handler
             :operationId "agora-admin-compact-tnr"
             :parameters {:body tnr-ref}
-            :summary "Keep only the latest minor per language of a lineage"}}]])
+            :summary "Keep only the latest minor per language of a lineage"}}]
+   ["/rebuild"
+    {:post {:handler rebuild-handler
+            :operationId "agora-admin-rebuild"
+            :summary "Recompute derived caches now (the successor index)"}}]])

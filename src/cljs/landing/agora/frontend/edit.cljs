@@ -87,6 +87,8 @@
                            :kind (:kind doc)
                            :text (cite/node-text doc)
                            :source (:source doc)
+                           ;; the quoted source-KIs (edge-only inputs) — resubmitted on save
+                           :quotes (vec (:quotes doc))
                            ;; citations present when editing began — to warn if an input
                            ;; reference gets removed before saving.
                            :orig-cites (cite/citations (cite/node-text doc))
@@ -98,7 +100,7 @@
 
 (rf/reg-event-fx ::edit-save
                  (fn [{:keys [db]} _]
-                   (let [{:keys [type id title kind text source orig-cites]} (::edit db)
+                   (let [{:keys [type id title kind text source quotes orig-cites]} (::edit db)
                          removed? (seq (remove (cite/citations text) orig-cites))]
                      (if (and removed?
                               (not (js/confirm (i18n/t (i18n/current db) :cite/removed-warning))))
@@ -110,7 +112,8 @@
                                          ;; (e.g. an article) simply omits it — no type check needed
                                          (cond-> {:title title
                                                   :text text
-                                                  :source (source/strip-source source)}
+                                                  :source (source/strip-source source)
+                                                  :quotes (source/strip-quotes quotes)}
                                            kind (assoc :kind kind))
                                          [::saved-ok]
                                          [::op-failed])}))))
@@ -130,14 +133,15 @@
 
 (rf/reg-event-fx ::new-submit
                  (fn [{:keys [db]} _]
-                   (let [{:keys [type show-kind? title kind lang text source]} (::new db)]
+                   (let [{:keys [type show-kind? title kind lang text source quotes]} (::new db)]
                      {:db (assoc-in db [::new :submitting?] true)
                       :fetch (json-req :post
                                        (str "/agora/api/" type)
                                        (cond-> {:title title
                                                 :lang (or lang (i18n/current db))
                                                 :text text
-                                                :source (source/strip-source source)}
+                                                :source (source/strip-source source)
+                                                :quotes (source/strip-quotes quotes)}
                                          show-kind? (assoc :kind (or kind "inference")))
                                        [::saved-ok]
                                        [::op-failed])})))
@@ -152,6 +156,72 @@
                        {:db (dissoc db ::new)
                         :dispatch [:agora/saved doc]}
                        {:db (update db ::edit assoc :saving? false :error resp)}))))
+
+;; --- admin maintenance from the edit card ----------------------------------
+;; Owner-only: delete the whole lineage, or keep only its latest version (compact). Both
+;; target the lineage (type,name,lang,major) via the admin endpoints, then leave the editor —
+;; a drop goes to discover (the document is gone), a compact returns to the (still-live)
+;; document's permalink.
+(rf/reg-event-fx ::admin-drop
+                 (fn [_ [_ type doc-name lang major]]
+                   {:fetch (json-req :post
+                                     "/agora/api/admin/drop-tnr"
+                                     {:type type
+                                      :name doc-name
+                                      :lang lang
+                                      :major major}
+                                     [::admin-left type doc-name lang major :drop]
+                                     [::op-failed])}))
+
+(rf/reg-event-fx ::admin-compact
+                 (fn [_ [_ type doc-name lang major]]
+                   {:fetch (json-req :post
+                                     "/agora/api/admin/compact-tnr"
+                                     {:type type
+                                      :name doc-name
+                                      :lang lang
+                                      :major major}
+                                     [::admin-left type doc-name lang major :compact]
+                                     [::op-failed])}))
+
+(rf/reg-event-fx ::admin-left
+                 (fn [{:keys [db]} [_ type doc-name _lang major action]]
+                   {:db (close-panels db)
+                    :agora/navigate (if (= action :drop)
+                                      (i18n/discover (i18n/current db))
+                                      (i18n/doc-permalink (i18n/current db)
+                                                          type
+                                                          {:name doc-name
+                                                           :major major}))}))
+
+(defn admin-actions
+  "Owner-only maintenance for a document, shown on the **read view** so an admin acts without
+  entering edit mode: *keep last version* (compact — drop earlier versions) or *delete* the
+  whole lineage. `doc` supplies the identity (`:type :name :lang :major`). Renders nothing for
+  non-admins."
+  [{doc-type :type
+    doc-name :name
+    doc-lang :lang
+    :keys [major]}]
+  (when @(rf/subscribe [::auth/admin?])
+    (let [lang @(rf/subscribe [::i18n/lang])
+          btn (fn [border-color confirm-key label-key event]
+                [:button {:on-click #(when (js/confirm (i18n/t lang confirm-key))
+                                       (rf/dispatch [event doc-type doc-name doc-lang major]))
+                          :style {:padding "0.3em 0.7em"
+                                  :border (str "1px solid " border-color)
+                                  :background "#fff"
+                                  :color border-color
+                                  :border-radius "0.3em"
+                                  :cursor "pointer"
+                                  :font-size "0.85em"}}
+                 (i18n/t lang label-key)])]
+      [:div {:style {:display "flex"
+                     :gap "0.5em"
+                     :justify-content "flex-end"
+                     :margin-top "1.2em"}}
+       (btn "#b9770e" :edit/keep-last-confirm :edit/keep-last ::admin-compact)
+       (btn "#c92a2a" :edit/delete-confirm :edit/delete ::admin-drop)])))
 
 ;; ===========================================================================
 ;; Components
@@ -177,10 +247,11 @@
   from the form's `kind`/`title`/`source` and the authoring user (the source's author when a
   source is set, else the user). Nothing for the free-form `inference` kind — so the author
   writes only the body, and the grammar is enforced without being stored."
-  [{:keys [kind title source]} author-name lang]
+  [{:keys [kind title source quotes]} author-name lang]
   (when-let [p (domain/statement-prefix-of {:kind kind
                                             :title title
                                             :source source
+                                            :quote-author-name (:author-name (first quotes))
                                             :author author-name}
                                            lang)]
     [:div {:style {:font-size "0.9em"
@@ -198,7 +269,7 @@
     doc-lang :lang
     :keys [major minor published-at author]}
    {:keys [show-kind? labels]}]
-  (let [{:keys [title kind text source saving? error]} @(rf/subscribe [::edit])
+  (let [{:keys [title kind text source quotes saving? error]} @(rf/subscribe [::edit])
         lang @(rf/subscribe [::i18n/lang])
         user @(rf/subscribe [::auth/user])]
     [:article {:style card-style}
@@ -225,14 +296,26 @@
                       :border "1px solid #eee"
                       :border-radius "0.3em"}}]
      [byline author published-at]
-     [prefix-label {:kind kind :title title :source source} (:display-name user) lang]
+     [prefix-label {:kind kind
+                    :title title
+                    :source source
+                    :quotes quotes}
+      (:display-name user)
+      ;; the doc's content language (not the interface lang) — the prefix is part of the text
+      doc-lang]
      [cite/citation-editor
       text
       #(rf/dispatch [::edit-set :text %])
       (lbl lang labels :text-ph)
-      doc-name]
-     [:div {:style {:margin-top "0.8em"}}
-      [source/source-editor source #(rf/dispatch [::edit-set :source %])]]
+      doc-name
+      (domain/kind-allows-inputs? kind)
+      #(rf/dispatch [::edit-set :quotes (source/add-quote quotes %)])]
+     [source/quotes-list quotes #(rf/dispatch [::edit-set :quotes %])]
+     ;; only a source-KI carries a `:source` (a reference to its shared work) — offer the
+     ;; source picker just for that kind; other KIs relate to sources by *quoting* them (above)
+     (when (= kind "source")
+       [:div {:style {:margin-top "0.8em"}}
+        [source/source-editor source #(rf/dispatch [::edit-set :source %])]])
      (when error
        [:div {:style {:color "#c92a2a"
                       :font-size "0.85em"
@@ -267,7 +350,7 @@
     :as cfg}]
   (r/with-let
    [_ (rf/dispatch-sync [::new-reset cfg])]
-   (let [{:keys [title kind text source submitting?]
+   (let [{:keys [title kind text source quotes submitting?]
           form-lang :lang}
          @(rf/subscribe [::new])
          user @(rf/subscribe [::auth/user])
@@ -299,11 +382,24 @@
        [language-selector (or form-lang lang) #(rf/dispatch [::new-set :lang %])]]
       [:div {:style label-style}
        (lbl lang labels :text)]
-      [prefix-label {:kind (or kind "inference") :title title :source source} (:display-name user)
-       lang]
-      [cite/citation-editor text #(rf/dispatch [::new-set :text %]) (lbl lang labels :text-ph)]
-      [:div {:style {:margin "0.9em 0 0.2em"}}
-       [source/source-editor source #(rf/dispatch [::new-set :source %])]]
+      [prefix-label {:kind (or kind "inference")
+                     :title title
+                     :source source
+                     :quotes quotes}
+       (:display-name user)
+       ;; the content language being authored (the selected form language), not the interface
+       (or form-lang lang)]
+      [cite/citation-editor
+       text
+       #(rf/dispatch [::new-set :text %])
+       (lbl lang labels :text-ph)
+       nil
+       (domain/kind-allows-inputs? (or kind "inference"))
+       #(rf/dispatch [::new-set :quotes (source/add-quote quotes %)])]
+      [source/quotes-list quotes #(rf/dispatch [::new-set :quotes %])]
+      (when (= kind "source")
+        [:div {:style {:margin "0.9em 0 0.2em"}}
+         [source/source-editor source #(rf/dispatch [::new-set :source %])]])
       [:div {:style {:display "flex"
                      :gap "0.5em"
                      :margin-top "0.9em"}}

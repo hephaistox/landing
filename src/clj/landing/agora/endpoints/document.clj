@@ -48,15 +48,22 @@
 (def ^:private kind-enum (into [:enum] (map name domain/kind-ids)))
 (def ^:private input-ref-schema [:map [:name name-schema] [:major :int]])
 
-;; A document cites at most **one** source (a `type="source"` document) + a locator
-;; (page/chapter/line). The client sends `{:source-id :locator}` (source-id = the source
-;; work's cid); `document/create`/`edit` store it as a reference `{:name :major :locator}` in
-;; `content.:source`, resolved on read. A blank `:source-id` clears it; absent (nil) carries
-;; the old reference forward on edit.
+;; `:source` — only a `kind=source` KI (a quotation) carries one: a reference to its shared
+;; **source** work (`AGORA_SOURCE`) plus this quotation's own locator (page/chapter/line/entry).
+;; The client sends `{:source-id :locator}`; a blank `:source-id` clears it.
 (def ^:private source-schema
   [:map
    [:source-id [:string {:max 64}]]
-   [:locator {:optional true} [:maybe [:string {:max 500}]]]])
+   [:locator {:optional true}
+    [:maybe [:string {:max 500}]]]])
+
+;; `:quotes` — the `kind=source` KIs this document quotes. A source is quoted as an **input
+;; edge only** (never written into the prose; see `domain/kind-quotes-in-text?`), so it rides
+;; here rather than as a `[[ki:…]]` token. `document/create`/`edit` merge these into `:inputs`.
+;; The client resubmits the full list on every edit (they aren't in the text to re-derive).
+(def ^:private quotes-schema
+  [:vector {:max 50}
+   input-ref-schema])
 
 (def ^:private throttled [(:middleware-fn throttle/authoring-rate-limiter)])
 
@@ -82,25 +89,31 @@
                         lang-schema]
                        [:text statement-schema]
                        [:source {:optional true}
-                        source-schema]]
+                        source-schema]
+                       [:quotes {:optional true}
+                        quotes-schema]]
          :to-create (fn [b]
                       {:name (:name b)
                        :title (:title b)
                        :kind (:kind b)
                        :lang (:lang b)
                        :text (:text b)
-                       :source (:source b)})
+                       :source (:source b)
+                       :quotes (:quotes b)})
          :edit-body [:map
                      [:title title-schema]
                      [:kind kind-enum]
                      [:text statement-schema]
                      [:source {:optional true}
-                      source-schema]]
+                      source-schema]
+                     [:quotes {:optional true}
+                      quotes-schema]]
          :to-edit (fn [b]
                     {:title (:title b)
                      :kind (:kind b)
                      :text (:text b)
-                     :source (:source b)})
+                     :source (:source b)
+                     :quotes (:quotes b)})
          :translate-body [:map
                           [:lang lang-schema]
                           [:title {:optional true}
@@ -119,24 +132,30 @@
                              lang-schema]
                             [:text body-schema]
                             [:source {:optional true}
-                             source-schema]]
+                             source-schema]
+                            [:quotes {:optional true}
+                             quotes-schema]]
               :to-create (fn [b]
                            {:name (:name b)
                             :title (:title b)
                             :lang (:lang b)
                             :text (:text b)
-                            :source (:source b)})
+                            :source (:source b)
+                            :quotes (:quotes b)})
               :edit-body [:map
                           [:title {:optional true}
                            title-schema]
                           [:text {:optional true}
                            body-schema]
                           [:source {:optional true}
-                           source-schema]]
+                           source-schema]
+                          [:quotes {:optional true}
+                           quotes-schema]]
               :to-edit (fn [b]
                          {:title (:title b)
                           :text (:text b)
-                          :source (:source b)})
+                          :source (:source b)
+                          :quotes (:quotes b)})
               :translate-body [:map
                                [:lang lang-schema]
                                [:title {:optional true}

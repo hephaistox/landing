@@ -724,7 +724,8 @@
   ;; statement ("Sun Tzŭ holds that …") — nil for the free-form `inference` kind. Citations
   ;; are flattened to the cited KI's title (`:cite-titles`, since names are opaque cids).
   (let [titles (into {} (map (juxt :name :title)) (:cite-titles node))
-        excerpt (str (document-domain/statement-prefix-of node lang)
+        ;; prefix in the card's CONTENT language (`:lang node`), not the reader's interface lang
+        excerpt (str (document-domain/statement-prefix-of node (:lang node))
                      (cite/plain-text (cite/node-text node) titles))]
     [:a {:href (permalink lang node)
          :style {:display "flex"
@@ -762,7 +763,7 @@
                     :color "#888"
                     :font-size "0.8em"}}
       ;; attribution on its own line
-      (let [src-author (:author-name (:source node))]
+      (let [src-author (or (:quote-author-name node) (:author-name (:source node)))]
         (if src-author
           ;; the KI quotes a source → attribute the cited author
           [:div {:title (i18n/t lang :card/quotes)}

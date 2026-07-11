@@ -79,13 +79,14 @@
   "A schema.org CreativeWork for a bibliographic reference (a cited external source):
   the work's title, its author (Person), publication year and publisher — declaring the
   document's external provenance as linked data (`citation`)."
-  [{:keys [title year editor author-name]}]
+  [{:keys [title year editor author-name url]}]
   (cond-> {"@type" "CreativeWork"
            "name" title}
     author-name (assoc "author"
                        {"@type" "Person"
                         "name" author-name})
     year (assoc "datePublished" (str year))
+    (not (str/blank? url)) (assoc "url" url)
     (not (str/blank? editor)) (assoc "publisher"
                                      {"@type" "Organization"
                                       "name" editor})))
@@ -137,8 +138,9 @@
   [base lang ki-name ki-major ki]
   (let [title (title-of ki ki-name)
         ;; the kind-guided opening (derived) precedes the body so the snippet reads as a
-        ;; full sentence ("Sun Tzŭ believes that …")
-        desc (description-of {:text (domain/compose-statement ki lang (prose ki))})
+        ;; full sentence ("Sun Tzŭ believes that …") — in the doc's content language (`:lang ki`,
+        ;; which may differ from the URL `lang` on a cross-language fallback), so it never mixes
+        desc (description-of {:text (domain/compose-statement ki (:lang ki) (prose ki))})
         url (str base "/agora/" lang "/ki/" (key-of ki-name title) "/" ki-major)
         langs (into [{:lang lang}] (:translations ki))]
     (str/join
@@ -412,8 +414,11 @@
      "<div>"
      ;; kind-guided opening (derived, not stored) — a boxed pill inline at the start of the
      ;; prose (nil for the free-form `inference` kind). See document-domain/statement-prefix-of.
-     (prose-html base lang (prose doc)
-                 (when-let [prefix (domain/statement-prefix-of doc lang)]
+     (prose-html base
+                 lang
+                 (prose doc)
+                 ;; prefix in the doc's content language (`:lang doc`), not the URL `lang`
+                 (when-let [prefix (domain/statement-prefix-of doc (:lang doc))]
                    (prefix-pill-html prefix)))
      "</div>"
      (neighbour-section base "Based on" inputs)

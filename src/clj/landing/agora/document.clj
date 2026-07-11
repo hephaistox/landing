@@ -35,48 +35,91 @@
     content))
 
 (defn- normalize-source
-  "Store `content.:source` as a **reference** to a shared source *document*: `{:name
-  <source-cid> :major :locator}`. The client sends a raw `{:source-id :locator}` (source-id =
-  the source work's cid); a blank source-id clears the reference; an already-normalized ref
-  (carried forward on a new minor) is kept. So changing which source is cited, or its locator,
-  is a new version — while the source *work* itself is a shared, independently-versioned
-  document (see landing.agora.source)."
+  "Store `content.:source` as a **reference to a shared source** (`AGORA_SOURCE`): `{:source-id
+  :locator}` — the source id plus this `kind=source` KI's own locator (only source-KIs carry
+  one). The client sends exactly that (plus resolved display fields, which are stripped here);
+  a blank source-id clears it. The source's fields live in `AGORA_SOURCE`, not in the content,
+  so many source-KIs share one source (see landing.agora.source)."
   [content]
   (let [src (:source content)]
     (cond
       (nil? src) content
-      (:name src) content                                       ;; already a ref (carried forward)
-      (str/blank? (:source-id src)) (assoc content :source nil)  ;; explicit clear
-      :else (assoc content :source {:name (:source-id src)
-                                    :major 1
-                                    :locator (:locator src)}))))
+      (str/blank? (:source-id src)) (assoc content :source nil) ;; explicit clear
+      :else (assoc content :source (select-keys src [:source-id :locator])))))
 
 (def ^:private carried
   "Immutable content keys carried forward on a new minor (everything authored;
   `:published-at` is re-stamped each version). The legacy `:statement`/`:body` are kept
   so a not-yet-migrated old row carries its prose forward — `normalize-text` then folds
   it into `:text` on write."
-  ;; `:source` is the single cited-source **reference** (`{:name :major :locator}`; resolved on
-  ;; read). `:year`/`:editor` are the extra fields a `type=source` document carries.
-  [:kind :title :text :statement :body :author :owner-id :inputs :source :year :editor])
+  ;; `:source` is a `kind=source` KI's reference to its shared source (`{:source-id :locator}`;
+  ;; resolved to the source's fields on read).
+  [:kind :title :text :statement :body :author :owner-id :inputs :source])
 
 ;; ---------------------------------------------------------------------------
 ;; Read — the endpoint-facing view (generic across types)
 ;; ---------------------------------------------------------------------------
 
+(defn- input-doc
+  "Fetch the document an input ref points at — by its pinned `:id` if resolved, else by
+  resolving (type, name, major) in `lang`. nil if unknown."
+  [{:keys [id type name major]} lang]
+  (when-let [id (or id (store/resolve-latest-id (or type "ki") name major lang))]
+    (store/fetch-document id)))
+
+(defn- quote-author-name
+  "The work-author of a document's first `kind=source` input — the person a quoting KI's
+  statement is attributed to (`domain/attributed-author`). nil when it quotes none. Used by the
+  discovery `card` (which has bare input TNLRs, not the split `:quotes`)."
+  [inputs lang]
+  (some (fn [inp]
+          (when-let [d (input-doc inp lang)]
+            (when (= "source" (:kind d)) (:author-name (source/resolve-ref (:source d))))))
+        inputs))
+
+(defn- split-inputs
+  "Partition a document's resolved input refs into `{:inputs :quotes}`. A `kind=source` input
+  is a **quote** — not a normal in-prose citation — so it is pulled out and resolved to its
+  quotation + shared work `{:name :major :id :title :author-name :author-id :locator}` for the
+  UI (display + re-edit). The rest stay as `:inputs` (the in-text citations)."
+  [inputs lang]
+  (reduce (fn [acc inp]
+            (let [d (input-doc inp lang)]
+              (if (= "source" (:kind d))
+                (let [work (source/resolve-ref (:source d))]
+                  (update acc
+                          :quotes
+                          conj
+                          {:name (:name inp)
+                           :major (:major inp)
+                           :id (:id inp)
+                           :title (:title d)
+                           :author-name (:author-name work)
+                           :author-id (:author-id work)
+                           :locator (:locator work)}))
+                (update acc :inputs conj inp))))
+          {:inputs []
+           :quotes []}
+          inputs))
+
 (defn view
   "Endpoint view of an already-fetched document `doc`: resolved input refs, successor ids,
   version lineage and translations. `:pins` is dropped; `:owner-id` is renamed to the
   public `:author-id` (the owning account, used to link the author badge to its profile
-  page) — nil for unowned/seeded documents. Uniform across types."
+  page) — nil for unowned/seeded documents. `kind=source` inputs are split out as `:quotes`
+  (with their work-author) and the statement is attributed to the first quote's author
+  (`:quote-author-name`). Uniform across types."
   [doc]
   (let [tnlr (domain/tnlr-key doc)
-        inputs (domain/input-refs (:inputs doc) (:pins doc))]
+        {:keys [inputs quotes]} (split-inputs (domain/input-refs (:inputs doc) (:pins doc))
+                                              (:lang doc))]
     (-> doc
         (assoc :inputs inputs
+               :quotes quotes
+               :quote-author-name (:author-name (first quotes))
                :author-id (:owner-id doc)
                ;; resolve the source *reference* to the shared work's display fields
-               :source (source/resolve-ref (:source doc) (:lang doc))
+               :source (source/resolve-ref (:source doc))
                :successors (mapv (fn [sid] {:id sid}) (store/successors-of tnlr))
                :versions (store/versions-of tnlr)
                :translations (store/translations-of (:type doc) (:name doc) (:lang doc)))
@@ -114,23 +157,36 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- inputs-of
-  "The inputs for a document: the `[[ki:…]]` citations parsed from its `:text`. Inputs
-  are exactly the in-text citations, so an in-text citation is an input edge."
+  "The inputs for a document: the `[[ki:…]]` citations parsed from its `:text`, **plus** any
+  explicit **source quotes** (`content.:quotes` = `[{:name :major}…]`). A source (kind=source)
+  is quoted as an *input edge only* (`domain/kind-quotes-in-text?` is false for it), so it is
+  never written into the prose — it rides in `:quotes` and is merged in here. Whether a
+  document may have inputs at all is a property of its **kind** (`domain/kind-allows-inputs?`),
+  not a per-type branch — a `source` kind is a leaf and takes none, so its inputs stay empty."
   [_type content _declared lang]
-  (domain/cite-refs (or (text-of content) "") lang))
+  (if (domain/kind-allows-inputs? (:kind content))
+    (->> (concat (domain/cite-refs (or (text-of content) "") lang)
+                 (map (fn [{:keys [name major]}]
+                        {:type "ki"
+                         :name name
+                         :lang lang
+                         :major major})
+                      (:quotes content)))
+         distinct
+         vec)
+    []))
 
 ;; `slugify` / `permalink-slug` / `cid-of` live in `landing.agora.document-domain` (cljc)
 ;; so the SPA builds and resolves identical URLs. `gen-cid` needs the DB (uniqueness), so
 ;; it stays here.
 
-(def ^:private cid-chars
-  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+(def ^:private cid-chars "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 (defn gen-cid
   "A short, opaque, URL-safe identity key — 10 base62 chars (62¹⁰ ≈ 8.4×10¹⁷). A document's
   `name` is a cid: it is NEVER derived from the title, so editing the title never moves it
   and inbound citations/pins (which reference `name`) never dangle. (Seeded documents keep
-  their readable stable names — `type-inference`, `aow-1-4` — which serve as their cids just
+  their readable stable names — e.g. `type-inference` — which serve as their cids just
   as well.)"
   []
   (apply str (repeatedly 10 #(nth cid-chars (rand-int 62)))))
@@ -139,9 +195,7 @@
   "A freshly generated cid no document already uses. Collisions in 62¹⁰ are negligible, but
   we check to be safe."
   []
-  (loop []
-    (let [c (gen-cid)]
-      (if (store/cid-taken? c) (recur) c))))
+  (loop [] (let [c (gen-cid)] (if (store/cid-taken? c) (recur) c))))
 
 (defn- new-minor!
   "Insert a new minor of the concept `src` with `content` (its declared `:inputs` are
@@ -155,8 +209,8 @@
                              :lang lang
                              :major major
                              :minor (store/next-minor type name lang major)}
-                            (normalize-source
-                             (normalize-text (assoc content :published-at (store/now-iso)))))
+                            (normalize-source (normalize-text
+                                               (assoc content :published-at (store/now-iso)))))
     (store/repin-successors! type name lang major new-id)
     (store/evict-lineage! type name lang major)
     (fetch new-id)))
@@ -183,13 +237,15 @@
                              :lang lang
                              :major 1
                              :minor 0}
-                            (normalize-source
-                             (normalize-text (-> content
-                                                 (dissoc :name :lang)
-                                                 (assoc :inputs inputs
-                                                        :author author
-                                                        :owner-id owner-id
-                                                        :published-at (store/now-iso))))))
+                            (normalize-source (normalize-text (-> content
+                                                                  ;; `:quotes` is transient — it
+                                                                  ;; is folded into `:inputs`
+                                                                  (dissoc :name :lang :quotes)
+                                                                  (assoc :inputs inputs
+                                                                         :author author
+                                                                         :owner-id owner-id
+                                                                         :published-at
+                                                                         (store/now-iso))))))
     (store/evict-lineage! type name lang 1)
     (fetch id)))
 
@@ -204,7 +260,10 @@
                         {:author (store/author-name owner-id)
                          :owner-id owner-id})
           inputs (inputs-of (:type src) merged (:inputs merged) (:lang src))]
-      (new-minor! src (assoc merged :inputs inputs)))))
+      (new-minor! src
+                  (-> merged
+                      (assoc :inputs inputs)
+                      (dissoc :quotes))))))
 
 (defn add-input
   "Declare the document referenced by `input` (name+major, same language) as an input
@@ -339,7 +398,8 @@
            :text (text-of c)
            :author (:author c)
            :author-id (:owner-id c)
-           :source (source/resolve-ref (:source c) (:lang row))
+           :source (source/resolve-ref (:source c))
+           :quote-author-name (quote-author-name (:inputs c) (:lang row))
            :published-at (:published-at c))))
 
 (defn search
@@ -422,28 +482,35 @@
     (mapv card)))
 
 (defn- sourced-by
-  "Latest-minor documents in `lang` that CITE a source authored by `author-id` — works
-  that *quote* this person (as opposed to `owned-by`'s own claims). A source is now a
-  document owned by its author, so this finds the author's source cids (`source/names-of-author`)
-  then the non-source documents whose `content.:source` reference points at one of them. This
-  is why a cited figure (e.g. Sun Tzu) has a populated profile even though they claim nothing."
+  "Latest-minor `kind=source` KIs in `lang` whose **source** is authored by `author-id` — the
+  quotations *from this person's works* (as opposed to `owned-by`'s own claims). A person
+  authors **sources** (`AGORA_SOURCE`); each source maps to many `kind=source` KIs (via
+  `content.:source.:source-id`). This is why a cited figure (e.g. Sun Tzu) has a populated
+  profile even though they claim nothing. Joins the source-KIs to the author's sources by a
+  `content LIKE '%source-id%'` prefilter, confirmed on the decoded `:source` ref."
   [author-id lang]
-  (let [src-names (source/names-of-author author-id)]
-    (if (empty? src-names)
+  (let [source-ids (into #{}
+                         (map :id)
+                         (store/q! db/ds
+                                   ["SELECT id FROM AGORA_SOURCE WHERE person_id = ?" author-id]
+                                   store/kebab))]
+    (if (empty? source-ids)
       []
       (->>
         (store/q!
          db/ds
-         ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
+         ["SELECT DISTINCT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
                 FROM AGORA_DOCUMENT k
-               WHERE k.lang = ? AND k.type <> 'source'
+                JOIN AGORA_SOURCE s
+                  ON s.person_id = ? AND k.content LIKE CONCAT('%', s.id, '%')
+               WHERE k.lang = ?
                  AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
                                 WHERE k2.type = k.type AND k2.name = k.name
                                   AND k2.major = k.major AND k2.lang = k.lang)"
+          author-id
           lang]
          store/kebab)
-        (filter (fn [r]
-                  (contains? src-names (:name (:source (store/decode-content (:content r)))))))
+        (filter (fn [r] (source-ids (:source-id (:source (store/decode-content (:content r)))))))
         (mapv card)))))
 
 (defn by-author
@@ -475,12 +542,14 @@
 (defn all-tnrs
   "Every lineage of every type (all types), **one row per language version** —
   (type, name, lang, major) with its version count, latest minor, and the latest minor's
-  `:title` (the human heading the admin table shows in place of the identity slug). One
-  query: a self-join pins each lineage's latest-minor row, whose content yields the title."
+  `:title` and epistemic `:kind` (the human heading + kind badge the admin table shows in
+  place of the identity slug). One query: a self-join pins each lineage's latest-minor row,
+  whose content yields the title and kind."
   []
-  (->> (store/q!
-        db/ds
-        ["SELECT d.type, d.name, d.lang, d.major, d.content, g.versions, g.latest
+  (->>
+    (store/q!
+     db/ds
+     ["SELECT d.type, d.name, d.lang, d.major, d.content, g.versions, g.latest
             FROM AGORA_DOCUMENT d
             JOIN (SELECT type, name, lang, major, COUNT(*) AS versions, MAX(minor) AS latest
                     FROM AGORA_DOCUMENT
@@ -488,11 +557,13 @@
               ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
                  AND d.major = g.major AND d.minor = g.latest
            ORDER BY d.type, d.name, d.major, d.lang"]
-        store/kebab)
-       (mapv (fn [{:keys [content] :as r}]
-               (-> r
-                   (assoc :title (:title (store/decode-content content)))
-                   (dissoc :content))))))
+     store/kebab)
+    (mapv (fn [{:keys [content]
+                :as r}]
+            (let [c (store/decode-content content)]
+              (-> r
+                  (assoc :title (:title c) :kind (:kind c))
+                  (dissoc :content)))))))
 
 (defn delete-tnr!
   "Drop a single language version of a lineage — (type, name, lang, major) — plus its
@@ -556,35 +627,42 @@
     n))
 
 (defn sitemap-rows
-  "Every public permalink — the crawlable document types — as {:type :name :major :lang
-  :lastmod}, one row per lineage (type, name, lang, major). `type='source'` is **excluded**:
-  sources are shared works with no public permalink shell of their own. `lastmod` is the
-  lineage's latest publication date (`MAX(published_at)`, an ISO-8601 string that sorts
-  chronologically), so a crawler re-fetches a permalink only when its current version changed.
-  Pure SQL over the denormalized `published_at` column — no content decode — so it scales and
-  can later be keyset-paginated into a chunked sitemap index."
+  "Every public permalink — all document types (KIs, incl. `kind=source` quotations, and
+  articles) — as {:type :name :major :lang :lastmod}, one row per lineage (type, name, lang,
+  major). `lastmod` is the lineage's latest publication date (`MAX(published_at)`, an ISO-8601
+  string that sorts chronologically), so a crawler re-fetches a permalink only when its current
+  version changed. Pure SQL over the denormalized `published_at` column — no content decode —
+  so it scales and can later be keyset-paginated into a chunked sitemap index."
   []
-  (->> (store/q! db/ds
-                 ["SELECT d.type, d.name, d.major, d.lang, d.content, g.lastmod
+  (->>
+    (store/q!
+     db/ds
+     ["SELECT d.type, d.name, d.major, d.lang, d.content, g.lastmod
                      FROM AGORA_DOCUMENT d
                      JOIN (SELECT type, name, major, lang, MAX(minor) AS latest,
                                   MAX(published_at) AS lastmod
                              FROM AGORA_DOCUMENT
-                            WHERE type <> 'source'
                             GROUP BY type, name, major, lang) g
                        ON d.type = g.type AND d.name = g.name AND d.major = g.major
                           AND d.lang = g.lang AND d.minor = g.latest"]
-                 store/kebab)
-       (mapv (fn [{:keys [content] :as r}]
-               (-> r
-                   (assoc :title (:title (store/decode-content content)))
-                   (dissoc :content))))))
+     store/kebab)
+    (mapv (fn [{:keys [content]
+                :as r}]
+            (-> r
+                (assoc :title (:title (store/decode-content content)))
+                (dissoc :content))))))
 
 (defn rebuild-successor-index!
   "Recompute AGORA_SUCCESSOR from every document's declared inputs (all types), dropping
   the in-memory caches. Delegates to the shared storage layer; run daily."
   []
   (store/rebuild-successor-index!))
+
+(defn rebuild-pins!
+  "Recompute every document's `computed.:pins` from its declared inputs, healing pin drift.
+  Delegates to the storage layer; run daily. Returns the number of documents re-pinned."
+  []
+  (store/rebuild-pins!))
 
 (defn consistency-issues
   "Scan **every version** of every document for reference problems (see the *Consistency
@@ -597,6 +675,9 @@
    - **`:self`** — a **self-reference**: the document cites its own lineage
      (same type + name + major). A document cannot be an input of itself — that is a
      degenerate cycle — so it is reported even though the target exists.
+
+  (A source having inputs is not scanned for — it is structurally impossible: `inputs-of`
+  forces a `type=source` document's inputs to `[]`, so the quotation feature never applies.)
 
   Runs over current *and* former versions. Returns a vector of
   {:id :type :name :lang :major :minor :title :broken […] :self […]}, each ref as

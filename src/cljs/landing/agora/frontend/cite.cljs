@@ -227,10 +227,13 @@
   ([text lead]
    (let [paras (remove str/blank? (str/split (or text "") #"\n\n+"))]
      (if (empty? paras)
-       (if lead [:div [:p {:style {:margin "0 0 1em"}} lead]] [:div])
+       (if lead
+         [:div
+          [:p {:style {:margin "0 0 1em"}}
+           lead]]
+         [:div])
        (into [:div]
-             (map-indexed (fn [i para] ^{:key i} [paragraph para (when (zero? i) lead)])
-                          paras))))))
+             (map-indexed (fn [i para] ^{:key i} [paragraph para (when (zero? i) lead)]) paras))))))
 
 (defn plain-text
   "`text` with its `[[ki:…]]` citations flattened to a label — for excerpts/previews where
@@ -241,10 +244,9 @@
   ([text] (plain-text text nil))
   ([text titles]
    (->> (parse-segments (or text ""))
-        (map (fn [seg]
-               (if (string? seg)
-                 seg
-                 (or (:text seg) (get titles (:name seg)) (humanize (:name seg))))))
+        (map
+         (fn [seg]
+           (if (string? seg) seg (or (:text seg) (get titles (:name seg)) (humanize (:name seg))))))
         (apply str))))
 
 (defn citations
@@ -280,8 +282,10 @@
   with the new text on every edit and insert; `placeholder` is the textarea hint.
   `self-name` (optional) is the identity name of the document being edited — it is
   removed from the search results so a document can never quote itself (a self-reference
-  is a degenerate cycle; see the *Consistency rules* in agora/CLAUDE.md)."
-  [_value _set-text! _placeholder _self-name]
+  is a degenerate cycle; see the *Consistency rules* in agora/CLAUDE.md). `inputs?` (default
+  true) toggles the **quotation feature** (the cite/create search box); pass false for a kind
+  that may not have inputs (see `domain/kind-allows-inputs?`) — the prose textarea stays."
+  [_value _set-text! _placeholder _self-name _inputs?]
   (let [node (atom nil)
         setter (atom nil)
         q (r/atom "")
@@ -330,9 +334,15 @@
                 (.then #(.json %))
                 (.then (fn [ki] (reset! busy? false) (insert! (js->clj ki :keywordize-keys true))))
                 (.catch (fn [_] (reset! busy? false))))))]
-    (fn [value set-text! placeholder self-name]
+    (fn [value set-text! placeholder self-name inputs? on-quote]
       (reset! setter set-text!)
-      (let [lang @(rf/subscribe [::i18n/lang])]
+      (let [lang @(rf/subscribe [::i18n/lang])
+            ;; classical quoting: an in-text kind is spliced into the prose; a source (edge-only
+            ;; kind) is handed to `on-quote` as an input, never written into the text
+            pick! (fn [k]
+                    (if (domain/kind-quotes-in-text? (:kind k))
+                      (insert! k)
+                      (do (when on-quote (on-quote k)) (reset! q "") (reset! results []))))]
         [:div
          [:textarea {:ref (fn [el] (reset! node el) (when el (js/setTimeout fit! 0)))
                      :placeholder placeholder
@@ -349,41 +359,44 @@
                              :line-height "1.55"
                              :border "1px solid #ccc"
                              :border-radius "0.3em"}}]
-         [:div {:style {:position "relative"
-                        :margin "0.4em 0 0"}}
-          [:input {:type "text"
-                   :placeholder (i18n/t lang :cite/search-ph)
-                   :value @q
-                   :on-change #(search! (.. % -target -value) lang)
-                   :style {:width "100%"
-                           :box-sizing "border-box"
-                           :padding "0.45em"
-                           :font-size "0.9em"
-                           :border "1px solid #ccc"
-                           :border-radius "0.3em"}}]
-          (when-not (str/blank? @q)
-            (into [:div {:style {:position "absolute"
-                                 :z-index 20
-                                 :left 0
-                                 :right 0
-                                 :margin-top "0.2em"
-                                 :background "#fff"
-                                 :border "1px solid #ddd"
-                                 :border-radius "0.4em"
-                                 :box-shadow "0 4px 12px rgba(0,0,0,0.1)"
-                                 :max-height "16em"
-                                 :overflow-y "auto"}}]
-                  (conj (mapv (fn [k]
-                                ^{:key (:id k)}
-                                [:button {:on-click #(insert! k)
-                                          :style result-btn-style}
-                                 [mini-kind-badge (:kind k)]
-                                 [:span {:style {:font-weight 600}}
-                                  (or (:title k) (humanize (:name k)))]])
-                              ;; a document can't quote itself — drop its own lineage
-                              (remove #(= (:name %) self-name) @results))
-                        ^{:key "__new__"}
-                        [:button {:on-click #(create! lang)
-                                  :disabled @busy?
-                                  :style (assoc result-btn-style :color "#b9770e" :font-weight 700)}
-                         (str "＋ " (i18n/t lang :cite/create-new) " “" @q "”")])))]]))))
+         ;; the quotation feature — hidden for kinds that may not have inputs (e.g. source)
+         (when-not (false? inputs?)
+           [:div {:style {:position "relative"
+                          :margin "0.4em 0 0"}}
+            [:input {:type "text"
+                     :placeholder (i18n/t lang :cite/search-ph)
+                     :value @q
+                     :on-change #(search! (.. % -target -value) lang)
+                     :style {:width "100%"
+                             :box-sizing "border-box"
+                             :padding "0.45em"
+                             :font-size "0.9em"
+                             :border "1px solid #ccc"
+                             :border-radius "0.3em"}}]
+            (when-not (str/blank? @q)
+              (into [:div {:style {:position "absolute"
+                                   :z-index 20
+                                   :left 0
+                                   :right 0
+                                   :margin-top "0.2em"
+                                   :background "#fff"
+                                   :border "1px solid #ddd"
+                                   :border-radius "0.4em"
+                                   :box-shadow "0 4px 12px rgba(0,0,0,0.1)"
+                                   :max-height "16em"
+                                   :overflow-y "auto"}}]
+                    (conj (mapv (fn [k]
+                                  ^{:key (:id k)}
+                                  [:button {:on-click #(pick! k)
+                                            :style result-btn-style}
+                                   [mini-kind-badge (:kind k)]
+                                   [:span {:style {:font-weight 600}}
+                                    (or (:title k) (humanize (:name k)))]])
+                                ;; a document can't quote itself — drop its own lineage
+                                (remove #(= (:name %) self-name) @results))
+                          ^{:key "__new__"}
+                          [:button {:on-click #(create! lang)
+                                    :disabled @busy?
+                                    :style
+                                    (assoc result-btn-style :color "#b9770e" :font-weight 700)}
+                           (str "＋ " (i18n/t lang :cite/create-new) " “" @q "”")])))])]))))

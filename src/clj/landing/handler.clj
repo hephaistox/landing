@@ -121,6 +121,8 @@
     (public-shell-route "/agora/:lang/discover")
     (public-shell-route "/agora/:lang/preferences")
     (public-shell-route "/agora/:lang/articles")
+    (public-shell-route "/agora/:lang/authors")
+    (public-shell-route "/agora/:lang/sources")
     (article-page-route "/agora/:lang/article/:name/:major")
     (app-shell-route "/agora/:lang/new")
     (app-shell-route "/agora/:lang/ki/:id")

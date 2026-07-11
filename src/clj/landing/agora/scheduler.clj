@@ -1,25 +1,44 @@
 (ns landing.agora.scheduler
-  "Daily in-process rebuild of the Agora successor index (a cache), so any drift from
-  incremental updates self-heals. Needs no external cron; started/stopped with the
-  app via Mount."
+  "Daily in-process rebuild of the Agora successor index and document pins (both derived
+  caches), so any drift from incremental updates self-heals. Needs no external cron;
+  started/stopped with the app via Mount."
   (:require
    [auto-core.log          :as core-log]
    [landing.agora.document :as document]
    [mount.core             :refer [defstate]])
-  (:import (java.util.concurrent Executors ScheduledExecutorService TimeUnit)))
+  (:import (java.time Duration ZoneOffset ZonedDateTime)
+           (java.time.temporal ChronoUnit)
+           (java.util.concurrent Executors ScheduledExecutorService TimeUnit)))
+
+(def ^:private run-hour-utc "Daily rebuild fires at this UTC hour." 4)
 
 (defn- rebuild!
   []
   (try (core-log/info "Agora: rebuilding successor index")
        (document/rebuild-successor-index!)
-       (catch Throwable e (core-log/error-exception e "Agora: successor index rebuild failed"))))
+       (let [n (document/rebuild-pins!)] (core-log/info (str "Agora: re-pinned " n " document(s)")))
+       (catch Throwable e (core-log/error-exception e "Agora: successor/pin rebuild failed"))))
+
+(defn- millis-until-next-run
+  "Milliseconds from now until the next `run-hour-utc`:00 UTC (today if still ahead,
+  otherwise tomorrow)."
+  []
+  (let [now (ZonedDateTime/now ZoneOffset/UTC)
+        next (-> now
+                 (.withHour run-hour-utc)
+                 (.truncatedTo ChronoUnit/HOURS))
+        next (if (.isAfter next now) next (.plusDays next 1))]
+    (.toMillis (Duration/between now next))))
 
 (defn- start
-  "Schedule the rebuild once every 24h (first run 24h after boot — the index is
-  already fresh at startup)."
+  "Schedule the rebuild at `run-hour-utc`:00 UTC every day (first run at the next such
+  time — the index is already fresh at startup, so nothing is missed before then)."
   []
   (doto (Executors/newSingleThreadScheduledExecutor)
-    (.scheduleAtFixedRate ^Runnable rebuild! 24 24 TimeUnit/HOURS)))
+    (.scheduleAtFixedRate ^Runnable rebuild!
+                          (millis-until-next-run)
+                          (.toMillis (Duration/ofDays 1))
+                          TimeUnit/MILLISECONDS)))
 
 (defn- stop [^ScheduledExecutorService exec] (when exec (.shutdownNow exec)))
 

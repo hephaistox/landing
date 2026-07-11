@@ -26,7 +26,8 @@
   "A URL slug from a title: `\"L'Être\"` → `\"l-etre\"`. Accents stripped, every run of
   non-alphanumerics becomes one `-`. Blank → \"untitled\"."
   [s]
-  (let [stripped #?(:clj (-> (java.text.Normalizer/normalize (or s "") java.text.Normalizer$Form/NFD)
+  (let [stripped #?(:clj (-> (java.text.Normalizer/normalize (or s "")
+                                                             java.text.Normalizer$Form/NFD)
                              (str/replace #"\p{M}+" ""))
                     :cljs (-> (.normalize (or s "") "NFD")
                               (str/replace #"[\u0300-\u036f]" "")))
@@ -52,51 +53,71 @@
   before the first `~`."
   [k]
   (let [k (str k)]
-    (if-let [i (str/index-of k "~")] (subs k 0 i) k)))
+    (if-let [i (str/index-of k "~")]
+      (subs k 0 i)
+      k)))
 
 (def kinds
-  "The epistemic `kind`s — canonical domain data for a KI's kind, in display order.
-  Each carries its accent colour, its conceptual `family` (`derived` — has inputs;
-  `verifiable` — settles at a date; `foundation` — a declared starting point), and a
-  pointer to the KI that *defines* it: `:def-name` + `:def-major` (the definition KI's
-  identity name and major). The rest of that identity is implied — its `type` is `ki`,
-  its `minor` resolves automatically to the latest, and its `lang` is the reader's
-  interface language — so only name + major need to be declared here (see `kind-def`).
+  "The epistemic `kind`s — canonical domain data for a KI's kind, in display order. Each kind
+  declares its **capabilities and presentation as data**, so consumers (backend + UI) read a
+  field rather than branching on a specific kind:
+   - `:color`  — accent colour.
+   - `:family` — conceptual family (`derived` — has inputs; `verifiable` — settles at a date;
+     `foundation` — a declared starting point; `provenance` — an external cited work, i.e. a
+     `type=source` document).
+   - `:inputs?` — **may a KI of this kind take inputs** (in-text `[[ki:…]]` citations)? A
+     `source` is a leaf work and takes none; everything else does. This one flag drives both
+     the backend (input derivation) and the UI (whether the quotation feature is shown).
+   - `:def-name` + `:def-major` — a pointer to the KI that *defines* the kind. The rest of that
+     identity is implied — `type` is `ki`, `minor` resolves to the latest, `lang` is the
+     reader's — so only name + major are declared here (see `kind-def`).
   The set is NOT enforced by the DB; the API validates against it and the UI renders it."
   [{:id :inference
     :color "#2c5aa0"
     :family :derived
+    :inputs? true
     :def-name "type-inference"
     :def-major 1}
    {:id :prediction
     :color "#0b7285"
     :family :verifiable
+    :inputs? true
     :def-name "type-prediction"
-    :def-major 1}
-   {:id :postulate
-    :color "#6741d9"
-    :family :foundation
-    :def-name "type-postulate"
     :def-major 1}
    {:id :definition
     :color "#a61e8c"
     :family :foundation
+    :inputs? true
     :def-name "type-definition"
     :def-major 1}
-   {:id :position
-    :color "#b9770e"
-    :family :foundation
-    :def-name "type-position"
-    :def-major 1}
+   ;; The "foundation" family is deliberately just two, a decidable binary: a `belief` is a
+   ;; foundation you **hold/commit to** (any register — personal, civic or formal); an
+   ;; `assumption` is one you **suppose provisionally**. (An earlier `postulate`/`position`/
+   ;; `credo` split was dropped as mechanically identical and hard to choose between.)
    {:id :belief
     :color "#2b8a3e"
     :family :foundation
+    :inputs? true
     :def-name "type-belief"
     :def-major 1}
-   {:id :credo
-    :color "#c92a2a"
+   {:id :assumption
+    :color "#e8590c"
     :family :foundation
-    :def-name "type-credo"
+    :inputs? true
+    :def-name "type-assumption"
+    :def-major 1}
+   ;; `source` is the kind of a bibliographic **quotation** KI (one idea/quote from a shared
+   ;; book in `AGORA_SOURCE`; see landing.agora.source). Its own family; **no inputs** (a
+   ;; quotation quotes nothing further); `:in-text? false` — when a KI quotes a source, the
+   ;; citation is an *input edge only*, never written into the prose (see `kind-quotes-in-text?`);
+   ;; no statement scaffold (a source isn't "<author> <verb> that …"); self-hosted by a
+   ;; `type-source` definition KI.
+   {:id :source
+    :color "#495057"
+    :family :provenance
+    :inputs? false
+    :in-text? false
+    :def-name "type-source"
     :def-major 1}])
 
 (def kind-ids "The kind ids (keywords), in display order." (mapv :id kinds))
@@ -108,6 +129,31 @@
 (def kind-family
   "kind name (string) → conceptual family (keyword)."
   (into {} (map (juxt (comp name :id) :family)) kinds))
+
+(def ^:private kind-inputs?
+  "kind name (string) → whether a KI of that kind may take inputs."
+  (into {} (map (juxt (comp name :id) :inputs?)) kinds))
+
+(defn kind-allows-inputs?
+  "May a document of `kind` have inputs (in-text `[[ki:…]]` citations)? The single source of
+  this rule: it reads the kind's `:inputs?` field, so neither the backend (input derivation)
+  nor the UI (whether to show the quotation feature) branches on a specific kind. An
+  absent/unknown kind (e.g. an article, which has none) defaults to **yes** — only a kind that
+  declares `:inputs? false` (a source) is inputless."
+  [kind]
+  (not (false? (get kind-inputs? kind))))
+
+(def ^:private kind-in-text?
+  "kind name (string) → whether *quoting* a KI of that kind writes the citation into the prose."
+  (into {} (map (juxt (comp name :id) :in-text?)) kinds))
+
+(defn kind-quotes-in-text?
+  "When a KI quotes a document of `kind`, is the citation written **into the prose** (an inline
+  `[[ki:…]]` token, the default) or recorded as an **input edge only**? Reads the quoted kind's
+  `:in-text?` field, so the citation UI + input derivation don't branch on a specific kind. An
+  absent/unknown kind defaults to **in-text** — only `:in-text? false` (a source) is edge-only."
+  [kind]
+  (not (false? (get kind-in-text? kind))))
 
 (def kind-def
   "kind name (string) → the identity of the KI that defines it: `{:type :name :major}`.
@@ -126,7 +172,7 @@
 ;; --- Kind-guided statement scaffold ---------------------------------------------------
 ;; Each epistemic kind (except the open `inference`) scaffolds the opening of the statement,
 ;; so the kind is enforced by the grammar rather than being a decorative badge. Two shapes:
-;;   - author-attributed (belief/credo/position/postulate/prediction): "<author> <verb> that "
+;;   - author-attributed (belief/assumption/prediction): "<author> <verb> that "
 ;;   - term contract (definition): "<term> means "
 ;; `inference` has no scaffold (free-form). Only the author's **body** is stored in `:text`;
 ;; the prefix is DERIVED here (shared clj + cljs) so it stays correct as kind/author change
@@ -135,12 +181,18 @@
 (def statement-say
   "kind (string) → {:subject :author|:term, :phrase {lang → connector}} — the scaffold for
   that kind's statement opening. Absent for the open `inference` (free-form)."
-  {"belief"     {:subject :author :phrase {"en" "believes that" "fr" "croit que"}}
-   "credo"      {:subject :author :phrase {"en" "affirms that"  "fr" "professe que"}}
-   "position"   {:subject :author :phrase {"en" "holds that"    "fr" "soutient que"}}
-   "postulate"  {:subject :author :phrase {"en" "posits that"   "fr" "postule que"}}
-   "prediction" {:subject :author :phrase {"en" "predicts that" "fr" "prédit que"}}
-   "definition" {:subject :term   :phrase {"en" "means"         "fr" "signifie"}}})
+  {"belief" {:subject :author
+             :phrase {"en" "believes that"
+                      "fr" "croit que"}}
+   "assumption" {:subject :author
+                 :phrase {"en" "assumes that"
+                          "fr" "suppose que"}}
+   "prediction" {:subject :author
+                 :phrase {"en" "predicts that"
+                          "fr" "prédit que"}}
+   "definition" {:subject :term
+                 :phrase {"en" "is a word meaning"
+                          "fr" "est un mot qui signifie"}}})
 
 (defn statement-subject-kind
   "Whether `kind`'s prefix subject is the `:author` or the `:term`, or nil for a free-form
@@ -150,8 +202,7 @@
 
 (defn- cap-first
   [s]
-  (let [s (str s)]
-    (if (str/blank? s) s (str (str/upper-case (subs s 0 1)) (subs s 1)))))
+  (let [s (str s)] (if (str/blank? s) s (str (str/upper-case (subs s 0 1)) (subs s 1)))))
 
 (defn statement-prefix
   "The kind-guided opening (with a trailing space) for a statement in `lang`, or nil for a
@@ -160,14 +211,18 @@
   [kind lang subject]
   (when-let [{:keys [phrase]} (get statement-say kind)]
     (when-let [connector (or (get phrase lang) (get phrase "en"))]
-      (when-not (str/blank? subject)
-        (str (cap-first subject) " " connector " ")))))
+      (when-not (str/blank? subject) (str (cap-first subject) " " connector " ")))))
 
 (defn attributed-author
-  "The person a statement is attributed to: the cited source's author if the document cites
-  a source, else the document's own author. One source per document, so unambiguous."
+  "The person a statement is attributed to, in priority order:
+   1. `:source`'s author — for a `kind=source` KI itself (its `:source` resolves to the work);
+   2. `:quote-author-name` — for a KI that **quotes a source** (the work-author of the source-KI
+      it inputs), computed by the read layer from the inputs;
+   3. else the document's own author.
+  So \"Led Zeppelin est le meilleur groupe de rock\" (a position quoting a Rolling Stone source
+  by David Fricke) reads \"David Fricke soutient que …\"."
   [doc]
-  (or (:author-name (:source doc)) (:author doc)))
+  (or (:author-name (:source doc)) (:quote-author-name doc) (:author doc)))
 
 (defn statement-prefix-of
   "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil

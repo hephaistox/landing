@@ -88,11 +88,17 @@
                     :line-height "1.5"
                     :color "#222"}}
       ;; the kind-guided opening is part of the statement, but hard-coded (not authored) —
-      ;; so it flows INLINE at the start of the first line, marked as a rounded box (pill)
-      [cite/render-text (cite/node-text doc)
-       (when-let [prefix (domain/statement-prefix-of doc lang)]
-         [prefix-pill prefix])]]
-     [source/source-view (:source doc)]]))
+      ;; so it flows INLINE at the start of the first line, marked as a rounded box (pill).
+      ;; Derived from the doc's CONTENT language (`:lang doc`), not the reader's interface
+      ;; language, so prefix and body always agree (e.g. a French doc reads French even for an
+      ;; English reader viewing a cross-language fallback).
+      [cite/render-text
+       (cite/node-text doc)
+       (when-let [prefix (domain/statement-prefix-of doc (:lang doc))] [prefix-pill prefix])]]
+     [source/source-view (:source doc)]
+     [source/quotes-view (:quotes doc)]
+     ;; owner-only maintenance, right on the read view (no need to enter edit mode)
+     [edit/admin-actions doc]]))
 
 (defn- central
   "The central card: the edit form when this doc's editor is open (only possible on an
