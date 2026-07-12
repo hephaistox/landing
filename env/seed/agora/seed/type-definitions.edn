@@ -26,6 +26,15 @@
   {:statement
    "un fondement que l'on tient pour acquis et que l'on assume, quel qu'en soit le registre — personnel, philosophique, civique ou formel.\n\nOn ne la réfute pas par contre-exemple : une croyance ne se conteste que par une croyance incompatible, et la plateforme conserve les variantes rivales avec leur histoire d'objections plutôt que d'imposer une résolution qui n'existe pas."
    :title "Croyance"}}
+ :counter-example
+ {"en"
+  {:statement
+   "a single instance that refutes a general claim by contradicting it: if a claim asserts 'all X are Y', one X that is not Y shows it false — or at least not precise enough. It targets another claim and withdraws its generality.\n\nIt is itself challenged on two grounds: whether the instance is real (is Einstein actually smart?) and whether it truly falls under the claim (is Einstein one of 'all people'?). A sound counter-example forces the target to narrow, qualify, or be withdrawn."
+   :title "Counter-example"}
+  "fr"
+  {:statement
+   "un cas unique qui réfute une affirmation générale en la contredisant : si un énoncé affirme « tous les X sont Y », un seul X qui n'est pas Y la montre fausse — ou du moins pas assez précise. Il vise un autre énoncé et lui retire sa généralité.\n\nOn le conteste lui-même de deux façons : le cas est-il réel (Einstein est-il vraiment intelligent ?) et relève-t-il bien de l'affirmation (Einstein fait-il partie de « tous les gens » ?). Un bon contre-exemple oblige la cible à se restreindre, se nuancer, ou être retirée."
+   :title "Contre-exemple"}}
  :definition
  {"en"
   {:statement
@@ -44,6 +53,15 @@
   {:statement
    "un article qui expose et relie les énoncés du graphe en une prose lisible — une porte d'entrée qui rend le raisonnement intelligible pour un nouveau venu, informant et expliquant plutôt qu'exhortant ou appelant à agir.\n\nOn ne la conteste pas comme une étape de raisonnement isolée : une explication repose sur les énoncés qu'elle cite, et c'est à ceux-ci qu'on adresse un désaccord ; l'article lui-même peut néanmoins être discuté pour sa clarté, son équilibre ou ses omissions."
    :title "Explication"}}
+ :illustration
+ {"en"
+  {:statement
+   "a concrete example that makes another claim vivid — it shows an instance, it does not derive anything: no reasoning depends on it and nothing follows from it.\n\nIt is not challenged as reasoning: an illustration is apt or inapt, representative or misleading, but it proves nothing on its own — one disputes whether it truly exemplifies the claim, not whether it is 'valid'."
+   :title "Illustration"}
+  "fr"
+  {:statement
+   "un exemple concret qui rend une autre affirmation vivante — il montre un cas, il ne démontre rien : aucun raisonnement n'en dépend et rien n'en découle.\n\nOn ne la conteste pas comme un raisonnement : une illustration est pertinente ou non, représentative ou trompeuse, mais elle ne prouve rien en soi — on discute si elle illustre vraiment l'affirmation, non si elle est « valide »."
+   :title "Illustration"}}
  :inference
  {"en"
   {:statement

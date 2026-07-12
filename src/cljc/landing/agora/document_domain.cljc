@@ -108,6 +108,22 @@
     :object-type "ki"
     :def-name "type-assumption"
     :def-major 1}
+   ;; --- annotation kinds: they relate to another claim rather than *deriving* one ---
+   ;; `illustration` gives a concrete example of a claim (no reasoning implication — nothing
+   ;; follows from it); `counter-example` refutes a *general* claim with one contradicting
+   ;; instance ("Einstein is smart" vs "all people are dumb"), forcing it to narrow or withdraw.
+   {:id :illustration
+    :color "#1098ad"
+    :inputs? true
+    :object-type "ki"
+    :def-name "type-illustration"
+    :def-major 1}
+   {:id :counter-example
+    :color "#e03131"
+    :inputs? true
+    :object-type "ki"
+    :def-name "type-counter-example"
+    :def-major 1}
    ;; `source` is the kind of a bibliographic **quotation** KI (one idea/quote from a shared
    ;; book in `AGORA_SOURCE`; see landing.agora.source). **No inputs** (a quotation quotes
    ;; nothing further); `:in-text? false` — when a KI quotes a source, the citation is an
