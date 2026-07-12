@@ -78,7 +78,6 @@
   [prefix {:coercion coercion
            :muuntaja m/instance
            :swagger {:tags #{:agora}}
-           :conflicting true
            :middleware [parameters/parameters-middleware
                         muuntaja/format-negotiate-middleware
                         muuntaja/format-response-middleware
@@ -95,7 +94,10 @@
             :operationId "agora-source-create"
             :parameters {:body create-body}
             :summary "Create a bibliographic work"}}]
-   ["/recent"
+   ;; `-recent` (not `/recent`): a sibling literal `/agora/api/source-recent`, so it can't be
+   ;; read as a `/source/:id` with id "recent" — that param-vs-literal overlap was the last
+   ;; route conflict. Keeping it in this group shares the coercion/muuntaja middleware.
+   ["-recent"
     {:get {:handler recent-handler
            :operationId "agora-source-recent"
            :summary "Recently created sources (one-click reuse)"}}]

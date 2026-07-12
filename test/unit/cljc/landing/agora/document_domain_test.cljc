@@ -18,7 +18,10 @@
 (deftest kind-data
   (is (= (count sut/kinds) (count (distinct sut/kind-ids))) "kind ids are unique")
   (is (every? sut/kind-color (map name sut/kind-ids)) "every kind has an accent colour")
-  (is (= #{:derived :verifiable :foundation} (set (vals sut/kind-family)))))
+  (is (seq (sut/kind-ids-of "ki")) "KI kinds exist")
+  (is (seq (sut/kind-ids-of "article")) "article kinds exist")
+  (is (not-any? (set (sut/kind-ids-of "ki")) (sut/kind-ids-of "article"))
+      "KI and article kind sets are disjoint"))
 
 (deftest tnlr
   (is (= ["ki" "a" "fr" 1] (sut/tnlr-key t-a)))

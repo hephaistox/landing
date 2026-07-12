@@ -3,8 +3,8 @@
   mounted once per object type — `(document-routes \"ki\" \"/agora/api/ki\")`,
   `(document-routes \"article\" \"/agora/api/article\")`. Every type gets the full
   surface: list/search, create, by-permanent-identity, by-id, edit, translate and
-  input (add/drop). The only per-type data is in `configs` below: the request-body
-  schemas and how a request body maps onto the engine's content fields.
+  input (add/drop). The request surface is **generated identically** for every type
+  (`config-for`); the only per-type value is which kinds it accepts (`kind-enum-for`).
 
   The `/translate` machine-translation *suggestion* (stateless authoring aid, not a
   document op) is a standalone route here too."
@@ -37,15 +37,17 @@
 (def ^:private title-schema
   [:string {:min 1
             :max 200}])
-(def ^:private statement-schema
-  [:string {:min 1
-            :max 10000}])
-(def ^:private body-schema
+(def ^:private text-schema
   [:string {:min 1
             :max 50000}])
 (def ^:private lang-schema
   [:string {:max 8}])
-(def ^:private kind-enum (into [:enum] (map name domain/kind-ids)))
+(defn- kind-enum-for
+  "A malli enum of the kind names valid for object type `object-type` (KI kinds vs article
+  kinds are disjoint, so the enum is per-type — a KI can't be tagged `explainer`, nor an
+  article `inference`)."
+  [object-type]
+  (into [:enum] (map name) (domain/kind-ids-of object-type)))
 (def ^:private input-ref-schema [:map [:name name-schema] [:major :int]])
 
 ;; `:source` — only a `kind=source` KI (a quotation) carries one: a reference to its shared
@@ -72,99 +74,47 @@
   {:status 401
    :body {:error "login required"}})
 
+(defn- config-for
+  "Per-type request shaping, **generated** so every object type gets the identical surface —
+  the only per-type value is which kinds it accepts (`kind-enum-for`). `:list` is the no-query
+  discover feed; the `*-body` malli schemas validate the request. The validated body is handed
+  to the engine as-is (coercion strips unknown keys, so the schema *is* the whitelist, and the
+  engine keeps only the content keys it recognizes — see `document/create`/`edit`/`translate`).
+  All prose is `:text` (statement / body, same cap); every document carries a `:kind`."
+  [object-type]
+  (let [kind-enum (kind-enum-for object-type)]
+    {:list document/list-recent
+     :create-body [:map
+                   [:name {:optional true}
+                    name-schema]
+                   [:title title-schema]
+                   [:kind kind-enum]
+                   [:lang {:optional true}
+                    lang-schema]
+                   [:text text-schema]
+                   [:source {:optional true}
+                    source-schema]
+                   [:quotes {:optional true}
+                    quotes-schema]]
+     :edit-body [:map
+                 [:title title-schema]
+                 [:kind kind-enum]
+                 [:text text-schema]
+                 [:source {:optional true}
+                  source-schema]
+                 [:quotes {:optional true}
+                  quotes-schema]]
+     :translate-body [:map
+                      [:lang lang-schema]
+                      [:title {:optional true}
+                       [:maybe [:string {:max 200}]]]
+                      [:text {:optional true}
+                       text-schema]]}))
+
 (def ^:private configs
-  "Per-type request shaping. `:list` is the no-query discover list; `:to-create`/
-  `:to-edit`/`:to-translate` map a validated request body onto the engine's content
-  fields (uniform keys); the `*-body` malli schemas validate the request."
-  ;; The prose field is `:text` for every type (a KI's "statement" and an article's
-  ;; "body" are the same slot); the size cap still differs per type (short assertion vs
-  ;; long article), so the schema under `:text` differs while the key does not.
-  {"ki" {:list document/list-latest
-         :create-body [:map
-                       [:name {:optional true}
-                        name-schema]
-                       [:title title-schema]
-                       [:kind kind-enum]
-                       [:lang {:optional true}
-                        lang-schema]
-                       [:text statement-schema]
-                       [:source {:optional true}
-                        source-schema]
-                       [:quotes {:optional true}
-                        quotes-schema]]
-         :to-create (fn [b]
-                      {:name (:name b)
-                       :title (:title b)
-                       :kind (:kind b)
-                       :lang (:lang b)
-                       :text (:text b)
-                       :source (:source b)
-                       :quotes (:quotes b)})
-         :edit-body [:map
-                     [:title title-schema]
-                     [:kind kind-enum]
-                     [:text statement-schema]
-                     [:source {:optional true}
-                      source-schema]
-                     [:quotes {:optional true}
-                      quotes-schema]]
-         :to-edit (fn [b]
-                    {:title (:title b)
-                     :kind (:kind b)
-                     :text (:text b)
-                     :source (:source b)
-                     :quotes (:quotes b)})
-         :translate-body [:map
-                          [:lang lang-schema]
-                          [:title {:optional true}
-                           [:maybe [:string {:max 200}]]]
-                          [:text {:optional true}
-                           statement-schema]]
-         :to-translate (fn [b]
-                         {:title (:title b)
-                          :text (:text b)})}
-   "article" {:list document/list-recent
-              :create-body [:map
-                            [:name {:optional true}
-                             name-schema]
-                            [:title title-schema]
-                            [:lang {:optional true}
-                             lang-schema]
-                            [:text body-schema]
-                            [:source {:optional true}
-                             source-schema]
-                            [:quotes {:optional true}
-                             quotes-schema]]
-              :to-create (fn [b]
-                           {:name (:name b)
-                            :title (:title b)
-                            :lang (:lang b)
-                            :text (:text b)
-                            :source (:source b)
-                            :quotes (:quotes b)})
-              :edit-body [:map
-                          [:title {:optional true}
-                           title-schema]
-                          [:text {:optional true}
-                           body-schema]
-                          [:source {:optional true}
-                           source-schema]
-                          [:quotes {:optional true}
-                           quotes-schema]]
-              :to-edit (fn [b]
-                         {:title (:title b)
-                          :text (:text b)
-                          :source (:source b)
-                          :quotes (:quotes b)})
-              :translate-body [:map
-                               [:lang lang-schema]
-                               [:title {:optional true}
-                                title-schema]
-                               [:text {:optional true}
-                                body-schema]]
-              :to-translate (fn [b]
-                              {:title (:title b)
-                               :text (:text b)})}})
+  "object type (string) → its request-shaping config (see `config-for`)."
+  {"ki" (config-for "ki")
+   "article" (config-for "article")})
 
 (defn- not-found
   [& {:as extra}]
@@ -174,8 +124,7 @@
 (defn document-routes
   "The full route set for object `type` under `prefix`."
   [type prefix]
-  (let [{:keys [list create-body to-create edit-body to-edit translate-body to-translate]} (configs
-                                                                                            type)
+  (let [{:keys [list create-body edit-body translate-body]} (configs type)
         body #(get-in % [:parameters :body])
         path-id #(get-in % [:parameters :path :id])
         list-h (fn [req]
@@ -186,7 +135,7 @@
         create-h (fn [req]
                    (if-let [u (uid req)]
                      {:status 201
-                      :body (document/create type u (to-create (body req)))}
+                      :body (document/create type u (body req))}
                      unauthorized))
         by-major-h (fn [req]
                      (let [{n :name
@@ -207,17 +156,15 @@
                     (not-found :id (path-id req))))
         edit-h (fn [req]
                  (if-let [u (uid req)]
-                   (if-let [d (document/edit (path-id req) u (to-edit (body req)))]
+                   (if-let [d (document/edit (path-id req) u (body req))]
                      {:status 201
                       :body d}
                      (not-found :id (path-id req)))
                    unauthorized))
         translate-h (fn [req]
                       (if-let [u (uid req)]
-                        (if-let [d (document/translate (path-id req)
-                                                       (:lang (body req))
-                                                       u
-                                                       (to-translate (body req)))]
+                        (if-let [d
+                                 (document/translate (path-id req) (:lang (body req)) u (body req))]
                           {:status 201
                            :body d}
                           (not-found :id (path-id req)))
@@ -243,9 +190,6 @@
     [prefix {:coercion coercion
              :muuntaja m/instance
              :swagger {:tags #{:agora}}
-             ;; the 5-segment API paths overlap the `/agora/:lang/<type>/…` page routes for
-             ;; the conflict detector; reitit's matcher prefers the literal `api` segment.
-             :conflicting true
              :middleware mw}
      [""
       {:get {:handler list-h

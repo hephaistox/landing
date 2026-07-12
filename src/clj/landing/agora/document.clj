@@ -356,12 +356,16 @@
                                  :lang to-lang
                                  :major major
                                  :minor 0}
-                                (merge (select-keys src carried)
-                                       (into {} (remove (comp nil? val) overrides))
-                                       {:inputs declarations
-                                        :author author
-                                        :owner-id owner-id
-                                        :published-at (store/now-iso)}))
+                                ;; keep only content keys from `overrides` — the caller passes
+                                ;; the whole request body, whose `:lang` is the *target* language
+                                ;; (identity), not content, and must not leak into the blob
+                                (merge
+                                 (select-keys src carried)
+                                 (into {} (remove (comp nil? val) (select-keys overrides carried)))
+                                 {:inputs declarations
+                                  :author author
+                                  :owner-id owner-id
+                                  :published-at (store/now-iso)}))
         (store/evict-lineage! type name to-lang major)))
     (fetch-by-major type name major to-lang)))
 
@@ -425,23 +429,6 @@
          like
          like]
         store/kebab)))))
-
-(defn list-latest
-  "Up to 10 latest-minor documents of `type`, sampled at random, scoped to `lang`."
-  [type lang]
-  (mapv
-   card
-   (store/q!
-    db/ds
-    ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content FROM AGORA_DOCUMENT k
-            WHERE k.type = ? AND k.lang = ?
-              AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
-                             WHERE k2.type = k.type AND k2.name = k.name
-                               AND k2.major = k.major AND k2.lang = k.lang)
-            ORDER BY RAND() LIMIT 10"
-     type
-     lang]
-    store/kebab)))
 
 (defn list-recent
   "Latest-minor documents of `type` scoped to `lang`, most recent first (the recent

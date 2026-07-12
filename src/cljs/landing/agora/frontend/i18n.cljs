@@ -57,6 +57,26 @@
     :home/eyebrow "Stockez le raisonnement, pas seulement la conclusion."
     :home/subtitle
     "Ici, chaque affirmation remonte aux étapes qui la fondent — et chaque étape peut être contestée pour elle-même."
+    ;; --- « Ce qu'Agora vous permet » — quatre bénéfices (issue #72) ---
+    :home/value-title "Ce qu'Agora vous permet"
+    :home/value-1-title "Formalisez une pensée complexe"
+    :home/value-1-body
+    "Décomposez une idée touffue en étapes nettes et défendables — en tant qu'auteur, rendez chaque affirmation précise et inattaquable."
+    :home/value-2-title "Exposez votre raisonnement"
+    :home/value-2-body
+    "Ne partagez pas qu'une conclusion — exposez ce sur quoi vous la fondez, étape par étape, ouverte à la contestation."
+    :home/value-3-title "Actez une prédiction"
+    :home/value-3-body
+    "Annoncez ce qui va arriver, horodaté et public — la preuve que vous l'aviez dit avant que cela n'advienne."
+    :home/value-4-title "Trouvez les esprits qui vous ressemblent"
+    :home/value-4-body
+    "Construisez un consensus autour d'étapes solides, et trouvez ceux qui raisonnent comme vous."
+    ;; Paragraphes de détail, un par bénéfice (value-2 réutilise :home/problem-body,
+    ;; value-3 réutilise :home/predict-lead)
+    :home/value-1-lead
+    "Une pensée complexe inspire peu confiance quand elle arrive d'un bloc. Agora vous la fait décomposer en étapes uniques et défendables — chacune assez petite pour être vérifiée — si bien que l'ensemble tient et que rien ne se cache dans les interstices. Pour un auteur, c'est ainsi qu'un argument devient précis et inattaquable."
+    :home/value-4-lead
+    "Quand votre raisonnement est exposé, ceux qui le suivent peuvent le dire, étape par étape — et ceux qui divergent peuvent pointer exactement où. Le consensus se forme autour des étapes qui tiennent, et vous trouvez les esprits qui raisonnent comme vous plutôt que de vous invectiver sur des conclusions."
     :home/cta-explore "Explorer le graphe"
     :home/cta-publish "＋ Publier une étape"
     :home/anatomy-title "Anatomie d'une affirmation"
@@ -116,6 +136,7 @@
     :home/cta-body
     "Publiez votre première étape. La lecture est libre ; contribuer prend une minute."
     :discover/heading "Découvrir les connaissances"
+    :articles/heading "Découvrir les articles"
     :article-form/new-title "Nouvel article"
     :article-form/name "Nom (identifiant)"
     :article-form/name-ph "un court identifiant d'URL"
@@ -199,7 +220,8 @@
     :prefs/not-signed-in "Vous n'êtes pas connecté."
     :search/placeholder "Rechercher un élément…"
     :search/no-matches "Aucun résultat."
-    :discover/tagline "Éléments de connaissance — le raisonnement rendu lisible."
+    :discover/tagline
+    "Rechercher un élément de connaissance qui vous intéresse, et démarrer votre exploration"
     :discover/empty "Aucun élément de connaissance pour l'instant."
     :discover/view "vue"
     :discover/views "vues"
@@ -219,6 +241,7 @@
     :kind/belief "Croyance"
     :kind/assumption "Supposition"
     :kind/source "Source"
+    :kind/explainer "Explication"
     :kind/definition-link "Voir la définition de ce type"
     :ki/other-languages "Aussi en"
     :ki/create-translation "Créer cette version linguistique"
@@ -290,7 +313,7 @@
     :articles/empty "No articles yet."
     :type/article "Article"
     :type/source "Source"
-    :landing/headline "Store the reasoning, not just the conclusion."
+    :landing/headline "Agora, the public square for reasoning"
     :landing/subtitle
     "Agora is a public graph of challengeable reasoning steps — every claim traceable to the steps it stands on, every term to its definition."
     :landing/cta-ki "＋ New Knowledge Item"
@@ -300,9 +323,29 @@
     :landing/recent "Recent items"
     :landing/browse "Browse all knowledge →"
     ;; --- Landing marketing sections (home / :agora/<lang>) ---
-    :home/eyebrow "The public square for reasoning"
+    :home/eyebrow "Store the reasoning, not just the conclusion."
     :home/subtitle
     "Agora is a public graph of challengeable reasoning steps. Every claim traces back to the steps that support it — and every step can be challenged on its own."
+    ;; --- "What Agora lets you do" — four value props (issue #72) ---
+    :home/value-title "What Agora lets you do"
+    :home/value-1-title "Formalize complex thinking"
+    :home/value-1-body
+    "Break a tangled idea into clean, defensible steps — as a writer, make every claim precise and bulletproof."
+    :home/value-2-title "Show your reasoning"
+    :home/value-2-body
+    "Don't just share a conclusion — expose what you base it on, step by step, open to challenge."
+    :home/value-3-title "Put a prediction on record"
+    :home/value-3-body
+    "State what will happen, timestamped and public — proof you called it before it came true."
+    :home/value-4-title "Find minds like yours"
+    :home/value-4-body
+    "Build consensus around solid steps, and find the people who reason the way you do."
+    ;; Detail paragraphs, one per value prop (value-2 reuses :home/problem-body,
+    ;; value-3 reuses :home/predict-lead)
+    :home/value-1-lead
+    "A complex thought is hard to trust when it lands as one big claim. Agora makes you break it into single, defensible steps — each small enough to check — so the whole holds together and nothing hides in the gaps. As a writer, that is how an argument becomes precise and bulletproof."
+    :home/value-4-lead
+    "When your reasoning is out in the open, the people who follow it can say so, step by step — and those who don't can point to exactly where they diverge. Consensus forms around the steps that hold, and you find the minds who reason the way you do instead of talking past each other over conclusions."
     :home/cta-explore "Explore the graph"
     :home/cta-publish "＋ Publish a step"
     :home/anatomy-title "Anatomy of a claim"
@@ -355,6 +398,7 @@
     :home/cta-title "Make your reasoning impossible to ignore."
     :home/cta-body "Publish your first step. Reading is free; contributing takes a minute."
     :discover/heading "Discover knowledge"
+    :articles/heading "Discover articles"
     :article-form/new-title "New article"
     :article-form/name "Name (slug)"
     :article-form/name-ph "a short URL slug"
@@ -438,7 +482,7 @@
     :prefs/not-signed-in "You are not signed in."
     :search/placeholder "Search knowledge items…"
     :search/no-matches "No matches."
-    :discover/tagline "Knowledge Items — reasoning made legible."
+    :discover/tagline "Discover a knowledge item you're interested in, then start your exploration"
     :discover/empty "No knowledge items yet."
     :discover/view "view"
     :discover/views "views"
@@ -458,6 +502,7 @@
     :kind/belief "Belief"
     :kind/assumption "Assumption"
     :kind/source "Source"
+    :kind/explainer "Explainer"
     :kind/definition-link "See this type's definition"
     :ki/other-languages "Also in"
     :ki/create-translation "Create this language version"

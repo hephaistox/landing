@@ -35,6 +35,15 @@
   {:statement
    "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient.\n\nUne définition ne se conteste pas en elle-même : on lui oppose une autre définition du même mot. Le graphe fait alors apparaître l'ambiguïté — plusieurs définitions concurrentes pour un terme — au lieu de trancher."
    :title "Définition"}}
+ :explainer
+ {"en"
+  {:statement
+   "an article that lays out and links the graph's claims into readable prose — an entry point that makes the reasoning legible for a newcomer, informing and explaining rather than advocating or calling to act.\n\nIt is not challenged like a single reasoning step: an explainer rests on the claims it cites, so a disagreement is taken up with those; the article itself can still be discussed for its clarity, balance or what it leaves out."
+   :title "Explainer"}
+  "fr"
+  {:statement
+   "un article qui expose et relie les énoncés du graphe en une prose lisible — une porte d'entrée qui rend le raisonnement intelligible pour un nouveau venu, informant et expliquant plutôt qu'exhortant ou appelant à agir.\n\nOn ne la conteste pas comme une étape de raisonnement isolée : une explication repose sur les énoncés qu'elle cite, et c'est à ceux-ci qu'on adresse un désaccord ; l'article lui-même peut néanmoins être discuté pour sa clarté, son équilibre ou ses omissions."
+   :title "Explication"}}
  :inference
  {"en"
   {:statement

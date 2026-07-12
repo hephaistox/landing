@@ -41,10 +41,7 @@
   "Serve the app shell (noindex) at `prefix`. The frontend renders the right page
   from the URL."
   [prefix]
-  ;; :conflicting — the `/agora/:lang/…` language segment overlaps the literal API
-  ;; paths for the conflict detector; reitit's matcher prefers the literal.
-  [prefix {:conflicting true
-           :get {:swagger {:tags #{:agora}}
+  [prefix {:get {:swagger {:tags #{:agora}}
                  :handler app-shell-response
                  :middleware html-middlewares
                  :summary "Agora app shell (noindex)"}}])
@@ -91,10 +88,7 @@
 (defn home-shell-route
   "Serve the home/landing shell at `prefix` (`/agora/:lang`)."
   [prefix]
-  [prefix {;; :conflicting — `/agora/:lang` overlaps the literal `/agora/sitemap.xml`;
-           ;; reitit's matcher prefers the literal.
-           :conflicting true
-           :get {:swagger {:tags #{:agora}}
+  [prefix {:get {:swagger {:tags #{:agora}}
                  :handler home-page-response
                  :middleware html-middlewares
                  :summary "Agora home/landing (SEO head injected)"}}])
@@ -102,8 +96,7 @@
 (defn public-shell-route
   "Serve the public shell for discover / preferences (generic OG metadata)."
   [prefix]
-  [prefix {:conflicting true
-           :get {:swagger {:tags #{:agora}}
+  [prefix {:get {:swagger {:tags #{:agora}}
                  :handler public-shell-response
                  :middleware html-middlewares
                  :summary "Public Agora page (discover / preferences)"}}])
@@ -111,8 +104,7 @@
 (defn ki-page-route
   "Serve the public KI permalink shell with server-rendered SEO metadata."
   [prefix]
-  [prefix {:conflicting true
-           :get {:swagger {:tags #{:agora}}
+  [prefix {:get {:swagger {:tags #{:agora}}
                  :handler ki-page-response
                  :middleware html-middlewares
                  :summary "Public KI permalink (SEO head injected)"}}])
@@ -137,8 +129,7 @@
 (defn article-page-route
   "Serve the public article permalink shell with server-rendered SEO metadata."
   [prefix]
-  [prefix {:conflicting true
-           :get {:swagger {:tags #{:agora}}
+  [prefix {:get {:swagger {:tags #{:agora}}
                  :handler article-page-response
                  :middleware html-middlewares
                  :summary "Public article permalink (SEO head injected)"}}])
@@ -162,8 +153,7 @@
 (defn author-page-route
   "Serve the public author profile shell (indexable, SEO head + author→documents hub)."
   [prefix]
-  [prefix {:conflicting true
-           :get {:swagger {:tags #{:agora}}
+  [prefix {:get {:swagger {:tags #{:agora}}
                  :handler author-page-response
                  :middleware html-middlewares
                  :summary "Public author profile (SEO head + hub)"}}])
@@ -179,8 +169,7 @@
 
 (defn sitemap-route
   [prefix]
-  [prefix {:conflicting true
-           :get {:handler sitemap-response
+  [prefix {:get {:handler sitemap-response
                  :middleware html-middlewares
                  :no-doc true
                  :summary "Agora sitemap"}}])

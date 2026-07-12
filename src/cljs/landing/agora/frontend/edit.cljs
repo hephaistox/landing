@@ -37,15 +37,16 @@
   (i18n/t lang (get labels k)))
 
 (defn type-selector
-  "Every epistemic kind as a clickable badge; the selected one highlighted, the others
-  dimmed. Calls `on-select` with the chosen kind string."
-  [selected on-select]
+  "Every kind of `object-type` (KI kinds vs article kinds are disjoint sets) as a clickable
+  badge; the selected one highlighted, the others dimmed. Calls `on-select` with the chosen
+  kind string."
+  [object-type selected on-select]
   (into [:div {:style {:display "flex"
                        :flex-wrap "wrap"
                        :gap "0.4em"}}]
-        ;; `domain/kind-ids` is the canonical set as keywords; the DB/API represent the
-        ;; kind as a string, so map to `(name kw)` at this boundary.
-        (for [t (map name domain/kind-ids)
+        ;; `domain/kind-ids-of` is the canonical per-type set as keywords; the DB/API represent
+        ;; the kind as a string, so map to `(name kw)` at this boundary.
+        (for [t (map name (domain/kind-ids-of object-type))
               :let [current? (= t selected)]]
           ^{:key t}
           [:button {:on-click #(on-select t)
@@ -108,8 +109,8 @@
                        {:db (update db ::edit assoc :saving? true :error nil)
                         :fetch (json-req :post
                                          (str "/agora/api/" type "/" id "/edit")
-                                         ;; a document that has a kind carries it forward; one without
-                                         ;; (e.g. an article) simply omits it — no type check needed
+                                         ;; every document now carries a kind (KI epistemic /
+                                         ;; article rhetorical); the guard is belt-and-braces
                                          (cond-> {:title title
                                                   :text text
                                                   :source (source/strip-source source)
@@ -128,7 +129,10 @@
                    (assoc db
                           ::new
                           {:type type
-                           :show-kind? show-kind?})))
+                           :show-kind? show-kind?
+                           ;; seed the type's default kind (first in its display order:
+                           ;; inference for KIs, explainer for articles)
+                           :kind (name (first (domain/kind-ids-of type)))})))
 (rf/reg-event-db ::new-set (fn [db [_ k v]] (assoc-in db [::new k] v)))
 
 (rf/reg-event-fx ::new-submit
@@ -142,7 +146,7 @@
                                                 :text text
                                                 :source (source/strip-source source)
                                                 :quotes (source/strip-quotes quotes)}
-                                         show-kind? (assoc :kind (or kind "inference")))
+                                         show-kind? (assoc :kind kind))
                                        [::saved-ok]
                                        [::op-failed])})))
 
@@ -268,7 +272,8 @@
   [{doc-name :name
     doc-lang :lang
     :keys [major minor published-at author]}
-   {:keys [show-kind? labels]}]
+   {:keys [show-kind? labels]
+    object-type :type}]
   (let [{:keys [title kind text source quotes saving? error]} @(rf/subscribe [::edit])
         lang @(rf/subscribe [::i18n/lang])
         user @(rf/subscribe [::auth/user])]
@@ -277,7 +282,7 @@
                     :align-items "center"
                     :gap "0.75em"
                     :margin-bottom "0.6em"}}
-      (when show-kind? [type-selector kind #(rf/dispatch [::edit-set :kind %])])
+      (when show-kind? [type-selector object-type kind #(rf/dispatch [::edit-set :kind %])])
       [lang-badge doc-lang]
       [:span {:style {:color "#888"
                       :font-size "0.8em"
@@ -347,6 +352,7 @@
   editor over the prose, and its source. `with-let` resets the shared `::new` state on
   mount so switching types never carries stale fields."
   [{:keys [show-kind? cancel-route labels]
+    object-type :type
     :as cfg}]
   (r/with-let
    [_ (rf/dispatch-sync [::new-reset cfg])]
@@ -375,14 +381,14 @@
          [:div {:style label-style}
           (i18n/t lang :form/type)]
          [:div {:style {:margin-bottom "0.8em"}}
-          [type-selector (or kind "inference") #(rf/dispatch [::new-set :kind %])]]])
+          [type-selector object-type kind #(rf/dispatch [::new-set :kind %])]]])
       [:div {:style label-style}
        (i18n/t lang :form/language)]
       [:div {:style {:margin-bottom "0.8em"}}
        [language-selector (or form-lang lang) #(rf/dispatch [::new-set :lang %])]]
       [:div {:style label-style}
        (lbl lang labels :text)]
-      [prefix-label {:kind (or kind "inference")
+      [prefix-label {:kind kind
                      :title title
                      :source source
                      :quotes quotes}

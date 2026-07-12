@@ -30,10 +30,6 @@
   [prefix {:coercion coercion
            :muuntaja m/instance
            :swagger {:tags #{:agora}}
-           ;; `/agora/api/author/:id` overlaps the `/agora/:lang/author/:id` page shell
-           ;; for the conflict detector (`api` vs the `:lang` param); reitit's matcher
-           ;; prefers the literal `api` segment, so opt out of the conflict error.
-           :conflicting true
            :middleware [parameters/parameters-middleware
                         muuntaja/format-negotiate-middleware
                         muuntaja/format-response-middleware

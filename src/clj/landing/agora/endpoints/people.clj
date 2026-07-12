@@ -36,7 +36,6 @@
   [prefix {:coercion coercion
            :muuntaja m/instance
            :swagger {:tags #{:agora}}
-           :conflicting true
            :middleware [parameters/parameters-middleware
                         muuntaja/format-negotiate-middleware
                         muuntaja/format-response-middleware

@@ -24,7 +24,7 @@
    [landing.endpoints.resource        :refer [resource-handler]]
    [landing.endpoints.swagger         :refer [api-swagger]]
    [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
-   [landing.language                  :refer [pick-lang]]
+   [landing.language                  :refer [languages pick-lang]]
    [reitit.ring                       :as rring]
    [ring.middleware.session           :refer [wrap-session]]
    [ring.middleware.session.cookie    :refer [cookie-store]]))
@@ -94,44 +94,70 @@
                             {:status 302
                              :headers {"Location" (str "/agora/" (pick-lang req))}})}}])
 
+(def ^:private lang-injector
+  "Reitit middleware for the enumerated language shells: copy the route's declared `:lang`
+  (route data) into `:path-params`, so the shell handlers keep reading `(:path-params req)`
+  even though the language segment is now a literal (`fr`/`en`), not a `:lang` wildcard.
+  Compiles to nothing for routes without `:lang` (the API, sitemap, …) — a no-op there."
+  {:name ::lang-injector
+   :compile (fn [{:keys [lang]} _]
+              (when lang
+                (fn [handler] (fn [req] (handler (assoc-in req [:path-params :lang] lang))))))})
+
+(def ^:private agora-shell-routes
+  "Path suffix (under `/agora/<lang>`) → the route builder for each public language shell.
+  Enumerated per language in `agora-lang-routes` so the language segment is a **literal**,
+  not a wildcard — a `:lang` wildcard would overlap the literal `/agora/api…` and
+  `/agora/sitemap.xml`, which is what forced reitit onto the slow quarantine router."
+  [["" home-shell-route]
+   ["/ki/:name/:major" ki-page-route]
+   ["/discover" public-shell-route]
+   ["/preferences" public-shell-route]
+   ["/articles" public-shell-route]
+   ["/authors" public-shell-route]
+   ["/sources" public-shell-route]
+   ["/article/:name/:major" article-page-route]
+   ["/new" app-shell-route]
+   ["/ki/:id" app-shell-route]
+   ["/article/:id" app-shell-route]
+   ["/author/:id" author-page-route]
+   ["/admin" app-shell-route]])
+
+(defn- agora-lang-routes
+  "Every public shell, enumerated once per supported language, with the literal language
+  baked into both the path and the route data (`:lang`). An unsupported language matches no
+  route and 404s — cleaner than a wildcard silently falling back to a default."
+  []
+  (for [lang languages
+        [suffix route-fn] agora-shell-routes
+        :let [[path data] (route-fn (str "/agora/" lang suffix))]]
+    [path (assoc data :lang lang)]))
+
 (defn router
   []
-  (rring/router
-   [(ping-route "/ping")
-    (root-redirect-route "/")
-    (lang-page-redirect-route "/index.html")
-    (lang-page-redirect-route "/404.html")
-    (legacy-articles-route "/articles")
-    (admin-route "/all-kind-of-checks")
-    (contact-route "/contact")
-    (check-url-route "/check-url")
-    (agora-lang-redirect-route "/agora")
-    (sitemap-route "/agora/sitemap.xml")
-    (home-shell-route "/agora/:lang")
-    (auth-routes "/agora/api/auth")
-    (admin-routes "/agora/api/admin")
-    ;; The whole KI/article API surface — one generic route set per object type.
-    (document-routes "ki" "/agora/api/ki")
-    (document-routes "article" "/agora/api/article")
-    (author-routes "/agora/api/author")
-    (people-routes "/agora/api/people")
-    (source-routes "/agora/api/source")
-    (translate-suggest-route "/agora/api/translate")
-    (ki-page-route "/agora/:lang/ki/:name/:major")
-    (public-shell-route "/agora/:lang/discover")
-    (public-shell-route "/agora/:lang/preferences")
-    (public-shell-route "/agora/:lang/articles")
-    (public-shell-route "/agora/:lang/authors")
-    (public-shell-route "/agora/:lang/sources")
-    (article-page-route "/agora/:lang/article/:name/:major")
-    (app-shell-route "/agora/:lang/new")
-    (app-shell-route "/agora/:lang/ki/:id")
-    (app-shell-route "/agora/:lang/article/:id")
-    (author-page-route "/agora/:lang/author/:id")
-    (app-shell-route "/agora/:lang/admin")
-    (api-swagger "/api")
-    (w3c-validate-route "/w3c-validate")]
-   {}))
+  (rring/router (into [(ping-route "/ping")
+                       (root-redirect-route "/")
+                       (lang-page-redirect-route "/index.html")
+                       (lang-page-redirect-route "/404.html")
+                       (legacy-articles-route "/articles")
+                       (admin-route "/all-kind-of-checks")
+                       (contact-route "/contact")
+                       (check-url-route "/check-url")
+                       (agora-lang-redirect-route "/agora")
+                       (sitemap-route "/agora/sitemap.xml")
+                       (auth-routes "/agora/api/auth")
+                       (admin-routes "/agora/api/admin")
+                       ;; The whole KI/article API surface — one generic route set per object type.
+                       (document-routes "ki" "/agora/api/ki")
+                       (document-routes "article" "/agora/api/article")
+                       (author-routes "/agora/api/author")
+                       (people-routes "/agora/api/people")
+                       (source-routes "/agora/api/source")
+                       (translate-suggest-route "/agora/api/translate")
+                       (api-swagger "/api")
+                       (w3c-validate-route "/w3c-validate")]
+                      (agora-lang-routes))
+                {:data {:middleware [lang-injector]}}))
 
 (defn wrap-agora-canonical-host
   "In production, 301-redirect Agora URLs (`/agora…`) reached on any non-canonical

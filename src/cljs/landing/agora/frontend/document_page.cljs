@@ -832,13 +832,35 @@
                    :margin "1.5em auto"
                    :padding "0 0.8em"
                    :font-family "system-ui, sans-serif"}}
-     (when heading-key
-       [:h1 {:style {:font-size "1.4em"
-                     :margin "0 0 0.2em"
-                     :color "#1b1a17"}}
-        (i18n/t lang heading-key)])
+     ;; header row: heading (optional) on the left, a top 'create' button on the right — so
+     ;; the create action is reachable without scrolling to the trailing add-card.
+     [:div {:style {:display "flex"
+                    :align-items "center"
+                    :gap "0.8em"
+                    :flex-wrap "wrap"
+                    :margin-bottom "0.2em"}}
+      (when heading-key
+        [:h1 {:style {:font-size "1.4em"
+                      :margin 0
+                      :color "#1b1a17"}}
+         (i18n/t lang heading-key)])
+      [:a {:href new-href
+           :title new-label
+           :style {:margin-left "auto"
+                   :display "inline-flex"
+                   :align-items "center"
+                   :gap "0.3em"
+                   :padding "0.5em 1em"
+                   :background "#b9770e"
+                   :color "#fff"
+                   :border-radius "0.4em"
+                   :font-size "0.9em"
+                   :font-weight 600
+                   :white-space "nowrap"
+                   :text-decoration "none"}}
+       (str "＋ " new-label)]]
      [:p {:style {:color "#666"
-                  :margin (if heading-key "0 0 1.1em" "0 0 1em")}}
+                  :margin "0 0 1em"}}
       (i18n/t lang tagline-key)]
      (into [:div {:style {:display "grid"
                           :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"

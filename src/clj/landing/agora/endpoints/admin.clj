@@ -57,8 +57,7 @@
                       :body {:deleted (document/compact-tnr! type name lang major)}})))))
 
 (def rebuild-handler
-  ;; Recompute the derived caches on demand instead of waiting for the daily scheduler. Today
-  ;; the only derived cache is the successor index (`AGORA_SUCCESSOR`); add others here if any.
+  ;; Recompute the derived caches on demand instead of waiting for the daily scheduler.
   (fn [req]
     (admin-guard req
                  (fn []

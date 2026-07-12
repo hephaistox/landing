@@ -351,7 +351,7 @@
       (let [lang @(rf/subscribe [::i18n/lang])]
         (when-not @loaded?
           (reset! loaded? true)
-          (GET* "/agora/api/source/recent" #(reset! recent %)))
+          (GET* "/agora/api/source-recent" #(reset! recent %)))
         [:div
          [:div {:style {:font-size "0.8em"
                         :color "#555"

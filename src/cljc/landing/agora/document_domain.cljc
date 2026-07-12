@@ -58,14 +58,16 @@
       k)))
 
 (def kinds
-  "The epistemic `kind`s — canonical domain data for a KI's kind, in display order. Each kind
-  declares its **capabilities and presentation as data**, so consumers (backend + UI) read a
-  field rather than branching on a specific kind:
+  "The document `kind`s — canonical domain data for a document's kind, in display order and
+  **partitioned by object type**. *KI* kinds sit on an epistemic axis (*how is this known?* —
+  inference / prediction / definition / belief / assumption, plus `source`); *article* kinds sit
+  on a rhetorical axis (*what is this prose doing?* — `explainer` today, evangelism /
+  call-to-action later). Each kind declares its **capabilities and presentation as data**, so
+  consumers (backend + UI) read a field rather than branching on a specific kind:
+   - `:object-type` — which document type carries it (`\"ki\"` / `\"article\"`); drives the
+     per-type kind enum and selector (`kind-ids-of`).
    - `:color`  — accent colour.
-   - `:family` — conceptual family (`derived` — has inputs; `verifiable` — settles at a date;
-     `foundation` — a declared starting point; `provenance` — an external cited work, i.e. a
-     `type=source` document).
-   - `:inputs?` — **may a KI of this kind take inputs** (in-text `[[ki:…]]` citations)? A
+   - `:inputs?` — **may a document of this kind take inputs** (in-text `[[ki:…]]` citations)? A
      `source` is a leaf work and takes none; everything else does. This one flag drives both
      the backend (input derivation) and the UI (whether the quotation feature is shown).
    - `:def-name` + `:def-major` — a pointer to the KI that *defines* the kind. The rest of that
@@ -74,61 +76,81 @@
   The set is NOT enforced by the DB; the API validates against it and the UI renders it."
   [{:id :inference
     :color "#2c5aa0"
-    :family :derived
     :inputs? true
+    :object-type "ki"
     :def-name "type-inference"
     :def-major 1}
    {:id :prediction
     :color "#0b7285"
-    :family :verifiable
     :inputs? true
+    :object-type "ki"
     :def-name "type-prediction"
     :def-major 1}
    {:id :definition
     :color "#a61e8c"
-    :family :foundation
     :inputs? true
+    :object-type "ki"
     :def-name "type-definition"
     :def-major 1}
-   ;; The "foundation" family is deliberately just two, a decidable binary: a `belief` is a
-   ;; foundation you **hold/commit to** (any register — personal, civic or formal); an
+   ;; The declared-foundation kinds are deliberately just two, a decidable binary: a `belief` is
+   ;; a foundation you **hold/commit to** (any register — personal, civic or formal); an
    ;; `assumption` is one you **suppose provisionally**. (An earlier `postulate`/`position`/
    ;; `credo` split was dropped as mechanically identical and hard to choose between.)
    {:id :belief
     :color "#2b8a3e"
-    :family :foundation
     :inputs? true
+    :object-type "ki"
     :def-name "type-belief"
     :def-major 1}
    {:id :assumption
     :color "#e8590c"
-    :family :foundation
     :inputs? true
+    :object-type "ki"
     :def-name "type-assumption"
     :def-major 1}
    ;; `source` is the kind of a bibliographic **quotation** KI (one idea/quote from a shared
-   ;; book in `AGORA_SOURCE`; see landing.agora.source). Its own family; **no inputs** (a
-   ;; quotation quotes nothing further); `:in-text? false` — when a KI quotes a source, the
-   ;; citation is an *input edge only*, never written into the prose (see `kind-quotes-in-text?`);
-   ;; no statement scaffold (a source isn't "<author> <verb> that …"); self-hosted by a
-   ;; `type-source` definition KI.
+   ;; book in `AGORA_SOURCE`; see landing.agora.source). **No inputs** (a quotation quotes
+   ;; nothing further); `:in-text? false` — when a KI quotes a source, the citation is an
+   ;; *input edge only*, never written into the prose (see `kind-quotes-in-text?`); no statement
+   ;; scaffold (a source isn't "<author> <verb> that …"); self-hosted by a `type-source`
+   ;; definition KI.
    {:id :source
     :color "#495057"
-    :family :provenance
     :inputs? false
     :in-text? false
+    :object-type "ki"
     :def-name "type-source"
+    :def-major 1}
+   ;; --- article kinds (rhetorical axis: what is the prose doing?) ---
+   ;; `explainer` is the neutral base — an article that lays out and links the graph's claims
+   ;; into readable prose (informing, not advocating). Future article kinds (evangelism,
+   ;; call-to-action…) join here. Self-hosted by a `type-explainer` definition KI like the KI
+   ;; kinds, so it gets the same badge → definition affordance.
+   {:id :explainer
+    :color "#6741d9"
+    :inputs? true
+    :object-type "article"
+    :def-name "type-explainer"
     :def-major 1}])
 
-(def kind-ids "The kind ids (keywords), in display order." (mapv :id kinds))
+(def kind-ids
+  "All kind ids (keywords), in display order, across every object type."
+  (mapv :id kinds))
+
+(defn kinds-of
+  "The kinds declared for object type `object-type` (\"ki\" / \"article\"), in display order."
+  [object-type]
+  (filterv #(= object-type (:object-type %)) kinds))
+
+(defn kind-ids-of
+  "The kind ids (keywords) for `object-type`, in display order; the **first is that type's
+  default** (inference for KIs, explainer for articles)."
+  [object-type]
+  (mapv :id (kinds-of object-type)))
 
 (def kind-color
   "kind name (string) → accent colour."
   (into {} (map (juxt (comp name :id) :color)) kinds))
-
-(def kind-family
-  "kind name (string) → conceptual family (keyword)."
-  (into {} (map (juxt (comp name :id) :family)) kinds))
 
 (def ^:private kind-inputs?
   "kind name (string) → whether a KI of that kind may take inputs."

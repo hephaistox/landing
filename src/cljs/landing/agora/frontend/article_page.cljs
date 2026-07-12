@@ -1,6 +1,6 @@
 (ns landing.agora.frontend.article-page
   "Thin **article facade** over the generic document components (`view`/`edit`). It picks
-  the article's feature values — no kind selector, the article authoring labels, the create
+  the article's feature values — its (rhetorical) kind selector, the article authoring labels, the create
   form's cancel target — and exposes the entry points `core` renders. All shared rendering
   lives in the generic layer; this ns only configures it for the article type, so the
   string `\"article\"` and its labels live here rather than in the type-agnostic engine."
@@ -13,7 +13,7 @@
 (def ^:private cfg
   "The article's feature choices, handed to the generic view/edit components."
   {:type "article"
-   :show-kind? false
+   :show-kind? true
    :cancel-route i18n/articles
    :labels {:new-title :article-form/new-title
             :title :article-form/title
@@ -35,7 +35,8 @@
 (defn discover
   "The article discover grid (`/agora/<lang>/articles`) — no heading, just the tagline."
   [articles]
-  [dv/discover-grid {:tagline-key :articles/tagline
+  [dv/discover-grid {:heading-key :articles/heading
+                     :tagline-key :articles/tagline
                      :items articles
                      :new-href-fn i18n/new-article
                      :new-label-key :nav/new-article}])
