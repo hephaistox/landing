@@ -161,6 +161,14 @@
                         :dispatch [:agora/saved doc]}
                        {:db (update db ::edit assoc :saving? false :error resp)}))))
 
+;; Publish a draft: promote this version, prune the lineage's intermediate drafts, then reuse
+;; `::saved-ok` to navigate to the now-published document.
+(rf/reg-event-fx
+ ::publish
+ (fn [_ [_ type id]]
+   {:fetch
+    (json-req :post (str "/agora/api/" type "/" id "/publish") {} [::saved-ok] [::op-failed])}))
+
 ;; --- admin maintenance from the edit card ----------------------------------
 ;; Owner-only: delete the whole lineage, or keep only its latest version (compact). Both
 ;; target the lineage (type,name,lang,major) via the admin endpoints, then leave the editor —
@@ -197,6 +205,38 @@
                                                           type
                                                           {:name doc-name
                                                            :major major}))}))
+
+(defn publish-action
+  "For a **draft** the current user owns, a Publish banner on the read view. Publishing clears
+  the draft flag, prunes the lineage's intermediate drafts, re-pins successors, and makes the
+  document resolve. Renders nothing for a published document or a viewer who isn't its owner."
+  [{:keys [id draft author-id]
+    doc-type :type}]
+  (let [user @(rf/subscribe [::auth/user])]
+    (when (and draft (= (:id user) author-id))
+      (let [lang @(rf/subscribe [::i18n/lang])]
+        [:div {:style {:display "flex"
+                       :align-items "center"
+                       :justify-content "space-between"
+                       :gap "0.7em"
+                       :flex-wrap "wrap"
+                       :margin-bottom "0.9em"
+                       :padding "0.5em 0.8em"
+                       :background "#fdf6ec"
+                       :border "1px dashed #b98a3e"
+                       :border-radius "0.4em"}}
+         [:span {:style {:font-size "0.88em"
+                         :color "#8a5709"}}
+          (str "✎ " (i18n/t lang :ki/draft-notice))]
+         [:button {:on-click #(rf/dispatch [::publish doc-type id])
+                   :style {:padding "0.4em 1em"
+                           :border "none"
+                           :background "#2b8a3e"
+                           :color "#fff"
+                           :border-radius "0.3em"
+                           :cursor "pointer"
+                           :font-weight 600}}
+          (i18n/t lang :ki/publish)]]))))
 
 (defn admin-actions
   "Owner-only maintenance for a document, shown on the **read view** so an admin acts without
@@ -288,18 +328,18 @@
                       :font-size "0.8em"
                       :font-family "monospace"}}
        (str "v" major "." minor " " (i18n/t lang :form/next))]]
-     [:input {:type "text"
-              :value (or title "")
-              :on-change #(rf/dispatch [::edit-set :title (.. % -target -value)])
-              :style {:width "100%"
-                      :box-sizing "border-box"
-                      :margin "0.2em 0 0.1em"
-                      :padding "0.35em 0.4em"
-                      :font-size "1.3em"
-                      :font-weight 700
-                      :font-family "inherit"
-                      :border "1px solid #eee"
-                      :border-radius "0.3em"}}]
+     [ui/composed-field {:type "text"
+                         :value (or title "")
+                         :on-text #(rf/dispatch [::edit-set :title %])
+                         :style {:width "100%"
+                                 :box-sizing "border-box"
+                                 :margin "0.2em 0 0.1em"
+                                 :padding "0.35em 0.4em"
+                                 :font-size "1.3em"
+                                 :font-weight 700
+                                 :font-family "inherit"
+                                 :border "1px solid #eee"
+                                 :border-radius "0.3em"}}]
      [byline author published-at]
      [prefix-label {:kind kind
                     :title title
@@ -371,11 +411,11 @@
        (lbl lang labels :new-title)]
       [:div {:style label-style}
        (lbl lang labels :title)]
-      [:input {:type "text"
-               :placeholder (lbl lang labels :title-ph)
-               :value (or title "")
-               :on-change #(rf/dispatch [::new-set :title (.. % -target -value)])
-               :style title-input-style}]
+      [ui/composed-field {:type "text"
+                          :placeholder (lbl lang labels :title-ph)
+                          :value (or title "")
+                          :on-text #(rf/dispatch [::new-set :title %])
+                          :style title-input-style}]
       (when show-kind?
         [:<>
          [:div {:style label-style}

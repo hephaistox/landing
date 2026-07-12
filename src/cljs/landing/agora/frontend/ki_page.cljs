@@ -36,7 +36,8 @@
 (defn discover
   "The KI discover grid (`/agora/<lang>/discover`)."
   [kis]
-  [dv/discover-grid {:heading-key :discover/heading
+  [dv/discover-grid {:type "ki"
+                     :heading-key :discover/heading
                      :tagline-key :discover/tagline
                      :items kis
                      :new-href-fn i18n/new-ki

@@ -102,6 +102,20 @@
            :quotes []}
           inputs))
 
+(defn- successor-refs
+  "Distinct successor lineages of `tnlr`, each as `{:id <latest-live-minor-id>}`. Resolves each
+  cached successor id, **dropping dangling ones** (a `successor_id` whose document was deleted —
+  e.g. an old minor removed by `compact-tnr!`) and collapsing the several indexed minors of one
+  lineage to a single entry at its latest minor. Keeps the read robust against successor-cache
+  drift (a dangling row otherwise renders as a broken/'missing' successor in the SPA)."
+  [tnlr]
+  (->> (store/successors-of tnlr)
+       (keep store/fetch-document)
+       (remove :draft) ; an unpublished successor stays hidden until it is published
+       (group-by (juxt :type :name :lang :major))
+       vals
+       (mapv (fn [ds] {:id (:id (apply max-key :minor ds))}))))
+
 (defn view
   "Endpoint view of an already-fetched document `doc`: resolved input refs, successor ids,
   version lineage and translations. `:pins` is dropped; `:owner-id` is renamed to the
@@ -120,7 +134,7 @@
                :author-id (:owner-id doc)
                ;; resolve the source *reference* to the shared work's display fields
                :source (source/resolve-ref (:source doc))
-               :successors (mapv (fn [sid] {:id sid}) (store/successors-of tnlr))
+               :successors (successor-refs tnlr)
                :versions (store/versions-of tnlr)
                :translations (store/translations-of (:type doc) (:name doc) (:lang doc)))
         (dissoc :owner-id :pins))))
@@ -198,8 +212,10 @@
   (loop [] (let [c (gen-cid)] (if (store/cid-taken? c) (recur) c))))
 
 (defn- new-minor!
-  "Insert a new minor of the concept `src` with `content` (its declared `:inputs` are
-  stored as given), re-pin successors onto it, return the new document view."
+  "Insert a new **draft** minor of the concept `src` with `content` (its declared `:inputs`
+  are stored as given) and return the new document view. Successors are **not** re-pinned:
+  a draft isn't the resolved version, so edges keep pointing at the current published minor
+  until `publish!` promotes this one (slice 3)."
   [src content]
   (let [{:keys [type name lang major]} src
         new-id (store/uuid)]
@@ -208,10 +224,11 @@
                              :name name
                              :lang lang
                              :major major
-                             :minor (store/next-minor type name lang major)}
+                             :minor (store/next-minor type name lang major)
+                             ;; every edit lands as a draft until Publish
+                             :draft? true}
                             (normalize-source (normalize-text
                                                (assoc content :published-at (store/now-iso)))))
-    (store/repin-successors! type name lang major new-id)
     (store/evict-lineage! type name lang major)
     (fetch new-id)))
 
@@ -236,7 +253,9 @@
                              :name name
                              :lang lang
                              :major 1
-                             :minor 0}
+                             :minor 0
+                             ;; a newly created document starts as a draft until Publish
+                             :draft? true}
                             (normalize-source (normalize-text (-> content
                                                                   ;; `:quotes` is transient — it
                                                                   ;; is folded into `:inputs`
@@ -338,7 +357,8 @@
                                                  :name in-name
                                                  :lang to-lang
                                                  :major in-major
-                                                 :minor 0}
+                                                 :minor 0
+                                                 :draft? true}
                                                 (merge (select-keys s carried)
                                                        {:inputs []
                                                         :author author
@@ -355,7 +375,9 @@
                                  :name name
                                  :lang to-lang
                                  :major major
-                                 :minor 0}
+                                 :minor 0
+                                 ;; a translation lands as a draft (with its input siblings) until Publish
+                                 :draft? true}
                                 ;; keep only content keys from `overrides` — the caller passes
                                 ;; the whole request body, whose `:lang` is the *target* language
                                 ;; (identity), not content, and must not leak into the blob
@@ -368,6 +390,17 @@
                                   :published-at (store/now-iso)}))
         (store/evict-lineage! type name to-lang major)))
     (fetch-by-major type name major to-lang)))
+
+(defn publish!
+  "Publish document version `id` on behalf of `user-id` — who must **own** it. Clears the draft
+  flag, prunes the lineage's intermediate drafts and re-pins successors onto it (see
+  `store/publish!`). Returns the published view, `:forbidden` when `user-id` is not the owner,
+  or nil when `id` is unknown."
+  [id user-id]
+  (when-let [{:keys [type name lang major]
+              doc-owner :owner-id}
+             (store/fetch-document id)]
+    (if (= user-id doc-owner) (do (store/publish! type name lang major id) (fetch id)) :forbidden)))
 
 ;; ---------------------------------------------------------------------------
 ;; Discovery / search / admin — all type-parameterised
@@ -396,6 +429,7 @@
   [row]
   (let [c (store/decode-content (:content row))]
     (assoc (select-keys row [:id :type :name :lang :major :minor])
+           :draft (store/truthy? (:draft row))
            :kind (:kind c)
            :title (:title c)
            :cite-titles (cite-titles c (:lang row))
@@ -418,11 +452,11 @@
        (store/q!
         db/ds
         ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content FROM AGORA_DOCUMENT k
-                WHERE k.type = ? AND k.lang = ?
+                WHERE k.type = ? AND k.lang = ? AND k.draft = 0
                   AND (k.name LIKE ? OR k.content LIKE ?)
                   AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
                                  WHERE k2.type = k.type AND k2.name = k.name
-                                   AND k2.major = k.major AND k2.lang = k.lang)
+                                   AND k2.major = k.major AND k2.lang = k.lang AND k2.draft = 0)
                 ORDER BY k.name, k.major LIMIT 50"
          type
          lang
@@ -431,32 +465,46 @@
         store/kebab)))))
 
 (defn list-recent
-  "Latest-minor documents of `type` scoped to `lang`, most recent first (the recent
-  documents feed). published-at lives in the content blob, so sort after decoding."
-  [type lang]
-  (->>
-    (store/q!
-     db/ds
-     ["SELECT a.id, a.type, a.name, a.lang, a.major, a.minor, a.content FROM AGORA_DOCUMENT a
-           WHERE a.type = ? AND a.lang = ?
-             AND a.minor = (SELECT MAX(a2.minor) FROM AGORA_DOCUMENT a2
-                            WHERE a2.type = a.type AND a2.name = a.name
-                              AND a2.major = a.major AND a2.lang = a.lang)"
-      type
-      lang]
-     store/kebab)
-    (mapv card)
-    (sort-by :published-at #(compare %2 %1))
-    vec))
+  "Latest-minor documents of `type` in `lang`, most recent first (the discover feed). By
+  default **published only**; with `include-drafts?` the latest minor per lineage shows even
+  when it's a draft (and draft-only lineages appear) — each card carries `:draft` so the UI can
+  flag it and link it by exact-version URL. published-at lives in the content blob, so sort
+  after decoding."
+  ([type lang] (list-recent type lang false))
+  ([type lang include-drafts?]
+   (let [df (if include-drafts? "" " AND a.draft = 0")
+         df2 (if include-drafts? "" " AND a2.draft = 0")]
+     (->>
+       (store/q!
+        db/ds
+        [(str
+          "SELECT a.id, a.type, a.name, a.lang, a.major, a.minor, a.draft, a.content
+                 FROM AGORA_DOCUMENT a
+                WHERE a.type = ? AND a.lang = ?"
+          df
+          "
+                  AND a.minor = (SELECT MAX(a2.minor) FROM AGORA_DOCUMENT a2
+                                 WHERE a2.type = a.type AND a2.name = a.name
+                                   AND a2.major = a.major AND a2.lang = a.lang"
+          df2
+          ")")
+         type
+         lang]
+        store/kebab)
+       (mapv card)
+       (sort-by :published-at #(compare %2 %1))
+       vec))))
 
 (defn- owned-by
-  "Latest-minor documents in `lang` OWNED by account `author-id` (its own claims).
-  `owner-id` lives in the content blob → `content LIKE` prefilter, confirmed on decode."
+  "Latest-minor documents in `lang` OWNED by account `author-id` (its own claims) — **including
+  the owner's unpublished drafts** (flagged `:draft` on the card), so an author's profile is
+  where they find and publish their work in progress. `owner-id` lives in the content blob →
+  `content LIKE` prefilter, confirmed on decode."
   [author-id lang]
   (->>
     (store/q!
      db/ds
-     ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
+     ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.draft, k.content
             FROM AGORA_DOCUMENT k
            WHERE k.lang = ? AND k.content LIKE ?
              AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
@@ -490,10 +538,10 @@
                 FROM AGORA_DOCUMENT k
                 JOIN AGORA_SOURCE s
                   ON s.person_id = ? AND k.content LIKE CONCAT('%', s.id, '%')
-               WHERE k.lang = ?
+               WHERE k.lang = ? AND k.draft = 0
                  AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
                                 WHERE k2.type = k.type AND k2.name = k.name
-                                  AND k2.major = k.major AND k2.lang = k.lang)"
+                                  AND k2.major = k.major AND k2.lang = k.lang AND k2.draft = 0)"
           author-id
           lang]
          store/kebab)
@@ -597,6 +645,22 @@
         lang
         doc-major]
        store/kebab))
+     ;; drop the successor-index rows for the minors we're about to delete FIRST (the subquery
+     ;; reads AGORA_DOCUMENT) — else they'd dangle (a successor_id pointing at a deleted minor),
+     ;; surfacing as a broken/'missing' successor on the cited document. `delete-tnr!` already
+     ;; does this; `compact-tnr!` used to forget to, which is how dangling successors appeared.
+     _
+     (store/q!
+      db/ds
+      ["DELETE FROM AGORA_SUCCESSOR
+                    WHERE successor_id IN (SELECT id FROM AGORA_DOCUMENT
+                                           WHERE type = ? AND name = ? AND lang = ? AND major = ?
+                                             AND minor < ?)"
+       type
+       doc-name
+       lang
+       doc-major
+       latest])
      n
      (or
       (:next.jdbc/update-count
@@ -629,9 +693,11 @@
                      JOIN (SELECT type, name, major, lang, MAX(minor) AS latest,
                                   MAX(published_at) AS lastmod
                              FROM AGORA_DOCUMENT
+                            WHERE draft = 0
                             GROUP BY type, name, major, lang) g
                        ON d.type = g.type AND d.name = g.name AND d.major = g.major
-                          AND d.lang = g.lang AND d.minor = g.latest"]
+                          AND d.lang = g.lang AND d.minor = g.latest
+                    WHERE d.draft = 0"]
      store/kebab)
     (mapv (fn [{:keys [content]
                 :as r}]
@@ -651,6 +717,33 @@
   []
   (store/rebuild-pins!))
 
+(defn- successor-cache-issues
+  "Successor-cache drift: `AGORA_SUCCESSOR` rows whose `successor_id` no longer exists in
+  `AGORA_DOCUMENT` (e.g. an old minor deleted by compaction whose row wasn't cleaned). Grouped
+  by the **input (cited) lineage** the stale rows hang off, resolved to that lineage's current
+  version so the admin can deep-link to it. Each →
+  {:type :name :lang :major (:minor :title) :dangling-successors [dead-id…]}. A `rebuild-successor-index!`
+  heals them; this surfaces them so the drift is visible rather than silent."
+  []
+  (->>
+    (store/q!
+     db/ds
+     ["SELECT s.input_type AS type, s.input_name AS name, s.input_lang AS lang,
+                          s.input_major AS major, s.successor_id AS successor_id
+                     FROM AGORA_SUCCESSOR s
+                LEFT JOIN AGORA_DOCUMENT d ON d.id = s.successor_id
+                    WHERE d.id IS NULL"]
+     store/kebab)
+    (group-by (juxt :type :name :lang :major))
+    (mapv (fn [[[t n l mj] rows]]
+            (let [doc (when-let [id (store/resolve-latest-id t n mj l)] (store/fetch-document id))]
+              (cond-> {:type t
+                       :name n
+                       :lang l
+                       :major mj
+                       :dangling-successors (mapv :successor-id rows)}
+                doc (assoc :minor (:minor doc) :title (:title doc))))))))
+
 (defn consistency-issues
   "Scan **every version** of every document for reference problems (see the *Consistency
   rules* in agora/CLAUDE.md):
@@ -662,6 +755,9 @@
    - **`:self`** — a **self-reference**: the document cites its own lineage
      (same type + name + major). A document cannot be an input of itself — that is a
      degenerate cycle — so it is reported even though the target exists.
+   - **`:dangling-successors`** — **successor-cache drift**: the reverse-edge cache
+     (`AGORA_SUCCESSOR`) still points at a deleted document version (see
+     `successor-cache-issues`), reported against the cited lineage.
 
   (A source having inputs is not scanned for — it is structurally impossible: `inputs-of`
   forces a `type=source` document's inputs to `[]`, so the quotation feature never applies.)
@@ -707,4 +803,5 @@
                        :title (:title c)
                        :broken broken
                        :self self-refs)))))
-         vec)))
+         vec
+         (into (successor-cache-issues)))))

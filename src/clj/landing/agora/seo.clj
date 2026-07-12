@@ -339,23 +339,27 @@
        "</span>"))
 
 (defn- prose-html
-  "The document's prose as HTML paragraphs: escaped, with `[[ki:…]]` citations turned into
-  links and blank lines splitting paragraphs. An optional `lead` HTML string is placed inline
-  at the start of the **first** paragraph (the boxed statement prefix), so it reads as one line."
+  "The document's prose as HTML: escaped, with `[[ki:…]]` citations turned into links, structured
+  into **paragraphs** (blank line separates; single line-break → `<br/>`) and **bullet lists**
+  (`- `/`* ` lines) via the shared `domain/parse-blocks`, so it matches the SPA renderer. An
+  optional `lead` HTML string is placed inline at the start of the first paragraph (the boxed
+  statement prefix)."
   [base lang text lead]
-  (let [paras (->> (str/split (or text "") #"\n[ \t]*\n")
-                   (map str/trim)
-                   (remove str/blank?))
-        para->html (fn [i para]
-                     (str "<p>"
-                          (when (and (zero? i) lead) lead)
-                          (-> (esc para)
-                              (str/replace domain/cite-pattern (cite->link base lang))
-                              (str/replace "\n" "<br/>"))
-                          "</p>"))]
-    (if (and (empty? paras) lead)
-      (str "<p>" lead "</p>")
-      (str/join "\n" (map-indexed para->html paras)))))
+  (let [blocks (domain/parse-blocks text)
+        first-p? (= :p (:type (first blocks)))
+        inline (fn [s]
+                 (-> (esc s)
+                     (str/replace domain/cite-pattern (cite->link base lang))))
+        block->html
+        (fn [i blk]
+          (if (= :ul (:type blk))
+            (str "<ul>" (apply str (map #(str "<li>" (inline %) "</li>") (:items blk))) "</ul>")
+            (str "<p>"
+                 (when (and (zero? i) first-p?) lead)
+                 (str/join "<br/>" (map inline (:lines blk)))
+                 "</p>")))]
+    (str (when (and lead (not first-p?)) (str "<p>" lead "</p>"))
+         (str/join "\n" (map-indexed block->html blocks)))))
 
 (defn- neighbour-li
   "A list item linking to a neighbouring document's permalink."

@@ -52,16 +52,23 @@
 
 ;; --- id → document (cached): identity columns + content + resolved pins
 
+(defn truthy?
+  "MySQL TINYINT(1) comes back as a Boolean or a 0/1 number depending on the driver flags —
+  normalize either to a real boolean."
+  [v]
+  (if (number? v) (not (zero? v)) (boolean v)))
+
 (defn- load-document
   [id]
   (when-let
     [row
      (q1!
       db/ds
-      ["SELECT id, type, name, lang, major, minor, content, computed FROM AGORA_DOCUMENT WHERE id = ?"
+      ["SELECT id, type, name, lang, major, minor, draft, content, computed FROM AGORA_DOCUMENT WHERE id = ?"
        id]
       kebab)]
     (merge (select-keys row [:id :type :name :lang :major :minor])
+           {:draft (truthy? (:draft row))}
            (decode-content (:content row))
            {:pins (decode-pins (:computed row))})))
 
@@ -98,18 +105,24 @@
   (cache/loading
    20000
    (fn [[ty nm lang major]]
-     (q!
-      db/ds
-      ["SELECT id, minor FROM AGORA_DOCUMENT
-         WHERE type = ? AND name = ? AND lang = ? AND major = ? ORDER BY minor"
-       ty
-       nm
-       lang
-       major]
-      kebab))))
+     (mapv
+      (fn [r]
+        {:id (:id r)
+         :minor (:minor r)
+         :draft (truthy? (:draft r))})
+      (q!
+       db/ds
+       ["SELECT id, minor, draft FROM AGORA_DOCUMENT
+               WHERE type = ? AND name = ? AND lang = ? AND major = ? ORDER BY minor"
+        ty
+        nm
+        lang
+        major]
+       kebab)))))
 
 (defn versions-of
-  "[{:id :minor} …] ascending for a TNLR lineage."
+  "[{:id :minor :draft} …] ascending for a TNLR lineage — includes unpublished draft minors
+  (flagged `:draft true`) so the version picker can show them, styled differently."
   [tnlr-key]
   (cache/fetch versions-cache tnlr-key))
 
@@ -120,7 +133,7 @@
      (q!
       db/ds
       ["SELECT DISTINCT name, major, lang FROM AGORA_DOCUMENT
-         WHERE type = ? AND name = ? AND lang <> ? ORDER BY lang"
+         WHERE type = ? AND name = ? AND lang <> ? AND draft = 0 ORDER BY lang"
        ty
        nm
        lang]
@@ -132,14 +145,18 @@
   (cache/fetch translations-cache [ty nm lang]))
 
 (defn resolve-latest-id
-  "The id of the latest minor of (type, name, major) in `lang`, falling back to any
-  other language when that concept is not yet translated."
+  "The id of the latest **published** minor of (type, name, major) in `lang`, falling back to
+  any other language when that concept is not yet translated. Drafts are excluded — this is the
+  single lever behind the permalink, input/quote edges, successors and search, so an unpublished
+  edit never resolves and a draft-only lineage does not resolve at all (its permalink 404s; the
+  exact-version URL still works)."
   [ty nm major lang]
   (:id
    (q1!
     db/ds
     ["SELECT id FROM AGORA_DOCUMENT
-       WHERE type = ? AND name = ? AND major = ? ORDER BY (lang = ?) DESC, minor DESC LIMIT 1"
+       WHERE type = ? AND name = ? AND major = ? AND draft = 0
+       ORDER BY (lang = ?) DESC, minor DESC LIMIT 1"
      ty
      nm
      major
@@ -202,6 +219,36 @@
           (q! db/ds ["UPDATE AGORA_DOCUMENT SET computed = ? WHERE id = ?" (encode-pins pins') sid])
           (cache/evict! document-cache sid))))))
 
+(defn publish!
+  "Promote version `id` of lineage (type,name,lang,major) to published: clear its draft flag,
+  delete the lineage's remaining **intermediate draft** minors (and their now-orphan successor
+  rows), then re-point successors onto this — now the resolved — version. Published minors are
+  kept (version history); only the drafts you iterated through are pruned. Clears the caches."
+  [ty nm lang major id]
+  ;; 1. publish the target version first, so it survives the draft prune below
+  (q! db/ds ["UPDATE AGORA_DOCUMENT SET draft = 0 WHERE id = ?" id])
+  ;; 2. drop the successor-index rows of the intermediate drafts (else they dangle), then the drafts
+  (q!
+   db/ds
+   ["DELETE FROM AGORA_SUCCESSOR WHERE successor_id IN
+                (SELECT id FROM AGORA_DOCUMENT
+                  WHERE type = ? AND name = ? AND lang = ? AND major = ? AND draft = 1)"
+    ty
+    nm
+    lang
+    major])
+  (q!
+   db/ds
+   ["DELETE FROM AGORA_DOCUMENT
+                WHERE type = ? AND name = ? AND lang = ? AND major = ? AND draft = 1"
+    ty
+    nm
+    lang
+    major])
+  ;; 3. successors now resolve to (and pin onto) the newly-published minor
+  (repin-successors! ty nm lang major id)
+  (clear-caches!))
+
 ;; --- Write
 
 (defn author-name
@@ -242,24 +289,27 @@
   (some? (q1! db/ds ["SELECT id FROM AGORA_DOCUMENT WHERE name = ? LIMIT 1" cid] kebab)))
 
 (defn insert-document!
-  "Insert one immutable version. `ident` = {:id :type :name :lang :major :minor};
+  "Insert one immutable version. `ident` = {:id :type :name :lang :major :minor :draft?};
   `content` is the immutable map (incl. its declared `:inputs`); pins are resolved from
-  those declarations, and the declared inputs are indexed as successors."
-  [{:keys [id name lang major minor]
+  those declarations, and the declared inputs are indexed as successors. `:draft?` (default
+  false = published) marks an unpublished draft — excluded from resolution/discovery until
+  Publish clears it."
+  [{:keys [id name lang major minor draft?]
     doc-type :type}
    content]
   (let [tnlrs (:inputs content)]
     (q!
      db/ds
      ["INSERT INTO AGORA_DOCUMENT
-         (id, type, name, lang, major, minor, content, computed, published_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+         (id, type, name, lang, major, minor, draft, content, computed, published_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       id
       doc-type
       name
       lang
       major
       minor
+      (if draft? 1 0)
       (encode-content content)
       (encode-pins (domain/pin-all tnlrs latest-of))
       ;; denormalized copy of content.:published-at for sortable/rangeable reads

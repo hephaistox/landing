@@ -15,6 +15,7 @@
   Low-level (no dependency on the page namespaces), like `cite`."
   (:require
    [clojure.string                    :as str]
+   [landing.agora.frontend.auth       :as auth]
    [landing.agora.frontend.i18n       :as i18n]
    [landing.agora.frontend.ui-commons :as ui]
    [re-frame.core                     :as rf]
@@ -117,17 +118,17 @@
     (fn [on-pick]
       (let [lang @(rf/subscribe [::i18n/lang])]
         [:div {:style {:position "relative"}}
-         [:input {:type "text"
-                  :value @q
-                  :placeholder (i18n/t lang :source/author-ph)
-                  :style field
-                  :on-change (fn [e]
-                               (let [v (.. e -target -value)]
-                                 (reset! q v)
-                                 (if (str/blank? v)
-                                   (reset! results [])
-                                   (GET* (str "/agora/api/people?q=" (js/encodeURIComponent v))
-                                         #(reset! results %)))))}]
+         [ui/composed-field {:type "text"
+                             :value @q
+                             :placeholder (i18n/t lang :source/author-ph)
+                             :style field
+                             :on-text (fn [v]
+                                        (reset! q v)
+                                        (if (str/blank? v)
+                                          (reset! results [])
+                                          (GET* (str "/agora/api/people?q="
+                                                     (js/encodeURIComponent v))
+                                                #(reset! results %))))}]
          (when (seq @results)
            (into [:div {:style {:border "1px solid #ddd"
                                 :border-radius "0.3em"
@@ -153,15 +154,23 @@
 (defn source-search-modal
   "A modal to find an existing source (author/title/year filters) or create a new one.
   `on-pick` receives a resolved source; `on-close` dismisses."
-  [_on-pick _on-close]
-  (let [mode (r/atom :search)   ; :search | :create
-        filters (r/atom {})     ; {:author :title :year}
+  [_on-pick _on-close & [to-edit]]
+  (let [mode (r/atom (if to-edit :create :search)) ; :search | :create
+        filters (r/atom {}) ; {:author :title :year}
         results (r/atom [])
-        author (r/atom nil)     ; picked author for :create/:edit
-        draft (r/atom {})       ; {:title :year :editor} for :create/:edit
-        editing-id (r/atom nil) ; source id when editing an existing one, else nil
+        ;; `to-edit` (optional) opens the modal straight into editing that source
+        author (r/atom (when to-edit
+                         {:id (:author-id to-edit)
+                          :display-name (:author-name to-edit)}))
+        draft (r/atom (if to-edit
+                        {:title (:title to-edit)
+                         :year (str (or (:year to-edit) ""))
+                         :editor (or (:editor to-edit) "")
+                         :url (or (:url to-edit) "")}
+                        {}))
+        editing-id (r/atom (:id to-edit)) ; source id when editing an existing one, else nil
         busy? (r/atom false)
-        start-edit (fn [s]      ; load a search result into the create/edit form
+        start-edit (fn [s] ; load a search result into the create/edit form
                      (reset! editing-id (:id s))
                      (reset! author {:id (:author-id s)
                                      :display-name (:author-name s)})
@@ -169,8 +178,9 @@
                                     :year (str (or (:year s) ""))
                                     :editor (or (:editor s) "")
                                     :url (or (:url s) "")}))]
-    (fn [on-pick on-close]
+    (fn [on-pick on-close & _]
       (let [lang @(rf/subscribe [::i18n/lang])
+            user @(rf/subscribe [::auth/user])
             run-search (fn []
                          (let [{:keys [author title year]} @filters
                                qs (->> [(when-not (str/blank? author)
@@ -182,7 +192,7 @@
                                        (remove nil?)
                                        (str/join "&"))]
                            (GET* (str "/agora/api/source?" qs) #(reset! results %))))
-            set-f (fn [k e] (swap! filters assoc k (.. e -target -value)) (run-search))]
+            set-f (fn [k v] (swap! filters assoc k v) (run-search))]
         [:div {:on-click on-close
                :style {:position "fixed"
                        :inset 0
@@ -240,18 +250,18 @@
              [:div {:style {:display "flex"
                             :gap "0.5em"
                             :margin-bottom "0.6em"}}
-              [:input {:type "text"
-                       :placeholder (i18n/t lang :source/author)
-                       :style field
-                       :on-change #(set-f :author %)}]
-              [:input {:type "text"
-                       :placeholder (i18n/t lang :source/title)
-                       :style field
-                       :on-change #(set-f :title %)}]
+              [ui/composed-field {:type "text"
+                                  :placeholder (i18n/t lang :source/author)
+                                  :style field
+                                  :on-text #(set-f :author %)}]
+              [ui/composed-field {:type "text"
+                                  :placeholder (i18n/t lang :source/title)
+                                  :style field
+                                  :on-text #(set-f :title %)}]
               [:input {:type "number"
                        :placeholder (i18n/t lang :source/year)
                        :style (assoc field :max-width "6em")
-                       :on-change #(set-f :year %)}]]
+                       :on-change #(set-f :year (.. % -target -value))}]]
              (if (seq @results)
                (into [:div {:style {:border "1px solid #eee"
                                     :border-radius "0.4em"}}]
@@ -263,14 +273,16 @@
                         [:button {:style (assoc result-row :flex 1 :border-bottom "none")
                                   :on-click #(on-pick s)}
                          (source-label s)]
-                        [:button {:title (i18n/t lang :source/edit-title)
-                                  :on-click #(do (start-edit s) (reset! mode :create))
-                                  :style {:border "none"
-                                          :background "transparent"
-                                          :cursor "pointer"
-                                          :color "#b9770e"
-                                          :padding "0 0.6em"}}
-                         "✎"]]))
+                        ;; editing a shared source is restricted to the account that created it
+                        (when (= (:id user) (:owner-id s))
+                          [:button {:title (i18n/t lang :source/edit-title)
+                                    :on-click #(do (start-edit s) (reset! mode :create))
+                                    :style {:border "none"
+                                            :background "transparent"
+                                            :cursor "pointer"
+                                            :color "#b9770e"
+                                            :padding "0 0.6em"}}
+                           "✎"])]))
                [:p {:style {:color "#aaa"
                             :font-size "0.9em"}}
                 (i18n/t lang :source/no-results)])]
@@ -294,11 +306,11 @@
                  "✕"]]
                [:div {:style {:margin-bottom "0.6em"}}
                 [person-picker #(reset! author %)]])
-             [:input {:type "text"
-                      :placeholder (i18n/t lang :source/title)
-                      :value (or (:title @draft) "")
-                      :style (assoc field :margin-bottom "0.5em")
-                      :on-change #(swap! draft assoc :title (.. % -target -value))}]
+             [ui/composed-field {:type "text"
+                                 :placeholder (i18n/t lang :source/title)
+                                 :value (or (:title @draft) "")
+                                 :style (assoc field :margin-bottom "0.5em")
+                                 :on-text #(swap! draft assoc :title %)}]
              [:div {:style {:display "flex"
                             :gap "0.5em"
                             :margin-bottom "0.7em"}}
@@ -307,11 +319,11 @@
                        :style field
                        :value (or (:year @draft) "")
                        :on-change #(swap! draft assoc :year (.. % -target -value))}]
-              [:input {:type "text"
-                       :placeholder (i18n/t lang :source/editor)
-                       :style field
-                       :value (or (:editor @draft) "")
-                       :on-change #(swap! draft assoc :editor (.. % -target -value))}]]
+              [ui/composed-field {:type "text"
+                                  :placeholder (i18n/t lang :source/editor)
+                                  :style field
+                                  :value (or (:editor @draft) "")
+                                  :on-text #(swap! draft assoc :editor %)}]]
              [:input {:type "url"
                       :placeholder (i18n/t lang :source/url-ph)
                       :style (assoc field :margin-bottom "0.7em")
@@ -345,10 +357,12 @@
   `set-source!` gets the new source (a map) or nil on every change."
   [_value _set-source!]
   (let [open? (r/atom false)
+        edit? (r/atom false) ; editing the current source's shared work fields (owner only)
         recent (r/atom [])
         loaded? (r/atom false)]
     (fn [value set-source!]
-      (let [lang @(rf/subscribe [::i18n/lang])]
+      (let [lang @(rf/subscribe [::i18n/lang])
+            user @(rf/subscribe [::auth/user])]
         (when-not @loaded?
           (reset! loaded? true)
           (GET* "/agora/api/source-recent" #(reset! recent %)))
@@ -366,11 +380,20 @@
             [:span {:style {:flex "1 1 auto"
                             :font-size "0.88em"}}
              (source-label value)]
-            [:input {:type "text"
-                     :value (or (:locator value) "")
-                     :placeholder (i18n/t lang :source/locator-ph)
-                     :style (assoc field :max-width "12em")
-                     :on-change #(set-source! (assoc value :locator (.. % -target -value)))}]
+            [ui/composed-field {:type "text"
+                                :value (or (:locator value) "")
+                                :placeholder (i18n/t lang :source/locator-ph)
+                                :style (assoc field :max-width "12em")
+                                :on-text #(set-source! (assoc value :locator %))}]
+            ;; edit the shared work's fields — only its owner (created_by) may
+            (when (= (:id user) (:owner-id value))
+              [:button {:title (i18n/t lang :source/edit-title)
+                        :on-click #(reset! edit? true)
+                        :style {:border "none"
+                                :background "transparent"
+                                :color "#b9770e"
+                                :cursor "pointer"}}
+               "✎"])
             [:button {:title (i18n/t lang :ref/remove)
                       :on-click #(set-source! nil)
                       :style {:border "none"
@@ -404,10 +427,15 @@
                               :font-size "0.88em"
                               :margin-top "0.2em"}}
              (str "🔎 " (i18n/t lang :source/find))]])
-         (when @open?
+         (when (or @open? @edit?)
            [source-search-modal
-            (fn [s] (set-source! (assoc s :locator "")) (reset! open? false))
-            #(reset! open? false)])]))))
+            (fn [s]
+              ;; keep the document's locator; editing the work only changes the shared fields
+              (set-source! (assoc s :locator (or (:locator value) "")))
+              (reset! open? false)
+              (reset! edit? false))
+            #(do (reset! open? false) (reset! edit? false))
+            (when @edit? value)])]))))
 
 ;; --- quotes chosen while authoring ------------------------------------------
 (defn quotes-list

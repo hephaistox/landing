@@ -39,12 +39,14 @@ CREATE TABLE IF NOT EXISTS `AGORA_DOCUMENT` (
   `lang`         CHAR(2)      NOT NULL DEFAULT 'fr' COMMENT 'Content language (ISO 639-1)',
   `major`        INT UNSIGNED NOT NULL COMMENT 'Major version; breaking changes bump this',
   `minor`        INT UNSIGNED NOT NULL COMMENT 'Minor version; clarifications bump this',
+  `draft`        TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Unpublished draft (1) vs published (0). Drafts are excluded from resolution/discovery/edges — reachable only by exact-version URL and on the author profile — until Publish clears the flag and prunes intermediate drafts',
   `content`      LONGTEXT     NOT NULL COMMENT 'Immutable authored EDN blob',
   `computed`     LONGTEXT     NULL     COMMENT 'Mutable derived EDN blob (:pins)',
   `published_at` VARCHAR(32)  NULL     COMMENT 'Denormalized from content.:published-at (ISO-8601 UTC; sortable)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ki_identity` (`type`, `name`, `lang`, `major`, `minor`),
   KEY `idx_ki_lang` (`type`, `lang`),
+  KEY `idx_doc_draft` (`type`, `lang`, `draft`),
   KEY `idx_doc_published` (`published_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

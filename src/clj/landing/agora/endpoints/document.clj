@@ -129,9 +129,12 @@
         path-id #(get-in % [:parameters :path :id])
         list-h (fn [req]
                  (let [q (get-in req [:parameters :query :q])
-                       lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
+                       lang (or (get-in req [:parameters :query :lang]) language/default-lang)
+                       ;; `?drafts=1` includes unpublished drafts in the discover feed (the
+                       ;; owner-facing toggle); search stays published-only.
+                       drafts? (boolean (#{"1" "true"} (get-in req [:parameters :query :drafts])))]
                    {:status 200
-                    :body (if (seq q) (document/search type q lang) (list type lang))}))
+                    :body (if (seq q) (document/search type q lang) (list type lang drafts?))}))
         create-h (fn [req]
                    (if-let [u (uid req)]
                      {:status 201
@@ -169,6 +172,16 @@
                            :body d}
                           (not-found :id (path-id req)))
                         unauthorized))
+        publish-h (fn [req]
+                    (if-let [u (uid req)]
+                      (let [r (document/publish! (path-id req) u)]
+                        (cond
+                          (= r :forbidden) {:status 403
+                                            :body {:error "only the owner may publish"}}
+                          (nil? r) (not-found :id (path-id req))
+                          :else {:status 200
+                                 :body r}))
+                      unauthorized))
         add-input-h (fn [req]
                       (if-let [u (uid req)]
                         (let [r (document/add-input (path-id req) u (body req))]
@@ -198,7 +211,9 @@
                                   [:q {:optional true}
                                    [:maybe [:string {:max 200}]]]
                                   [:lang {:optional true}
-                                   lang-schema]]}
+                                   lang-schema]
+                                  [:drafts {:optional true}
+                                   [:maybe [:string {:max 8}]]]]}
              :summary (str "List/search " type "s")}
        :post {:handler create-h
               :middleware throttled
@@ -232,6 +247,12 @@
               :parameters {:path [:map [:id :string]]
                            :body translate-body}
               :summary (str "Create a language version of a " type)}}]
+     ["/:id/publish"
+      {:post {:handler publish-h
+              :middleware throttled
+              :operationId (str "agora-publish-" type)
+              :parameters {:path [:map [:id :string]]}
+              :summary (str "Publish a draft " type " (owner only; prunes intermediate drafts)")}}]
      ["/:id/inputs"
       {:post {:handler add-input-h
               :middleware throttled

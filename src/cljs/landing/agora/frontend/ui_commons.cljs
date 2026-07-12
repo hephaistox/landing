@@ -18,3 +18,22 @@
                      :component-will-unmount (fn [_]
                                                (.removeEventListener js/document "keydown" handler))
                      :reagent-render (fn [close!] (reset! close close!) nil)})))
+
+(defn composed-field
+  "A controlled text field that survives IME / dead-key composition — French `^`+`u` → `û`,
+  which a plain controlled input mangles into `^û` (the re-render mid-composition commits the
+  dead key as a literal). Use it like a normal input, but pass `:value` + **`:on-text`** (called
+  with the new string) instead of `:on-change`; every other prop (`:type`, `:placeholder`,
+  `:style`, `:ref`, …) passes through. State updates are held while composing and flushed on
+  `compositionend`. `:element` selects the tag (`:input` default, `:textarea` for the body)."
+  [_props]
+  (let [composing? (atom false)]
+    (fn [{:keys [element value on-text]
+          :as props}]
+      [(or element :input)
+       (merge (dissoc props :element :on-text)
+              {:value (or value "")
+               :on-composition-start (fn [_] (reset! composing? true))
+               :on-composition-end
+               (fn [ev] (reset! composing? false) (on-text (.. ev -target -value)))
+               :on-change (fn [ev] (when-not @composing? (on-text (.. ev -target -value))))})])))

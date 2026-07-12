@@ -84,6 +84,8 @@
                    :margin "0.2em 0 0.1em"}}
       title]
      [byline author published-at author-id]
+     ;; a draft the owner is viewing gets a Publish banner, right above the body
+     [edit/publish-action doc]
      [:div {:style {:font-size "1.05em"
                     :line-height "1.5"
                     :color "#222"}}

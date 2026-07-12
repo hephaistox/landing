@@ -11,12 +11,13 @@
   both read and authoring screens can use it; it renders its own small kind/lang badges to
   stay decoupled."
   (:require
-   [clojure.string                :as str]
-   [landing.agora.document-domain :as domain]
-   [landing.agora.frontend.fmt    :as fmt]
-   [landing.agora.frontend.i18n   :as i18n]
-   [re-frame.core                 :as rf]
-   [reagent.core                  :as r]))
+   [clojure.string                    :as str]
+   [landing.agora.document-domain     :as domain]
+   [landing.agora.frontend.fmt        :as fmt]
+   [landing.agora.frontend.i18n       :as i18n]
+   [landing.agora.frontend.ui-commons :as ui]
+   [re-frame.core                     :as rf]
+   [reagent.core                      :as r]))
 
 (defn humanize
   "A readable heading from a slug: `confidence-is-partial` → `Confidence is
@@ -209,31 +210,56 @@
           (or label (:title doc) (:title node) (humanize name))]
          (when (and @hover? doc) [ki-hover-card doc])]))))
 
-(defn- paragraph
-  "One text paragraph, with any KI citations resolved to `ki-cite`s. An optional `lead`
-  hiccup is placed inline at the very start (so a boxed statement prefix flows into the prose)."
-  ([para] (paragraph para nil))
-  ([para lead]
-   (into [:p {:style {:margin "0 0 1em"}}]
-         (concat (when lead [lead])
-                 (map (fn [seg] (if (string? seg) seg [ki-cite seg])) (parse-segments para))))))
+(defn- inline-segs
+  "One prose line → a seq of hiccup children: plain strings and resolved `[ki-cite …]`s."
+  [line]
+  (map (fn [seg] (if (string? seg) seg [ki-cite seg])) (parse-segments line)))
+
+(defn- para-block
+  "A paragraph: its lines joined by `<br>`; `lead` (optional) spliced inline at the very start
+  (so a boxed statement prefix flows into the prose)."
+  [lines lead]
+  (into [:p {:style {:margin "0 0 1em"}}]
+        (concat (when lead [lead])
+                (->> lines
+                     (map (comp vec inline-segs))
+                     (interpose [[:br]])
+                     (apply concat)))))
+
+(defn- ul-block
+  "A bullet list; each item may carry inline citations."
+  [items]
+  (into [:ul {:style {:margin "0 0 1em"
+                      :padding-left "1.4em"}}]
+        (map-indexed (fn [i item]
+                       (with-meta (into [:li {:style {:margin "0.2em 0"}}]
+                                        (inline-segs item))
+                                  {:key i}))
+                     items)))
 
 (defn render-text
-  "Render a node's text (statement/body) as paragraphs (blank line = paragraph
-  break), resolving inline `[[ki:…]]` citations to living KI links. An optional `lead` hiccup
-  is placed inline at the start of the **first** paragraph (e.g. the kind-guided statement
-  prefix as a boxed pill), so the whole thing reads as one flowing line."
+  "Render a node's text (statement/body) as blocks — **paragraphs** (blank line separates; a
+  single line-break becomes a `<br>`) and **bullet lists** (`- `/`* ` lines) — resolving inline
+  `[[ki:…]]` citations to living KI links. `lead` (optional) is spliced inline at the start of
+  the first paragraph (e.g. the kind-guided statement prefix as a boxed pill)."
   ([text] (render-text text nil))
   ([text lead]
-   (let [paras (remove str/blank? (str/split (or text "") #"\n\n+"))]
-     (if (empty? paras)
-       (if lead
-         [:div
-          [:p {:style {:margin "0 0 1em"}}
-           lead]]
-         [:div])
-       (into [:div]
-             (map-indexed (fn [i para] ^{:key i} [paragraph para (when (zero? i) lead)]) paras))))))
+   (let [blocks (domain/parse-blocks text)
+         first-p? (= :p (:type (first blocks)))]
+     (into [:div]
+           (concat
+            ;; lead with no paragraph to open (empty text, or a list first) → its own <p>
+            (when (and lead (not first-p?))
+              [(with-meta [:p {:style {:margin "0 0 1em"}}
+                           lead]
+                          {:key "lead"})])
+            (map-indexed (fn [i blk]
+                           (with-meta (if (= :ul (:type blk))
+                                        (ul-block (:items blk))
+                                        (para-block (:lines blk)
+                                                    (when (and (zero? i) first-p?) lead)))
+                                      {:key i}))
+                         blocks))))))
 
 (defn plain-text
   "`text` with its `[[ki:…]]` citations flattened to a label — for excerpts/previews where
@@ -344,35 +370,36 @@
                       (insert! k)
                       (do (when on-quote (on-quote k)) (reset! q "") (reset! results []))))]
         [:div
-         [:textarea {:ref (fn [el] (reset! node el) (when el (js/setTimeout fit! 0)))
-                     :placeholder placeholder
-                     :value (or value "")
-                     :on-change (fn [ev] (set-text! (.. ev -target -value)) (fit!))
-                     :style {:width "100%"
-                             :box-sizing "border-box"
-                             :resize "none"
-                             :overflow "hidden"
-                             :min-height "8em"
-                             :padding "0.6em"
-                             :font-family "inherit"
-                             :font-size "1.02em"
-                             :line-height "1.55"
-                             :border "1px solid #ccc"
-                             :border-radius "0.3em"}}]
+         [ui/composed-field {:element :textarea
+                             :ref (fn [el] (reset! node el) (when el (js/setTimeout fit! 0)))
+                             :placeholder placeholder
+                             :value (or value "")
+                             :on-text (fn [v] (set-text! v) (fit!))
+                             :style {:width "100%"
+                                     :box-sizing "border-box"
+                                     :resize "none"
+                                     :overflow "hidden"
+                                     :min-height "8em"
+                                     :padding "0.6em"
+                                     :font-family "inherit"
+                                     :font-size "1.02em"
+                                     :line-height "1.55"
+                                     :border "1px solid #ccc"
+                                     :border-radius "0.3em"}}]
          ;; the quotation feature — hidden for kinds that may not have inputs (e.g. source)
          (when-not (false? inputs?)
            [:div {:style {:position "relative"
                           :margin "0.4em 0 0"}}
-            [:input {:type "text"
-                     :placeholder (i18n/t lang :cite/search-ph)
-                     :value @q
-                     :on-change #(search! (.. % -target -value) lang)
-                     :style {:width "100%"
-                             :box-sizing "border-box"
-                             :padding "0.45em"
-                             :font-size "0.9em"
-                             :border "1px solid #ccc"
-                             :border-radius "0.3em"}}]
+            [ui/composed-field {:type "text"
+                                :placeholder (i18n/t lang :cite/search-ph)
+                                :value @q
+                                :on-text #(search! % lang)
+                                :style {:width "100%"
+                                        :box-sizing "border-box"
+                                        :padding "0.45em"
+                                        :font-size "0.9em"
+                                        :border "1px solid #ccc"
+                                        :border-radius "0.3em"}}]
             (when-not (str/blank? @q)
               (into [:div {:style {:position "absolute"
                                    :z-index 20

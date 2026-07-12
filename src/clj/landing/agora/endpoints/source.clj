@@ -40,13 +40,17 @@
 
 (def ^:private edit-handler
   (fn [req]
-    (if (uid req)
-      (if-let [s (source/update! (get-in req [:parameters :path :id])
-                                 (get-in req [:parameters :body]))]
-        {:status 200
-         :body s}
-        {:status 404
-         :body {:error "source not found"}})
+    (if-let [u (uid req)]
+      (let [r (source/update! (get-in req [:parameters :path :id])
+                              u
+                              (get-in req [:parameters :body]))]
+        (cond
+          (= r :forbidden) {:status 403
+                            :body {:error "only the source's owner may edit it"}}
+          (nil? r) {:status 404
+                    :body {:error "source not found"}}
+          :else {:status 200
+                 :body r}))
       unauthorized)))
 
 (def ^:private create-body

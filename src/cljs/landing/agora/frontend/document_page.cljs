@@ -396,18 +396,24 @@
                               :overflow-x "auto"
                               :padding "0.1em"}}]
               (for [v (sort-by :minor versions)
-                    :let [current? (= (:minor v) minor)]]
+                    :let [current? (= (:minor v) minor)
+                          draft? (:draft v)]]
                 ^{:key (:id v)}
+                ;; a draft version is shown but visually distinct — dashed border, italic, a ✎ mark
                 [:a {:href (link-fn (:id v))
                      :on-click #(reset! open? false)
+                     :title (when draft? (i18n/t lang :ki/draft))
                      :style {:flex "0 0 auto"
                              :text-decoration "none"
                              :padding "0.1em 0.5em"
                              :border-radius "0.3em"
-                             :border (str "1px solid " (if current? "#b9770e" "#ddd"))
+                             :border (str "1px "
+                                          (if draft? "dashed " "solid ")
+                                          (if current? "#b9770e" "#ddd"))
+                             :font-style (if draft? "italic" "normal")
                              :background (if current? "#b9770e" "#fff")
-                             :color (if current? "#fff" "#b9770e")}}
-                 (str "v" major "." (:minor v))])))])))
+                             :color (if current? "#fff" (if draft? "#b98a3e" "#b9770e"))}}
+                 (str "v" major "." (:minor v) (when draft? " ✎"))])))])))
 
 (defn- mini-card
   "A compact neighbour card linking to `link`. When `on-drop` is given, a ✕
@@ -727,13 +733,14 @@
         ;; prefix in the card's CONTENT language (`:lang node`), not the reader's interface lang
         excerpt (str (document-domain/statement-prefix-of node (:lang node))
                      (cite/plain-text (cite/node-text node) titles))]
-    [:a {:href (permalink lang node)
+    [:a {;; a draft doesn't resolve by permalink — link it by its exact-version URL
+         :href (if (:draft node) (i18n/doc-url lang (:type node) (:id node)) (permalink lang node))
          :style {:display "flex"
                  :flex-direction "column"
                  :gap "0.55em"
                  :min-height "11em"
                  :padding "0.9em 1em"
-                 :border "1px solid #e2ddd2"
+                 :border (str "1px " (if (:draft node) "dashed #b98a3e" "solid #e2ddd2"))
                  :border-radius "0.6em"
                  :text-decoration "none"
                  :color "inherit"
@@ -744,7 +751,18 @@
                     :gap "0.5em"}}
       [doc-badge node]
       [:span {:style version-tag-style}
-       (str "v" (:major node) "." (:minor node))]]
+       (str "v" (:major node) "." (:minor node))]
+      (when (:draft node)
+        [:span {:style {:font-size "0.62em"
+                        :font-weight 700
+                        :text-transform "uppercase"
+                        :letter-spacing "0.05em"
+                        :color "#8a5709"
+                        :background "#fdf6ec"
+                        :border "1px dashed #b98a3e"
+                        :padding "0.1em 0.45em"
+                        :border-radius "0.25em"}}
+         (str "✎ " (i18n/t lang :ki/draft-badge))])]
      [:div {:style {:font-weight 700
                     :font-size "1.02em"
                     :line-height 1.25
@@ -822,52 +840,77 @@
 (defn discover-grid
   "A responsive discover grid of preview cards for `:items`, ending with a `+` add-card and
   a mobile FAB pointing at `(new-href-fn lang)`. `:heading-key` is optional (omitted when
-  nil); `:tagline-key` sits above the grid; `:new-label-key` labels the add-card/FAB.
-  Generic over document type — each per-type facade supplies the i18n keys + create route."
-  [{:keys [heading-key tagline-key items new-href-fn new-label-key]}]
-  (let [lang @(rf/subscribe [::i18n/lang])
-        new-href (new-href-fn lang)
-        new-label (i18n/t lang new-label-key)]
-    [:div {:style {:max-width "72em"
-                   :margin "1.5em auto"
-                   :padding "0 0.8em"
-                   :font-family "system-ui, sans-serif"}}
-     ;; header row: heading (optional) on the left, a top 'create' button on the right — so
-     ;; the create action is reachable without scrolling to the trailing add-card.
-     [:div {:style {:display "flex"
+  nil); `:tagline-key` sits above the grid; `:new-label-key` labels the add-card/FAB. When
+  `:type` (\"ki\"/\"article\") is given, a **show-drafts** toggle re-fetches the feed including
+  unpublished drafts (hidden by default), marked on their cards. Generic over document type —
+  each per-type facade supplies the i18n keys + create route."
+  [{:keys [heading-key tagline-key items new-href-fn new-label-key type]}]
+  (r/with-let
+   [drafts? (r/atom false) draft-items (r/atom nil)]
+   (let [lang @(rf/subscribe [::i18n/lang])
+         new-href (new-href-fn lang)
+         new-label (i18n/t lang new-label-key)
+         shown (if @drafts? (or @draft-items items) items)
+         toggle! (fn []
+                   (swap! drafts? not)
+                   (when (and @drafts? type)
+                     (-> (js/fetch (str "/agora/api/" type "?lang=" lang "&drafts=1")
+                                   #js {:headers #js {"Accept" "application/json"}})
+                         (.then #(.json %))
+                         (.then #(reset! draft-items (js->clj % :keywordize-keys true)))
+                         (.catch (fn [_])))))]
+     [:div {:style {:max-width "72em"
+                    :margin "1.5em auto"
+                    :padding "0 0.8em"
+                    :font-family "system-ui, sans-serif"}}
+      ;; header row: heading (optional) left, a top 'create' button right — so the
+      ;; create action is reachable without scrolling to the trailing add-card.
+      [:div {:style {:display "flex"
+                     :align-items "center"
+                     :gap "0.8em"
+                     :flex-wrap "wrap"
+                     :margin-bottom "0.2em"}}
+       (when heading-key
+         [:h1 {:style {:font-size "1.4em"
+                       :margin 0
+                       :color "#1b1a17"}}
+          (i18n/t lang heading-key)])
+       [:a {:href new-href
+            :title new-label
+            :style {:margin-left "auto"
+                    :display "inline-flex"
                     :align-items "center"
-                    :gap "0.8em"
-                    :flex-wrap "wrap"
-                    :margin-bottom "0.2em"}}
-      (when heading-key
-        [:h1 {:style {:font-size "1.4em"
-                      :margin 0
-                      :color "#1b1a17"}}
-         (i18n/t lang heading-key)])
-      [:a {:href new-href
-           :title new-label
-           :style {:margin-left "auto"
-                   :display "inline-flex"
-                   :align-items "center"
-                   :gap "0.3em"
-                   :padding "0.5em 1em"
-                   :background "#b9770e"
-                   :color "#fff"
-                   :border-radius "0.4em"
-                   :font-size "0.9em"
-                   :font-weight 600
-                   :white-space "nowrap"
-                   :text-decoration "none"}}
-       (str "＋ " new-label)]]
-     [:p {:style {:color "#666"
-                  :margin "0 0 1em"}}
-      (i18n/t lang tagline-key)]
-     (into [:div {:style {:display "grid"
-                          :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
-                          :gap "0.9em"}}]
-           (conj (mapv (fn [it] ^{:key (:id it)} [discover-card lang it]) items)
-                 ^{:key "__add__"} [add-card new-href new-label]))
-     [fab new-href new-label]]))
+                    :gap "0.3em"
+                    :padding "0.5em 1em"
+                    :background "#b9770e"
+                    :color "#fff"
+                    :border-radius "0.4em"
+                    :font-size "0.9em"
+                    :font-weight 600
+                    :white-space "nowrap"
+                    :text-decoration "none"}}
+        (str "＋ " new-label)]]
+      [:p {:style {:color "#666"
+                   :margin "0 0 0.6em"}}
+       (i18n/t lang tagline-key)]
+      (when type
+        [:label {:style {:display "inline-flex"
+                         :align-items "center"
+                         :gap "0.35em"
+                         :font-size "0.85em"
+                         :color "#8a5709"
+                         :margin "0 0 0.9em"
+                         :cursor "pointer"}}
+         [:input {:type "checkbox"
+                  :checked @drafts?
+                  :on-change toggle!}]
+         (i18n/t lang :discover/show-drafts)])
+      (into [:div {:style {:display "grid"
+                           :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
+                           :gap "0.9em"}}]
+            (conj (mapv (fn [it] ^{:key (:id it)} [discover-card lang it]) shown)
+                  ^{:key "__add__"} [add-card new-href new-label]))
+      [fab new-href new-label]])))
 
 (defn language-selector
   "A language chooser: a badge per supported language, the selected one highlighted.

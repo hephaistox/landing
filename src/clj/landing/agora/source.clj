@@ -21,11 +21,13 @@
 (defn- q1 [sql & params] (jdbc/execute-one! db/ds (into [sql] params) opts))
 
 (def ^:private select-source
-  "SELECT s.id, s.person_id, s.title, s.year, s.editor, s.url, u.display_name AS author_name
+  "SELECT s.id, s.person_id, s.title, s.year, s.editor, s.url, s.created_by, u.display_name AS author_name
      FROM AGORA_SOURCE s JOIN AGORA_USER u ON u.id = s.person_id ")
 
 (defn- shape
-  "DB row → resolved source {:id :title :year :editor :url :author-name :author-id}."
+  "DB row → resolved source {:id :title :year :editor :url :author-name :author-id :owner-id}.
+  `:owner-id` is the account that created the record (`created_by`) — used to gate editing to
+  the source's owner (distinct from `:author-id`, the work's author)."
   [row]
   (when row
     {:id (:id row)
@@ -34,7 +36,8 @@
      :editor (:editor row)
      :url (:url row)
      :author-name (:author-name row)
-     :author-id (:person-id row)}))
+     :author-id (:person-id row)
+     :owner-id (:created-by row)}))
 
 (defn- load-source [id] (shape (q1 (str select-source "WHERE s.id = ?") id)))
 
@@ -76,24 +79,31 @@
     (by-id id)))
 
 (defn update!
-  "Edit an existing source's fields in place (sources are shared, not versioned), evict the cache
-  so every citing KI re-resolves, and return the resolved source."
-  [id {:keys [person-id title year editor url]}]
-  (jdbc/execute!
-   db/ds
-   ["UPDATE AGORA_SOURCE SET person_id = ?, title = ?, year = ?, editor = ?, url = ? WHERE id = ?"
-    person-id
-    (str/trim (or title ""))
-    year
-    (some-> editor
-            str/trim
-            not-empty)
-    (some-> url
-            str/trim
-            not-empty)
-    id])
-  (cache/evict! source-cache id)
-  (by-id id))
+  "Edit an existing source's fields in place (sources are shared, not versioned), **restricted
+  to the account that created it** (`owner-id`). Evicts the cache so every citing KI
+  re-resolves. Returns the resolved source on success, `:forbidden` when `owner-id` is not the
+  owner, or `nil` when the source does not exist."
+  [id owner-id {:keys [person-id title year editor url]}]
+  (if-let [s (by-id id)]
+    (if (= owner-id (:owner-id s))
+      (do
+        (jdbc/execute!
+         db/ds
+         ["UPDATE AGORA_SOURCE SET person_id = ?, title = ?, year = ?, editor = ?, url = ? WHERE id = ?"
+          person-id
+          (str/trim (or title ""))
+          year
+          (some-> editor
+                  str/trim
+                  not-empty)
+          (some-> url
+                  str/trim
+                  not-empty)
+          id])
+        (cache/evict! source-cache id)
+        (by-id id))
+      :forbidden)
+    nil))
 
 (defn search
   "Sources matching any subset of {:author :title :year} (ANDed); all blank → []. Author matches

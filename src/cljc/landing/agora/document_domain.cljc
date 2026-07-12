@@ -213,8 +213,8 @@
                  :phrase {"en" "predicts that"
                           "fr" "prédit que"}}
    "definition" {:subject :term
-                 :phrase {"en" "is a word meaning"
-                          "fr" "est un mot qui signifie"}}})
+                 :phrase {"en" "designates"
+                          "fr" "désigne"}}})
 
 (defn statement-subject-kind
   "Whether `kind`'s prefix subject is the `:author` or the `:term`, or nil for a free-form
@@ -261,7 +261,7 @@
 (defn compose-statement
   "The full statement sentence for `doc` in `lang`: the kind-guided prefix + the authored
   `body`. Author-kinds prepend `<attributed-author> <verb> that `; `definition` prepends
-  `<title> means `; free-form kinds (`inference`) return the body unchanged."
+  `<title> designates `; free-form kinds (`inference`) return the body unchanged."
   [doc lang body]
   (str (statement-prefix-of doc lang) body))
 
@@ -297,6 +297,36 @@
                :major (parse-major mj)}))
        (distinct)
        (vec)))
+
+;; --- prose block structure (shared so the SPA + SSR renderers never drift) ---------
+(def ^:private bullet-pattern
+  "A line that is a bullet item: a `-` or `*` marker followed by whitespace (optionally
+  indented). The trailing whitespace requirement means a bare `-` is prose, not a bullet."
+  #"^[ \t]*[-*][ \t]+")
+
+(defn parse-blocks
+  "Structure prose `text` into renderable blocks so the SPA and the server-rendered body
+  agree:
+   - `{:type :ul :items [line …]}` — a run of bullet lines (`- ` / `* `), markers stripped;
+   - `{:type :p  :lines [line …]}` — a run of other non-blank lines. A single line-break is a
+     new line within the paragraph (render as `<br>`); a **blank line separates blocks**.
+  Inline `[[ki:…]]` citations are left intact for the caller to resolve."
+  [text]
+  (let [class (fn [l]
+                (cond
+                  (str/blank? l) :blank
+                  (re-find bullet-pattern l) :ul
+                  :else :p))]
+    (->> (str/split (or text "") #"\n")
+         (partition-by class)
+         (keep (fn [grp]
+                 (case (class (first grp))
+                   :blank nil
+                   :ul {:type :ul
+                        :items (mapv #(str/replace % bullet-pattern "") grp)}
+                   :p {:type :p
+                       :lines (vec grp)})))
+         vec)))
 
 (defn strip-cite
   "Remove every `[[ki:<name>@<major>…]]` citation of (`name`, `major`) from `text`,

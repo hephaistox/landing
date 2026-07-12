@@ -35,7 +35,8 @@
 (defn discover
   "The article discover grid (`/agora/<lang>/articles`) — no heading, just the tagline."
   [articles]
-  [dv/discover-grid {:heading-key :articles/heading
+  [dv/discover-grid {:type "article"
+                     :heading-key :articles/heading
                      :tagline-key :articles/tagline
                      :items articles
                      :new-href-fn i18n/new-article

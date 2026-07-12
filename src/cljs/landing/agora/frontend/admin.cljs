@@ -59,8 +59,10 @@
                    ": " (str/join ", " (map (fn [b] (str (:name b) "@" (:major b))) (:broken i)))))
             (when (seq (:self i))
               (str " → " (i18n/t lang :admin/issues-self)
-                   ": " (str/join ", "
-                                  (map (fn [b] (str (:name b) "@" (:major b))) (:self i)))))]])))]))
+                   ": " (str/join ", " (map (fn [b] (str (:name b) "@" (:major b))) (:self i)))))
+            (when (seq (:dangling-successors i))
+              (str " → " (i18n/t lang :admin/issues-dangling)
+                   ": " (count (:dangling-successors i))))]])))]))
 
 (def ^:private admin-btn
   {:font-size "0.8em"

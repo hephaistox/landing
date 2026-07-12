@@ -284,9 +284,10 @@
 
 (defn- value-section
   "One value-prop detail: a centered heading, then an illustration beside its explanatory
-  paragraph (stacking on narrow screens). `flip?` puts the illustration on the right."
-  ([heading illustration body] (value-section heading illustration body false))
-  ([heading illustration body flip?]
+  paragraph (stacking on narrow screens). Opts: `:flip?` puts the illustration on the right;
+  `:band?` wraps the block in a tinted panel so it stands apart from its neighbours."
+  ([heading illustration body] (value-section heading illustration body nil))
+  ([heading illustration body {:keys [flip? band?]}]
    (let [text [:p {:style {:flex "1 1 17em"
                            :min-width "14em"
                            :margin 0
@@ -296,7 +297,13 @@
          art [:div {:style {:flex "1 1 17em"
                             :min-width "14em"}}
               illustration]]
-     [:section {:style {:margin "2.8em 0"}}
+     [:section {:style (merge {:margin "2.8em 0"}
+                              (when band?
+                                {:margin "3.6em 0"
+                                 :padding "2.2em 1.6em"
+                                 :background "#f7f2e8"
+                                 :border "1px solid #ece0c8"
+                                 :border-radius "0.9em"}))}
       [home-section-heading heading]
       (into [:div {:style {:display "flex"
                            :flex-wrap "wrap"
@@ -328,8 +335,13 @@
         [home-feature "🔮" (i18n/t lang :home/value-3-title) (i18n/t lang :home/value-3-body)]
         [:div]
         [home-feature "🤝" (i18n/t lang :home/value-4-title) (i18n/t lang :home/value-4-body)]])]
-     ;; How it works — three steps
-     [:section {:style {:margin "2.6em 0"}}
+     ;; How it works — three steps, set in a tinted band so it reads as its own block,
+     ;; clearly separated from the value cards above.
+     [:section {:style {:margin "3.6em 0"
+                        :padding "2.2em 1.6em"
+                        :background "#f7f2e8"
+                        :border "1px solid #ece0c8"
+                        :border-radius "0.9em"}}
       [home-section-heading (i18n/t lang :home/how-title)]
       [:div {:style {:display "flex"
                      :flex-wrap "wrap"
@@ -348,7 +360,8 @@
       (i18n/t lang :home/value-2-title)
       [claim-anatomy lang]
       (i18n/t lang :home/problem-body)
-      true]
+      {:flip? true
+       :band? true}]
      [value-section
       (i18n/t lang :home/value-3-title)
       [prediction-pair lang]
@@ -357,7 +370,8 @@
       (i18n/t lang :home/value-4-title)
       [consensus-illustration lang]
       (i18n/t lang :home/value-4-lead)
-      true]
+      {:flip? true
+       :band? true}]
      ;; Closing call to action
      [:section {:style {:background "linear-gradient(160deg, #b9770e, #8a5709)"
                         :color "#fff"
