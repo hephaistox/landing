@@ -59,13 +59,13 @@
     "Ici, chaque affirmation remonte aux étapes qui la fondent — et chaque étape peut être contestée pour elle-même."
     ;; --- « Ce qu'Agora vous permet » — quatre bénéfices (issue #72) ---
     :home/value-title "Ce qu'Agora vous permet"
-    :home/value-1-title "Formalisez une pensée complexe"
+    :home/value-1-title "Auteurs, formalisez une pensée complexe"
     :home/value-1-body
     "Décomposez une idée touffue en étapes nettes et défendables — en tant qu'auteur, rendez chaque affirmation précise et inattaquable."
     :home/value-2-title "Exposez votre raisonnement"
     :home/value-2-body
     "Ne partagez pas qu'une conclusion — exposez ce sur quoi vous la fondez, étape par étape, ouverte à la contestation."
-    :home/value-3-title "Actez une prédiction"
+    :home/value-3-title "Influenceurs, actez une prédiction"
     :home/value-3-body
     "Annoncez ce qui va arriver, horodaté et public — la preuve que vous l'aviez dit avant que cela n'advienne."
     :home/value-4-title "Trouvez les esprits qui vous ressemblent"
@@ -132,7 +132,7 @@
     :home/predict-footer
     "À l'échéance ou à l'événement, la prédiction est confirmée ou réfutée — quoi qu'en pense la communauté. (bientôt)"
     :home/live-title "Un exemple réel, tiré du graphe"
-    :home/cta-title "Rendez votre raisonnement impossible à ignorer."
+    :home/cta-title "A votre tour, rendez votre raisonnement impossible à ignorer."
     :home/cta-body
     "Publiez votre première étape. La lecture est libre ; contribuer prend une minute."
     :discover/heading "Découvrir les connaissances"
@@ -336,13 +336,13 @@
     "Agora is a public graph of challengeable reasoning steps. Every claim traces back to the steps that support it — and every step can be challenged on its own."
     ;; --- "What Agora lets you do" — four value props (issue #72) ---
     :home/value-title "What Agora lets you do"
-    :home/value-1-title "Formalize complex thinking"
+    :home/value-1-title "Author, formalize complex thinking"
     :home/value-1-body
     "Break a tangled idea into clean, defensible steps — as a writer, make every claim precise and bulletproof."
     :home/value-2-title "Show your reasoning"
     :home/value-2-body
     "Don't just share a conclusion — expose what you base it on, step by step, open to challenge."
-    :home/value-3-title "Put a prediction on record"
+    :home/value-3-title "Influencers, put a prediction on record"
     :home/value-3-body
     "State what will happen, timestamped and public — proof you called it before it came true."
     :home/value-4-title "Find minds like yours"
@@ -403,7 +403,7 @@
     :home/predict-footer
     "At the deadline or the event, the prediction is confirmed or refuted — whatever the crowd believed. (coming soon)"
     :home/live-title "See a real one, from the graph"
-    :home/cta-title "Make your reasoning impossible to ignore."
+    :home/cta-title "Your call, make your reasoning impossible to ignore."
     :home/cta-body "Publish your first step. Reading is free; contributing takes a minute."
     :discover/heading "Discover knowledge"
     :articles/heading "Discover articles"
