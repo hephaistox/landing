@@ -391,16 +391,48 @@
         (store/evict-lineage! type name to-lang major)))
     (fetch-by-major type name major to-lang)))
 
+(defn- pending-inputs
+  "The declared `inputs` of a document that have **no published version** (draft-only lineages).
+  Publishing a document while one of its inputs is still a draft would leave a public node
+  depending on a hidden one, so `publish!` refuses until they are published. Each entry carries
+  the offending input's identity plus its latest (draft) version id + title, so the UI can link
+  to it."
+  [inputs]
+  (into []
+        (keep (fn [{ty :type
+                    nm :name
+                    major :major
+                    lang :lang
+                    :as tnlr}]
+                (when-not (store/resolve-latest-id ty nm major lang)
+                  (let [latest (last (store/versions-of (domain/tnlr-key tnlr)))
+                        d (some-> (:id latest)
+                                  store/fetch-document)]
+                    {:type ty
+                     :name nm
+                     :major major
+                     :lang lang
+                     :id (:id latest)
+                     :title (:title d)}))))
+        inputs))
+
 (defn publish!
-  "Publish document version `id` on behalf of `user-id` — who must **own** it. Clears the draft
-  flag, prunes the lineage's intermediate drafts and re-pins successors onto it (see
-  `store/publish!`). Returns the published view, `:forbidden` when `user-id` is not the owner,
-  or nil when `id` is unknown."
+  "Publish document version `id` on behalf of `user-id` — who must **own** it. Refuses while any
+  input is still a draft (referential integrity: a public node may not depend on a hidden one),
+  returning `{:unpublished-inputs [...]}`. Otherwise clears the draft flag, prunes the lineage's
+  intermediate drafts and re-pins successors onto it (see `store/publish!`). Returns the published
+  view, `{:unpublished-inputs …}` when blocked, `:forbidden` when `user-id` is not the owner, or
+  nil when `id` is unknown."
   [id user-id]
-  (when-let [{:keys [type name lang major]
+  (when-let [{:keys [type name lang major inputs]
               doc-owner :owner-id}
              (store/fetch-document id)]
-    (if (= user-id doc-owner) (do (store/publish! type name lang major id) (fetch id)) :forbidden)))
+    (cond
+      (not= user-id doc-owner) :forbidden
+      :else (let [pending (pending-inputs inputs)]
+              (if (seq pending)
+                {:unpublished-inputs pending}
+                (do (store/publish! type name lang major id) (fetch id)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Discovery / search / admin — all type-parameterised

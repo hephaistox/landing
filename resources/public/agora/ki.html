@@ -9,10 +9,14 @@
     <script>
       document.documentElement.classList.add('js');
     </script>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23b9770e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='19' fill='%23fff' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E"
-    />
+    <!-- Agora favicon set (assets live under /agora-icons/ — outside the /agora/:lang
+         route subtree so they resolve as static files, not the home shell). SVG for
+         modern browsers, PNG + .ico raster fallback for Safari and crawlers. -->
+    <link rel="icon" type="image/svg+xml" href="/agora-icons/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/agora-icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/agora-icons/favicon-16.png" />
+    <link rel="icon" href="/agora-icons/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/agora-icons/apple-touch-icon.png" />
     <title>Agora — Knowledge Item</title>
     <link rel="stylesheet" href="/fontawesome/css/fontawesome.css" />
     <link rel="stylesheet" href="/fontawesome/css/brands.css" />

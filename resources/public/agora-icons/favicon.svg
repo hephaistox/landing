@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#b9770e"/>
+  <g fill="#fff">
+    <!-- pediment (triangular roof) -->
+    <path d="M16 5 L27.5 13 L4.5 13 Z"/>
+    <!-- architrave -->
+    <rect x="6" y="13.4" width="20" height="2.1"/>
+    <!-- four columns -->
+    <rect x="7.9" y="16" width="2.2" height="8"/>
+    <rect x="12.5" y="16" width="2.2" height="8"/>
+    <rect x="17.3" y="16" width="2.2" height="8"/>
+    <rect x="21.9" y="16" width="2.2" height="8"/>
+    <!-- stepped base -->
+    <rect x="6.5" y="24.2" width="19" height="1.7"/>
+    <rect x="4.8" y="26" width="22.4" height="1.9"/>
+  </g>
+</svg>

@@ -108,10 +108,12 @@
        [ui/composed-field {:type "text"
                            :placeholder (i18n/t lang :source/author)
                            :style field
+                           :value (or (:author @filters) "")
                            :on-text #(set-f :author %)}]
        [ui/composed-field {:type "text"
                            :placeholder (i18n/t lang :source/title)
                            :style field
+                           :value (or (:title @filters) "")
                            :on-text #(set-f :title %)}]
        [:input {:type "number"
                 :placeholder (i18n/t lang :source/year)

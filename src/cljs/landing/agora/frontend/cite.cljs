@@ -300,6 +300,30 @@
    :cursor "pointer"
    :font-size "0.9em"})
 
+(defn- kind-picker
+  "The KI kinds as clickable badges (selected highlighted, rest dimmed) — for the inline
+  new-KI form. Local to cite so the low-level editor stays free of the `edit` layer. Only
+  *in-text* kinds are offered: this form always splices a `[[ki:…]]` citation, so an edge-only
+  kind (`source`) — which is never written into prose — is excluded (it has its own quote flow)."
+  [selected on-select]
+  (into [:div {:style {:display "flex"
+                       :flex-wrap "wrap"
+                       :gap "0.3em"}}]
+        (for [k (->> (domain/kind-ids-of "ki")
+                     (map name)
+                     (filter domain/kind-quotes-in-text?))]
+          ^{:key k}
+          [:button {:on-click #(on-select k)
+                    :title k
+                    :style {:border "none"
+                            :background "transparent"
+                            :padding "0.1em"
+                            :cursor "pointer"
+                            :border-radius "0.3em"
+                            :opacity (if (= k selected) 1 0.4)
+                            :box-shadow (if (= k selected) "0 0 0 2px #333" "none")}}
+           [mini-kind-badge k]])))
+
 (defn citation-editor
   "A node-text editor: an auto-growing textarea plus a search box that **cites an
   existing KI** (click a result) or **creates a new KI** (the ＋ action) — either way
@@ -317,6 +341,12 @@
         q (r/atom "")
         results (r/atom [])
         busy? (r/atom false)
+        ;; inline new-KI form (fork 3): richer than a bare title — capture title + statement +
+        ;; kind before creating the predecessor. Created as a draft, spliced in as a citation.
+        form? (r/atom false)
+        nt (r/atom "")
+        nx (r/atom "")
+        nk (r/atom "inference")
         fit! (fn []
                (when-let [el @node]
                  (set! (.. el -style -height) "auto")
@@ -346,20 +376,29 @@
                         (.then #(.json %))
                         (.then #(reset! results (js->clj % :keywordize-keys true)))
                         (.catch (fn [_] (reset! results []))))))
-        create!
-        (fn [lang]
-          (when-not (or @busy? (str/blank? @q))
-            (reset! busy? true)
-            (-> (js/fetch "/agora/api/ki"
-                          #js {:method "POST"
-                               :headers #js {"Content-Type" "application/json"
-                                             "Accept" "application/json"}
-                               :body (js/JSON.stringify (clj->js {:title @q
-                                                                  :kind "inference"
-                                                                  :lang lang}))})
-                (.then #(.json %))
-                (.then (fn [ki] (reset! busy? false) (insert! (js->clj ki :keywordize-keys true))))
-                (.catch (fn [_] (reset! busy? false))))))]
+        ;; open the inline new-KI form, seeding the title from the current query
+        open-form! (fn [] (reset! nt @q) (reset! nx "") (reset! nk "inference") (reset! form? true))
+        ;; create the predecessor from the form (statement optional — falls back to the title so
+        ;; the required :text is always non-blank), then splice its citation at the cursor
+        submit! (fn [lang]
+                  (when-not (or @busy? (str/blank? @nt))
+                    (reset! busy? true)
+                    (-> (js/fetch "/agora/api/ki"
+                                  #js {:method "POST"
+                                       :headers #js {"Content-Type" "application/json"
+                                                     "Accept" "application/json"}
+                                       :body (js/JSON.stringify
+                                              (clj->js {:title @nt
+                                                        :kind @nk
+                                                        :lang lang
+                                                        :text (let [t (str/trim @nx)]
+                                                                (if (str/blank? t) @nt t))}))})
+                        (.then #(.json %))
+                        (.then (fn [ki]
+                                 (reset! busy? false)
+                                 (reset! form? false)
+                                 (insert! (js->clj ki :keywordize-keys true))))
+                        (.catch (fn [_] (reset! busy? false))))))]
     (fn [value set-text! placeholder self-name inputs? on-quote]
       (reset! setter set-text!)
       (let [lang @(rf/subscribe [::i18n/lang])
@@ -400,7 +439,7 @@
                                         :font-size "0.9em"
                                         :border "1px solid #ccc"
                                         :border-radius "0.3em"}}]
-            (when-not (str/blank? @q)
+            (when (and (not @form?) (not (str/blank? @q)))
               (into [:div {:style {:position "absolute"
                                    :z-index 20
                                    :left 0
@@ -422,8 +461,68 @@
                                 ;; a document can't quote itself — drop its own lineage
                                 (remove #(= (:name %) self-name) @results))
                           ^{:key "__new__"}
-                          [:button {:on-click #(create! lang)
+                          [:button {:on-click #(open-form!)
                                     :disabled @busy?
                                     :style
                                     (assoc result-btn-style :color "#b9770e" :font-weight 700)}
-                           (str "＋ " (i18n/t lang :cite/create-new) " “" @q "”")])))])]))))
+                           (str "＋ " (i18n/t lang :cite/create-new) " “" @q "”")])))
+            ;; fork 3: inline new-KI form — capture title + statement + kind, created as a draft
+            ;; predecessor and spliced in as a citation (the new input is hidden until published)
+            (when @form?
+              [:div {:style {:margin-top "0.3em"
+                             :padding "0.6em"
+                             :border "1px solid #d9c9a8"
+                             :background "#fdf9f0"
+                             :border-radius "0.4em"
+                             :display "flex"
+                             :flex-direction "column"
+                             :gap "0.45em"}}
+               [ui/composed-field {:type "text"
+                                   :placeholder (i18n/t lang :cite/new-title-ph)
+                                   :value @nt
+                                   :auto-focus true
+                                   :on-text #(reset! nt %)
+                                   :style {:width "100%"
+                                           :box-sizing "border-box"
+                                           :padding "0.45em"
+                                           :font-size "0.95em"
+                                           :font-weight 600
+                                           :border "1px solid #ccc"
+                                           :border-radius "0.3em"}}]
+               [ui/composed-field {:element :textarea
+                                   :placeholder (i18n/t lang :cite/new-statement-ph)
+                                   :value @nx
+                                   :on-text #(reset! nx %)
+                                   :style {:width "100%"
+                                           :box-sizing "border-box"
+                                           :min-height "4em"
+                                           :resize "vertical"
+                                           :padding "0.45em"
+                                           :font-family "inherit"
+                                           :font-size "0.9em"
+                                           :line-height "1.45"
+                                           :border "1px solid #ccc"
+                                           :border-radius "0.3em"}}]
+               [kind-picker @nk #(reset! nk %)]
+               [:div {:style {:display "flex"
+                              :gap "0.4em"
+                              :justify-content "flex-end"}}
+                [:button {:on-click #(reset! form? false)
+                          :style {:padding "0.4em 0.7em"
+                                  :border "1px solid #ccc"
+                                  :background "#fff"
+                                  :border-radius "0.3em"
+                                  :cursor "pointer"
+                                  :font-size "0.88em"}}
+                 "✕"]
+                [:button {:on-click #(submit! lang)
+                          :disabled (or @busy? (str/blank? @nt))
+                          :style {:padding "0.4em 1em"
+                                  :border "none"
+                                  :background "#2b8a3e"
+                                  :color "#fff"
+                                  :border-radius "0.3em"
+                                  :cursor "pointer"
+                                  :font-weight 600
+                                  :font-size "0.88em"}}
+                 (i18n/t lang :cite/create-new)]]])])]))))

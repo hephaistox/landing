@@ -777,28 +777,36 @@
                     :-webkit-box-orient "vertical"
                     :overflow "hidden"}}
       excerpt]
+     ;; author and date on one line: author left, compact date pushed to the right
      [:div {:style {:margin-top "auto"
                     :color "#888"
-                    :font-size "0.8em"}}
-      ;; attribution on its own line
+                    :font-size "0.8em"
+                    :display "flex"
+                    :align-items "baseline"
+                    :gap "0.5em"}}
       (let [src-author (or (:quote-author-name node) (:author-name (:source node)))]
         (if src-author
           ;; the KI quotes a source → attribute the cited author
-          [:div {:title (i18n/t lang :card/quotes)}
+          [:span {:title (i18n/t lang :card/quotes)}
            "📖 "
            [:span {:style {:color "#b9770e"
                            :font-weight 600}}
             src-author]]
           ;; no source → the byline author is this document's own (original) author
           (when-let [a (:author node)]
-            [:div
+            [:span
+             [:span {:style {:font-style "italic"}}
+              (str (i18n/t lang :card/by) " ")]
              [:span {:style {:color "#b9770e"
                              :font-weight 600}}
-              a]
-             [:span {:style {:font-style "italic"}}
-              (str " · " (i18n/t lang :card/original))]])))
-      ;; timestamp always on its own line
-      [:div (or (fmt/utc (:published-at node)) "—")]]]))
+              a]])))
+      ;; compact date (Today / Yesterday / DD/MM / DD/MM/YYYY)
+      [:span {:style {:margin-left "auto"
+                      :white-space "nowrap"}}
+       (or (fmt/short-date (:published-at node)
+                           (i18n/t lang :date/today)
+                           (i18n/t lang :date/yesterday))
+           "—")]]]))
 
 (defn add-card
   "A dashed 'create' tile for the end of a discover grid — a large + linking to `href`.

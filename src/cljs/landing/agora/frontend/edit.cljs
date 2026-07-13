@@ -36,7 +36,7 @@
   [lang labels k]
   (i18n/t lang (get labels k)))
 
-(defn type-selector
+(defn kind-selector
   "Every kind of `object-type` (KI kinds vs article kinds are disjoint sets) as a clickable
   badge; the selected one highlighted, the others dimmed. Calls `on-select` with the chosen
   kind string."
@@ -67,10 +67,12 @@
 (rf/reg-sub ::edit (fn [db _] (::edit db)))
 
 (defn close-panels
-  "Collapse the edit form. Used by core on route changes (and after a save) so nothing
-  lingers from a previous document."
+  "Collapse the edit form and the add-consequence widget. Used by core on route changes (and
+  after a save) so nothing lingers from a previous document."
   [db]
-  (update db ::edit assoc :open? false))
+  (-> db
+      (update ::edit assoc :open? false)
+      (dissoc ::consequence)))
 
 (rf/reg-event-db ::op-failed
                  (fn [db [_ resp]]
@@ -157,17 +159,33 @@
                  (fn [{:keys [db]} [_ resp]]
                    (let [doc (:body resp)]
                      (if (:id doc)
-                       {:db (dissoc db ::new)
+                       {:db (dissoc db ::new ::publish-error)
                         :dispatch [:agora/saved doc]}
                        {:db (update db ::edit assoc :saving? false :error resp)}))))
 
 ;; Publish a draft: promote this version, prune the lineage's intermediate drafts, then reuse
-;; `::saved-ok` to navigate to the now-published document.
-(rf/reg-event-fx
- ::publish
- (fn [_ [_ type id]]
-   {:fetch
-    (json-req :post (str "/agora/api/" type "/" id "/publish") {} [::saved-ok] [::op-failed])}))
+;; `::saved-ok` to navigate to the now-published document. A 422 means an input is still a draft
+;; (the publish invariant) — `::publish-failed` stashes the offending inputs so the banner can
+;; list them with links.
+(rf/reg-event-fx ::publish
+                 (fn [{:keys [db]} [_ type id]]
+                   {:db (dissoc db ::publish-error)
+                    :fetch (json-req :post
+                                     (str "/agora/api/" type "/" id "/publish")
+                                     {}
+                                     [::saved-ok]
+                                     [::publish-failed id])}))
+
+(rf/reg-event-db ::publish-failed
+                 (fn [db [_ id resp]]
+                   (js/console.error "[agora] publish failed:" (clj->js resp))
+                   (assoc db
+                          ::publish-error
+                          {:id id
+                           :inputs (get-in resp [:body :unpublished-inputs])
+                           :message (get-in resp [:body :error])})))
+
+(rf/reg-sub ::publish-error (fn [db _] (::publish-error db)))
 
 ;; --- admin maintenance from the edit card ----------------------------------
 ;; Owner-only: delete the whole lineage, or keep only its latest version (compact). Both
@@ -214,29 +232,184 @@
     doc-type :type}]
   (let [user @(rf/subscribe [::auth/user])]
     (when (and draft (= (:id user) author-id))
-      (let [lang @(rf/subscribe [::i18n/lang])]
-        [:div {:style {:display "flex"
-                       :align-items "center"
-                       :justify-content "space-between"
-                       :gap "0.7em"
-                       :flex-wrap "wrap"
-                       :margin-bottom "0.9em"
-                       :padding "0.5em 0.8em"
-                       :background "#fdf6ec"
-                       :border "1px dashed #b98a3e"
-                       :border-radius "0.4em"}}
-         [:span {:style {:font-size "0.88em"
-                         :color "#8a5709"}}
-          (str "✎ " (i18n/t lang :ki/draft-notice))]
-         [:button {:on-click #(rf/dispatch [::publish doc-type id])
-                   :style {:padding "0.4em 1em"
-                           :border "none"
-                           :background "#2b8a3e"
-                           :color "#fff"
-                           :border-radius "0.3em"
-                           :cursor "pointer"
+      (let [lang @(rf/subscribe [::i18n/lang])
+            err @(rf/subscribe [::publish-error])
+            blocked (when (= (:id err) id) (:inputs err))]
+        [:div {:style {:margin-bottom "0.9em"}}
+         [:div {:style {:display "flex"
+                        :align-items "center"
+                        :justify-content "space-between"
+                        :gap "0.7em"
+                        :flex-wrap "wrap"
+                        :padding "0.5em 0.8em"
+                        :background "#fdf6ec"
+                        :border "1px dashed #b98a3e"
+                        :border-radius "0.4em"}}
+          [:span {:style {:font-size "0.88em"
+                          :color "#8a5709"}}
+           (str "✎ " (i18n/t lang :ki/draft-notice))]
+          [:button {:on-click #(rf/dispatch [::publish doc-type id])
+                    :style {:padding "0.4em 1em"
+                            :border "none"
+                            :background "#2b8a3e"
+                            :color "#fff"
+                            :border-radius "0.3em"
+                            :cursor "pointer"
+                            :font-weight 600}}
+           (i18n/t lang :ki/publish)]]
+         ;; publish invariant: a public node may not depend on a draft input
+         (when (seq blocked)
+           [:div {:style {:margin-top "0.5em"
+                          :padding "0.5em 0.8em"
+                          :background "#fdecec"
+                          :border "1px solid #d9534f"
+                          :border-radius "0.4em"
+                          :font-size "0.85em"
+                          :color "#8a1f1f"}}
+            [:div {:style {:margin-bottom "0.3em"
                            :font-weight 600}}
-          (i18n/t lang :ki/publish)]]))))
+             (i18n/t lang :ki/publish-blocked)]
+            (into [:ul {:style {:margin 0
+                                :padding-left "1.2em"}}]
+                  (map (fn [{:keys [type id title]
+                             nm :name}]
+                         [:li
+                          [:a {:href (i18n/doc-url lang type id)
+                               :style {:color "#8a1f1f"
+                                       :text-decoration "underline"}}
+                           (or title nm)]]))
+                  blocked)])]))))
+
+;; --- inline successor: spawn a consequence without leaving the page --------
+;; A *consequence* of KI X is a new KI that cites X as its input — the `[[ki:X]]` edge lives in
+;; the new KI's text, not X's, so creating one never modifies X and any logged-in user can do it
+;; while reading. It is created as a **draft** (hidden until published, so it does not yet appear
+;; in X's successors row); the widget lists the drafts it just made so you can flesh them out
+;; later. KI-only, because citations target KIs.
+
+(rf/reg-sub ::consequence (fn [db _] (::consequence db)))
+
+(rf/reg-event-db ::consequence-toggle
+                 (fn [db [_ open?]]
+                   (update db
+                           ::consequence
+                           merge
+                           {:open? open?
+                            :title ""
+                            :error nil})))
+
+(rf/reg-event-db ::consequence-set-title (fn [db [_ v]] (assoc-in db [::consequence :title] v)))
+
+(rf/reg-event-fx ::consequence-create
+                 (fn [{:keys [db]} [_ parent]]
+                   (let [title (get-in db [::consequence :title])]
+                     (when-not (str/blank? title)
+                       {:db (assoc-in db [::consequence :creating?] true)
+                        :fetch (json-req :post
+                                         "/agora/api/ki"
+                                         ;; seed the new KI's text with a citation of the parent → parent becomes
+                                         ;; its input. Same content language as the parent so the edge resolves.
+                                         {:title title
+                                          :kind "inference"
+                                          :lang (:lang parent)
+                                          :text
+                                          (str "[[ki:" (:name parent) "@" (:major parent) "]]")}
+                                         [::consequence-created]
+                                         [::consequence-failed])}))))
+
+(rf/reg-event-db ::consequence-created
+                 (fn [db [_ resp]]
+                   (-> db
+                       (update ::consequence assoc :creating? false :title "" :error nil)
+                       (update-in [::consequence :created] (fnil conj []) (:body resp)))))
+
+(rf/reg-event-db ::consequence-failed
+                 (fn [db [_ resp]]
+                   (js/console.error "[agora] consequence create failed:" (clj->js resp))
+                   (update db ::consequence assoc :creating? false :error true)))
+
+(defn add-consequence
+  "On a KI read view, a logged-in user spawns a **consequence** — a new draft KI that takes this
+  KI as its input — without leaving the page (quick-capture; refine it later from your drafts).
+  Renders nothing on articles (citations target KIs) or for anonymous viewers."
+  [{doc-type :type
+    :as doc}]
+  (let [user @(rf/subscribe [::auth/user])]
+    (when (and (= doc-type "ki") (:id user))
+      (let [lang @(rf/subscribe [::i18n/lang])
+            st @(rf/subscribe [::consequence])]
+        [:div {:style {:display "flex"
+                       :flex-direction "column"
+                       :align-items "center"
+                       :gap "0.5em"
+                       :margin-top "0.4em"}}
+         (if (:open? st)
+           [:div {:style {:display "flex"
+                          :gap "0.4em"
+                          :flex-wrap "wrap"
+                          :justify-content "center"
+                          :max-width "30em"}}
+            [ui/composed-field {:type "text"
+                                :placeholder (i18n/t lang :ki/consequence-ph)
+                                :value (:title st)
+                                :auto-focus true
+                                :on-text #(rf/dispatch [::consequence-set-title %])
+                                :on-key-down #(when (= "Enter" (.-key %))
+                                                (rf/dispatch [::consequence-create doc]))
+                                :style {:padding "0.45em 0.6em"
+                                        :border "1px solid #ccc"
+                                        :border-radius "0.3em"
+                                        :min-width "18em"
+                                        :font-size "0.9em"}}]
+            [:button {:on-click #(rf/dispatch [::consequence-create doc])
+                      :disabled (or (:creating? st) (str/blank? (:title st)))
+                      :style {:padding "0.45em 1em"
+                              :border "none"
+                              :background "#2b8a3e"
+                              :color "#fff"
+                              :border-radius "0.3em"
+                              :cursor "pointer"
+                              :font-weight 600
+                              :font-size "0.9em"}}
+             (i18n/t lang :ki/consequence-create)]
+            [:button {:on-click #(rf/dispatch [::consequence-toggle false])
+                      :style {:padding "0.45em 0.7em"
+                              :border "1px solid #ccc"
+                              :background "#fff"
+                              :border-radius "0.3em"
+                              :cursor "pointer"
+                              :font-size "0.9em"}}
+             "✕"]]
+           [:button {:on-click #(rf/dispatch [::consequence-toggle true])
+                     :style {:padding "0.4em 0.9em"
+                             :border "1px dashed #b98a3e"
+                             :background "#fff"
+                             :color "#8a5709"
+                             :border-radius "0.3em"
+                             :cursor "pointer"
+                             :font-size "0.9em"}}
+            (str "↳ " (i18n/t lang :ki/add-consequence))])
+         (when (:error st)
+           [:div {:style {:color "#8a1f1f"
+                          :font-size "0.82em"}}
+            (i18n/t lang :ki/consequence-failed)])
+         ;; drafts just created — hidden from the successors row until published, so surfaced here
+         (when (seq (:created st))
+           [:div {:style {:display "flex"
+                          :flex-wrap "wrap"
+                          :gap "0.4em"
+                          :justify-content "center"
+                          :font-size "0.82em"}}
+            (for [y (:created st)]
+              ^{:key (:id y)}
+              [:a {:href (i18n/doc-url lang "ki" (:id y))
+                   :style {:padding "0.2em 0.6em"
+                           :background "#fdf6ec"
+                           :border "1px dashed #b98a3e"
+                           :border-radius "1em"
+                           :color "#8a5709"
+                           :text-decoration "none"}}
+               (str "✎ " (or (:title y) (i18n/t lang :ki/draft)))])])]))))
 
 (defn admin-actions
   "Owner-only maintenance for a document, shown on the **read view** so an admin acts without
@@ -322,7 +495,7 @@
                     :align-items "center"
                     :gap "0.75em"
                     :margin-bottom "0.6em"}}
-      (when show-kind? [type-selector object-type kind #(rf/dispatch [::edit-set :kind %])])
+      (when show-kind? [kind-selector object-type kind #(rf/dispatch [::edit-set :kind %])])
       [lang-badge doc-lang]
       [:span {:style {:color "#888"
                       :font-size "0.8em"
@@ -421,7 +594,7 @@
          [:div {:style label-style}
           (i18n/t lang :form/type)]
          [:div {:style {:margin-bottom "0.8em"}}
-          [type-selector object-type kind #(rf/dispatch [::new-set :kind %])]]])
+          [kind-selector object-type kind #(rf/dispatch [::new-set :kind %])]]])
       [:div {:style label-style}
        (i18n/t lang :form/language)]
       [:div {:style {:margin-bottom "0.8em"}}

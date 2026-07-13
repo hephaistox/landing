@@ -459,7 +459,13 @@
                               ;; bust the whole lineage first (old minor + permalink + previews),
                               ;; then cache the freshly saved version by its new id
                               (cache-evict-lineage doc)
-                              (cache-put [(keyword type) id] doc))
+                              (cache-put [(keyword type) id] doc)
+                              ;; render the saved version immediately. Publish keeps the SAME id, so
+                              ;; the navigate below is a no-op (already on this URL) and would leave
+                              ;; the stale draft on screen; setting :view here refreshes regardless.
+                              (assoc :view {:kind (keyword type)
+                                            :data doc}
+                                     :loading? false))
                       :agora/navigate (i18n/doc-url (i18n/current db) type id)})))
 
 ;; Remove an input edge via the input field (the ✕ on an input card) — DELETE the edge

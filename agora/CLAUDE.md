@@ -48,9 +48,9 @@ A KI has **exactly one input set** — a single conjunction of premises ("these 
 
 This keeps each node atomic and the data model flat, preserves individual accountability, and reconstructs the "supported from independent directions" view via a relation rather than a nested-input structure.
 
-### KI Types
+### Epistemic Kinds
 
-Every KI carries an **epistemic kind** (field `kind`) the claimer chooses — one of values: `inference / prediction ...`. **As implemented today, the type is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic type"). The per-type differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The values fall into three conceptual families:
+Every KI carries an **epistemic kind** (field `kind`) the claimer chooses — one of values: `inference / prediction ...`. **As implemented today, the kind is a plain, mutable label**: it drives the coloured badge and nothing else. It is *not* part of identity and can be changed by editing (see "Identity: object type vs epistemic kind"). The per-kind differences described below — distinct lifecycles, challenge mechanisms, confidence interpretation, a resolution date for verifiable claims — are **design intent for later layers, not current behaviour**. The values fall into three conceptual families:
 
 **Derived KI** — the standard case. Has inputs, produces a logical consequence. Challenged by counterexample or ambiguity challenge. Confidence reflects how well the reasoning chain has survived scrutiny.
 
@@ -60,11 +60,11 @@ Every KI carries an **epistemic kind** (field `kind`) the claimer chooses — on
 
 All are processed identically by the system at MVP. In advanced layers, the challenge process may differ by variation — a postulate invites logical challenge, a credo invites value confrontation — and the system may route challenges accordingly. The vocabulary choice is also a signal to readers and challengers about what kind of response is appropriate, guiding behaviour naturally even before the system enforces it.
 
-### Identity: object type vs epistemic type
+### Identity: object type vs epistemic kind
 
-The `T` in the identity tuple is the **object type**, not the epistemic type above. The store is single-table and polymorphic (PLM-style): it holds **KIs**, **Article** and, from Layer 2, **Objections** (the PLM "change" analog) — different object types with their own lineages, standing in the same table. Identity is **ObjectType + Name + Lang + Major + Minor**, with `object_type = "ki"` today and `"objection"` later. `Lang` (the content language) is part of identity: each language is its own independent lineage, and the language versions of one concept are tied together simply by sharing a `Name` (see "Language & Translation"). The epistemic `type` is deliberately *not* in identity.
+The `T` in the identity tuple is the **object type**, not the epistemic kind above. The store is single-table and polymorphic (PLM-style): **AGORA_DOCUMENT** holds **KIs**, **Article** and **Change** — different object types with their own lineages, standing in the same table. Identity is **ObjectType + Name + Lang + Major + Minor**, with `object_type = "ki"` / `"article"` today and `"change"` later. A **Change** is the PLM "change" analog (see §5 "Change — the document type that gathers drafts"): its own `kind` ∈ {`edition`, `objection`} gathers a user's pending **drafts** — an `edition` is the owner authoring/forking, an `objection` is another user's request/challenge. `Lang` (the content language) is part of identity: each language is its own independent lineage, and the language versions of one concept are tied together simply by sharing a `Name` (see "Language & Translation"). The epistemic `kind` is deliberately *not* in identity.
 
-The **epistemic kind** (`inference / prediction / ...`) is a **mutable attribute of a KI**, deliberately *not* part of identity. People revise how they classify a claim — often *in response to a challenge* (e.g. a "postulate" is shown to actually follow from other KIs and becomes "derived"). Reclassifying is therefore an ordinary **edit → new minor**, never a new object, and edges (which reference `Name + Major`) follow automatically. Putting the epistemic type in the identity would fork the lineage and break edges on every reclassification, contradicting "KIs are immutable, evolving nodes."
+The **epistemic kind** (`inference / prediction / ...`) is a **mutable attribute of a KI**, deliberately *not* part of identity. People revise how they classify a claim — often *in response to a challenge* (e.g. a "postulate" is shown to actually follow from other KIs and becomes "derived"). Reclassifying is therefore an ordinary **edit → new minor**, never a new object, and edges (which reference `Name + Major`) follow automatically. Putting the epistemic kind in the identity would fork the lineage and break edges on every reclassification, contradicting "KIs are immutable, evolving nodes."
 
 (Name uniqueness is automatic: `Name` is an opaque, randomly-generated **cid** (`document/gen-cid`), so two documents never clash regardless of title or author — no de-clashing or owner-scoping needed.)
 
@@ -90,6 +90,18 @@ Two layers: a **source** (the reusable *work* — a book, magazine, website, wha
 **A normal KI relates to a source only by *quoting* it** — never by "attaching" one. Quoting uses the **classical citation mechanism** (the quote-search box), with one difference declared in the domain: `kind=source` sets **`:in-text? false`** (`document-domain/kind-quotes-in-text?`), so a source citation is an **input edge only** — it is *not* written into the prose. The read layer splits these `kind=source` inputs out of `:inputs` into a resolved **`:quotes`** list (title + work-author + locator); the client sends them as `:quotes [{:name :major}…]` (transient — `document/inputs-of` folds them into `:inputs`, and the editor resubmits the full list each edit since they aren't in the text to re-derive).
 
 **Attribution flows from the quoted source:** a position's kind-guided opening ("David Fricke soutient que …") takes its subject from `document-domain/attributed-author`, priority `:source` author (for a `kind=source` KI itself) → **`:quote-author-name`** (the work-author of the KI's first source input, computed by the read layer) → the KI's own author. Authoring: the source-editor (pick/create a work + locator) shows **only when kind=source**; other KIs get the quote-search box instead. Sources render on the page, attribute the quoted author on discover cards, and are emitted as schema.org `citation`. `AGORA_SOURCE` was **dropped in Layer 1A then restored** (migration `006`) — the intermediate "source is a `type=source` document" model was reverted; a source is a `kind=source` KI + a shared `AGORA_SOURCE` work.
+
+### Definitions vs Sources — fidelity vs appropriation
+
+`source` and `definition` are **distinct kinds related by an (optional) citation edge, never merged** — they answer different questions, so the "unify vs special-case" call lands on *two concepts, one edge between them*.
+
+- A **source** is *faithful provenance*: what a work says at a given locator, in the book's **own** context and vocabulary. Its job is fidelity — quote/paraphrase the passage accurately, pinned to page/verse. It is challenged on accuracy, edition, attribution.
+- A **definition** is the writer's *appropriation*: the concept lifted out of that book's vocabulary and re-expressed as a semantic contract that holds **inside Agora's** vocabulary. The "fine-tuning" is porting a term across contexts — narrowing it, disambiguating it against the graph's other uses, reconciling it. The definition is where the writer's judgment lives; the source is where the book's authority lives. It is challenged on definitional grounds (an incompatible definition of the same term).
+
+The model already expresses this with no new plumbing: **a definition that grounds itself in a work is simply a `definition` KI that quotes a `source` KI** (via the edge-only quote mechanism above). Two refinements settled in design:
+
+1. **Source-grounding is optional, not constitutive.** Many definitions are pure *stipulation* — the writer fixes a term for the graph with no book behind it. So "a definition is what you keep from a source" is the *grounded* case (the strongest one), not the only one; the `definition` kind stays general. The richest case is a definition citing **several** sources and reconciling their contexts into one contract — the fine-tuning *is* that reconciliation.
+2. **The source→definition edge is provenance, not a logical premise.** A definition isn't *derived* from its source the way an inference is derived from its inputs — you can't refute a definition by finding a counterexample in the book; the source is *authority / where-it-came-from*, not a reasoning step. So although a quoted source rides in `:inputs` today, it semantically belongs to the **annotation/reference** family, not the reasoning family — more evidence that the reasoning-vs-annotation edge split (Layer 3, #79) is real: "what grounds this?" and "what does this logically follow from?" are different edges.
 
 ### Integrity & timestamp anchoring — designed, deferred
 
@@ -177,6 +189,24 @@ Changes are classified by their semantic impact:
 - **Major change** — breaking, forces a new version node, successors enter a review-required state
 
 The change requester suggests the type. The KI owner declares the downstream consequences. The community corrects over time if wrong. This is a try-and-error model — unlike PLM where the owner knows their domain deeply enough to predict impact, the graph here is too diverse for that assumption.
+
+### Change — the document type that gathers drafts (Layer 2)
+
+A **Change** is the PLM change-analog, and it is **not a separate table** — it is another **object type in `AGORA_DOCUMENT`** (`object_type = "change"`), exactly as *Article* differs from *KI*. Its own **`kind`** ∈ {`edition`, `objection`} says what the change is:
+
+- **`edition`** — the owner authoring or forking: the drafts being created/modified. A **creation is an `edition` change with no parent** (it gathers freshly-created drafts); a modification gathers the drafts that fork existing objects. This unifies create and modify under one mechanism ("a create is a fork with no parent").
+- **`objection`** — another user's *request/challenge*: what they ask to change in your objects (typed — counterexample, ambiguity; see §3).
+
+A Change **gathers pending drafts** — the Layer 1 **draft** is the atom, the change is the aggregate (e.g. a new KI plus the inline predecessors/successors created alongside it — a whole draft cluster). While you are *in* a change, a **left panel lists its modified objects (the drafts)** — the staging view of everything the change touches, so the scope of your in-flight work is visible in context.
+
+**Lifecycle:**
+
+1. **Created & owned by the objector.** The person who raises it is the author and *sole* owner. It may hold just the objection text, or a **proposal** too — draft minor releases of the targeted KIs.
+2. **Pins are exact while the change is open.** Its targeted KIs are pinned to a **specific version id** (an exact TNLR + minor), not the floating latest-minor — an objection is against a *concrete* version, and a proposal forks a *concrete* version.
+3. **On publish, authoring passes to the target owner.** When the objector publishes the change, the **owner of the targeted KI(s)** becomes the author of the resolution: **reject** (with comments) or **accept** (with new KIs / new versions).
+4. **Closing = "publishing".** Closing the change is *named publishing* and **replaces today's per-KI publish button**: every draft KI gathered in the change is published **at that moment, as a unit** — after which pins revert to the **classical latest-minor TNLR** mechanism (the exact-id pins of step 2 go back to floating).
+
+So today's per-document publish becomes a **per-change** publish, and the shipped draft + publish-invariant work folds in: a change *is* the draft cluster, and closing it publishes the cluster in dependency order. (Open lifecycle detail: whether the objector's step-3 handoff and the step-4 close are one "publish" event or two named transitions.)
 
 ### Successor Connection Model
 
@@ -371,7 +401,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 - Clojure DB connection and basic KI query
 - Basic API route — single KI by id
 - ClojureScript + React bootstrap — fetches KI route, confirms data in browser
-- KI display component — name, type badge, timestamp, output statement
+- KI display component — name, kind badge, timestamp, output statement
 - Hidden route — accessible by direct URL, not linked from landing
 
 **Slice 2 — Second KI, link, navigation**
@@ -380,7 +410,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 - KI page navigation — follow edges to connected KIs
 
 **Slice 3 — Versioning in links**
-- KI identity model enforced — ObjectType + Name + Major + Minor (object_type = "ki"; epistemic type is a mutable attribute, see "Identity: object type vs epistemic type")
+- KI identity model enforced — ObjectType + Name + Major + Minor (object_type = "ki"; epistemic kind is a mutable attribute, see "Identity: object type vs epistemic kind")
 - Auto-resolution to latest minor within referenced major — implemented as DB query utility
 - Navigation reflects versioned links correctly
 
@@ -406,7 +436,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 **Slice 7 — Public KI page with permanent URL**
 - Permanent URL structure: `/ki/{type}/{name}/{major}`
-- Displays KI text, type badge, timestamp, input KIs, successor KIs
+- Displays KI text, kind badge, timestamp, input KIs, successor KIs
 - Publicly accessible, no auth required
 
 **Slice 8 — Discoverability page**
@@ -430,7 +460,8 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 
 ### Layer 2 — Social
 
-- Objection system — typed (counterexample, ambiguity challenge), permanent, visible on KI page, full discussion thread and author conclusion
+- Change document type (`object_type = "change"`, not a new table) — `kind` ∈ {edition, objection} gathering a user's pending drafts; exact-id pins while open, a left panel showing the change's modified objects in context, and **closing = "publishing"** (replaces the per-KI publish button; publishes every KI in the change at once, then pins revert to classical latest-minor TNLR). See §5 "Change — the document type that gathers drafts"
+- Objection system — the `objection` kind of change: typed (counterexample, ambiguity challenge), permanent, visible on KI page, full discussion thread and author conclusion
 - Fork and merge request mechanism — fork creates new version, merge request submitted to branch owner
 - Article authoring UI — structured text with KI-backed terms and arguments, each polysemic term links to definition KI
 - Version propagation notifications — major version forces successor review, connected user dashboard
@@ -463,6 +494,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 Graph traversal and version resolution are **precomputed on write and cached**, never done in SQL per read. Engine: `landing.agora.document` (+ `landing.agora.node`, the SQL/cache adapter; `landing.agora.cache`, Caffeine). Pure wiring/pin/successor rules live in `landing.agora.document-domain` (cljc).
 
 - **TNLR** = (Type, Name, Lang, major Release) — identity minus `minor`; names a lineage whose latest minor is current.
+- **Two resolution modes for a TNLR.** (1) *Permalink / public* — **latest *published* minor** (`store/resolve-latest-id`, `draft = 0`); a **draft-only** lineage does **not** resolve (its permalink 404s), keeping drafts out of public permalinks. (2) *Pin resolution* (`latest-of`, used by `pin-all`) — latest published minor, **else the latest version incl. drafts (its exact `id`)**. So a document's inputs always pin to a concrete id; a **draft's** input to a **draft-only** predecessor pins to that predecessor's exact draft version and renders, rather than dangling with a nil id. This exact-version fallback is safe *as the default* because the **publish invariant** means only a *draft's own* inputs can ever be draft-only (a published document's inputs are all published, mode 1) — so it never surfaces a draft in a public view. On publish, successors re-pin to the now-published minor. (The Layer-2 **Change** layer additionally uses *deliberate* exact pins — pinning a target to a chosen version while the change is open, even when a published version exists; see §5 "Change — the document type that gathers drafts" / #82.)
 - **A document is a row keyed by `id`.** Columns are only the identity keys (`id`, `type`, `name`, `lang`, `major`, `minor`) so indexes never parse EDN. Everything else is two EDN blobs: **immutable `content`** (`{:kind :title :text :author :owner-id :published-at :inputs [TNLR…] :references [{:source-id :locator}…]}`, never updated after insert) and **mutable `computed`** (`{:pins {tnlr-key → id}}`). A KI's "statement" and an article's "body" are the same `:text` slot.
 - **Inputs = the `[[ki:…]]` citations in `:text`** (parsed on write). An input's *declaration* (a TNLR) lives in `content.:inputs`; its *pin* (the exact predecessor id) in `computed.:pins`. Changing inputs → a new **minor** (same permalink; successors re-pin); re-resolving a pin does not, and is never done client-side.
 - **Reverse edges = `AGORA_SUCCESSOR`** (input-TNLR → successor id) — a cache rebuilt incrementally on write and fully every 24h (`landing.agora.scheduler`).

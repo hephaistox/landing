@@ -41,7 +41,7 @@
    (str/trim prefix)])
 
 (defn- read-card
-  "The central card in read mode: type badge, language switcher, version picker, title,
+  "The central card in read mode: kind badge, language switcher, version picker, title,
   byline, the prose (with living citations) and the cited source. When `cfg` is given (an
   editable page) a login-gated pencil opens the in-place editor; the public page passes
   nil (read-only)."
@@ -116,11 +116,15 @@
   the facade's per-type config."
   [doc cfg]
   (let [lang @(rf/subscribe [::i18n/lang])]
-    [node-frame
-     doc
-     [central doc cfg]
-     (fn [d] (i18n/doc-url lang (:type d) (:id d)))
-     (input-drop-fn (:type doc) (:id doc))]))
+    [:<>
+     [node-frame
+      doc
+      [central doc cfg]
+      (fn [d] (i18n/doc-url lang (:type d) (:id d)))
+      (input-drop-fn (:type doc) (:id doc))]
+     ;; a logged-in viewer can spawn a consequence (new draft KI citing this one) without
+     ;; leaving the page; renders nothing for articles or anonymous viewers
+     [edit/add-consequence doc]]))
 
 (defn public-page
   "Read-only public document page: the same layout, a static central card, neighbour

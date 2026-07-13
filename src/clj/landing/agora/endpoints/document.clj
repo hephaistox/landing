@@ -179,6 +179,10 @@
                           (= r :forbidden) {:status 403
                                             :body {:error "only the owner may publish"}}
                           (nil? r) (not-found :id (path-id req))
+                          (:unpublished-inputs r) {:status 422
+                                                   :body {:error "inputs must be published first"
+                                                          :unpublished-inputs (:unpublished-inputs
+                                                                               r)}}
                           :else {:status 200
                                  :body r}))
                       unauthorized))

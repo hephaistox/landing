@@ -164,13 +164,19 @@
     kebab)))
 
 (defn- latest-of
-  "The domain's injected `latest-of`: an input TNLR (carrying its own :type) → its
-  current latest id."
+  "The domain's injected `latest-of`: an input TNLR (carrying its own :type) → the id it should
+  pin to. Prefers the latest **published** minor; if the lineage has no published version at all
+  (draft-only), falls back to the latest version **including drafts** — so a draft's inputs pin to
+  a concrete exact-version id and render, instead of dangling with a nil id. This fallback can
+  only ever bite an input of an *unpublished* document (the publish invariant forbids a published
+  document from depending on a draft), so it never surfaces a draft in a public view. On publish,
+  successors re-pin to the now-published minor."
   [{ty :type
     nm :name
     major :major
-    lang :lang}]
-  (resolve-latest-id ty nm major lang))
+    lang :lang
+    :as tnlr}]
+  (or (resolve-latest-id ty nm major lang) (:id (last (versions-of (domain/tnlr-key tnlr))))))
 
 ;; --- Cache invalidation
 
