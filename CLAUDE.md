@@ -99,6 +99,7 @@ API under `/agora/api` is the SPA's backend.
 | `POST /agora/api/translate`                                              | `endpoints.document`                | Best-effort machine-translation suggestion (authoring aid).                      |
 | `GET /agora/api/author/:id`                                              | `agora.endpoints.author`            | Public author profile: card + the person's documents + last activity.            |
 | `GET\|POST /agora/api/people`                                            | `agora.endpoints.people`            | Search people (source-author picker) / create a login-less external person.      |
+| `GET\|POST /agora/api/publication` + `GET /:id`                          | `agora.endpoints.publication`       | Publications (`type="publication"` documents — the work-package that gathers a user's drafts): open one / fetch by id / list the caller's open ones. |
 | `GET\|POST /agora/api/source` + `GET /recent`, `POST /:id`               | `agora.endpoints.source`            | Bibliographic sources (now `type="source"` **documents**): search / create / recent / edit. |
 
 **Why the look-alike routes are actually distinct.** Several routes touch the same
