@@ -122,7 +122,8 @@
    ["/ki/:id" app-shell-route]
    ["/article/:id" app-shell-route]
    ["/author/:id" author-page-route]
-   ["/admin" app-shell-route]])
+   ["/admin" app-shell-route]
+   ["/publication/:id" app-shell-route]])
 
 (defn- agora-lang-routes
   "Every public shell, enumerated once per supported language, with the literal language

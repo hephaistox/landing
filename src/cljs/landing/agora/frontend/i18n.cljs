@@ -41,6 +41,14 @@
     :pub/none "Aucune publication."
     :pub/no-docs "Aucun document."
     :pub/new-ph "Nouvelle publication…"
+    :pub/search-ph "Rechercher ou créer…"
+    :pub/create-q "Créer"
+    :pub/recent "Récemment modifiés"
+    :pub/recent-pubs "Publications récentes"
+    :pub/status-open "En cours"
+    :pub/status-closed "Publiée"
+    :pub/rename "Renommer"
+    :pub/page-lead "Les documents rassemblés dans cette publication."
     :authors/title "Auteurs"
     :authors/lead "Recherchez une personne pour parcourir ses contributions et ce qui la cite."
     :authors/search-ph "Rechercher un auteur…"
@@ -333,6 +341,14 @@
     :pub/none "No publications yet."
     :pub/no-docs "No documents."
     :pub/new-ph "New publication…"
+    :pub/search-ph "Search or create…"
+    :pub/create-q "Create"
+    :pub/recent "Recently modified"
+    :pub/recent-pubs "Recent publications"
+    :pub/status-open "In progress"
+    :pub/status-closed "Published"
+    :pub/rename "Rename"
+    :pub/page-lead "The documents gathered in this publication."
     :authors/title "Authors"
     :authors/lead "Search a person to browse their contributions and what cites them."
     :authors/search-ph "Search an author…"
@@ -616,6 +632,10 @@
 (defn home "The Agora landing/home page (marketing hero + live example)." [lang] (base lang))
 (defn discover [lang] (str (base lang) "/discover"))
 (defn new-ki [lang] (str (base lang) "/new"))
+(defn publication
+  "A publication's page — its documents shown like the discover grid."
+  [lang id]
+  (str (base lang) "/publication/" id))
 (defn ki-id
   "The app URL of a KI by its concrete id (a specific version): /agora/<lang>/ki/<id>.
   Distinct from the public permalink `ki` (name + major), which resolves to the

@@ -82,15 +82,18 @@
      lang]))
 
 (defn byline
-  "The document's authorship line: 'author · date'. The author (copper) links to their
-  profile page when `author-id` (the owning account) is given — seeded/unowned documents
-  have no id and render as plain text. Omitted entirely when there is no author."
+  "The document's authorship line: author on the left, date pushed to the right. The author
+  (copper) links to their profile page when `author-id` (the owning account) is given —
+  seeded/unowned documents have no id and render as plain text."
   ([author published-at] (byline author published-at nil))
   ([author published-at author-id]
    (let [lang @(rf/subscribe [::i18n/lang])]
      [:div {:style {:color "#888"
                     :font-size "0.8em"
-                    :margin-bottom "0.7em"}}
+                    :margin-bottom "0.7em"
+                    :display "flex"
+                    :align-items "baseline"
+                    :gap "0.5em"}}
       (when author
         [:span
          (if author-id
@@ -101,9 +104,10 @@
             author]
            [:span {:style {:color "#b9770e"
                            :font-weight 600}}
-            author])
-         " · "])
-      (or (fmt/utc published-at) "—")])))
+            author])])
+      [:span {:style {:margin-left "auto"
+                      :white-space "nowrap"}}
+       (or (fmt/utc published-at) "—")]])))
 
 (defn language-mismatch-notice
   "When the shown KI is in a different language than the interface AND a version in
@@ -346,6 +350,14 @@
    :font-size "0.72em"
    :font-family "monospace"})
 
+(defn version-tag
+  "The `vMAJOR.MINOR` badge. Shown to admins only for now — versioning is a power feature; a
+  user option to reveal it will follow. Renders nothing for everyone else."
+  [major minor]
+  (when @(rf/subscribe [::auth/admin?])
+    [:span {:style version-tag-style}
+     (str "v" major "." minor)]))
+
 (defn permalink
   "The public permanent URL (name + major) of a document ref in language `lang`, built
   from the ref's own `:type` — so it works for any document type."
@@ -373,47 +385,48 @@
   (r/with-let
    [open? (r/atom false)]
    (let [lang @(rf/subscribe [::i18n/lang])]
-     [:span {:style {:display "inline-flex"
-                     :align-items "center"
-                     :gap "0.4em"
-                     :font-family "monospace"
-                     :font-size "0.8em"}}
-      [:button {:on-click #(swap! open? not)
-                :title (i18n/t lang :ki/versions)
-                :style {:font-family "inherit"
-                        :font-size "inherit"
-                        :color "#888"
-                        :background "transparent"
-                        :border "1px solid #ddd"
-                        :border-radius "0.3em"
-                        :padding "0.1em 0.5em"
-                        :cursor "pointer"}}
-       (str "v" major "." minor " " (if @open? "▴" "▾"))]
-      (when @open?
-        (into [:span {:style {:display "inline-flex"
-                              :gap "0.3em"
-                              :max-width "22em"
-                              :overflow-x "auto"
-                              :padding "0.1em"}}]
-              (for [v (sort-by :minor versions)
-                    :let [current? (= (:minor v) minor)
-                          draft? (:draft v)]]
-                ^{:key (:id v)}
-                ;; a draft version is shown but visually distinct — dashed border, italic, a ✎ mark
-                [:a {:href (link-fn (:id v))
-                     :on-click #(reset! open? false)
-                     :title (when draft? (i18n/t lang :ki/draft))
-                     :style {:flex "0 0 auto"
-                             :text-decoration "none"
-                             :padding "0.1em 0.5em"
-                             :border-radius "0.3em"
-                             :border (str "1px "
-                                          (if draft? "dashed " "solid ")
-                                          (if current? "#b9770e" "#ddd"))
-                             :font-style (if draft? "italic" "normal")
-                             :background (if current? "#b9770e" "#fff")
-                             :color (if current? "#fff" (if draft? "#b98a3e" "#b9770e"))}}
-                 (str "v" major "." (:minor v) (when draft? " ✎"))])))])))
+     (when @(rf/subscribe [::auth/admin?])
+       [:span {:style {:display "inline-flex"
+                       :align-items "center"
+                       :gap "0.4em"
+                       :font-family "monospace"
+                       :font-size "0.8em"}}
+        [:button {:on-click #(swap! open? not)
+                  :title (i18n/t lang :ki/versions)
+                  :style {:font-family "inherit"
+                          :font-size "inherit"
+                          :color "#888"
+                          :background "transparent"
+                          :border "1px solid #ddd"
+                          :border-radius "0.3em"
+                          :padding "0.1em 0.5em"
+                          :cursor "pointer"}}
+         (str "v" major "." minor " " (if @open? "▴" "▾"))]
+        (when @open?
+          (into [:span {:style {:display "inline-flex"
+                                :gap "0.3em"
+                                :max-width "22em"
+                                :overflow-x "auto"
+                                :padding "0.1em"}}]
+                (for [v (sort-by :minor versions)
+                      :let [current? (= (:minor v) minor)
+                            draft? (:draft v)]]
+                  ^{:key (:id v)}
+                  ;; a draft version is shown but visually distinct — dashed border, italic, a ✎ mark
+                  [:a {:href (link-fn (:id v))
+                       :on-click #(reset! open? false)
+                       :title (when draft? (i18n/t lang :ki/draft))
+                       :style {:flex "0 0 auto"
+                               :text-decoration "none"
+                               :padding "0.1em 0.5em"
+                               :border-radius "0.3em"
+                               :border (str "1px "
+                                            (if draft? "dashed " "solid ")
+                                            (if current? "#b9770e" "#ddd"))
+                               :font-style (if draft? "italic" "normal")
+                               :background (if current? "#b9770e" "#fff")
+                               :color (if current? "#fff" (if draft? "#b98a3e" "#b9770e"))}}
+                   (str "v" major "." (:minor v) (when draft? " ✎"))])))]))))
 
 (defn- mini-card
   "A compact neighbour card linking to `link`. When `on-drop` is given, a ✕
@@ -440,8 +453,7 @@
                    :gap "0.5em"
                    :margin-bottom "0.3em"}}
      [kind-badge c-type]
-     [:span {:style version-tag-style}
-      (str "v" major "." minor)]]
+     [version-tag major minor]]
     [:div {:style {:font-weight 600
                    :font-size "0.9em"}}
      c-title]]
@@ -750,8 +762,7 @@
                     :align-items "center"
                     :gap "0.5em"}}
       [doc-badge node]
-      [:span {:style version-tag-style}
-       (str "v" (:major node) "." (:minor node))]
+      [version-tag (:major node) (:minor node)]
       (when (:draft node)
         [:span {:style {:font-size "0.62em"
                         :font-weight 700

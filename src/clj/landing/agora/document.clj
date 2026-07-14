@@ -53,8 +53,9 @@
   so a not-yet-migrated old row carries its prose forward — `normalize-text` then folds
   it into `:text` on write."
   ;; `:source` is a `kind=source` KI's reference to its shared source (`{:source-id :locator}`;
-  ;; resolved to the source's fields on read).
-  [:kind :title :text :statement :body :author :owner-id :inputs :source])
+  ;; resolved to the source's fields on read). `:status` is a publication's lifecycle field
+  ;; (open/closed) — carried so a publication edit (e.g. a rename → new minor) preserves it.
+  [:kind :title :text :statement :body :author :owner-id :inputs :source :status])
 
 ;; ---------------------------------------------------------------------------
 ;; Read — the endpoint-facing view (generic across types)
@@ -488,6 +489,23 @@
            :source (source/resolve-ref (:source c))
            :quote-author-name (quote-author-name (:inputs c) (:lang row))
            :published-at (:published-at c))))
+
+(defn cards-in-publication
+  "Discover-style cards for the documents a publication created — one per lineage at its latest
+  tagged minor (drafts included), newest first — so the publication page renders like discover."
+  [pub-id]
+  (->>
+    (store/q!
+     db/ds
+     ["SELECT id, type, name, lang, major, minor, draft, content, published_at
+                    FROM AGORA_DOCUMENT WHERE publication_id = ?"
+      pub-id]
+     store/kebab)
+    (group-by (juxt :type :name :lang :major))
+    vals
+    (mapv (comp card #(apply max-key :minor %)))
+    (sort-by :published-at #(compare %2 %1))
+    vec))
 
 (defn search
   "Documents of `type` matching `q` in name/title/content, latest minor per lineage,

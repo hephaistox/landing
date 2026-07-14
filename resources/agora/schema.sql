@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS `AGORA_DOCUMENT` (
   `content`      LONGTEXT     NOT NULL COMMENT 'Immutable authored EDN blob',
   `computed`     LONGTEXT     NULL     COMMENT 'Mutable derived EDN blob (:pins)',
   `published_at` VARCHAR(32)  NULL     COMMENT 'Denormalized from content.:published-at (ISO-8601 UTC; sortable)',
-  `publication_id` CHAR(36)   NULL     COMMENT 'The publication that created this version (permanent provenance; AGORA_DOCUMENT.id where type=publication). NULL for versions created before publications existed',
+  `publication_id` CHAR(36)   NULL     COMMENT 'The publication that created this version (permanent provenance; the publication lineage cid = AGORA_DOCUMENT.name where type=publication, stable across the publication renames). NULL for versions created outside any publication',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ki_identity` (`type`, `name`, `lang`, `major`, `minor`),
   KEY `idx_ki_lang` (`type`, `lang`),

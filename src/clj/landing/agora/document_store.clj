@@ -165,6 +165,24 @@
      lang]
     kebab)))
 
+(defn resolve-latest-any-id
+  "The id of the highest-minor version of (type, name, major) in `lang` — **drafts included** (the
+  current version even if unpublished). Public resolution uses `resolve-latest-id` (drafts
+  excluded); this owner-facing variant is for a surface that must resolve a still-unpublished
+  lineage — e.g. a publication, which is `draft` for as long as it is open."
+  [ty nm major lang]
+  (:id
+   (q1!
+    db/ds
+    ["SELECT id FROM AGORA_DOCUMENT
+       WHERE type = ? AND name = ? AND major = ? AND lang = ?
+       ORDER BY minor DESC LIMIT 1"
+     ty
+     nm
+     major
+     lang]
+    kebab)))
+
 (defn- latest-of
   "The domain's injected `latest-of`: an input TNLR (carrying its own :type) → the id it should
   pin to. Prefers the latest **published** minor; if the lineage has no published version at all

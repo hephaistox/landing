@@ -77,6 +77,11 @@
     (re-find #"^/agora/([a-z]{2})/admin/?(?:[?#].*)?$" path)
     {:kind :admin
      :lang (second (re-find #"^/agora/([a-z]{2})/admin" path))}
+    (re-find #"^/agora/([a-z]{2})/publication/([^/?#]+)/?(?:[?#].*)?$" path)
+    (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/publication/([^/?#]+)" path)]
+      {:kind :publication
+       :lang lang
+       :id (js/decodeURIComponent id)})
     (re-find #"^/agora/([a-z]{2})/author/([^/?#]+)/?(?:[?#].*)?$" path)
     (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/author/([^/?#]+)" path)]
       {:kind :author
@@ -325,6 +330,12 @@
                           :loading? false
                           :error nil)
                :dispatch [:agora/admin-fetch]}
+       :publication {:db (assoc db
+                                :view {:kind :publication
+                                       :data nil}
+                                :loading? false
+                                :error nil)
+                     :dispatch [::publications/load-page id]}
        :ki-public (route-changed-fetch-public db name major lang)
        :home (route-changed-fetch-list db (i18n/current db) :home)
        :discover (route-changed-fetch-list db (i18n/current db) :discover)
@@ -628,6 +639,7 @@
       (= kind :authors) [find-page/authors-page]
       (= kind :sources) [find-page/sources-page]
       (= kind :admin) [admin/admin-page]
+      (= kind :publication) [publications/publication-page]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind
@@ -656,12 +668,18 @@
                  :flex-direction "column"
                  :min-height "100vh"}}
    [chrome/header]
-   [:main {:style {:flex "1 0 auto"}}
-    [app-view]]
+   ;; the publications drawer is an in-flow sidebar (pushes the content, never overlays it),
+   ;; so it stays open while you edit the document beside it
+   [:div {:style {:display "flex"
+                  :flex "1 0 auto"
+                  :align-items "flex-start"}}
+    [publications/panel]
+    [:main {:style {:flex "1 1 auto"
+                    :min-width 0}}
+     [app-view]]]
    [chrome/site-footer]
    [auth/auth-modal]
-   [document-page/translation-editor]
-   [publications/panel]])
+   [document-page/translation-editor]])
 
 (defn ^:dev/after-load mount-root
   []
