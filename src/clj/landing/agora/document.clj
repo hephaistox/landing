@@ -150,6 +150,13 @@
   [type name major lang]
   (when-let [id (store/resolve-latest-id type name major lang)] (fetch id)))
 
+(defn fetch-by-major-in-publication
+  "The document of (type, name, language, major) resolved **within publication `pub-id`** — the
+  publication's own draft of the lineage if it has one, else the latest published minor. The
+  publication-scoped counterpart of `fetch-by-major`; nil if it resolves to nothing."
+  [pub-id type name major lang]
+  (when-let [id (store/resolve-in-publication pub-id type name major lang)] (fetch id)))
+
 (defn resolve-successors
   "Enrich a fetched doc's successor ids (`:successors` = `[{:id}…]`) with linkable
   identity `{:id :type :name :lang :major :title}` — used by the server-rendered 'Used by'
@@ -215,8 +222,8 @@
   "Insert a new **draft** minor of the concept `src` with `content` (its declared `:inputs`
   are stored as given) and return the new document view. Successors are **not** re-pinned:
   a draft isn't the resolved version, so edges keep pointing at the current published minor
-  until `publish!` promotes this one (slice 3)."
-  [src content]
+  until `publish!` promotes this one."
+  [src content publication-id]
   (let [{:keys [type name lang major]} src
         new-id (store/uuid)]
     (store/insert-document! {:id new-id
@@ -226,7 +233,8 @@
                              :major major
                              :minor (store/next-minor type name lang major)
                              ;; every edit lands as a draft until Publish
-                             :draft? true}
+                             :draft? true
+                             :publication-id publication-id}
                             (normalize-source (normalize-text
                                                (assoc content :published-at (store/now-iso)))))
     (store/evict-lineage! type name lang major)
@@ -242,7 +250,8 @@
   [type
    owner-id
    {:keys [name lang]
-    :as content}]
+    :as content}
+   publication-id]
   (let [id (store/uuid)
         lang (or lang language/default-lang)
         author (store/author-name owner-id)
@@ -255,7 +264,8 @@
                              :major 1
                              :minor 0
                              ;; a newly created document starts as a draft until Publish
-                             :draft? true}
+                             :draft? true
+                             :publication-id publication-id}
                             (normalize-source (normalize-text (-> content
                                                                   ;; `:quotes` is transient — it
                                                                   ;; is folded into `:inputs`
@@ -272,7 +282,7 @@
   "Edit document `id` → a new minor. `changes` overrides authored fields (nils are
   ignored → the old value is kept). Inputs are re-derived from the edited text. nil if
   `id` is unknown."
-  [id owner-id changes]
+  [id owner-id changes publication-id]
   (when-let [src (store/fetch-document id)]
     (let [merged (merge (select-keys src carried)
                         (into {} (remove (comp nil? val) changes))
@@ -282,7 +292,8 @@
       (new-minor! src
                   (-> merged
                       (assoc :inputs inputs)
-                      (dissoc :quotes))))))
+                      (dissoc :quotes))
+                  publication-id))))
 
 (defn add-input
   "Declare the document referenced by `input` (name+major, same language) as an input
@@ -291,7 +302,8 @@
   [id
    owner-id
    {in-name :name
-    in-major :major}]
+    in-major :major}
+   publication-id]
   (when-let [{:keys [type lang]
               :as src}
              (store/fetch-document id)]
@@ -307,7 +319,8 @@
                       (merge (select-keys src carried)
                              {:inputs inputs
                               :author (store/author-name owner-id)
-                              :owner-id owner-id}))))
+                              :owner-id owner-id})
+                      publication-id)))
       (fetch id))))
 
 (defn drop-input
@@ -319,7 +332,8 @@
   [id
    owner-id
    {in-name :name
-    in-major :major}]
+    in-major :major}
+   publication-id]
   (when-let [{:keys [type lang]
               :as src}
              (store/fetch-document id)]
@@ -333,13 +347,14 @@
                                  {:inputs (domain/drop-declared (:inputs src) t)
                                   :author (store/author-name owner-id)
                                   :owner-id owner-id})
-                    text (assoc :text (domain/strip-cite text in-name in-major)))))))
+                    text (assoc :text (domain/strip-cite text in-name in-major)))
+                  publication-id))))
 
 (defn translate
   "Create a `to-lang` version of document `id` and to-lang copies of its direct
   inputs. `overrides` (nil-safe) replaces authored fields on the new version.
   Existing versions are untouched. Returns the to-lang document view."
-  [id to-lang owner-id overrides]
+  [id to-lang owner-id overrides publication-id]
   (when-let [{:keys [type name major]
               :as src}
              (store/fetch-document id)]
@@ -358,7 +373,8 @@
                                                  :lang to-lang
                                                  :major in-major
                                                  :minor 0
-                                                 :draft? true}
+                                                 :draft? true
+                                                 :publication-id publication-id}
                                                 (merge (select-keys s carried)
                                                        {:inputs []
                                                         :author author
@@ -377,7 +393,8 @@
                                  :major major
                                  :minor 0
                                  ;; a translation lands as a draft (with its input siblings) until Publish
-                                 :draft? true}
+                                 :draft? true
+                                 :publication-id publication-id}
                                 ;; keep only content keys from `overrides` — the caller passes
                                 ;; the whole request body, whose `:lang` is the *target* language
                                 ;; (identity), not content, and must not leak into the blob

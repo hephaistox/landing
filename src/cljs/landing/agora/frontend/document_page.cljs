@@ -352,7 +352,7 @@
   [lang doc]
   (i18n/doc-permalink lang (:type doc) doc))
 
-;; ---- Full-text search box (#37) — searches name + statement, links to pages ----
+;; ---- Full-text search box — searches name + statement, links to pages ----
 
 (defn gated
   "For an authoring action, returns [on-click dim?]. Logged in → runs `action`;

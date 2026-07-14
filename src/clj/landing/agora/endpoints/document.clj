@@ -50,6 +50,11 @@
   (into [:enum] (map name) (domain/kind-ids-of object-type)))
 (def ^:private input-ref-schema [:map [:name name-schema] [:major :int]])
 
+;; the publication a mutation is authored in (an `AGORA_DOCUMENT.id`, `type=publication`),
+;; tagged onto every version it mints — optional until authoring-in-a-publication is enforced
+(def ^:private publication-id-schema
+  [:maybe [:string {:max 64}]])
+
 ;; `:source` — only a `kind=source` KI (a quotation) carries one: a reference to its shared
 ;; **source** work (`AGORA_SOURCE`) plus this quotation's own locator (page/chapter/line/entry).
 ;; The client sends `{:source-id :locator}`; a blank `:source-id` clears it.
@@ -95,7 +100,9 @@
                    [:source {:optional true}
                     source-schema]
                    [:quotes {:optional true}
-                    quotes-schema]]
+                    quotes-schema]
+                   [:publication-id {:optional true}
+                    publication-id-schema]]
      :edit-body [:map
                  [:title title-schema]
                  [:kind kind-enum]
@@ -103,13 +110,17 @@
                  [:source {:optional true}
                   source-schema]
                  [:quotes {:optional true}
-                  quotes-schema]]
+                  quotes-schema]
+                 [:publication-id {:optional true}
+                  publication-id-schema]]
      :translate-body [:map
                       [:lang lang-schema]
                       [:title {:optional true}
                        [:maybe [:string {:max 200}]]]
                       [:text {:optional true}
-                       text-schema]]}))
+                       text-schema]
+                      [:publication-id {:optional true}
+                       publication-id-schema]]}))
 
 (def ^:private configs
   "object type (string) → its request-shaping config (see `config-for`)."
@@ -127,6 +138,9 @@
   (let [{:keys [list create-body edit-body translate-body]} (configs type)
         body #(get-in % [:parameters :body])
         path-id #(get-in % [:parameters :path :id])
+        ;; the publication the caller is authoring in (nil when authored outside one), tagged
+        ;; onto every version this mutation mints as permanent provenance
+        pub-id #(get-in % [:parameters :body :publication-id])
         list-h (fn [req]
                  (let [q (get-in req [:parameters :query :q])
                        lang (or (get-in req [:parameters :query :lang]) language/default-lang)
@@ -138,7 +152,7 @@
         create-h (fn [req]
                    (if-let [u (uid req)]
                      {:status 201
-                      :body (document/create type u (body req))}
+                      :body (document/create type u (body req) (pub-id req))}
                      unauthorized))
         by-major-h (fn [req]
                      (let [{n :name
@@ -147,8 +161,14 @@
                            ;; the path segment is the permalink key `<cid>~<slug>` (or a bare
                            ;; cid) — resolve by the immutable cid, ignoring the slug
                            n (domain/cid-of n)
-                           lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
-                       (if-let [d (document/fetch-by-major type n mj lang)]
+                           lang (or (get-in req [:parameters :query :lang]) language/default-lang)
+                           ;; `?publication=<id>` resolves within a publication (its own draft of
+                           ;; the lineage else latest published); absent → classical public read
+                           pub (get-in req [:parameters :query :publication])
+                           d (if pub
+                               (document/fetch-by-major-in-publication pub type n mj lang)
+                               (document/fetch-by-major type n mj lang))]
+                       (if d
                          {:status 200
                           :body d}
                          (not-found :name n :major mj))))
@@ -159,15 +179,18 @@
                     (not-found :id (path-id req))))
         edit-h (fn [req]
                  (if-let [u (uid req)]
-                   (if-let [d (document/edit (path-id req) u (body req))]
+                   (if-let [d (document/edit (path-id req) u (body req) (pub-id req))]
                      {:status 201
                       :body d}
                      (not-found :id (path-id req)))
                    unauthorized))
         translate-h (fn [req]
                       (if-let [u (uid req)]
-                        (if-let [d
-                                 (document/translate (path-id req) (:lang (body req)) u (body req))]
+                        (if-let [d (document/translate (path-id req)
+                                                       (:lang (body req))
+                                                       u
+                                                       (body req)
+                                                       (pub-id req))]
                           {:status 201
                            :body d}
                           (not-found :id (path-id req)))
@@ -188,7 +211,7 @@
                       unauthorized))
         add-input-h (fn [req]
                       (if-let [u (uid req)]
-                        (let [r (document/add-input (path-id req) u (body req))]
+                        (let [r (document/add-input (path-id req) u (body req) (pub-id req))]
                           (cond
                             (= r :input-limit)
                             {:status 422
@@ -199,7 +222,7 @@
                         unauthorized))
         drop-input-h (fn [req]
                        (if-let [u (uid req)]
-                         (if-let [d (document/drop-input (path-id req) u (body req))]
+                         (if-let [d (document/drop-input (path-id req) u (body req) (pub-id req))]
                            {:status 200
                             :body d}
                            (not-found :id (path-id req)))
@@ -230,7 +253,9 @@
              :parameters {:path [:map [:name name-schema] [:major :int]]
                           :query [:map
                                   [:lang {:optional true}
-                                   lang-schema]]}
+                                   lang-schema]
+                                  [:publication {:optional true}
+                                   publication-id-schema]]}
              :summary (str "Latest minor of a " type " by (name, major)")}}]
      ["/:id"
       {:get {:handler by-id-h

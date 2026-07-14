@@ -126,6 +126,14 @@
               (for [s @results]
                 ^{:key (:id s)}
                 [:li
+                 (when-not (str/blank? (:url s))
+                   [:a {:href (:url s)
+                        :target "_blank"
+                        :rel "noopener noreferrer"
+                        :title (:url s)
+                        :style {:text-decoration "none"
+                                :margin-right "0.4em"}}
+                    "🌐"])
                  [:span {:style {:font-weight 600}}
                   (:title s)]
                  (when (:year s) (str " (" (:year s) ")"))
@@ -135,15 +143,7 @@
                         :style link-style}
                     (:author-name s)]
                    [:span (:author-name s)])
-                 (when-not (str/blank? (:editor s)) (str " · " (:editor s)))
-                 (when-not (str/blank? (:url s))
-                   [:span
-                    " · "
-                    [:a {:href (:url s)
-                         :target "_blank"
-                         :rel "noopener noreferrer"
-                         :style link-style}
-                     (i18n/t lang :source/link)]])]))
+                 (when-not (str/blank? (:editor s)) (str " · " (:editor s)))]))
         [:p {:style {:color "#aaa"
                      :margin-top "1em"}}
          (i18n/t lang :sources/browse-none)])])))

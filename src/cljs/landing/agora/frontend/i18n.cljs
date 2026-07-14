@@ -34,6 +34,13 @@
     :nav/new-article "Nouvel article"
     :nav/preferences "Préférences"
     :nav/admin "Admin"
+    :pub/panel "Publications"
+    :pub/public "Public"
+    :pub/public-view "Vue publique"
+    :pub/documents "Documents"
+    :pub/none "Aucune publication."
+    :pub/no-docs "Aucun document."
+    :pub/new-ph "Nouvelle publication…"
     :authors/title "Auteurs"
     :authors/lead "Recherchez une personne pour parcourir ses contributions et ce qui la cite."
     :authors/search-ph "Rechercher un auteur…"
@@ -57,7 +64,7 @@
     :home/eyebrow "Stockez le raisonnement, pas seulement la conclusion."
     :home/subtitle
     "Ici, chaque affirmation remonte aux étapes qui la fondent — et chaque étape peut être contestée pour elle-même."
-    ;; --- « Ce qu'Agora vous permet » — quatre bénéfices (issue #72) ---
+    ;; --- « Ce qu'Agora vous permet » — quatre bénéfices ---
     :home/value-title "Ce qu'Agora vous permet"
     :home/value-1-title "Auteurs, formalisez une pensée complexe"
     :home/value-1-body
@@ -170,7 +177,7 @@
     :admin/languages "Langues"
     :admin/sitemap-urls "URL du sitemap"
     :admin/sitemap-near-limit
-    "Proche de la limite d'un seul sitemap (50 000) — prévoir l'index découpé (#7)."
+    "Proche de la limite d'un seul sitemap (50 000) — prévoir l'index découpé."
     :admin/versions "Versions"
     :admin/latest "Dernier"
     :admin/drop "Tout supprimer"
@@ -319,6 +326,13 @@
     :nav/new-article "New article"
     :nav/preferences "Preferences"
     :nav/admin "Admin"
+    :pub/panel "Publications"
+    :pub/public "Public"
+    :pub/public-view "Public view"
+    :pub/documents "Documents"
+    :pub/none "No publications yet."
+    :pub/no-docs "No documents."
+    :pub/new-ph "New publication…"
     :authors/title "Authors"
     :authors/lead "Search a person to browse their contributions and what cites them."
     :authors/search-ph "Search an author…"
@@ -343,7 +357,7 @@
     :home/eyebrow "Store the reasoning, not just the conclusion."
     :home/subtitle
     "Agora is a public graph of challengeable reasoning steps. Every claim traces back to the steps that support it — and every step can be challenged on its own."
-    ;; --- "What Agora lets you do" — four value props (issue #72) ---
+    ;; --- "What Agora lets you do" — four value props ---
     :home/value-title "What Agora lets you do"
     :home/value-1-title "Author, formalize complex thinking"
     :home/value-1-body
@@ -450,7 +464,7 @@
     :admin/all-langs "All languages"
     :admin/sitemap-urls "Sitemap URLs"
     :admin/sitemap-near-limit
-    "Approaching the single-sitemap limit (50,000) — plan the chunked index (#7)."
+    "Approaching the single-sitemap limit (50,000) — plan the chunked index."
     :admin/latest "Latest"
     :admin/drop "Drop all"
     :admin/compact "Keep latest only"

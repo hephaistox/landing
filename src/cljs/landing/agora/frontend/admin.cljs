@@ -122,7 +122,7 @@
   "How close the sitemap is to the 50,000-URL single-file limit. Every permalink is one
   `(type, name, lang, major)` lineage = one TNR row, so `n` (the TNR count) *is* the
   sitemap's URL count. Green well under, amber past ~30k, red at the cap — the point to
-  split into a chunked sitemap index (issue #7)."
+  split into a chunked sitemap index."
   [lang n]
   (let [pct (min 100 (/ (* 100.0 n) sitemap-limit))
         color (cond
@@ -154,7 +154,7 @@
 
 (defn- rebuild-button
   "Admin: recompute the derived caches (currently the successor index) **now**, instead of
-  waiting for the daily scheduler — issue #70."
+  waiting for the daily scheduler."
   [lang]
   (r/with-let [state (r/atom nil)] ; nil | :busy | :done
               [:div {:style {:margin "0 0 1.4em"}}

@@ -1,5 +1,5 @@
 (ns landing.agora.seo
-  "Server-rendered SEO for Agora's public pages (#39).
+  "Server-rendered SEO for Agora's public pages.
 
   Crawlers and social-media unfurlers read the raw HTML, before the SPA runs, so both the
   discoverable metadata (title, description, OpenGraph, schema.org JSON-LD) injected into

@@ -5,8 +5,9 @@
    [clojure.string                       :as str]
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.document-page :as    dv
-                                         :refer [kind-badge permalink version-tag-style]]
+                                         :refer [kind-badge permalink version-tag]]
    [landing.agora.frontend.i18n          :as i18n]
+   [landing.agora.frontend.publications  :as publications]
    [re-frame.core                        :as rf]
    [superstructor.re-frame.fetch-fx]))
 
@@ -75,8 +76,7 @@
                 [kind-badge (:kind k)]
                 [:span {:style {:font-weight 600}}
                  (:name k)]
-                [:span {:style version-tag-style}
-                 (str "v" (:major k) "." (:minor k))]])))
+                [version-tag (:major k) (:minor k)]])))
      (when (and (not (str/blank? q)) (empty? results))
        [:div {:style {:position "absolute"
                       :z-index 20
@@ -128,6 +128,7 @@
         (link (i18n/t lang :nav/sources) (i18n/sources lang))])
      [:div {:class "agora-header__search"}
       [search-box]]
+     [publications/toggle-button]
      [:div {:class "agora-header__auth"}
       [auth/auth-controls]]]))
 

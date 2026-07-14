@@ -1,5 +1,5 @@
 (ns landing.agora.frontend.auth
-  "Auth UI + state (#38). Header shows Log in / Register when logged out, and a
+  "Auth UI + state. Header shows Log in / Register when logged out, and a
   profile avatar with a Log out dropdown when logged in. A modal handles the
   email/password login and registration. Session is a server cookie; the current
   user is discovered via GET /agora/api/auth/me on load."

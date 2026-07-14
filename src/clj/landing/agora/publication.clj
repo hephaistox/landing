@@ -28,14 +28,13 @@
   (some-> (store/fetch-document id)
           view))
 
-(defn create!
-  "Open a new publication owned by `owner-id`, titled `title` (content language `lang`,
-  defaulting). Status starts `open`. Returns the view."
-  [owner-id title lang]
+(defn- insert!*
+  "Insert a publication row named `name`, owned by `owner-id`, titled `title`. Returns its view."
+  [owner-id name title lang]
   (let [id (store/uuid)]
     (store/insert-document! {:id id
                              :type "publication"
-                             :name (document/unique-cid)
+                             :name name
                              :lang (or lang language/default-lang)
                              :major 1
                              :minor 0}
@@ -45,6 +44,34 @@
                              :status "open"
                              :published-at (store/now-iso)})
     (fetch id)))
+
+(defn create!
+  "Open a new publication owned by `owner-id`, titled `title` (content language `lang`,
+  defaulting). Its `name` is a random cid. Status starts `open`. Returns the view."
+  [owner-id title lang]
+  (insert!* owner-id (document/unique-cid) title lang))
+
+(defn find-by-name
+  "The publication whose stable lineage `name` matches, or nil — for seeds that need a
+  deterministic publication."
+  [name]
+  (some->
+    (store/q!
+     db/ds
+     ["SELECT id FROM AGORA_DOCUMENT
+                       WHERE type = 'publication' AND name = ? LIMIT 1"
+      name]
+     store/kebab)
+    first
+    :id
+    fetch))
+
+(defn ensure-named!
+  "Idempotent create keyed on a stable `name`: the existing publication with that name, else a
+  new one (owner `owner-id`, `title`). Lets a seed own a publication that survives a reseed and
+  tag its documents deterministically."
+  [owner-id name title lang]
+  (or (find-by-name name) (insert!* owner-id name title lang)))
 
 (defn list-mine
   "The caller's **open** publications, newest first. Scans publications and filters by owner
@@ -60,3 +87,25 @@
     (keep (comp fetch :id))
     (filter #(and (= owner-id (:author-id %)) (= "open" (:status %))))
     vec))
+
+(defn- summary
+  "A lightweight card of a modified document for a publication's panel."
+  [doc]
+  (select-keys doc [:id :type :name :lang :major :minor :draft :title :kind]))
+
+(defn modified
+  "The distinct lineages this publication created — each at its latest tagged minor. This is
+  the publication's *modified set* (what a close=publish will promote, and the staging panel)."
+  [publication-id]
+  (->> (store/q! db/ds
+                 ["SELECT id FROM AGORA_DOCUMENT WHERE publication_id = ?" publication-id]
+                 store/kebab)
+       (keep (comp store/fetch-document :id))
+       (group-by (juxt :type :name :lang :major))
+       vals
+       (mapv (comp summary #(apply max-key :minor %)))))
+
+(defn open-drafts
+  "The still-draft members of this publication's modified set — its unpublished cluster."
+  [publication-id]
+  (filterv :draft (modified publication-id)))

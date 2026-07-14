@@ -21,7 +21,8 @@
    [landing.agora.auth            :as auth]
    [landing.agora.db              :as db]
    [landing.agora.document-domain :as domain]
-   [landing.agora.document-store  :as store]))
+   [landing.agora.document-store  :as store]
+   [landing.agora.publication     :as publication]))
 
 (def ^:private defs
   "kind keyword → {lang → {:title :statement}}, read from the seed resource."
@@ -37,6 +38,10 @@
   clear the read caches. Returns the slugs it created (empty on a no-op re-run)."
   []
   (let [agora (auth/find-or-create-external! "Agora")
+        ;; the type definitions are one subject — their own publication, so a fresh reseed
+        ;; produces them already grouped (not orphaned with a nil publication)
+        pub
+        (publication/ensure-named! (:id agora) "vocabulaire-des-types" "Vocabulaire des types" "fr")
         created (doall
                  (for [{kw :id} domain/kinds
                        lang langs
@@ -52,7 +57,8 @@
                                                 :name slug
                                                 :lang lang
                                                 :major mj
-                                                :minor 0}
+                                                :minor 0
+                                                :publication-id (:id pub)}
                                                {:kind "definition"
                                                 :title title
                                                 :text statement

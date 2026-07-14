@@ -64,11 +64,13 @@
     [row
      (q1!
       db/ds
-      ["SELECT id, type, name, lang, major, minor, draft, content, computed FROM AGORA_DOCUMENT WHERE id = ?"
+      ["SELECT id, type, name, lang, major, minor, draft, publication_id, content, computed
+         FROM AGORA_DOCUMENT WHERE id = ?"
        id]
       kebab)]
     (merge (select-keys row [:id :type :name :lang :major :minor])
-           {:draft (truthy? (:draft row))}
+           {:draft (truthy? (:draft row))
+            :publication-id (:publication-id row)}
            (decode-content (:content row))
            {:pins (decode-pins (:computed row))})))
 
@@ -177,6 +179,40 @@
     lang :lang
     :as tnlr}]
   (or (resolve-latest-id ty nm major lang) (:id (last (versions-of (domain/tnlr-key tnlr))))))
+
+(defn draft-in-publication
+  "The id of publication `pub-id`'s own draft of lineage (type, name, major) in `lang` — its
+  latest draft minor tagged with that publication — or nil."
+  [pub-id ty nm major lang]
+  (:id
+   (q1!
+    db/ds
+    ["SELECT id FROM AGORA_DOCUMENT
+       WHERE type = ? AND name = ? AND major = ? AND lang = ? AND draft = 1 AND publication_id = ?
+       ORDER BY minor DESC LIMIT 1"
+     ty
+     nm
+     major
+     lang
+     pub-id]
+    kebab)))
+
+(defn resolve-in-publication
+  "Resolve a TNLR within publication `pub-id`: the publication's own draft of that lineage if it
+  has one (the in-progress version), else the latest **published** minor (classical). This is the
+  exact-version resolution used while a publication is open — public reads use `resolve-latest-id`."
+  [pub-id ty nm major lang]
+  (or (draft-in-publication pub-id ty nm major lang) (resolve-latest-id ty nm major lang)))
+
+(defn- latest-of-in
+  "Pin resolver scoped to publication `pub-id`: an input TNLR → the id to pin, **preferring the
+  publication's own draft** of that lineage over the published version (so a version authored in a
+  publication references the publication's in-progress inputs)."
+  [pub-id {ty :type
+           nm :name
+           major :major
+           lang :lang}]
+  (resolve-in-publication pub-id ty nm major lang))
 
 ;; --- Cache invalidation
 
@@ -300,15 +336,15 @@
   those declarations, and the declared inputs are indexed as successors. `:draft?` (default
   false = published) marks an unpublished draft — excluded from resolution/discovery until
   Publish clears it."
-  [{:keys [id name lang major minor draft?]
+  [{:keys [id name lang major minor draft? publication-id]
     doc-type :type}
    content]
   (let [tnlrs (:inputs content)]
     (q!
      db/ds
      ["INSERT INTO AGORA_DOCUMENT
-         (id, type, name, lang, major, minor, draft, content, computed, published_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+         (id, type, name, lang, major, minor, draft, content, computed, published_at, publication_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       id
       doc-type
       name
@@ -317,9 +353,14 @@
       minor
       (if draft? 1 0)
       (encode-content content)
-      (encode-pins (domain/pin-all tnlrs latest-of))
+      ;; pins resolve to the publication's own drafts while authoring in one, else classically
+      (encode-pins
+       (domain/pin-all tnlrs (if publication-id (partial latest-of-in publication-id) latest-of)))
       ;; denormalized copy of content.:published-at for sortable/rangeable reads
-      (:published-at content)])
+      (:published-at content)
+      ;; the publication that created this version — permanent provenance, nil when authored
+      ;; outside a publication
+      publication-id])
     (index-successors! id tnlrs)))
 
 (defn backfill-published-at!

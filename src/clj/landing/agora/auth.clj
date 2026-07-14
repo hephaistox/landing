@@ -1,5 +1,5 @@
 (ns landing.agora.auth
-  "User accounts and email/password authentication (#38).
+  "User accounts and email/password authentication.
 
   Passwords are hashed with bcrypt (buddy-hashers) and never stored or returned
   in clear. Transport security is HTTPS (Clever Cloud in prod). The user model
@@ -194,7 +194,7 @@
    {:builder-fn rs/as-unqualified-kebab-maps}))
 
 (defn upsert-oauth-user
-  "Find or create the account for an OAuth login (#38). Matches first on
+  "Find or create the account for an OAuth login. Matches first on
   (provider, provider-id), then on email (loosely linking an existing account),
   else creates a new one. Returns the public profile, or nil when the database is
   unreachable/failing — the caller then treats the login as failed.

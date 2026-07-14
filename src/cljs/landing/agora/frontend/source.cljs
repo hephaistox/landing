@@ -492,6 +492,15 @@
        [:div {:style {:color "#555"
                       :font-size "0.9em"
                       :line-height "1.5"}}
+        ;; the work's URL as a web icon at the start of the line, linking to the address
+        (when-not (str/blank? (:url src))
+          [:a {:href (:url src)
+               :target "_blank"
+               :rel "noopener noreferrer"
+               :title (:url src)
+               :style {:text-decoration "none"
+                       :margin-right "0.4em"}}
+           "🌐"])
         (if (:author-id src)
           [:a {:href (i18n/author lang (:author-id src))
                :style {:color "#b9770e"
@@ -506,16 +515,7 @@
         (when-not (str/blank? (:editor src)) (str " · " (:editor src)))
         (when-not (str/blank? (:locator src))
           [:span {:style {:color "#888"}}
-           (str " — " (:locator src))])
-        (when-not (str/blank? (:url src))
-          [:span
-           " · "
-           [:a {:href (:url src)
-                :target "_blank"
-                :rel "noopener noreferrer"
-                :style {:color "#b9770e"
-                        :text-decoration "none"}}
-            (i18n/t lang :source/link)]])]])))
+           (str " — " (:locator src))])]])))
 
 (defn quotes-view
   "Read display of the source-KIs a document **quotes** — each links to the quotation (a

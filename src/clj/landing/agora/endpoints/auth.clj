@@ -1,5 +1,5 @@
 (ns landing.agora.endpoints.auth
-  "Auth HTTP routes (#38): register / login / logout / me. Session is a signed
+  "Auth HTTP routes: register / login / logout / me. Session is a signed
   cookie (see landing.handler); responses set/clear :session to log in/out."
   (:require
    [auto-core.log                     :as core-log]
@@ -109,7 +109,7 @@
       {:status 401
        :body {:error "login required"}})))
 
-;; ---- Google OAuth (#38) ----
+;; ---- Google OAuth ----
 
 (def google-start-handler
   "Redirect to Google's consent screen, stashing a CSRF state in the session."

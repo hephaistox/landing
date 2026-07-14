@@ -1,5 +1,5 @@
 (ns landing.agora.oauth
-  "Google OAuth 2.0 (authorization-code flow) for Agora login (#38).
+  "Google OAuth 2.0 (authorization-code flow) for Agora login.
 
   Config comes from env vars:
    - GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — from the Google Cloud console

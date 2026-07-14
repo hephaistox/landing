@@ -25,6 +25,7 @@
    [landing.agora.frontend.landing          :as landing]
    [landing.agora.frontend.loading          :as loading]
    [landing.agora.frontend.preferences-page :as preferences-page]
+   [landing.agora.frontend.publications     :as publications]
    [landing.language                        :as language]
    [pushy.core                              :as pushy]
    [re-frame.core                           :as rf]
@@ -659,7 +660,8 @@
     [app-view]]
    [chrome/site-footer]
    [auth/auth-modal]
-   [document-page/translation-editor]])
+   [document-page/translation-editor]
+   [publications/panel]])
 
 (defn ^:dev/after-load mount-root
   []
@@ -675,6 +677,8 @@
   ;; the first paint; a logged-in user's account preference then overrides it when
   ;; /me returns (see auth ::me-ok → :agora/adopt-lang).
   (rf/dispatch-sync [:agora/adopt-lang (i18n/initial-pref)])
+  ;; adopt the stored publication working context (its documents load when the drawer opens)
+  (rf/dispatch [::publications/adopt-stored])
   (rf/dispatch [::auth/check])
   (reset! history (pushy/pushy #(rf/dispatch [::route-changed %]) path->route))
   ;; `start!` replays the current URL through the processor, dispatching the initial
