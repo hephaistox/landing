@@ -1,9 +1,9 @@
-(ns landing.agora.document-lineage
+(ns landing.agora.document.lineage
   "The **lineage** layer of the Agora domain — the pure operations over versions: within *a
   lineage's set of minors* (resolve which minor is current, compute the next, construct the next
   on create / edit / publish) and, at the end, over *a whole corpus of versions* spanning many
   lineages (resolve a TNLR, resolve a document's inputs, a publication's members). It sits above
-  `document-identity` (TNLR + citation grammar) and `document-kind` (which kinds may take inputs),
+  `document.identity` (TNLR + citation grammar) and `document.kind` (which kinds may take inputs),
   and it is the single home of the rule **a version's text determines its inputs**.
 
   Storage is an adapter *below* this: the DB (or an in-memory corpus) returns a lineage's minors
@@ -12,8 +12,8 @@
   functions; only *how the minors are fetched* differs. No I/O here — the caller supplies any
   I/O-sourced fields (author name, timestamp, a fresh id) and persists the result."
   (:require
-   [landing.agora.document-identity :as di]
-   [landing.agora.document-kind     :as dk]))
+   [landing.agora.document.identity :as di]
+   [landing.agora.document.kind     :as dk]))
 
 ;; --- content & the input-derivation rule -------------------------------------
 
@@ -39,7 +39,7 @@
 ;; `minors` is a seq of versions that all share one TNLR (the caller has already narrowed to a
 ;; single lineage — the DB with a WHERE clause, the corpus by scanning its vector).
 
-(defn latest
+(defn latest-with-drafts
   "The current version among a lineage's `minors` — the highest minor, **drafts included** (the
   owner-facing / working view). nil for an empty lineage."
   [minors]
@@ -54,7 +54,7 @@
 (defn next-minor
   "The minor a new version would take: one past the highest in `minors`, or 0 if empty."
   [minors]
-  (if (seq minors) (inc (:minor (latest minors))) 0))
+  (if (seq minors) (inc (:minor (latest-with-drafts minors))) 0))
 
 ;; --- lifecycle constructors (pure) -------------------------------------------
 ;; Each returns a new version *value*. The text drives the inputs; the caller adds any
@@ -76,7 +76,7 @@
   if the lineage is empty. Per-version fields (`:id`, `:pins`) are dropped — the caller reassigns
   them on persist."
   [minors changes]
-  (when-let [current (latest minors)]
+  (when-let [current (latest-with-drafts minors)]
     (let [merged (-> (merge current changes)
                      (dissoc :id :pins))]
       (assoc merged
@@ -103,9 +103,9 @@
 
 (defn resolve-latest
   "The current version of lineage `tnlr` within `corpus` (a collection spanning many lineages) —
-  narrow to the lineage, then `latest`. nil if absent."
+  narrow to the lineage, then `latest-with-drafts`. nil if absent."
   [corpus tnlr]
-  (latest (filter #(di/same-tnlr? % tnlr) corpus)))
+  (latest-with-drafts (filter #(di/same-tnlr? % tnlr) corpus)))
 
 (defn declared-inputs
   "A version's declared inputs — its `:inputs` (derived from the text at create/edit time and
@@ -150,3 +150,41 @@
        (distinct)
        (map #(resolve-latest corpus %))
        (sort-by (juxt :type :name :lang))))
+
+(defn resolve-latest-published
+  "The highest **published** (non-draft) minor of lineage `tnlr` within `corpus`, or nil (a
+  draft-only lineage)."
+  [corpus tnlr]
+  (latest-published (filter #(di/same-tnlr? % tnlr) corpus)))
+
+;; --- referential-integrity rules ---------------------------------------------
+;; The publish invariant and the consistency scan, as pure rules. The caller supplies the graph
+;; data (a `published?` predicate / the set of live lineages) — the engine from SQL, the corpus
+;; from a scan of its vector.
+
+(defn pending?
+  "The `inputs` (declared TNLRs) whose lineage has **no published version** — `published?` is a
+  predicate `tnlr → boolean`. These are the inputs that would break the publish invariant (a public
+  node may not depend on a draft), so `publish` must refuse until they are published. Pure — the
+  caller supplies `published?` (a SQL lookup in the engine, a corpus scan in the tool)."
+  [inputs published?]
+  (filterv #(not (published? %)) inputs))
+
+(defn ref-issues
+  "The reference-consistency issues of `doc` given `existing` — a set of live lineage keys, each
+  `[type name major]`. Returns `{:broken [ref…] :self [ref…]}`:
+   - `:broken` — **dangling** refs (a reference whose lineage is not in `existing`, any language);
+   - `:self` — **self-references** (a ref to the doc's own lineage — a degenerate cycle).
+  Refs are the union of the doc's declared `:inputs` and the `[[ki:…]]` citations re-derived from
+  its text (robust to any drift between the two). Each issue is `{:name :major :lang}`. Pure."
+  [doc existing]
+  (let [self [(:type doc) (:name doc) (:major doc)]
+        ref-id (juxt :type :name :major)
+        refs (distinct (concat (declared-inputs doc) (di/cite-refs (:text doc) (:lang doc))))
+        pick (fn [rs]
+               (->> rs
+                    (map #(select-keys % [:name :major :lang]))
+                    (distinct)
+                    (vec)))]
+    {:broken (pick (remove #(existing (ref-id %)) refs))
+     :self (pick (filter #(= (ref-id %) self) refs))}))

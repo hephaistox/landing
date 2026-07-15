@@ -1,10 +1,10 @@
-(ns landing.agora.document-lineage-test
+(ns landing.agora.document.lineage-test
   "Pure lineage rules — resolution over a set of minors, the create/edit/publish constructors, and
   the 'text → inputs' derivation. No database, no adapter; a lineage is just a seq of version
   maps in, a value out."
   (:require
    [clojure.test                   :refer [deftest is testing]]
-   [landing.agora.document-lineage :as sut]))
+   [landing.agora.document.lineage :as sut]))
 
 (def minors
   "One lineage's versions: v0/v1 published, v2 a draft (an in-progress edit)."
@@ -77,8 +77,8 @@
 
 (deftest resolution
   (testing "latest is the highest minor, drafts included"
-    (is (= 2 (:minor (sut/latest minors))))
-    (is (nil? (sut/latest []))))
+    (is (= 2 (:minor (sut/latest-with-drafts minors))))
+    (is (nil? (sut/latest-with-drafts []))))
   (testing "latest-published is the highest non-draft minor, or nil when draft-only"
     (is (= 1 (:minor (sut/latest-published minors))))
     (is (nil? (sut/latest-published [{:minor 0
@@ -244,3 +244,75 @@
   (testing "latest-lineages lists the current version of every lineage"
     (is (= #{["ki" "def" 1] ["ki" "claim" 0] ["publication" "pub" 0]}
            (set (map (juxt :type :name :minor) (sut/latest-lineages corpus)))))))
+
+;; --- referential-integrity rules ---------------------------------------------
+
+(deftest pending?
+  (testing "the inputs with no published version, per the injected predicate"
+    (let [published? #{{:type "ki"
+                        :name "ok"
+                        :lang "en"
+                        :major 1}}
+          inputs [{:type "ki"
+                   :name "ok"
+                   :lang "en"
+                   :major 1}
+                  {:type "ki"
+                   :name "draft-only"
+                   :lang "en"
+                   :major 1}]]
+      (is (= [{:type "ki"
+               :name "draft-only"
+               :lang "en"
+               :major 1}]
+             (sut/pending? inputs published?)))
+      (is (= [] (sut/pending? [] published?))))))
+
+(deftest ref-issues
+  (testing "flags dangling references (a ref whose lineage is not in `existing`)"
+    (let [doc {:type "ki"
+               :name "claim"
+               :lang "en"
+               :major 1
+               :inputs [{:type "ki"
+                         :name "def"
+                         :lang "en"
+                         :major 1}
+                        {:type "ki"
+                         :name "ghost"
+                         :lang "en"
+                         :major 1}]}
+          {:keys [broken self]} (sut/ref-issues doc #{["ki" "def" 1]})]
+      (is (= [{:name "ghost"
+               :major 1
+               :lang "en"}]
+             broken))
+      (is (= [] self))))
+  (testing "flags a self-reference (a doc citing its own lineage)"
+    (is (= [{:name "claim"
+             :major 1
+             :lang "en"}]
+           (:self (sut/ref-issues {:type "ki"
+                                   :name "claim"
+                                   :lang "en"
+                                   :major 1
+                                   :inputs [{:type "ki"
+                                             :name "claim"
+                                             :lang "en"
+                                             :major 1}]}
+                                  #{["ki" "claim" 1]})))))
+  (testing "re-derives text citations too, so it catches drift between :inputs and the text"
+    (is (= [{:name "cited"
+             :major 2
+             :lang "fr"}]
+           (:broken (sut/ref-issues {:type "ki"
+                                     :name "x"
+                                     :lang "fr"
+                                     :major 1
+                                     :inputs []
+                                     :text "see [[ki:cited@2]]"}
+                                    #{})))))
+  (testing "a well-formed corpus validates against its own live lineages"
+    (let [existing (into #{} (map (juxt :type :name :major)) corpus)]
+      (is (empty? (:broken (sut/ref-issues (sut/resolve-latest corpus (t "ki" "claim"))
+                                           existing)))))))

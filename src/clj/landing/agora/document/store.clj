@@ -1,7 +1,7 @@
-(ns landing.agora.document-store
+(ns landing.agora.document.store
   "Shared adapter for AGORA_DOCUMENT — the single polymorphic table holding every object
   type (all document types today; objections later). SQL + Caffeine caches around the pure
-  domain (landing.agora.document-identity).
+  domain (landing.agora.document.identity).
 
   A row keeps only the identity columns — `id`, `type` (object type, the T), `name`,
   `lang`, `major`, `minor` — plus two EDN blobs: immutable `content` and mutable
@@ -13,7 +13,7 @@
    [clojure.edn                     :as edn]
    [landing.agora.cache             :as cache]
    [landing.agora.db                :as db]
-   [landing.agora.document-identity :as di]
+   [landing.agora.document.identity :as di]
    [next.jdbc                       :as jdbc]
    [next.jdbc.result-set            :as rs])
   (:import (java.sql SQLException)

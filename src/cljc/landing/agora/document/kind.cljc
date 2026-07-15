@@ -1,11 +1,11 @@
-(ns landing.agora.document-kind
+(ns landing.agora.document.kind
   "The Agora document **register**: a document's `kind` (its epistemic/rhetorical family and the
   capabilities that follow from it), the kind-guided statement scaffold, and prose block structure
   — the pure, shared (cljc) rules for what a document *is* and how its prose renders. No I/O and no
   persistence format.
 
   Identity, linking and resolution — the TNLR, the cid/slug, inputs, pins, successors and the
-  citation grammar — live in `landing.agora.document-identity`; the two namespaces do not depend on
+  citation grammar — live in `landing.agora.document.identity`; the two namespaces do not depend on
   each other. Effectful lookups (`latest-of`, load, persist) and EDN (de)serialization are supplied
   by `landing.agora.document` on the server and the SPA on the client — adapters *around* this
   core, so the rules live in exactly one place and one technology."

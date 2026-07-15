@@ -1,8 +1,8 @@
 (ns landing.agora.corpus-test
   "The `landing.agora.corpus` substrate (env/cli) — a corpus is a flat vector of versions. This
   tests the substrate-specific behaviour: the `create`/`edit` appends (and that they derive inputs
-  from the text through `document-lineage`). Resolution and the graph queries are
-  `document-lineage`'s (tested in `document-lineage-test`); the compact prints are
+  from the text through `document.lineage`). Resolution and the graph queries are
+  `document.lineage`'s (tested in `document.lineage-test`); the compact prints are
   `corpus-print`'s, asserted here over the worked example (`env/cli/agora/corpus-example.edn`)."
   (:require
    [clojure.edn                    :as edn]
@@ -10,7 +10,7 @@
    [clojure.test                   :refer [deftest is testing]]
    [landing.agora.corpus           :as sut]
    [landing.agora.corpus-print     :as cprint]
-   [landing.agora.document-lineage :as lineage]))
+   [landing.agora.document.lineage :as lineage]))
 
 (def corpus (edn/read-string (slurp (io/resource "agora/corpus-example.edn"))))
 
@@ -24,7 +24,7 @@
 (defn- current
   "The current version of a lineage in the corpus — the peek + the domain resolver, composed."
   [corpus t]
-  (lineage/latest (sut/versions corpus t)))
+  (lineage/latest-with-drafts (sut/versions corpus t)))
 
 (deftest create-and-edit-append-to-the-corpus
   (testing "create appends a draft major-1/minor-0 document, deriving :inputs from its text"

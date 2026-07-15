@@ -12,8 +12,8 @@
   stay decoupled."
   (:require
    [clojure.string                    :as str]
-   [landing.agora.document-identity   :as di]
-   [landing.agora.document-kind       :as dk]
+   [landing.agora.document.identity   :as di]
+   [landing.agora.document.kind       :as dk]
    [landing.agora.frontend.fmt        :as fmt]
    [landing.agora.frontend.i18n       :as i18n]
    [landing.agora.frontend.ui-commons :as ui]

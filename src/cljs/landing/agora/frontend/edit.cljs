@@ -13,7 +13,7 @@
   flows dispatch the generic `:agora/saved`, which navigates to the saved version."
   (:require
    [clojure.string                       :as str]
-   [landing.agora.document-kind          :as dk]
+   [landing.agora.document.kind          :as dk]
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.cite          :as cite]
    [landing.agora.frontend.document-page :as    dv

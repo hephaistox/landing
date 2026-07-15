@@ -14,7 +14,7 @@
   search, loading skeletons)."
   (:require
    [clojure.string                    :as str]
-   [landing.agora.document-kind       :as dk]
+   [landing.agora.document.kind       :as dk]
    [landing.agora.frontend.auth       :as auth]
    [landing.agora.frontend.cite       :as cite]
    [landing.agora.frontend.fmt        :as fmt]

@@ -10,8 +10,8 @@
   document op) is a standalone route here too."
   (:require
    [landing.agora.document            :as document]
-   [landing.agora.document-identity   :as di]
-   [landing.agora.document-kind       :as dk]
+   [landing.agora.document.identity   :as di]
+   [landing.agora.document.kind       :as dk]
    [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.translate           :as translate]
    [landing.language                  :as language]

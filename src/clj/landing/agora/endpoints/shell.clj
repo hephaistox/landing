@@ -12,7 +12,7 @@
    [clojure.java.io                 :as io]
    [landing.agora.auth              :as auth]
    [landing.agora.document          :as document]
-   [landing.agora.document-identity :as di]
+   [landing.agora.document.identity :as di]
    [landing.agora.seo               :as seo]
    [landing.endpoints.html          :refer [html-middlewares]]
    [landing.language                :as language]))

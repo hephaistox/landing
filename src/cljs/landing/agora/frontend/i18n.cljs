@@ -16,7 +16,7 @@
 
   Path builders take a language explicitly. `t`/`::lang` use the preference."
   (:require
-   [landing.agora.document-identity :as di]
+   [landing.agora.document.identity :as di]
    [landing.language                :as language]
    [re-frame.core                   :as rf]))
 

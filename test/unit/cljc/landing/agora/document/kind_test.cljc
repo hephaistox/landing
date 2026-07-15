@@ -1,10 +1,10 @@
-(ns landing.agora.document-kind-test
+(ns landing.agora.document.kind-test
   "Pure register rules — kinds and their capabilities, the kind-guided statement scaffold, and
   prose block structure. No database, no adapter. Runs in clj (and would in cljs). Identity and
-  edges are tested in `landing.agora.document-identity-test`."
+  edges are tested in `landing.agora.document.identity-test`."
   (:require
    [clojure.test                :refer [deftest is testing]]
-   [landing.agora.document-kind :as sut]))
+   [landing.agora.document.kind :as sut]))
 
 (deftest kind-data
   (is (= (count sut/kinds) (count (distinct sut/kind-ids))) "kind ids are unique")

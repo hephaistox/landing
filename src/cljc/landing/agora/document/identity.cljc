@@ -1,4 +1,4 @@
-(ns landing.agora.document-identity
+(ns landing.agora.document.identity
   "Document **identity** and the edges between documents — the pure, shared (cljc) core of how a
   document is named, addressed, linked and resolved. No I/O and no persistence format.
 

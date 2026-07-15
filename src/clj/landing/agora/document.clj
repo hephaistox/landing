@@ -5,13 +5,13 @@
   engine has no per-type behaviour of its own, so it never branches on a specific type.
 
   All graph decisions live in the domain; this ns only does the generic I/O on top of the
-  shared storage primitives (landing.agora.document-store)."
+  shared storage primitives (landing.agora.document.store)."
   (:require
    [clojure.string                  :as str]
    [landing.agora.db                :as db]
-   [landing.agora.document-identity :as di]
-   [landing.agora.document-lineage  :as lineage]
-   [landing.agora.document-store    :as store]
+   [landing.agora.document.identity :as di]
+   [landing.agora.document.lineage  :as lineage]
+   [landing.agora.document.store    :as store]
    [landing.agora.source            :as source]
    [landing.language                :as language]))
 
@@ -53,7 +53,7 @@
 
 (defn- quote-author-name
   "The work-author of a document's first `kind=source` input — the person a quoting KI's
-  statement is attributed to (`document-kind/attributed-author`). nil when it quotes none. Used by the
+  statement is attributed to (`document.kind/attributed-author`). nil when it quotes none. Used by the
   discovery `card` (which has bare input TNLRs, not the split `:quotes`)."
   [inputs lang]
   (some (fn [inp]
@@ -98,7 +98,7 @@
        (remove :draft) ; an unpublished successor stays hidden until it is published
        (group-by (juxt :type :name :lang :major))
        vals
-       (mapv (fn [ds] {:id (:id (lineage/latest ds))}))))
+       (mapv (fn [ds] {:id (:id (lineage/latest-with-drafts ds))}))))
 
 (defn view
   "Endpoint view of an already-fetched document `doc`: resolved input refs, successor ids,
@@ -162,10 +162,10 @@
 ;; ---------------------------------------------------------------------------
 
 ;; A document's inputs are derived from its content (the `[[ki:…]]` citations in the text, plus any
-;; edge-only source `:quotes`) by `landing.agora.document-lineage/inputs-of` — the single home of
+;; edge-only source `:quotes`) by `landing.agora.document.lineage/inputs-of` — the single home of
 ;; that rule, shared with the storage-free corpus. This engine calls it on create/edit.
 
-;; `slugify` / `permalink-slug` / `cid-of` live in `landing.agora.document-identity` (cljc)
+;; `slugify` / `permalink-slug` / `cid-of` live in `landing.agora.document.identity` (cljc)
 ;; so the SPA builds and resolves identical URLs. `gen-cid` needs the DB (uniqueness), so
 ;; it stays here.
 
@@ -374,29 +374,25 @@
     (fetch-by-major type name major to-lang)))
 
 (defn- pending-inputs
-  "The declared `inputs` of a document that have **no published version** (draft-only lineages).
-  Publishing a document while one of its inputs is still a draft would leave a public node
-  depending on a hidden one, so `publish!` refuses until they are published. Each entry carries
-  the offending input's identity plus its latest (draft) version id + title, so the UI can link
-  to it."
+  "The declared `inputs` of a document that have **no published version** (draft-only lineages) —
+  `publish!` refuses until they are published, so a public node never depends on a hidden one. The
+  pending *set* is the domain rule (`lineage/pending?`, given a SQL `published?` predicate); each
+  entry is enriched here with the input's latest (draft) version id + title so the UI can link it."
   [inputs]
-  (into []
-        (keep (fn [{ty :type
-                    nm :name
-                    major :major
-                    lang :lang
-                    :as tnlr}]
-                (when-not (store/resolve-latest-id ty nm major lang)
-                  (let [latest (last (store/versions-of (di/tnlr-key tnlr)))
-                        d (some-> (:id latest)
-                                  store/fetch-document)]
-                    {:type ty
-                     :name nm
-                     :major major
-                     :lang lang
-                     :id (:id latest)
-                     :title (:title d)}))))
-        inputs))
+  (->> (lineage/pending? inputs
+                         (fn [{:keys [type name major lang]}]
+                           (some? (store/resolve-latest-id type name major lang))))
+       (mapv (fn [{:keys [type name major lang]
+                   :as tnlr}]
+               (let [latest (last (store/versions-of (di/tnlr-key tnlr)))
+                     d (some-> (:id latest)
+                               store/fetch-document)]
+                 {:type type
+                  :name name
+                  :major major
+                  :lang lang
+                  :id (:id latest)
+                  :title (:title d)})))))
 
 (defn publish!
   "Publish document version `id` on behalf of `user-id` — who must **own** it. Refuses while any
@@ -467,7 +463,7 @@
      store/kebab)
     (group-by (juxt :type :name :lang :major))
     vals
-    (mapv (comp card lineage/latest))
+    (mapv (comp card lineage/latest-with-drafts))
     (sort-by :published-at #(compare %2 %1))
     vec))
 
@@ -797,42 +793,27 @@
   {:id :type :name :lang :major :minor :title :broken […] :self […]}, each ref as
   {:name :major :lang}; `:id` pins the exact version so the admin can deep-link to it."
   []
-  (let [;; Every existing identity (any minor, any language) as [type name major] —
-        ;; a referenced lineage is live iff it appears here (matches the engine's
-        ;; cross-language fallback). Fetched ONCE and checked in memory, so the scan is
-        ;; two queries total rather than one per reference (which floods the DB pool).
+  (let [;; Every existing identity (any minor, any language) as [type name major] — a referenced
+        ;; lineage is live iff it appears here (matches the engine's cross-language fallback).
+        ;; Fetched ONCE and checked in memory, so the scan is two queries total rather than one
+        ;; per reference (which floods the DB pool). The broken/self rule itself is pure
+        ;; (`lineage/ref-issues`); here we only supply the data and shape the row for the admin.
         existing (into #{}
                        (map (juxt :type :name :major))
                        (store/q! db/ds
                                  ["SELECT DISTINCT type, name, major FROM AGORA_DOCUMENT"]
-                                 store/kebab))
-        ;; every ref carries its own :type (inputs are typed TNLRs; in-text citations
-        ;; resolve to typed refs), so identity is [type name major]
-        ref-id (fn [r] [(:type r) (:name r) (:major r)])]
+                                 store/kebab))]
     (->> (store/q! db/ds
                    ["SELECT id, type, name, lang, major, minor, content FROM AGORA_DOCUMENT"]
                    store/kebab)
-         (keep
-          (fn [row]
-            (let [c (store/decode-content (:content row))
-                  lang (:lang row)
-                  text (:text c)
-                  self [(:type row) (:name row) (:major row)]
-                  refs (distinct (concat (:inputs c) (di/cite-refs (or text "") lang)))
-                  broken (->> refs
-                              (remove (fn [r] (existing (ref-id r))))
-                              (map #(select-keys % [:name :major :lang]))
-                              distinct
-                              vec)
-                  self-refs (->> refs
-                                 (filter (fn [r] (= (ref-id r) self)))
-                                 (map #(select-keys % [:name :major :lang]))
-                                 distinct
-                                 vec)]
-              (when (or (seq broken) (seq self-refs))
-                (assoc (select-keys row [:id :type :name :lang :major :minor])
-                       :title (:title c)
-                       :broken broken
-                       :self self-refs)))))
+         (keep (fn [row]
+                 (let [c (store/decode-content (:content row))
+                       doc (merge (select-keys row [:type :name :lang :major]) c)
+                       {:keys [broken self]} (lineage/ref-issues doc existing)]
+                   (when (or (seq broken) (seq self))
+                     (assoc (select-keys row [:id :type :name :lang :major :minor])
+                            :title (:title c)
+                            :broken broken
+                            :self self)))))
          vec
          (into (successor-cache-issues)))))

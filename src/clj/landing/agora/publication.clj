@@ -14,8 +14,8 @@
    [clojure.string                 :as str]
    [landing.agora.db               :as db]
    [landing.agora.document         :as document]
-   [landing.agora.document-lineage :as lineage]
-   [landing.agora.document-store   :as store]))
+   [landing.agora.document.lineage :as lineage]
+   [landing.agora.document.store   :as store]))
 
 (defn- view
   "Endpoint view of a publication row: the stable **cid** as `:id` (a publication is a lineage
@@ -151,7 +151,7 @@
        (keep (comp store/fetch-document :id))
        (group-by (juxt :type :name :lang :major))
        vals
-       (mapv (comp summary lineage/latest))))
+       (mapv (comp summary lineage/latest-with-drafts))))
 
 (defn open-drafts
   "The still-draft members of this publication's modified set — its unpublished cluster."

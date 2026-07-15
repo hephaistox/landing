@@ -1,9 +1,9 @@
-(ns landing.agora.document-identity-test
+(ns landing.agora.document.identity-test
   "Pure identity & edge rules — TNLR, cid/slug, the citation grammar, inputs, pins and
   successors. No database, no adapter. Runs in clj (and would in cljs)."
   (:require
    [clojure.test                    :refer [deftest is testing]]
-   [landing.agora.document-identity :as sut]))
+   [landing.agora.document.identity :as sut]))
 
 ;; --- Stubs --------------------------------------------------------------
 

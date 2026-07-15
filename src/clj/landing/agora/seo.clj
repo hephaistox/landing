@@ -11,8 +11,8 @@
    [cheshire.core                   :as json]
    [clojure.string                  :as str]
    [env]
-   [landing.agora.document-identity :as di]
-   [landing.agora.document-kind     :as dk]
+   [landing.agora.document.identity :as di]
+   [landing.agora.document.kind     :as dk]
    [landing.language                :as language]))
 
 (def ^:private allowed-host-re

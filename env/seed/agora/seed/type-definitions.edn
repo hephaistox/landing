@@ -5,7 +5,7 @@
 ;;
 ;; Each `:statement` completes the hard-coded definition prefix — the page renders
 ;; "<title> désigne <statement>" / "<title> designates <statement>"
-;; (document-kind/compose-statement) — so its first paragraph is the *definiens* (lower-case,
+;; (document.kind/compose-statement) — so its first paragraph is the *definiens* (lower-case,
 ;; grammatically continuing the connector). A **second paragraph** (blank-line separated) says
 ;; how a KI of that kind can be objected to.
 {:assumption

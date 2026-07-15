@@ -1,10 +1,10 @@
 (ns landing.agora.corpus-print
   "Compact, human-readable rendering of documents / publications / a whole corpus — for the CLI
-  and the corpus tests. Pure presentation over the domain (`document-lineage`), kept out of both
+  and the corpus tests. Pure presentation over the domain (`document.lineage`), kept out of both
   the `corpus` substrate and the shipped app."
   (:require
    [clojure.string                 :as str]
-   [landing.agora.document-lineage :as lineage]))
+   [landing.agora.document.lineage :as lineage]))
 
 (defn- ver [doc] (str (:major doc) "." (:minor doc)))
 

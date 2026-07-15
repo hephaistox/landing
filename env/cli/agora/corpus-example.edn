@@ -2,7 +2,7 @@
 ;; A corpus is a flat vector of document *versions*. A document is a KI, an article, or a
 ;; publication; identity is (type, name, lang, major) + minor. Its edges:
 ;;   - :inputs      — a vector of TNLRs, the reasoning edges. DERIVED from the `[[ki:name:lang@major]]`
-;;                    citations in :text at create/edit time (document-lineage/inputs-of) and stored
+;;                    citations in :text at create/edit time (document.lineage/inputs-of) and stored
 ;;                    here — a citation IS an input edge, so :inputs mirrors the text's citations. The
 ;;                    citation carries its own language (`:en`); a bare `[[ki:name@major]]` would fall
 ;;                    back to the doc's language.

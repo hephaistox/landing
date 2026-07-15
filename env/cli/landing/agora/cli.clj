@@ -21,7 +21,7 @@
    [clojure.string                 :as str]
    [landing.agora.corpus           :as corpus]
    [landing.agora.corpus-print     :as cprint]
-   [landing.agora.document-lineage :as lineage]))
+   [landing.agora.document.lineage :as lineage]))
 
 (defn- load-corpus [file] (edn/read-string (slurp file)))
 
@@ -40,11 +40,12 @@
     (case cmd
       "list" (println (cprint/compact-corpus c))
       "show" (let [[type name lang] args]
-               (if-let [d (lineage/latest (corpus/versions c (tnlr type name lang)))]
+               (if-let [d (lineage/latest-with-drafts (corpus/versions c (tnlr type name lang)))]
                  (println (cprint/compact-doc d))
                  (println "not found")))
       "pub" (let [[name lang] args]
-              (if-let [p (lineage/latest (corpus/versions c (tnlr "publication" name lang)))]
+              (if-let [p (lineage/latest-with-drafts
+                          (corpus/versions c (tnlr "publication" name lang)))]
                 (println (cprint/compact-publication c p))
                 (println "not found")))
       "create" (let [[type name lang & more] args

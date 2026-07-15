@@ -1,6 +1,6 @@
 (ns landing.agora.frontend.loading
   "Loading skeletons shown while a page's data is in flight (a KI-page skeleton, a
-  discover-grid skeleton, …), chosen by the pending route kind."
+  discover-grid skeleton, …), chosen by the pending? route kind."
   (:require
    [landing.agora.frontend.document-page :as    dv
                                          :refer [card-style]]))
