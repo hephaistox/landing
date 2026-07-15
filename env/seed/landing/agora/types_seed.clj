@@ -16,13 +16,13 @@
     (require 'landing.agora.types-seed)
     (landing.agora.types-seed/seed!)"
   (:require
-   [clojure.edn                   :as edn]
-   [clojure.java.io               :as io]
-   [landing.agora.auth            :as auth]
-   [landing.agora.db              :as db]
-   [landing.agora.document-domain :as domain]
-   [landing.agora.document-store  :as store]
-   [landing.agora.publication     :as publication]))
+   [clojure.edn                  :as edn]
+   [clojure.java.io              :as io]
+   [landing.agora.auth           :as auth]
+   [landing.agora.db             :as db]
+   [landing.agora.document-kind  :as dk]
+   [landing.agora.document-store :as store]
+   [landing.agora.publication    :as publication]))
 
 (def ^:private defs
   "kind keyword → {lang → {:title :statement}}, read from the seed resource."
@@ -43,11 +43,11 @@
         pub
         (publication/ensure-named! (:id agora) "vocabulaire-des-types" "Vocabulaire des types" "fr")
         created (doall
-                 (for [{kw :id} domain/kinds
+                 (for [{kw :id} dk/kinds
                        lang langs
                        :let [{slug :name
                               mj :major}
-                             (get domain/kind-def (name kw))
+                             (get dk/kind-def (name kw))
                              {:keys [title statement]} (get-in defs [kw lang])]
                        ;; EXACT-language existence — `resolve-latest-id` would cross-language
                        ;; fall back (and, having just seeded `fr`, wrongly skip `en`)
@@ -77,8 +77,8 @@
   plain `seed!` skips existing types, so it can't fix their nil owner. REPL-only,
   destructive; the type KIs have no inputs and aren't cited, so nothing dangles."
   []
-  (doseq [{kw :id} domain/kinds
-          :let [{slug :name} (get domain/kind-def (name kw))]]
+  (doseq [{kw :id} dk/kinds
+          :let [{slug :name} (get dk/kind-def (name kw))]]
     (store/q! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = 'ki' AND name = ?" slug]))
   (store/clear-caches!)
   (seed!))

@@ -1,7 +1,7 @@
 (ns landing.agora.document-store
   "Shared adapter for AGORA_DOCUMENT — the single polymorphic table holding every object
   type (all document types today; objections later). SQL + Caffeine caches around the pure
-  domain (landing.agora.document-domain).
+  domain (landing.agora.document-identity).
 
   A row keeps only the identity columns — `id`, `type` (object type, the T), `name`,
   `lang`, `major`, `minor` — plus two EDN blobs: immutable `content` and mutable
@@ -9,13 +9,13 @@
   landing.agora.document, which calls these primitives so that all
   document I/O, successor indexing and cache eviction stay in one place (and one cache)."
   (:require
-   [auto-core.log                 :as core-log]
-   [clojure.edn                   :as edn]
-   [landing.agora.cache           :as cache]
-   [landing.agora.db              :as db]
-   [landing.agora.document-domain :as domain]
-   [next.jdbc                     :as jdbc]
-   [next.jdbc.result-set          :as rs])
+   [auto-core.log                   :as core-log]
+   [clojure.edn                     :as edn]
+   [landing.agora.cache             :as cache]
+   [landing.agora.db                :as db]
+   [landing.agora.document-identity :as di]
+   [next.jdbc                       :as jdbc]
+   [next.jdbc.result-set            :as rs])
   (:import (java.sql SQLException)
            (java.time Instant)
            (java.time.temporal ChronoUnit)
@@ -196,7 +196,7 @@
     major :major
     lang :lang
     :as tnlr}]
-  (or (resolve-latest-id ty nm major lang) (:id (last (versions-of (domain/tnlr-key tnlr))))))
+  (or (resolve-latest-id ty nm major lang) (:id (last (versions-of (di/tnlr-key tnlr))))))
 
 (defn draft-in-publication
   "The id of publication `pub-id`'s own draft of lineage (type, name, major) in `lang` — its
@@ -251,8 +251,8 @@
 (defn index-successors!
   "Record, in AGORA_SUCCESSOR, that `successor-id` declares each of `tnlrs` as input."
   [successor-id tnlrs]
-  (doseq [{:keys [tnlr]} (domain/successor-tuples successor-id tnlrs)]
-    (let [[ty nm lang major] (domain/tnlr-key tnlr)]
+  (doseq [{:keys [tnlr]} (di/successor-tuples successor-id tnlrs)]
+    (let [[ty nm lang major] (di/tnlr-key tnlr)]
       (q!
        db/ds
        ["INSERT IGNORE INTO AGORA_SUCCESSOR
@@ -273,9 +273,9 @@
            :name nm
            :lang lang
            :major major}]
-    (doseq [sid (cache/fetch successors-cache (domain/tnlr-key t))]
+    (doseq [sid (cache/fetch successors-cache (di/tnlr-key t))]
       (when-let [row (q1! db/ds ["SELECT computed FROM AGORA_DOCUMENT WHERE id = ?" sid] kebab)]
-        (let [pins' (domain/repin (decode-pins (:computed row)) t new-id)]
+        (let [pins' (di/repin (decode-pins (:computed row)) t new-id)]
           (q! db/ds ["UPDATE AGORA_DOCUMENT SET computed = ? WHERE id = ?" (encode-pins pins') sid])
           (cache/evict! document-cache sid))))))
 
@@ -372,8 +372,8 @@
       (if draft? 1 0)
       (encode-content content)
       ;; pins resolve to the publication's own drafts while authoring in one, else classically
-      (encode-pins
-       (domain/pin-all tnlrs (if publication-id (partial latest-of-in publication-id) latest-of)))
+      (encode-pins (di/pin-all tnlrs
+                               (if publication-id (partial latest-of-in publication-id) latest-of)))
       ;; denormalized copy of content.:published-at for sortable/rangeable reads
       (:published-at content)
       ;; the publication that created this version — permanent provenance, nil when authored
@@ -415,7 +415,7 @@
   []
   (let [changed (reduce (fn [n {:keys [id content computed]}]
                           (let [pins (decode-pins computed)
-                                pins' (domain/pin-all (:inputs (decode-content content)) latest-of)]
+                                pins' (di/pin-all (:inputs (decode-content content)) latest-of)]
                             (if (= pins pins')
                               n
                               (do (q! db/ds

@@ -2,14 +2,14 @@
   "The admin/maintenance page (`/agora/<lang>/admin`, owner-only): the lineage table, the
   reference-consistency panel, and the prune/compact actions, with their `::admin-*` events."
   (:require
-   [clojure.string                :as str]
-   [landing.agora.document-domain :as domain]
-   [landing.agora.frontend.auth   :as auth]
-   [landing.agora.frontend.cite   :as cite]
-   [landing.agora.frontend.i18n   :as i18n]
-   [landing.language              :as language]
-   [re-frame.core                 :as rf]
-   [reagent.core                  :as r]))
+   [clojure.string              :as str]
+   [landing.agora.document-kind :as dk]
+   [landing.agora.frontend.auth :as auth]
+   [landing.agora.frontend.cite :as cite]
+   [landing.agora.frontend.i18n :as i18n]
+   [landing.language            :as language]
+   [re-frame.core               :as rf]
+   [reagent.core                :as r]))
 
 (rf/reg-sub ::admin-tnrs (fn [db _] (:admin-tnrs db)))
 (rf/reg-sub ::admin-issues (fn [db _] (:admin-issues db)))
@@ -288,7 +288,7 @@
                                 :letter-spacing "0.04em"
                                 :text-transform "uppercase"
                                 :color "#fff"
-                                :background (get domain/kind-color k "#666")
+                                :background (get dk/kind-color k "#666")
                                 :padding "0.15em 0.5em"
                                 :border-radius "0.25em"}}
                  (i18n/t lang (keyword "kind" k))])]

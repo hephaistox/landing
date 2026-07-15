@@ -14,7 +14,7 @@
   search, loading skeletons)."
   (:require
    [clojure.string                    :as str]
-   [landing.agora.document-domain     :as document-domain]
+   [landing.agora.document-kind       :as dk]
    [landing.agora.frontend.auth       :as auth]
    [landing.agora.frontend.cite       :as cite]
    [landing.agora.frontend.fmt        :as fmt]
@@ -47,7 +47,7 @@
                                       name))]
      (let [lang @(rf/subscribe [::i18n/lang])
            style {:display "inline-block"
-                  :background (get document-domain/kind-color kind "#666")
+                  :background (get dk/kind-color kind "#666")
                   :color "#fff"
                   :font-size "0.7em"
                   :font-weight 700
@@ -58,7 +58,7 @@
            label (i18n/t lang (keyword "kind" kind))
            pill [:span {:style style}
                  label]]
-       (if-let [def-ref (when link? (get document-domain/kind-def kind))]
+       (if-let [def-ref (when link? (get dk/kind-def kind))]
          ;; the kind ↔ definition-KI link is domain data (name + major); type is `ki`,
          ;; minor resolves to latest via by-major, lang is the reader's.
          [cite/node-link (assoc def-ref :lang lang) pill]
@@ -743,7 +743,7 @@
   ;; are flattened to the cited KI's title (`:cite-titles`, since names are opaque cids).
   (let [titles (into {} (map (juxt :name :title)) (:cite-titles node))
         ;; prefix in the card's CONTENT language (`:lang node`), not the reader's interface lang
-        excerpt (str (document-domain/statement-prefix-of node (:lang node))
+        excerpt (str (dk/statement-prefix-of node (:lang node))
                      (cite/plain-text (cite/node-text node) titles))]
     [:a {;; a draft doesn't resolve by permalink — link it by its exact-version URL
          :href (if (:draft node) (i18n/doc-url lang (:type node) (:id node)) (permalink lang node))

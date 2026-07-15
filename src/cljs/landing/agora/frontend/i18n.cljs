@@ -16,9 +16,9 @@
 
   Path builders take a language explicitly. `t`/`::lang` use the preference."
   (:require
-   [landing.agora.document-domain :as domain]
-   [landing.language              :as language]
-   [re-frame.core                 :as rf]))
+   [landing.agora.document-identity :as di]
+   [landing.language                :as language]
+   [re-frame.core                   :as rf]))
 
 ;; ---------------------------------------------------------------------------
 ;; Dictionary
@@ -651,7 +651,7 @@
   "Public permalink of an article in `lang` — `/agora/<lang>/article/<cid>~<title-slug>/<major>`.
   `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
   [lang m]
-  (str (base lang) "/article/" (domain/permalink-slug (:name m) (:title m)) "/" (:major m)))
+  (str (base lang) "/article/" (di/permalink-slug (:name m) (:title m)) "/" (:major m)))
 (defn preferences [lang] (str (base lang) "/preferences"))
 (defn admin [lang] (str (base lang) "/admin"))
 (defn author "The author profile page for account `id`." [lang id] (str (base lang) "/author/" id))
@@ -659,7 +659,7 @@
   "Public permalink of a KI in `lang` — `/agora/<lang>/ki/<cid>~<title-slug>/<major>`.
   `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
   [lang m]
-  (str (base lang) "/ki/" (domain/permalink-slug (:name m) (:title m)) "/" (:major m)))
+  (str (base lang) "/ki/" (di/permalink-slug (:name m) (:title m)) "/" (:major m)))
 
 ;; --- Generic, type-driven document URLs ------------------------------------
 ;; Every document type shares one URL shape, with its `:type` as the path segment:
@@ -671,7 +671,7 @@
   "Public permalink of any document — `/agora/<lang>/<type>/<cid>~<title-slug>/<major>`.
   `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
   [lang type m]
-  (str (base lang) "/" type "/" (domain/permalink-slug (:name m) (:title m)) "/" (:major m)))
+  (str (base lang) "/" type "/" (di/permalink-slug (:name m) (:title m)) "/" (:major m)))
 (defn doc-url
   "App URL of one concrete document version — `/agora/<lang>/<type>/<id>`."
   [lang type id]

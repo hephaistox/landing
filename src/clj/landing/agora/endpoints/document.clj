@@ -10,7 +10,8 @@
   document op) is a standalone route here too."
   (:require
    [landing.agora.document            :as document]
-   [landing.agora.document-domain     :as domain]
+   [landing.agora.document-identity   :as di]
+   [landing.agora.document-kind       :as dk]
    [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.translate           :as translate]
    [landing.language                  :as language]
@@ -47,7 +48,7 @@
   kinds are disjoint, so the enum is per-type — a KI can't be tagged `explainer`, nor an
   article `inference`)."
   [object-type]
-  (into [:enum] (map name) (domain/kind-ids-of object-type)))
+  (into [:enum] (map name) (dk/kind-ids-of object-type)))
 (def ^:private input-ref-schema [:map [:name name-schema] [:major :int]])
 
 ;; the publication a mutation is authored in (an `AGORA_DOCUMENT.id`, `type=publication`),
@@ -65,7 +66,7 @@
     [:maybe [:string {:max 500}]]]])
 
 ;; `:quotes` — the `kind=source` KIs this document quotes. A source is quoted as an **input
-;; edge only** (never written into the prose; see `domain/kind-quotes-in-text?`), so it rides
+;; edge only** (never written into the prose; see `dk/kind-quotes-in-text?`), so it rides
 ;; here rather than as a `[[ki:…]]` token. `document/create`/`edit` merge these into `:inputs`.
 ;; The client resubmits the full list on every edit (they aren't in the text to re-derive).
 (def ^:private quotes-schema
@@ -160,7 +161,7 @@
                            (get-in req [:parameters :path])
                            ;; the path segment is the permalink key `<cid>~<slug>` (or a bare
                            ;; cid) — resolve by the immutable cid, ignoring the slug
-                           n (domain/cid-of n)
+                           n (di/cid-of n)
                            lang (or (get-in req [:parameters :query :lang]) language/default-lang)
                            ;; `?publication=<id>` resolves within a publication (its own draft of
                            ;; the lineage else latest published); absent → classical public read
@@ -213,9 +214,9 @@
                       (if-let [u (uid req)]
                         (let [r (document/add-input (path-id req) u (body req) (pub-id req))]
                           (cond
-                            (= r :input-limit)
-                            {:status 422
-                             :body {:error (str "at most " domain/max-inputs " inputs")}}
+                            (= r :input-limit) {:status 422
+                                                :body {:error
+                                                       (str "at most " di/max-inputs " inputs")}}
                             r {:status 200
                                :body r}
                             :else (not-found :id (path-id req))))

@@ -7,7 +7,7 @@
   supply `cfg` and are what `core` calls. A nil `cfg` means read-only (the public page)."
   (:require
    [clojure.string                       :as str]
-   [landing.agora.document-domain        :as domain]
+   [landing.agora.document-kind          :as dk]
    [landing.agora.frontend.cite          :as cite]
    [landing.agora.frontend.document-page :as    dv
                                          :refer [byline
@@ -96,7 +96,7 @@
       ;; English reader viewing a cross-language fallback).
       [cite/render-text
        (cite/node-text doc)
-       (when-let [prefix (domain/statement-prefix-of doc (:lang doc))] [prefix-pill prefix])]]
+       (when-let [prefix (dk/statement-prefix-of doc (:lang doc))] [prefix-pill prefix])]]
      [source/source-view (:source doc)]
      [source/quotes-view (:quotes doc)]
      ;; owner-only maintenance, right on the read view (no need to enter edit mode)

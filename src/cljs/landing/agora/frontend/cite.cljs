@@ -4,7 +4,7 @@
   A `[[ki:<name>@<major>]]` (optionally `…|custom text]]`) token in a node's text
   cites a KI: it renders as a KI-marked inline link with a metadata hover card, and
   — because inputs are exactly the citations in the text — it *is* an input edge.
-  The grammar lives once in `domain/cite-pattern`, so the renderer here and the
+  The grammar lives once in `di/cite-pattern`, so the renderer here and the
   backend citation extractor never drift.
 
   This ns is deliberately low-level (no dependency on the `view`/`edit` page layers) so
@@ -12,7 +12,8 @@
   stay decoupled."
   (:require
    [clojure.string                    :as str]
-   [landing.agora.document-domain     :as domain]
+   [landing.agora.document-identity   :as di]
+   [landing.agora.document-kind       :as dk]
    [landing.agora.frontend.fmt        :as fmt]
    [landing.agora.frontend.i18n       :as i18n]
    [landing.agora.frontend.ui-commons :as ui]
@@ -28,17 +29,14 @@
               str/trim)]
     (if (str/blank? t) (str s) (str (str/upper-case (subs t 0 1)) (subs t 1)))))
 
-(defn node-text
-  "A document's prose, from the unified `:text` key — with a legacy `:statement`/`:body`
-  fallback for documents fetched before the fields were unified."
-  [doc]
-  (or (:text doc) (:statement doc) (:body doc)))
+(defn node-text "A document's prose (the unified `:text` key)." [doc] (:text doc))
 
 (defn parse-segments
   "Split a paragraph into a vector of parts: plain strings and citation maps
-  `{:name … :major … :text …}` (`:text` nil unless the token gave a custom label)."
+  `{:name … :lang … :major … :text …}` (`:lang` nil unless the token carried one, `:text` nil
+  unless it gave a custom label)."
   [s]
-  (let [re (js/RegExp. (.-source domain/cite-pattern) "g")]
+  (let [re (js/RegExp. (.-source di/cite-pattern) "g")]
     (loop [pos 0
            out []]
       (if-let [m (.exec re s)]
@@ -50,15 +48,16 @@
           (recur (+ idx (.-length whole))
                  (conj out
                        {:name (aget m 1)
-                        :major (js/parseInt (aget m 2))
-                        :text (aget m 3)})))
+                        :lang (aget m 2)
+                        :major (js/parseInt (aget m 3))
+                        :text (aget m 4)})))
         (let [tail (subs s pos)]
           (cond-> out
             (seq tail) (conj tail)))))))
 
 (defn- cite-link-style
   [kind]
-  (let [c (get domain/kind-color kind "#b9770e")]
+  (let [c (get dk/kind-color kind "#b9770e")]
     {:color c
      :text-decoration "none"
      :border-bottom (str "1px dotted " c)
@@ -73,7 +72,7 @@
                     :letter-spacing "0.04em"
                     :text-transform "uppercase"
                     :color "#fff"
-                    :background (get domain/kind-color kind "#666")
+                    :background (get dk/kind-color kind "#666")
                     :padding "0.15em 0.45em"
                     :border-radius "0.25em"}}
      (i18n/t @(rf/subscribe [::i18n/lang]) (keyword "kind" kind))]))
@@ -143,16 +142,17 @@
   latest minor) into the shared cache, renders its title as a KI-marked link, and
   shows the hover card on hover/focus."
   [seg]
-  (let [{:keys [name major]} seg]
-    (rf/dispatch [:agora/ensure-ki-by-major name major @(rf/subscribe [::i18n/lang])]))
+  (let [{:keys [name major lang]} seg]
+    (rf/dispatch [:agora/ensure-ki-by-major name major (or lang @(rf/subscribe [::i18n/lang]))]))
   (let [hover? (r/atom false)]
-    (fn [{:keys [name major text]}]
-      (let [lang @(rf/subscribe [::i18n/lang])
-            doc @(rf/subscribe [:agora/cite-doc name major lang])]
+    (fn [{:keys [name major text lang]}]
+      ;; the citation resolves to its own language when the token carried one, else the reader's
+      (let [clang (or lang @(rf/subscribe [::i18n/lang]))
+            doc @(rf/subscribe [:agora/cite-doc name major clang])]
         [:span {:style {:position "relative"}
                 :on-mouse-enter #(reset! hover? true)
                 :on-mouse-leave #(reset! hover? false)}
-         [:a {:href (i18n/ki lang
+         [:a {:href (i18n/ki clang
                              {:name name
                               :major major})
               :style (cite-link-style (:kind doc))
@@ -244,7 +244,7 @@
   the first paragraph (e.g. the kind-guided statement prefix as a boxed pill)."
   ([text] (render-text text nil))
   ([text lead]
-   (let [blocks (domain/parse-blocks text)
+   (let [blocks (dk/parse-blocks text)
          first-p? (= :p (:type (first blocks)))]
      (into [:div]
            (concat
@@ -309,9 +309,9 @@
   (into [:div {:style {:display "flex"
                        :flex-wrap "wrap"
                        :gap "0.3em"}}]
-        (for [k (->> (domain/kind-ids-of "ki")
+        (for [k (->> (dk/kind-ids-of "ki")
                      (map name)
-                     (filter domain/kind-quotes-in-text?))]
+                     (filter dk/kind-quotes-in-text?))]
           ^{:key k}
           [:button {:on-click #(on-select k)
                     :title k
@@ -334,7 +334,7 @@
   removed from the search results so a document can never quote itself (a self-reference
   is a degenerate cycle; see the *Consistency rules* in agora/CLAUDE.md). `inputs?` (default
   true) toggles the **quotation feature** (the cite/create search box); pass false for a kind
-  that may not have inputs (see `domain/kind-allows-inputs?`) — the prose textarea stays."
+  that may not have inputs (see `dk/kind-allows-inputs?`) — the prose textarea stays."
   [_value _set-text! _placeholder _self-name _inputs?]
   (let [node (atom nil)
         setter (atom nil)
@@ -353,7 +353,14 @@
                  (set! (.. el -style -height) (str (.-scrollHeight el) "px"))))
         insert! (fn [ki]
                   (when-let [el @node]
-                    (let [tag (str "[[ki:" (:name ki) "@" (:major ki) "]]")
+                    ;; the target form carries the language (`[[ki:name:lang@major]]`); fall back
+                    ;; to the bare form only if the picked KI somehow has no language
+                    (let [tag (str "[[ki:"
+                                   (:name ki)
+                                   (when (:lang ki) (str ":" (:lang ki)))
+                                   "@"
+                                   (:major ki)
+                                   "]]")
                           v (or (.-value el) "")
                           s (.-selectionStart el)
                           e (.-selectionEnd el)
@@ -405,7 +412,7 @@
             ;; classical quoting: an in-text kind is spliced into the prose; a source (edge-only
             ;; kind) is handed to `on-quote` as an input, never written into the text
             pick! (fn [k]
-                    (if (domain/kind-quotes-in-text? (:kind k))
+                    (if (dk/kind-quotes-in-text? (:kind k))
                       (insert! k)
                       (do (when on-quote (on-quote k)) (reset! q "") (reset! results []))))]
         [:div

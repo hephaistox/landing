@@ -1,0 +1,143 @@
+;; A worked Agora corpus — the storage-free shape `landing.agora.corpus` operates on.
+;; A corpus is a flat vector of document *versions*. A document is a KI, an article, or a
+;; publication; identity is (type, name, lang, major) + minor. Its edges:
+;;   - :inputs      — a vector of TNLRs, the reasoning edges. DERIVED from the `[[ki:name:lang@major]]`
+;;                    citations in :text at create/edit time (document-lineage/inputs-of) and stored
+;;                    here — a citation IS an input edge, so :inputs mirrors the text's citations. The
+;;                    citation carries its own language (`:en`); a bare `[[ki:name@major]]` would fall
+;;                    back to the doc's language.
+;;   - :publication — a TNLR, the provenance edge to the publication that gathers a draft.
+;; It demonstrates:
+;;   - versioning (fuzzy-confidence has two minors — an edit)
+;;   - translation-by-name (fuzzy-confidence exists in en and fr under the same name)
+;;   - a reasoning edge (reason-is-fuzzy and the article cite KIs → :inputs)
+;;   - a provenance edge (:publication links a draft to the publication that gathers it)
+;;   - a publication being just a document (:type "publication", carrying :status)
+;;   - coexisting beliefs (god-exists / god-absent) gathered in one publication
+
+[;; --- a definition KI, published, edited once (two minors) ---
+ {:author "Anthony"
+  :draft false
+  :kind "definition"
+  :lang "en"
+  :major 1
+  :minor 0
+  :name "fuzzy-confidence"
+  :text "collective confidence in a claim that is partial and evolving, never binary."
+  :title "Fuzzy confidence"
+  :type "ki"}
+ {:author "Anthony"
+  :draft false
+  :kind "definition"
+  :lang "en"
+  :major 1
+  :minor 1
+  :name "fuzzy-confidence"
+  :text
+  "the collective, partial, evolving confidence a community holds in a claim — never a binary true/false."
+  :title "Fuzzy confidence"
+  :type "ki"}
+ ;; --- its French translation sibling (same name, other lang) ---
+ {:author "Anthony"
+  :draft false
+  :kind "definition"
+  :lang "fr"
+  :major 1
+  :minor 0
+  :name "fuzzy-confidence"
+  :text
+  "la confiance collective, partielle et évolutive d'une communauté dans une affirmation — jamais un vrai/faux binaire."
+  :title "Confiance floue"
+  :type "ki"}
+ ;; --- an inference with a real input edge, drafted in the meta-graph publication ---
+ {:author "Anthony"
+  :draft true
+  :inputs [{:lang "en"
+            :major 1
+            :name "fuzzy-confidence"
+            :type "ki"}]
+  :kind "inference"
+  :lang "en"
+  :major 1
+  :minor 0
+  :name "reason-is-fuzzy"
+  :publication {:lang "en"
+                :major 1
+                :name "meta-graph"
+                :type "publication"}
+  :text
+  "Because knowledge carries only [[ki:fuzzy-confidence:en@1]], reasoning about it inherits that partiality."
+  :title "Human reasoning is fuzzy"
+  :type "ki"}
+ ;; --- an article with two input edges, also in the meta-graph publication ---
+ {:author "Anthony"
+  :draft true
+  :inputs [{:lang "en"
+            :major 1
+            :name "fuzzy-confidence"
+            :type "ki"}
+           {:lang "en"
+            :major 1
+            :name "reason-is-fuzzy"
+            :type "ki"}]
+  :kind "explainer"
+  :lang "en"
+  :major 1
+  :minor 0
+  :name "on-partial-knowledge"
+  :publication {:lang "en"
+                :major 1
+                :name "meta-graph"
+                :type "publication"}
+  :text
+  "Agora stores reasoning, not conclusions: every step carries [[ki:fuzzy-confidence:en@1|fuzzy confidence]], and so [[ki:reason-is-fuzzy:en@1]] follows."
+  :title "On partial knowledge"
+  :type "article"}
+ ;; --- two coexisting beliefs, gathered in the theology publication (leaves — no inputs) ---
+ {:author "A. Believer"
+  :draft true
+  :kind "belief"
+  :lang "en"
+  :major 1
+  :minor 0
+  :name "god-exists"
+  :publication {:lang "en"
+                :major 1
+                :name "theology"
+                :type "publication"}
+  :text "a personal, uncaused ground of being underlies reality."
+  :title "God exists"
+  :type "ki"}
+ {:author "A. Skeptic"
+  :draft true
+  :kind "belief"
+  :lang "en"
+  :major 1
+  :minor 0
+  :name "god-absent"
+  :publication {:lang "en"
+                :major 1
+                :name "theology"
+                :type "publication"}
+  :text "reality is sufficient unto itself; no ground of being is needed."
+  :title "God does not exist"
+  :type "ki"}
+ ;; --- the publications themselves — documents of :type "publication", carrying :status ---
+ {:author "Anthony"
+  :draft true
+  :lang "en"
+  :major 1
+  :minor 0
+  :name "meta-graph"
+  :status "open"
+  :title "The meta-graph of Agora"
+  :type "publication"}
+ {:author "Anthony"
+  :draft true
+  :lang "en"
+  :major 1
+  :minor 0
+  :name "theology"
+  :status "open"
+  :title "Does God exist?"
+  :type "publication"}]

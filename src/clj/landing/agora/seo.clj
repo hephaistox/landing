@@ -8,11 +8,12 @@
   rendered at serve time — the SPA replaces the body on mount. A sitemap is generated from
   the DB so every permalink is crawlable."
   (:require
-   [cheshire.core                 :as json]
-   [clojure.string                :as str]
+   [cheshire.core                   :as json]
+   [clojure.string                  :as str]
    [env]
-   [landing.agora.document-domain :as domain]
-   [landing.language              :as language]))
+   [landing.agora.document-identity :as di]
+   [landing.agora.document-kind     :as dk]
+   [landing.language                :as language]))
 
 (def ^:private allowed-host-re
   "Hosts we will echo into absolute URLs in production — the hephaistox domains
@@ -47,7 +48,7 @@
   no slug). `cid` is the document's `name`; every char is URL-path-safe (`[a-z0-9-~]`), so
   no encoding is needed. The slug tracks the current title; resolution keeps only the cid."
   [cid title]
-  (domain/permalink-slug cid title))
+  (di/permalink-slug cid title))
 
 (defn- esc
   "Escape text for use inside an HTML attribute or element."
@@ -91,11 +92,7 @@
                                      {"@type" "Organization"
                                       "name" editor})))
 
-(defn- prose
-  "A document's prose, from the unified `:text` key with a legacy `:statement`/`:body`
-  fallback for rows not yet migrated."
-  [doc]
-  (or (:text doc) (:statement doc) (:body doc)))
+(defn- prose "A document's prose (the unified `:text` key)." [doc] (:text doc))
 
 (defn- description-of
   "A ~160-char, single-line summary from the document's prose."
@@ -140,7 +137,7 @@
         ;; the kind-guided opening (derived) precedes the body so the snippet reads as a
         ;; full sentence ("Sun Tzŭ believes that …") — in the doc's content language (`:lang ki`,
         ;; which may differ from the URL `lang` on a cross-language fallback), so it never mixes
-        desc (description-of {:text (domain/compose-statement ki (:lang ki) (prose ki))})
+        desc (description-of {:text (dk/compose-statement ki (:lang ki) (prose ki))})
         url (str base "/agora/" lang "/ki/" (key-of ki-name title) "/" ki-major)
         langs (into [{:lang lang}] (:translations ki))]
     (str/join
@@ -181,7 +178,7 @@
   token becomes its custom text (or the humanized KI name), so the description reads
   naturally instead of showing raw tokens."
   [body]
-  (str/replace (or body "") domain/cite-pattern (fn [[_ nm _major txt]] (or txt (humanize nm)))))
+  (str/replace (or body "") di/cite-pattern (fn [[_ nm _lang _major txt]] (or txt (humanize nm)))))
 
 (defn article-head
   "SEO `<head>` for an article permalink: title, description (from the body), canonical +
@@ -318,12 +315,13 @@
   (let [s (str x)] (when (seq s) (subs s 0 (min 10 (count s))))))
 
 (defn- cite->link
-  "Replacement fn for `domain/cite-pattern`: an in-prose `[[ki:name@major]]` citation →
-  an `<a>` to that KI's permalink (text = the custom label, else the humanized name)."
+  "Replacement fn for `di/cite-pattern`: an in-prose `[[ki:name(:lang)?@major]]` citation →
+  an `<a>` to that KI's permalink (text = the custom label, else the humanized name). The link
+  targets the citation's own language when the token carries one, else the citing doc's `lang`."
   [base lang]
-  (fn [[_ nm mj txt]]
+  (fn [[_ nm lang-tok mj txt]]
     (str "<a href=\""
-         (esc (str base "/agora/" lang "/ki/" (enc nm) "/" mj))
+         (esc (str base "/agora/" (or lang-tok lang) "/ki/" (enc nm) "/" mj))
          "\">"
          (esc (or txt (humanize nm)))
          "</a>")))
@@ -341,15 +339,15 @@
 (defn- prose-html
   "The document's prose as HTML: escaped, with `[[ki:…]]` citations turned into links, structured
   into **paragraphs** (blank line separates; single line-break → `<br/>`) and **bullet lists**
-  (`- `/`* ` lines) via the shared `domain/parse-blocks`, so it matches the SPA renderer. An
+  (`- `/`* ` lines) via the shared `dk/parse-blocks`, so it matches the SPA renderer. An
   optional `lead` HTML string is placed inline at the start of the first paragraph (the boxed
   statement prefix)."
   [base lang text lead]
-  (let [blocks (domain/parse-blocks text)
+  (let [blocks (dk/parse-blocks text)
         first-p? (= :p (:type (first blocks)))
         inline (fn [s]
                  (-> (esc s)
-                     (str/replace domain/cite-pattern (cite->link base lang))))
+                     (str/replace di/cite-pattern (cite->link base lang))))
         block->html
         (fn [i blk]
           (if (= :ul (:type blk))
@@ -417,12 +415,12 @@
      "</p>"
      "<div>"
      ;; kind-guided opening (derived, not stored) — a boxed pill inline at the start of the
-     ;; prose (nil for the free-form `inference` kind). See document-domain/statement-prefix-of.
+     ;; prose (nil for the free-form `inference` kind). See document-dk/statement-prefix-of.
      (prose-html base
                  lang
                  (prose doc)
                  ;; prefix in the doc's content language (`:lang doc`), not the URL `lang`
-                 (when-let [prefix (domain/statement-prefix-of doc (:lang doc))]
+                 (when-let [prefix (dk/statement-prefix-of doc (:lang doc))]
                    (prefix-pill-html prefix)))
      "</div>"
      (neighbour-section base "Based on" inputs)

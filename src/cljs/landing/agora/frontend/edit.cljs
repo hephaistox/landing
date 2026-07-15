@@ -13,7 +13,7 @@
   flows dispatch the generic `:agora/saved`, which navigates to the saved version."
   (:require
    [clojure.string                       :as str]
-   [landing.agora.document-domain        :as domain]
+   [landing.agora.document-kind          :as dk]
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.cite          :as cite]
    [landing.agora.frontend.document-page :as    dv
@@ -44,9 +44,9 @@
   (into [:div {:style {:display "flex"
                        :flex-wrap "wrap"
                        :gap "0.4em"}}]
-        ;; `domain/kind-ids-of` is the canonical per-type set as keywords; the DB/API represent
+        ;; `dk/kind-ids-of` is the canonical per-type set as keywords; the DB/API represent
         ;; the kind as a string, so map to `(name kw)` at this boundary.
-        (for [t (map name (domain/kind-ids-of object-type))
+        (for [t (map name (dk/kind-ids-of object-type))
               :let [current? (= t selected)]]
           ^{:key t}
           [:button {:on-click #(on-select t)
@@ -134,7 +134,7 @@
                            :show-kind? show-kind?
                            ;; seed the type's default kind (first in its display order:
                            ;; inference for KIs, explainer for articles)
-                           :kind (name (first (domain/kind-ids-of type)))})))
+                           :kind (name (first (dk/kind-ids-of type)))})))
 (rf/reg-event-db ::new-set (fn [db [_ k v]] (assoc-in db [::new k] v)))
 
 (rf/reg-event-fx ::new-submit
@@ -465,12 +465,12 @@
   source is set, else the user). Nothing for the free-form `inference` kind — so the author
   writes only the body, and the grammar is enforced without being stored."
   [{:keys [kind title source quotes]} author-name lang]
-  (when-let [p (domain/statement-prefix-of {:kind kind
-                                            :title title
-                                            :source source
-                                            :quote-author-name (:author-name (first quotes))
-                                            :author author-name}
-                                           lang)]
+  (when-let [p (dk/statement-prefix-of {:kind kind
+                                        :title title
+                                        :source source
+                                        :quote-author-name (:author-name (first quotes))
+                                        :author author-name}
+                                       lang)]
     [:div {:style {:font-size "0.9em"
                    :color "#8a7a55"
                    :font-style "italic"
@@ -526,7 +526,7 @@
       #(rf/dispatch [::edit-set :text %])
       (lbl lang labels :text-ph)
       doc-name
-      (domain/kind-allows-inputs? kind)
+      (dk/kind-allows-inputs? kind)
       #(rf/dispatch [::edit-set :quotes (source/add-quote quotes %)])]
      [source/quotes-list quotes #(rf/dispatch [::edit-set :quotes %])]
      ;; only a source-KI carries a `:source` (a reference to its shared work) — offer the
@@ -613,7 +613,7 @@
        #(rf/dispatch [::new-set :text %])
        (lbl lang labels :text-ph)
        nil
-       (domain/kind-allows-inputs? (or kind "inference"))
+       (dk/kind-allows-inputs? (or kind "inference"))
        #(rf/dispatch [::new-set :quotes (source/add-quote quotes %)])]
       [source/quotes-list quotes #(rf/dispatch [::new-set :quotes %])]
       (when (= kind "source")

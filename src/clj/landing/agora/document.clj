@@ -7,39 +7,24 @@
   All graph decisions live in the domain; this ns only does the generic I/O on top of the
   shared storage primitives (landing.agora.document-store)."
   (:require
-   [clojure.string                :as str]
-   [landing.agora.db              :as db]
-   [landing.agora.document-domain :as domain]
-   [landing.agora.document-store  :as store]
-   [landing.agora.source          :as source]
-   [landing.language              :as language]))
+   [clojure.string                  :as str]
+   [landing.agora.db                :as db]
+   [landing.agora.document-identity :as di]
+   [landing.agora.document-lineage  :as lineage]
+   [landing.agora.document-store    :as store]
+   [landing.agora.source            :as source]
+   [landing.language                :as language]))
 
-;; Every document's prose lives under one content key, `:text` (older rows used per-type
-;; `:statement`/`:body`, unified here). A document's inputs ARE the `[[ki:…]]` citations in
-;; that text (parsed on write) — an in-text citation is an input edge.
-(defn text-of
-  "A document's prose, from the unified `:text` key — falling back to the legacy
-  per-type keys (`:statement`/`:body`) for rows written before the fields were unified.
-  Those rows migrate to `:text` on their next write (see `normalize-text`)."
-  [content]
-  (or (:text content) (:statement content) (:body content)))
-
-(defn- normalize-text
-  "Fold any prose (`:text`/legacy `:statement`/`:body`) into the single `:text` key and
-  drop the legacy ones, so every written version stores prose under exactly one key."
-  [content]
-  (if-let [t (text-of content)]
-    (-> content
-        (assoc :text t)
-        (dissoc :statement :body))
-    content))
+;; Every document's prose lives under one content key, `:text`. A document's inputs ARE the
+;; `[[ki:…]]` citations in that text (parsed on write) — an in-text citation is an input edge.
 
 (defn- normalize-source
-  "Store `content.:source` as a **reference to a shared source** (`AGORA_SOURCE`): `{:source-id
-  :locator}` — the source id plus this `kind=source` KI's own locator (only source-KIs carry
-  one). The client sends exactly that (plus resolved display fields, which are stripped here);
-  a blank source-id clears it. The source's fields live in `AGORA_SOURCE`, not in the content,
-  so many source-KIs share one source (see landing.agora.source)."
+  "Shape `content.:source` on write: it is a **reference to a shared source** (`AGORA_SOURCE`),
+  `{:source-id :locator}` — the source id plus this `kind=source` KI's own locator. The frontend's
+  `strip-source` already reduces it to that and sends `{:source-id \"\"}` as the explicit **clear**
+  sentinel, turned into `:source nil` here (so a cleared source doesn't persist an empty-id ref).
+  The source's fields live in `AGORA_SOURCE`, not the content, so many source-KIs share one source
+  (see landing.agora.source)."
   [content]
   (let [src (:source content)]
     (cond
@@ -48,14 +33,12 @@
       :else (assoc content :source (select-keys src [:source-id :locator])))))
 
 (def ^:private carried
-  "Immutable content keys carried forward on a new minor (everything authored;
-  `:published-at` is re-stamped each version). The legacy `:statement`/`:body` are kept
-  so a not-yet-migrated old row carries its prose forward — `normalize-text` then folds
-  it into `:text` on write."
+  "Immutable content keys carried forward on a new minor (everything authored; `:published-at` is
+  re-stamped each version)."
   ;; `:source` is a `kind=source` KI's reference to its shared source (`{:source-id :locator}`;
   ;; resolved to the source's fields on read). `:status` is a publication's lifecycle field
   ;; (open/closed) — carried so a publication edit (e.g. a rename → new minor) preserves it.
-  [:kind :title :text :statement :body :author :owner-id :inputs :source :status])
+  [:kind :title :text :author :owner-id :inputs :source :status])
 
 ;; ---------------------------------------------------------------------------
 ;; Read — the endpoint-facing view (generic across types)
@@ -70,7 +53,7 @@
 
 (defn- quote-author-name
   "The work-author of a document's first `kind=source` input — the person a quoting KI's
-  statement is attributed to (`domain/attributed-author`). nil when it quotes none. Used by the
+  statement is attributed to (`document-kind/attributed-author`). nil when it quotes none. Used by the
   discovery `card` (which has bare input TNLRs, not the split `:quotes`)."
   [inputs lang]
   (some (fn [inp]
@@ -115,7 +98,7 @@
        (remove :draft) ; an unpublished successor stays hidden until it is published
        (group-by (juxt :type :name :lang :major))
        vals
-       (mapv (fn [ds] {:id (:id (apply max-key :minor ds))}))))
+       (mapv (fn [ds] {:id (:id (lineage/latest ds))}))))
 
 (defn view
   "Endpoint view of an already-fetched document `doc`: resolved input refs, successor ids,
@@ -125,8 +108,8 @@
   (with their work-author) and the statement is attributed to the first quote's author
   (`:quote-author-name`). Uniform across types."
   [doc]
-  (let [tnlr (domain/tnlr-key doc)
-        {:keys [inputs quotes]} (split-inputs (domain/input-refs (:inputs doc) (:pins doc))
+  (let [tnlr (di/tnlr-key doc)
+        {:keys [inputs quotes]} (split-inputs (di/input-refs (:inputs doc) (:pins doc))
                                               (:lang doc))]
     (-> doc
         (assoc :inputs inputs
@@ -178,27 +161,11 @@
 ;; Write
 ;; ---------------------------------------------------------------------------
 
-(defn- inputs-of
-  "The inputs for a document: the `[[ki:…]]` citations parsed from its `:text`, **plus** any
-  explicit **source quotes** (`content.:quotes` = `[{:name :major}…]`). A source (kind=source)
-  is quoted as an *input edge only* (`domain/kind-quotes-in-text?` is false for it), so it is
-  never written into the prose — it rides in `:quotes` and is merged in here. Whether a
-  document may have inputs at all is a property of its **kind** (`domain/kind-allows-inputs?`),
-  not a per-type branch — a `source` kind is a leaf and takes none, so its inputs stay empty."
-  [_type content _declared lang]
-  (if (domain/kind-allows-inputs? (:kind content))
-    (->> (concat (domain/cite-refs (or (text-of content) "") lang)
-                 (map (fn [{:keys [name major]}]
-                        {:type "ki"
-                         :name name
-                         :lang lang
-                         :major major})
-                      (:quotes content)))
-         distinct
-         vec)
-    []))
+;; A document's inputs are derived from its content (the `[[ki:…]]` citations in the text, plus any
+;; edge-only source `:quotes`) by `landing.agora.document-lineage/inputs-of` — the single home of
+;; that rule, shared with the storage-free corpus. This engine calls it on create/edit.
 
-;; `slugify` / `permalink-slug` / `cid-of` live in `landing.agora.document-domain` (cljc)
+;; `slugify` / `permalink-slug` / `cid-of` live in `landing.agora.document-identity` (cljc)
 ;; so the SPA builds and resolves identical URLs. `gen-cid` needs the DB (uniqueness), so
 ;; it stays here.
 
@@ -236,8 +203,7 @@
                              ;; every edit lands as a draft until Publish
                              :draft? true
                              :publication-id publication-id}
-                            (normalize-source (normalize-text
-                                               (assoc content :published-at (store/now-iso)))))
+                            (normalize-source (assoc content :published-at (store/now-iso))))
     (store/evict-lineage! type name lang major)
     (fetch new-id)))
 
@@ -257,25 +223,23 @@
         lang (or lang language/default-lang)
         author (store/author-name owner-id)
         name (if (str/blank? name) (unique-cid) name)
-        inputs (inputs-of type content (:inputs content) lang)]
-    (store/insert-document! {:id id
-                             :type type
-                             :name name
-                             :lang lang
-                             :major 1
-                             :minor 0
-                             ;; a newly created document starts as a draft until Publish
-                             :draft? true
-                             :publication-id publication-id}
-                            (normalize-source (normalize-text (-> content
-                                                                  ;; `:quotes` is transient — it
-                                                                  ;; is folded into `:inputs`
-                                                                  (dissoc :name :lang :quotes)
-                                                                  (assoc :inputs inputs
-                                                                         :author author
-                                                                         :owner-id owner-id
-                                                                         :published-at
-                                                                         (store/now-iso))))))
+        inputs (lineage/inputs-of content lang)]
+    (store/insert-document!
+     {:id id
+      :type type
+      :name name
+      :lang lang
+      :major 1
+      :minor 0
+      ;; a newly created document starts as a draft until Publish
+      :draft? true
+      :publication-id publication-id}
+     (normalize-source
+      (-> content
+          ;; `:quotes` is transient — it is folded into
+          ;; `:inputs`
+          (dissoc :name :lang :quotes)
+          (assoc :inputs inputs :author author :owner-id owner-id :published-at (store/now-iso)))))
     (store/evict-lineage! type name lang 1)
     (fetch id)))
 
@@ -289,7 +253,7 @@
                         (into {} (remove (comp nil? val) changes))
                         {:author (store/author-name owner-id)
                          :owner-id owner-id})
-          inputs (inputs-of (:type src) merged (:inputs merged) (:lang src))]
+          inputs (lineage/inputs-of merged (:lang src))]
       (new-minor! src
                   (-> merged
                       (assoc :inputs inputs)
@@ -313,8 +277,8 @@
                :name in-name
                :lang lang
                :major in-major}
-            inputs (domain/add-declared (:inputs src) t)]
-        (if (> (count inputs) domain/max-inputs)
+            inputs (di/add-declared (:inputs src) t)]
+        (if (> (count inputs) di/max-inputs)
           :input-limit
           (new-minor! src
                       (merge (select-keys src carried)
@@ -342,13 +306,13 @@
              :name in-name
              :lang lang
              :major in-major}
-          text (text-of src)]
+          text (:text src)]
       (new-minor! src
                   (cond-> (merge (select-keys src carried)
-                                 {:inputs (domain/drop-declared (:inputs src) t)
+                                 {:inputs (di/drop-declared (:inputs src) t)
                                   :author (store/author-name owner-id)
                                   :owner-id owner-id})
-                    text (assoc :text (domain/strip-cite text in-name in-major)))
+                    text (assoc :text (di/strip-cite text in-name in-major)))
                   publication-id))))
 
 (defn translate
@@ -423,7 +387,7 @@
                     lang :lang
                     :as tnlr}]
                 (when-not (store/resolve-latest-id ty nm major lang)
-                  (let [latest (last (store/versions-of (domain/tnlr-key tnlr)))
+                  (let [latest (last (store/versions-of (di/tnlr-key tnlr)))
                         d (some-> (:id latest)
                                   store/fetch-document)]
                     {:type ty
@@ -468,7 +432,7 @@
                   (when-let [d (store/fetch-document id)]
                     {:name name
                      :title (:title d)}))))
-        (domain/cite-refs (or (text-of content) "") lang)))
+        (di/cite-refs (or (:text content) "") lang)))
 
 (defn- card
   "A discovery/search card from a row with a `content` blob — enough to render a preview
@@ -483,7 +447,7 @@
            :kind (:kind c)
            :title (:title c)
            :cite-titles (cite-titles c (:lang row))
-           :text (text-of c)
+           :text (:text c)
            :author (:author c)
            :author-id (:owner-id c)
            :source (source/resolve-ref (:source c))
@@ -503,7 +467,7 @@
      store/kebab)
     (group-by (juxt :type :name :lang :major))
     vals
-    (mapv (comp card #(apply max-key :minor %)))
+    (mapv (comp card lineage/latest))
     (sort-by :published-at #(compare %2 %1))
     vec))
 
@@ -826,7 +790,7 @@
      (`AGORA_SUCCESSOR`) still points at a deleted document version (see
      `successor-cache-issues`), reported against the cited lineage.
 
-  (A source having inputs is not scanned for — it is structurally impossible: `inputs-of`
+  (A source having inputs is not scanned for — it is structurally impossible: `lineage/inputs-of`
   forces a `type=source` document's inputs to `[]`, so the quotation feature never applies.)
 
   Runs over current *and* former versions. Returns a vector of
@@ -852,9 +816,9 @@
           (fn [row]
             (let [c (store/decode-content (:content row))
                   lang (:lang row)
-                  text (text-of c)
+                  text (:text c)
                   self [(:type row) (:name row) (:major row)]
-                  refs (distinct (concat (:inputs c) (domain/cite-refs (or text "") lang)))
+                  refs (distinct (concat (:inputs c) (di/cite-refs (or text "") lang)))
                   broken (->> refs
                               (remove (fn [r] (existing (ref-id r))))
                               (map #(select-keys % [:name :major :lang]))
