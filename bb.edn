@@ -39,7 +39,7 @@
             :requires [[auto-build.tasks.clj-test :as build-clj-test]]
             :task (some->> ["test-clj"]
                            ;; `:agora-cli` puts env/cli on the classpath so the corpus tool test (which lives
-                           ;; in test/unit/clj and requires landing.agora.corpus from env/cli) resolves.
+                           ;; in test/unit/clj and requires landing.agora.document.corpus from env/cli) resolves.
                            (build-clj-test/clj-test level1-header
                                                     "."
                                                     "clj-test-runner:env-dev:agora-cli"

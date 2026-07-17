@@ -47,10 +47,11 @@
                     (seq pre) (conj pre))]
           (recur (+ idx (.-length whole))
                  (conj out
-                       {:name (aget m 1)
-                        :lang (aget m 2)
-                        :major (js/parseInt (aget m 3))
-                        :text (aget m 4)})))
+                       {:type (aget m 1)
+                        :name (aget m 2)
+                        :lang (aget m 3)
+                        :major (js/parseInt (aget m 4))
+                        :text (aget m 5)})))
         (let [tail (subs s pos)]
           (cond-> out
             (seq tail) (conj tail)))))))
@@ -355,7 +356,9 @@
                   (when-let [el @node]
                     ;; the target form carries the language (`[[ki:name:lang@major]]`); fall back
                     ;; to the bare form only if the picked KI somehow has no language
-                    (let [tag (str "[[ki:"
+                    (let [tag (str "[["
+                                   (or (:type ki) "ki")
+                                   ":"
                                    (:name ki)
                                    (when (:lang ki) (str ":" (:lang ki)))
                                    "@"

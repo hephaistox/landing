@@ -178,7 +178,9 @@
   token becomes its custom text (or the humanized KI name), so the description reads
   naturally instead of showing raw tokens."
   [body]
-  (str/replace (or body "") di/cite-pattern (fn [[_ nm _lang _major txt]] (or txt (humanize nm)))))
+  (str/replace (or body "")
+               di/cite-pattern
+               (fn [[_ _type nm _lang _major txt]] (or txt (humanize nm)))))
 
 (defn article-head
   "SEO `<head>` for an article permalink: title, description (from the body), canonical +
@@ -319,9 +321,9 @@
   an `<a>` to that KI's permalink (text = the custom label, else the humanized name). The link
   targets the citation's own language when the token carries one, else the citing doc's `lang`."
   [base lang]
-  (fn [[_ nm lang-tok mj txt]]
+  (fn [[_ tp nm lang-tok mj txt]]
     (str "<a href=\""
-         (esc (str base "/agora/" (or lang-tok lang) "/ki/" (enc nm) "/" mj))
+         (esc (str base "/agora/" (or lang-tok lang) "/" (or tp "ki") "/" (enc nm) "/" mj))
          "\">"
          (esc (or txt (humanize nm)))
          "</a>")))
@@ -363,7 +365,7 @@
   "A list item linking to a neighbouring document's permalink."
   [base {:keys [type name lang major title]}]
   (str "<li><a href=\""
-       (esc (str base "/agora/" lang "/" (or type "ki") "/" (key-of name title) "/" major))
+       (esc (str base "/agora/" lang "/" (name (or type :ki)) "/" (key-of name title) "/" major))
        "\">"
        (esc (if (str/blank? title) (humanize name) title))
        "</a></li>"))

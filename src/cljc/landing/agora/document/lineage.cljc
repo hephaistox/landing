@@ -1,21 +1,30 @@
 (ns landing.agora.document.lineage
-  "The **lineage** layer of the Agora domain — the pure operations over versions: within *a
-  lineage's set of minors* (resolve which minor is current, compute the next, construct the next
-  on create / edit / publish) and, at the end, over *a whole corpus of versions* spanning many
-  lineages (resolve a TNLR, resolve a document's inputs, a publication's members). It sits above
-  `document.identity` (TNLR + citation grammar) and `document.kind` (which kinds may take inputs),
-  and it is the single home of the rule **a version's text determines its inputs**.
+  "The **lineage** layer scoped to *a lineage's set of minors* (resolve which minor is current,
+  compute the next, construct the next on create / edit / publish) plus the referential-integrity rules.
+  It sits above `document.identity`(TNLR + citation grammar) and `document.kind` (which kinds may take
+  inputs), and it is the single home of the rule **a version's text determines its inputs**.
 
-  Storage is an adapter *below* this: the DB (or an in-memory corpus) returns a lineage's minors
-  — a plain seq of version maps — and this namespace resolves + constructs over them. So the
-  SQL-backed engine (`landing.agora.document`) and the EDN-backed `corpus` call the very same
-  functions; only *how the minors are fetched* differs. No I/O here — the caller supplies any
-  I/O-sourced fields (author name, timestamp, a fresh id) and persists the result."
+  Storage is an adapter *below* this: a holder (the DB via a `WHERE`, or an in-memory corpus via a
+  scan) narrows to a lineage's minors — a plain seq of version maps — and this namespace resolves +
+  constructs over them. Whole-corpus graph queries (resolve a TNLR, a document's inputs, a
+  publication's members) are the *holder's* composition of these rules, not part of this layer. No
+  I/O here — the caller supplies any I/O-sourced fields (author name, timestamp, a fresh id) and
+  persists the result."
   (:require
    [landing.agora.document.identity :as di]
    [landing.agora.document.kind     :as dk]))
 
 ;; --- content & the input-derivation rule -------------------------------------
+
+(def carried
+  "The content keys that constitute a document and **carry forward onto a new minor** —
+  everything authored, plus the derived `:inputs` and the provenance `:author`/`:owner-id`;
+  `:status` is a publication's lifecycle field, carried so a rename preserves open/closed.
+  Excludes per-version identity (`:major`/`:minor`/`:id`), the derived `:pins`, and
+  `:published-at` (re-stamped each version). A storage adapter selects these from a persisted
+  row to carry an edit forward; the caller re-stamps the timestamp and reassigns identity.
+  (`:source` is a `kind=source` KI's reference to its shared source, resolved on read.)"
+  [:kind :title :text :author :owner-id :inputs :source :status])
 
 (defn inputs-of
   "The input TNLRs of a version, **derived from its content**: the `[[ki:…]]` citations in its
@@ -26,7 +35,7 @@
   (if (dk/kind-allows-inputs? (:kind content))
     (->> (concat (di/cite-refs (:text content) lang)
                  (map (fn [{:keys [name major]}]
-                        {:type "ki"
+                        {:type :ki
                          :name name
                          :lang lang
                          :major major})
@@ -55,6 +64,13 @@
   "The minor a new version would take: one past the highest in `minors`, or 0 if empty."
   [minors]
   (if (seq minors) (inc (:minor (latest-with-drafts minors))) 0))
+
+(defn draft-in-publication
+  "The lineage's own **draft in publication `pub-id`** — its latest draft minor tagged with that
+  publication — or nil. Pure over the lineage's `minors` (each carrying `:draft`/`:publication-id`);
+  the holder fetches the minors, this rule picks."
+  [minors pub-id]
+  (latest-with-drafts (filter #(and (:draft %) (= (:publication-id %) pub-id)) minors)))
 
 ;; --- lifecycle constructors (pure) -------------------------------------------
 ;; Each returns a new version *value*. The text drives the inputs; the caller adds any
@@ -95,67 +111,14 @@
   [publication members]
   (into [(assoc publication :status "closed" :draft false)] (map #(assoc % :draft false)) members))
 
-;; --- graph over a corpus of versions -----------------------------------------
-;; Everything above operates on ONE lineage's minors. These operate on a whole `corpus` — a
-;; collection of versions spanning many lineages (the EDN vector, or a DB result set) passed as
-;; plain data. They are the rules the in-memory corpus runs directly; the SQL engine implements
-;; the same rules as indexed queries.
-
-(defn resolve-latest
-  "The current version of lineage `tnlr` within `corpus` (a collection spanning many lineages) —
-  narrow to the lineage, then `latest-with-drafts`. nil if absent."
-  [corpus tnlr]
-  (latest-with-drafts (filter #(di/same-tnlr? % tnlr) corpus)))
+;; --- a version's declared inputs ---------------------------------------------
 
 (defn declared-inputs
   "A version's declared inputs — its `:inputs` (derived from the text at create/edit time and
-  stored on the version). Empty for a leaf or a publication."
+  stored on the version). Empty for a leaf or a publication. Resolving each against a holder (the
+  corpus, the DB) is the caller's concern."
   [doc]
   (vec (:inputs doc)))
-
-(defn resolved-inputs
-  "Each declared input of `doc`, resolved against `corpus`: `[{:tnlr … :doc <current|nil>} …]`. A
-  nil `:doc` is a dangling reference (no such lineage in this language)."
-  [corpus doc]
-  (->> doc
-       declared-inputs
-       (mapv (fn [t]
-               {:tnlr t
-                :doc (resolve-latest corpus t)}))))
-
-(defn publication-of
-  "The publication `doc` belongs to — its `:publication` TNLR resolved in `corpus`, or nil (a
-  document created outside any publication)."
-  [corpus doc]
-  (some->> (:publication doc)
-           (resolve-latest corpus)))
-
-(defn members
-  "The documents belonging to publication `pub` — every lineage whose `:publication` link points
-  at `pub`, each at its current version, sorted. The publication's modified set, keyed by the
-  provenance edge (not the reasoning graph)."
-  [corpus pub]
-  (->> corpus
-       (filter #(some-> (:publication %)
-                        (di/same-tnlr? pub)))
-       (map #(resolve-latest corpus (di/tnlr %)))
-       (distinct)
-       (sort-by (juxt :type :name))))
-
-(defn latest-lineages
-  "The current version of every distinct lineage in `corpus`, sorted for a stable listing."
-  [corpus]
-  (->> corpus
-       (map di/tnlr)
-       (distinct)
-       (map #(resolve-latest corpus %))
-       (sort-by (juxt :type :name :lang))))
-
-(defn resolve-latest-published
-  "The highest **published** (non-draft) minor of lineage `tnlr` within `corpus`, or nil (a
-  draft-only lineage)."
-  [corpus tnlr]
-  (latest-published (filter #(di/same-tnlr? % tnlr) corpus)))
 
 ;; --- referential-integrity rules ---------------------------------------------
 ;; The publish invariant and the consistency scan, as pure rules. The caller supplies the graph
@@ -188,3 +151,21 @@
                     (vec)))]
     {:broken (pick (remove #(existing (ref-id %)) refs))
      :self (pick (filter #(= (ref-id %) self) refs))}))
+
+(defn consistency-issues
+  "The reference-consistency issues across `docs` — a collection of document *versions*, each an
+  identity + content map (`:id :type :name :lang :major :minor :title :inputs :text`) — given
+  `existing`, the set of live lineage keys `[type name major]`. One entry per version that has a
+  broken or self reference (`ref-issues`), shaped for display:
+  `{:id :type :name :lang :major :minor :title :broken […] :self […]}` (`:id` pins the exact
+  version for a deep link). Pure — the caller supplies the versions and the live-lineage set: the
+  SQL engine reads them in two queries, a corpus scans its vector."
+  [docs existing]
+  (->> docs
+       (keep (fn [doc]
+               (let [{:keys [broken self]} (ref-issues doc existing)]
+                 (when (or (seq broken) (seq self))
+                   (assoc (select-keys doc [:id :type :name :lang :major :minor :title])
+                          :broken broken
+                          :self self)))))
+       vec))

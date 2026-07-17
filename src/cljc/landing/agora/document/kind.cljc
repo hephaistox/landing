@@ -1,26 +1,18 @@
 (ns landing.agora.document.kind
-  "The Agora document **register**: a document's `kind` (its epistemic/rhetorical family and the
-  capabilities that follow from it), the kind-guided statement scaffold, and prose block structure
-  — the pure, shared (cljc) rules for what a document *is* and how its prose renders. No I/O and no
-  persistence format.
-
-  Identity, linking and resolution — the TNLR, the cid/slug, inputs, pins, successors and the
-  citation grammar — live in `landing.agora.document.identity`; the two namespaces do not depend on
-  each other. Effectful lookups (`latest-of`, load, persist) and EDN (de)serialization are supplied
-  by `landing.agora.document` on the server and the SPA on the client — adapters *around* this
-  core, so the rules live in exactly one place and one technology."
+  "The Agora document **register** of `kind` (it's an epistemic/rhetorical family and the
+  capabilities that follow from it)."
   (:require
    [clojure.string :as str]))
 
 (def kinds
-  "The document `kind`s — canonical domain data for a document's kind, in display order and
-  **partitioned by object type**. *KI* kinds sit on an epistemic axis (*how is this known?* —
-  inference / prediction / definition / belief / assumption, plus `source`); *article* kinds sit
-  on a rhetorical axis (*what is this prose doing?* — `explainer` today, evangelism /
-  call-to-action later). Each kind declares its **capabilities and presentation as data**, so
+  "For a ki, the document `kind`s is inference / prediction / definition / belief / assumption, plus `source`);
+  For an *article*, kind sit on a rhetorical axis (*what is this prose doing?* — `explainer` `evangelism`).
+
+  Each kind declares its **capabilities and presentation as data**, so
   consumers (backend + UI) read a field rather than branching on a specific kind:
-   - `:object-type` — which document type carries it (`\"ki\"` / `\"article\"`); drives the
-     per-type kind enum and selector (`kind-ids-of`).
+   - `:object-type` — which document type carries it (`:ki` / `:article`, the same keyword
+     values as `identity/object-types`); drives the per-type kind enum and selector
+     (`kind-ids-of`).
    - `:color`  — accent colour.
    - `:inputs?` — **may a document of this kind take inputs** (in-text `[[ki:…]]` citations)? A
      `source` is a leaf work and takes none; everything else does. This one flag drives both
@@ -32,75 +24,56 @@
   [{:id :inference
     :color "#2c5aa0"
     :inputs? true
-    :object-type "ki"
+    :object-type :ki
     :def-name "type-inference"
     :def-major 1}
    {:id :prediction
     :color "#0b7285"
     :inputs? true
-    :object-type "ki"
+    :object-type :ki
     :def-name "type-prediction"
     :def-major 1}
    {:id :definition
     :color "#a61e8c"
     :inputs? true
-    :object-type "ki"
+    :object-type :ki
     :def-name "type-definition"
     :def-major 1}
-   ;; The declared-foundation kinds are deliberately just two, a decidable binary: a `belief` is
-   ;; a foundation you **hold/commit to** (any register — personal, civic or formal); an
-   ;; `assumption` is one you **suppose provisionally**. (An earlier `postulate`/`position`/
-   ;; `credo` split was dropped as mechanically identical and hard to choose between.)
    {:id :belief
     :color "#2b8a3e"
     :inputs? true
-    :object-type "ki"
+    :object-type :ki
     :def-name "type-belief"
     :def-major 1}
    {:id :assumption
     :color "#e8590c"
     :inputs? true
-    :object-type "ki"
+    :object-type :ki
     :def-name "type-assumption"
     :def-major 1}
-   ;; --- annotation kinds: they relate to another claim rather than *deriving* one ---
-   ;; `illustration` gives a concrete example of a claim (no reasoning implication — nothing
-   ;; follows from it); `counter-example` refutes a *general* claim with one contradicting
-   ;; instance ("Einstein is smart" vs "all people are dumb"), forcing it to narrow or withdraw.
    {:id :illustration
     :color "#1098ad"
     :inputs? true
-    :object-type "ki"
+    :object-type :ki
     :def-name "type-illustration"
     :def-major 1}
    {:id :counter-example
     :color "#e03131"
     :inputs? true
-    :object-type "ki"
+    :object-type :ki
     :def-name "type-counter-example"
     :def-major 1}
-   ;; `source` is the kind of a bibliographic **quotation** KI (one idea/quote from a shared
-   ;; book in `AGORA_SOURCE`; see landing.agora.source). **No inputs** (a quotation quotes
-   ;; nothing further); `:in-text? false` — when a KI quotes a source, the citation is an
-   ;; *input edge only*, never written into the prose (see `kind-quotes-in-text?`); no statement
-   ;; scaffold (a source isn't "<author> <verb> that …"); self-hosted by a `type-source`
-   ;; definition KI.
    {:id :source
     :color "#495057"
     :inputs? false
     :in-text? false
-    :object-type "ki"
+    :object-type :ki
     :def-name "type-source"
     :def-major 1}
-   ;; --- article kinds (rhetorical axis: what is the prose doing?) ---
-   ;; `explainer` is the neutral base — an article that lays out and links the graph's claims
-   ;; into readable prose (informing, not advocating). Future article kinds (evangelism,
-   ;; call-to-action…) join here. Self-hosted by a `type-explainer` definition KI like the KI
-   ;; kinds, so it gets the same badge → definition affordance.
    {:id :explainer
     :color "#6741d9"
     :inputs? true
-    :object-type "article"
+    :object-type :article
     :def-name "type-explainer"
     :def-major 1}])
 
@@ -109,9 +82,11 @@
   (mapv :id kinds))
 
 (defn kinds-of
-  "The kinds declared for object type `object-type` (\"ki\" / \"article\"), in display order."
+  "The kinds declared for object type `object-type` (`:ki` / `:article`), in display order.
+  Coerces its argument to a keyword, so a string type from the DB/API boundary (`\"ki\"`) is
+  accepted just as the keyword is."
   [object-type]
-  (filterv #(= object-type (:object-type %)) kinds))
+  (let [ot (keyword object-type)] (filterv #(= ot (:object-type %)) kinds)))
 
 (defn kind-ids-of
   "The kind ids (keywords) for `object-type`, in display order; the **first is that type's
@@ -128,11 +103,7 @@
   (into {} (map (juxt (comp name :id) :inputs?)) kinds))
 
 (defn kind-allows-inputs?
-  "May a document of `kind` have inputs (in-text `[[ki:…]]` citations)? The single source of
-  this rule: it reads the kind's `:inputs?` field, so neither the backend (input derivation)
-  nor the UI (whether to show the quotation feature) branches on a specific kind. An
-  absent/unknown kind (e.g. an article, which has none) defaults to **yes** — only a kind that
-  declares `:inputs? false` (a source) is inputless."
+  "May a document of `kind` have inputs (in-text `[[ki:…]]` citations)?"
   [kind]
   (not (false? (get kind-inputs? kind))))
 
@@ -142,9 +113,7 @@
 
 (defn kind-quotes-in-text?
   "When a KI quotes a document of `kind`, is the citation written **into the prose** (an inline
-  `[[ki:…]]` token, the default) or recorded as an **input edge only**? Reads the quoted kind's
-  `:in-text?` field, so the citation UI + input derivation don't branch on a specific kind. An
-  absent/unknown kind defaults to **in-text** — only `:in-text? false` (a source) is edge-only."
+  `[[ki:…]]` token, the default) or recorded as an **input edge only**?"
   [kind]
   (not (false? (get kind-in-text? kind))))
 
@@ -157,7 +126,7 @@
   (into {}
         (map (juxt (comp name :id)
                    (fn [{:keys [def-name def-major]}]
-                     {:type "ki"
+                     {:type :ki
                       :name def-name
                       :major def-major})))
         kinds))
@@ -175,17 +144,17 @@
   "kind (string) → {:subject :author|:term, :phrase {lang → connector}} — the scaffold for
   that kind's statement opening. Absent for the open `inference` (free-form)."
   {"belief" {:subject :author
-             :phrase {"en" "believes that"
-                      "fr" "croit que"}}
+             :phrase {:en "believes that"
+                      :fr "croit que"}}
    "assumption" {:subject :author
-                 :phrase {"en" "assumes that"
-                          "fr" "suppose que"}}
+                 :phrase {:en "assumes that"
+                          :fr "suppose que"}}
    "prediction" {:subject :author
-                 :phrase {"en" "predicts that"
-                          "fr" "prédit que"}}
+                 :phrase {:en "predicts that"
+                          :fr "prédit que"}}
    "definition" {:subject :term
-                 :phrase {"en" "designates"
-                          "fr" "désigne"}}})
+                 :phrase {:en "designates"
+                          :fr "désigne"}}})
 
 (defn statement-subject-kind
   "Whether `kind`'s prefix subject is the `:author` or the `:term`, or nil for a free-form
@@ -203,7 +172,7 @@
   (definition). E.g. (\"belief\" \"en\" \"Sun Tzŭ\") → \"Sun Tzŭ believes that \"."
   [kind lang subject]
   (when-let [{:keys [phrase]} (get statement-say kind)]
-    (when-let [connector (or (get phrase lang) (get phrase "en"))]
+    (when-let [connector (or (get phrase lang) (get phrase :en))]
       (when-not (str/blank? subject) (str (cap-first subject) " " connector " ")))))
 
 (defn attributed-author

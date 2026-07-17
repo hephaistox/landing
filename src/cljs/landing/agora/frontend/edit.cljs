@@ -300,22 +300,24 @@
 
 (rf/reg-event-db ::consequence-set-title (fn [db [_ v]] (assoc-in db [::consequence :title] v)))
 
-(rf/reg-event-fx ::consequence-create
-                 (fn [{:keys [db]} [_ parent]]
-                   (let [title (get-in db [::consequence :title])]
-                     (when-not (str/blank? title)
-                       {:db (assoc-in db [::consequence :creating?] true)
-                        :fetch (json-req :post
-                                         "/agora/api/ki"
-                                         ;; seed the new KI's text with a citation of the parent → parent becomes
-                                         ;; its input. Same content language as the parent so the edge resolves.
-                                         {:title title
-                                          :kind "inference"
-                                          :lang (:lang parent)
-                                          :text
-                                          (str "[[ki:" (:name parent) "@" (:major parent) "]]")}
-                                         [::consequence-created]
-                                         [::consequence-failed])}))))
+(rf/reg-event-fx
+ ::consequence-create
+ (fn [{:keys [db]} [_ parent]]
+   (let [title (get-in db [::consequence :title])]
+     (when-not (str/blank? title)
+       {:db (assoc-in db [::consequence :creating?] true)
+        :fetch (json-req
+                :post
+                "/agora/api/ki"
+                ;; seed the new KI's text with a citation of the parent → parent becomes
+                ;; its input. Same content language as the parent so the edge resolves.
+                {:title title
+                 :kind "inference"
+                 :lang (:lang parent)
+                 :text
+                 (str "[[" (or (:type parent) "ki") ":" (:name parent) "@" (:major parent) "]]")}
+                [::consequence-created]
+                [::consequence-failed])}))))
 
 (rf/reg-event-db ::consequence-created
                  (fn [db [_ resp]]

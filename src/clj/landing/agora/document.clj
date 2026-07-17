@@ -9,6 +9,7 @@
   (:require
    [clojure.string                  :as str]
    [landing.agora.db                :as db]
+   [landing.agora.document.db-store :as dbs]
    [landing.agora.document.identity :as di]
    [landing.agora.document.lineage  :as lineage]
    [landing.agora.document.store    :as store]
@@ -32,14 +33,6 @@
       (str/blank? (:source-id src)) (assoc content :source nil) ;; explicit clear
       :else (assoc content :source (select-keys src [:source-id :locator])))))
 
-(def ^:private carried
-  "Immutable content keys carried forward on a new minor (everything authored; `:published-at` is
-  re-stamped each version)."
-  ;; `:source` is a `kind=source` KI's reference to its shared source (`{:source-id :locator}`;
-  ;; resolved to the source's fields on read). `:status` is a publication's lifecycle field
-  ;; (open/closed) — carried so a publication edit (e.g. a rename → new minor) preserves it.
-  [:kind :title :text :author :owner-id :inputs :source :status])
-
 ;; ---------------------------------------------------------------------------
 ;; Read — the endpoint-facing view (generic across types)
 ;; ---------------------------------------------------------------------------
@@ -48,7 +41,7 @@
   "Fetch the document an input ref points at — by its pinned `:id` if resolved, else by
   resolving (type, name, major) in `lang`. nil if unknown."
   [{:keys [id type name major]} lang]
-  (when-let [id (or id (store/resolve-latest-id (or type "ki") name major lang))]
+  (when-let [id (or id (store/resolve-latest-id (or type :ki) name major lang))]
     (store/fetch-document id)))
 
 (defn- quote-author-name
@@ -119,7 +112,7 @@
                ;; resolve the source *reference* to the shared work's display fields
                :source (source/resolve-ref (:source doc))
                :successors (successor-refs tnlr)
-               :versions (store/versions-of tnlr)
+               :versions (store/documents (:type doc) (:name doc) (:lang doc) (:major doc))
                :translations (store/translations-of (:type doc) (:name doc) (:lang doc)))
         (dissoc :owner-id :pins))))
 
@@ -193,7 +186,7 @@
   until `publish!` promotes this one."
   [src content publication-id]
   (let [{:keys [type name lang major]} src
-        new-id (store/uuid)]
+        new-id (dbs/uuid)]
     (store/insert-document! {:id new-id
                              :type type
                              :name name
@@ -203,7 +196,7 @@
                              ;; every edit lands as a draft until Publish
                              :draft? true
                              :publication-id publication-id}
-                            (normalize-source (assoc content :published-at (store/now-iso))))
+                            (normalize-source (assoc content :published-at (dbs/now-iso))))
     (store/evict-lineage! type name lang major)
     (fetch new-id)))
 
@@ -219,7 +212,7 @@
    {:keys [name lang]
     :as content}
    publication-id]
-  (let [id (store/uuid)
+  (let [id (dbs/uuid)
         lang (or lang language/default-lang)
         author (store/author-name owner-id)
         name (if (str/blank? name) (unique-cid) name)
@@ -239,7 +232,7 @@
           ;; `:quotes` is transient — it is folded into
           ;; `:inputs`
           (dissoc :name :lang :quotes)
-          (assoc :inputs inputs :author author :owner-id owner-id :published-at (store/now-iso)))))
+          (assoc :inputs inputs :author author :owner-id owner-id :published-at (dbs/now-iso)))))
     (store/evict-lineage! type name lang 1)
     (fetch id)))
 
@@ -249,7 +242,7 @@
   `id` is unknown."
   [id owner-id changes publication-id]
   (when-let [src (store/fetch-document id)]
-    (let [merged (merge (select-keys src carried)
+    (let [merged (merge (select-keys src lineage/carried)
                         (into {} (remove (comp nil? val) changes))
                         {:author (store/author-name owner-id)
                          :owner-id owner-id})
@@ -267,26 +260,28 @@
   [id
    owner-id
    {in-name :name
-    in-major :major}
+    in-major :major
+    in-type :type}
    publication-id]
-  (when-let [{:keys [type lang]
+  (when-let [{:keys [lang]
               :as src}
              (store/fetch-document id)]
-    (if (store/resolve-latest-id type in-name in-major lang)
-      (let [t {:type type
-               :name in-name
-               :lang lang
-               :major in-major}
-            inputs (di/add-declared (:inputs src) t)]
-        (if (> (count inputs) di/max-inputs)
-          :input-limit
-          (new-minor! src
-                      (merge (select-keys src carried)
-                             {:inputs inputs
-                              :author (store/author-name owner-id)
-                              :owner-id owner-id})
-                      publication-id)))
-      (fetch id))))
+    (let [ty (or in-type :ki)]
+      (if (store/resolve-latest-id ty in-name in-major lang)
+        (let [t {:type ty
+                 :name in-name
+                 :lang lang
+                 :major in-major}
+              inputs (di/add-declared-input (:inputs src) t)]
+          (if (> (count inputs) di/max-inputs)
+            :input-limit
+            (new-minor! src
+                        (merge (select-keys src lineage/carried)
+                               {:inputs inputs
+                                :author (store/author-name owner-id)
+                                :owner-id owner-id})
+                        publication-id)))
+        (fetch id)))))
 
 (defn drop-input
   "Remove the declared input `input` (name+major) from document `id` → a new minor.
@@ -297,22 +292,27 @@
   [id
    owner-id
    {in-name :name
-    in-major :major}
+    in-major :major
+    in-type :type}
    publication-id]
-  (when-let [{:keys [type lang]
+  (when-let [{:keys [lang]
               :as src}
              (store/fetch-document id)]
-    (let [t {:type type
+    ;; A dropped input is the cited document, so its TNLR (and the citation stripped from the text)
+    ;; carry the *input's* type — threaded from the request, defaulting to `:ki` — not the editing
+    ;; doc's type.
+    (let [ty (or in-type :ki)
+          t {:type ty
              :name in-name
              :lang lang
              :major in-major}
           text (:text src)]
       (new-minor! src
-                  (cond-> (merge (select-keys src carried)
-                                 {:inputs (di/drop-declared (:inputs src) t)
+                  (cond-> (merge (select-keys src lineage/carried)
+                                 {:inputs (di/drop-declared-input (:inputs src) t)
                                   :author (store/author-name owner-id)
                                   :owner-id owner-id})
-                    text (assoc :text (di/strip-cite text in-name in-major)))
+                    text (assoc :text (di/strip-cite text t)))
                   publication-id))))
 
 (defn translate
@@ -332,7 +332,7 @@
                     (when-not (store/lang-exists? type in-name in-major to-lang)
                       (when-let [s (store/fetch-document
                                     (store/resolve-latest-id type in-name in-major in-lang))]
-                        (store/insert-document! {:id (store/uuid)
+                        (store/insert-document! {:id (dbs/uuid)
                                                  :type type
                                                  :name in-name
                                                  :lang to-lang
@@ -340,36 +340,36 @@
                                                  :minor 0
                                                  :draft? true
                                                  :publication-id publication-id}
-                                                (merge (select-keys s carried)
+                                                (merge (select-keys s lineage/carried)
                                                        {:inputs []
                                                         :author author
                                                         :owner-id owner-id
-                                                        :published-at (store/now-iso)}))
+                                                        :published-at (dbs/now-iso)}))
                         (store/evict-lineage! type in-name to-lang in-major)))
                     {:type type
                      :name in-name
                      :lang to-lang
                      :major in-major})
                   (:inputs src))]
-        (store/insert-document! {:id (store/uuid)
-                                 :type type
-                                 :name name
-                                 :lang to-lang
-                                 :major major
-                                 :minor 0
-                                 ;; a translation lands as a draft (with its input siblings) until Publish
-                                 :draft? true
-                                 :publication-id publication-id}
-                                ;; keep only content keys from `overrides` — the caller passes
-                                ;; the whole request body, whose `:lang` is the *target* language
-                                ;; (identity), not content, and must not leak into the blob
-                                (merge
-                                 (select-keys src carried)
-                                 (into {} (remove (comp nil? val) (select-keys overrides carried)))
-                                 {:inputs declarations
-                                  :author author
-                                  :owner-id owner-id
-                                  :published-at (store/now-iso)}))
+        (store/insert-document!
+         {:id (dbs/uuid)
+          :type type
+          :name name
+          :lang to-lang
+          :major major
+          :minor 0
+          ;; a translation lands as a draft (with its input siblings) until Publish
+          :draft? true
+          :publication-id publication-id}
+         ;; keep only content keys from `overrides` — the caller passes
+         ;; the whole request body, whose `:lang` is the *target* language
+         ;; (identity), not content, and must not leak into the blob
+         (merge (select-keys src lineage/carried)
+                (into {} (remove (comp nil? val) (select-keys overrides lineage/carried)))
+                {:inputs declarations
+                 :author author
+                 :owner-id owner-id
+                 :published-at (dbs/now-iso)}))
         (store/evict-lineage! type name to-lang major)))
     (fetch-by-major type name major to-lang)))
 
@@ -382,9 +382,8 @@
   (->> (lineage/pending? inputs
                          (fn [{:keys [type name major lang]}]
                            (some? (store/resolve-latest-id type name major lang))))
-       (mapv (fn [{:keys [type name major lang]
-                   :as tnlr}]
-               (let [latest (last (store/versions-of (di/tnlr-key tnlr)))
+       (mapv (fn [{:keys [type name major lang]}]
+               (let [latest (last (store/documents type name lang major))
                      d (some-> (:id latest)
                                store/fetch-document)]
                  {:type type
@@ -424,7 +423,7 @@
   [content lang]
   (into []
         (keep (fn [{:keys [name major]}]
-                (when-let [id (store/resolve-latest-id "ki" name major lang)]
+                (when-let [id (store/resolve-latest-id :ki name major lang)]
                   (when-let [d (store/fetch-document id)]
                     {:name name
                      :title (:title d)}))))
@@ -437,9 +436,9 @@
   the cited author; when there is none, the byline `:author` is the document's own author.
   `:cite-titles` resolves the excerpt's citations to titles (names are opaque cids)."
   [row]
-  (let [c (store/decode-content (:content row))]
+  (let [c (dbs/decode-content (:content row))]
     (assoc (select-keys row [:id :type :name :lang :major :minor])
-           :draft (store/truthy? (:draft row))
+           :draft (dbs/truthy? (:draft row))
            :kind (:kind c)
            :title (:title c)
            :cite-titles (cite-titles c (:lang row))
@@ -455,12 +454,12 @@
   tagged minor (drafts included), newest first — so the publication page renders like discover."
   [pub-id]
   (->>
-    (store/q!
+    (dbs/q!
      db/ds
      ["SELECT id, type, name, lang, major, minor, draft, content, published_at
                     FROM AGORA_DOCUMENT WHERE publication_id = ?"
       pub-id]
-     store/kebab)
+     dbs/kebab)
     (group-by (juxt :type :name :lang :major))
     vals
     (mapv (comp card lineage/latest-with-drafts))
@@ -476,7 +475,7 @@
     (let [like (str "%" q "%")]
       (mapv
        card
-       (store/q!
+       (dbs/q!
         db/ds
         ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content FROM AGORA_DOCUMENT k
                 WHERE k.type = ? AND k.lang = ? AND k.draft = 0
@@ -489,7 +488,7 @@
          lang
          like
          like]
-        store/kebab)))))
+        dbs/kebab)))))
 
 (defn list-recent
   "Latest-minor documents of `type` in `lang`, most recent first (the discover feed). By
@@ -502,7 +501,7 @@
    (let [df (if include-drafts? "" " AND a.draft = 0")
          df2 (if include-drafts? "" " AND a2.draft = 0")]
      (->>
-       (store/q!
+       (dbs/q!
         db/ds
         [(str
           "SELECT a.id, a.type, a.name, a.lang, a.major, a.minor, a.draft, a.content
@@ -517,7 +516,7 @@
           ")")
          type
          lang]
-        store/kebab)
+        dbs/kebab)
        (mapv card)
        (sort-by :published-at #(compare %2 %1))
        vec))))
@@ -529,7 +528,7 @@
   `content LIKE` prefilter, confirmed on decode."
   [author-id lang]
   (->>
-    (store/q!
+    (dbs/q!
      db/ds
      ["SELECT k.id, k.type, k.name, k.lang, k.major, k.minor, k.draft, k.content
             FROM AGORA_DOCUMENT k
@@ -539,8 +538,8 @@
                               AND k2.major = k.major AND k2.lang = k.lang)"
       lang
       (str "%" author-id "%")]
-     store/kebab)
-    (filter #(= author-id (:owner-id (store/decode-content (:content %)))))
+     dbs/kebab)
+    (filter #(= author-id (:owner-id (dbs/decode-content (:content %)))))
     (mapv card)))
 
 (defn- sourced-by
@@ -553,13 +552,13 @@
   [author-id lang]
   (let [source-ids (into #{}
                          (map :id)
-                         (store/q! db/ds
-                                   ["SELECT id FROM AGORA_SOURCE WHERE person_id = ?" author-id]
-                                   store/kebab))]
+                         (dbs/q! db/ds
+                                 ["SELECT id FROM AGORA_SOURCE WHERE person_id = ?" author-id]
+                                 dbs/kebab))]
     (if (empty? source-ids)
       []
       (->>
-        (store/q!
+        (dbs/q!
          db/ds
          ["SELECT DISTINCT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
                 FROM AGORA_DOCUMENT k
@@ -571,8 +570,8 @@
                                   AND k2.major = k.major AND k2.lang = k.lang AND k2.draft = 0)"
           author-id
           lang]
-         store/kebab)
-        (filter (fn [r] (source-ids (:source-id (:source (store/decode-content (:content r)))))))
+         dbs/kebab)
+        (filter (fn [r] (source-ids (:source-id (:source (dbs/decode-content (:content r)))))))
         (mapv card)))))
 
 (defn by-author
@@ -591,116 +590,34 @@
                          sort
                          last)}))
 
-(defn list-tnrs
-  "All lineages (name, major) of `type` with version/language/latest counts (admin)."
-  [type]
-  (store/q!
-   db/ds
-   ["SELECT name, major, COUNT(*) AS versions, COUNT(DISTINCT lang) AS langs, MAX(minor) AS latest
-      FROM AGORA_DOCUMENT WHERE type = ? GROUP BY name, major ORDER BY name, major"
-    type]
-   store/kebab))
-
 (defn all-tnrs
   "Every lineage of every type (all types), **one row per language version** —
   (type, name, lang, major) with its version count, latest minor, and the latest minor's
   `:title` and epistemic `:kind` (the human heading + kind badge the admin table shows in
-  place of the identity slug). One query: a self-join pins each lineage's latest-minor row,
-  whose content yields the title and kind."
+  place of the identity slug). The raw query is `dbs/all-tnr-rows`; here we decode each
+  latest-minor's content into those display fields."
   []
-  (->>
-    (store/q!
-     db/ds
-     ["SELECT d.type, d.name, d.lang, d.major, d.content, g.versions, g.latest
-            FROM AGORA_DOCUMENT d
-            JOIN (SELECT type, name, lang, major, COUNT(*) AS versions, MAX(minor) AS latest
-                    FROM AGORA_DOCUMENT
-                   GROUP BY type, name, lang, major) g
-              ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
-                 AND d.major = g.major AND d.minor = g.latest
-           ORDER BY d.type, d.name, d.major, d.lang"]
-     store/kebab)
-    (mapv (fn [{:keys [content]
-                :as r}]
-            (let [c (store/decode-content content)]
-              (-> r
-                  (assoc :title (:title c) :kind (:kind c))
-                  (dissoc :content)))))))
+  (mapv (fn [{:keys [content]
+              :as r}]
+          (let [c (dbs/decode-content content)]
+            (-> r
+                (assoc :title (:title c) :kind (:kind c))
+                (dissoc :content))))
+        (dbs/all-tnr-rows)))
 
 (defn delete-tnr!
-  "Drop a single language version of a lineage — (type, name, lang, major) — plus its
-  successor-index rows (targeted, so no full rebuild). Returns rows removed."
+  "Drop a single language version of a lineage (admin) via `dbs/delete-lineage!`, then invalidate
+  the caches. Returns rows removed."
   [type doc-name lang doc-major]
-  (store/q!
-   db/ds
-   ["DELETE FROM AGORA_SUCCESSOR
-      WHERE (input_type = ? AND input_name = ? AND input_lang = ? AND input_major = ?)
-         OR successor_id IN (SELECT id FROM AGORA_DOCUMENT
-                             WHERE type = ? AND name = ? AND lang = ? AND major = ?)"
-    type
-    doc-name
-    lang
-    doc-major
-    type
-    doc-name
-    lang
-    doc-major])
-  (let [n (:next.jdbc/update-count
-           (store/q1!
-            db/ds
-            ["DELETE FROM AGORA_DOCUMENT WHERE type = ? AND name = ? AND lang = ? AND major = ?"
-             type
-             doc-name
-             lang
-             doc-major]))]
+  (let [n (dbs/delete-lineage! type doc-name lang doc-major)]
     (store/clear-caches!)
     n))
 
 (defn compact-tnr!
-  "Keep only the latest minor of one language version — (type, name, lang, major) —
-  and delete the rest. Returns rows removed."
+  "Keep only the latest minor of one language version (admin) via `dbs/compact-lineage!`, then
+  invalidate the caches. Returns rows removed."
   [type doc-name lang doc-major]
-  (let
-    [latest
-     (:latest
-      (store/q1!
-       db/ds
-       ["SELECT MAX(minor) AS latest FROM AGORA_DOCUMENT
-                            WHERE type = ? AND name = ? AND lang = ? AND major = ?"
-        type
-        doc-name
-        lang
-        doc-major]
-       store/kebab))
-     ;; drop the successor-index rows for the minors we're about to delete FIRST (the subquery
-     ;; reads AGORA_DOCUMENT) — else they'd dangle (a successor_id pointing at a deleted minor),
-     ;; surfacing as a broken/'missing' successor on the cited document. `delete-tnr!` already
-     ;; does this; `compact-tnr!` used to forget to, which is how dangling successors appeared.
-     _
-     (store/q!
-      db/ds
-      ["DELETE FROM AGORA_SUCCESSOR
-                    WHERE successor_id IN (SELECT id FROM AGORA_DOCUMENT
-                                           WHERE type = ? AND name = ? AND lang = ? AND major = ?
-                                             AND minor < ?)"
-       type
-       doc-name
-       lang
-       doc-major
-       latest])
-     n
-     (or
-      (:next.jdbc/update-count
-       (store/q1!
-        db/ds
-        ["DELETE FROM AGORA_DOCUMENT
-                            WHERE type = ? AND name = ? AND lang = ? AND major = ? AND minor < ?"
-         type
-         doc-name
-         lang
-         doc-major
-         latest]))
-      0)]
+  (let [n (dbs/compact-lineage! type doc-name lang doc-major)]
     (store/clear-caches!)
     n))
 
@@ -713,7 +630,7 @@
   so it scales and can later be keyset-paginated into a chunked sitemap index."
   []
   (->>
-    (store/q!
+    (dbs/q!
      db/ds
      ["SELECT d.type, d.name, d.major, d.lang, d.content, g.lastmod
                      FROM AGORA_DOCUMENT d
@@ -725,11 +642,11 @@
                        ON d.type = g.type AND d.name = g.name AND d.major = g.major
                           AND d.lang = g.lang AND d.minor = g.latest
                     WHERE d.draft = 0"]
-     store/kebab)
+     dbs/kebab)
     (mapv (fn [{:keys [content]
                 :as r}]
             (-> r
-                (assoc :title (:title (store/decode-content content)))
+                (assoc :title (:title (dbs/decode-content content)))
                 (dissoc :content))))))
 
 (defn rebuild-successor-index!
@@ -753,14 +670,14 @@
   heals them; this surfaces them so the drift is visible rather than silent."
   []
   (->>
-    (store/q!
+    (dbs/q!
      db/ds
      ["SELECT s.input_type AS type, s.input_name AS name, s.input_lang AS lang,
                           s.input_major AS major, s.successor_id AS successor_id
                      FROM AGORA_SUCCESSOR s
                 LEFT JOIN AGORA_DOCUMENT d ON d.id = s.successor_id
                     WHERE d.id IS NULL"]
-     store/kebab)
+     dbs/kebab)
     (group-by (juxt :type :name :lang :major))
     (mapv (fn [[[t n l mj] rows]]
             (let [doc (when-let [id (store/resolve-latest-id t n mj l)] (store/fetch-document id))]
@@ -793,27 +710,21 @@
   {:id :type :name :lang :major :minor :title :broken […] :self […]}, each ref as
   {:name :major :lang}; `:id` pins the exact version so the admin can deep-link to it."
   []
-  (let [;; Every existing identity (any minor, any language) as [type name major] — a referenced
-        ;; lineage is live iff it appears here (matches the engine's cross-language fallback).
-        ;; Fetched ONCE and checked in memory, so the scan is two queries total rather than one
-        ;; per reference (which floods the DB pool). The broken/self rule itself is pure
-        ;; (`lineage/ref-issues`); here we only supply the data and shape the row for the admin.
-        existing (into #{}
-                       (map (juxt :type :name :major))
-                       (store/q! db/ds
-                                 ["SELECT DISTINCT type, name, major FROM AGORA_DOCUMENT"]
-                                 store/kebab))]
-    (->> (store/q! db/ds
-                   ["SELECT id, type, name, lang, major, minor, content FROM AGORA_DOCUMENT"]
-                   store/kebab)
-         (keep (fn [row]
-                 (let [c (store/decode-content (:content row))
-                       doc (merge (select-keys row [:type :name :lang :major]) c)
-                       {:keys [broken self]} (lineage/ref-issues doc existing)]
-                   (when (or (seq broken) (seq self))
-                     (assoc (select-keys row [:id :type :name :lang :major :minor])
-                            :title (:title c)
-                            :broken broken
-                            :self self)))))
-         vec
-         (into (successor-cache-issues)))))
+  ;; Persistence supplies the data — the set of live lineages and every version — in two queries;
+  ;; the broken/self rule is pure (`lineage/consistency-issues`), applied over that data. Raw rows
+  ;; carry the `type` column as a string; the domain works in keyword types, so keyword it here (a
+  ;; DB-read boundary) before it meets the rule. Two queries total rather than one per reference
+  ;; (which would flood the DB pool).
+  (let [existing
+        (into #{}
+              (map (juxt (comp keyword :type) :name :major))
+              (dbs/q! db/ds ["SELECT DISTINCT type, name, major FROM AGORA_DOCUMENT"] dbs/kebab))
+        docs (mapv (fn [row]
+                     (merge
+                      (update (select-keys row [:id :type :name :lang :major :minor]) :type keyword)
+                      (dbs/decode-content (:content row))))
+                   (dbs/q!
+                    db/ds
+                    ["SELECT id, type, name, lang, major, minor, content FROM AGORA_DOCUMENT"]
+                    dbs/kebab))]
+    (into (lineage/consistency-issues docs existing) (successor-cache-issues))))

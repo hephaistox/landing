@@ -11,11 +11,12 @@
   not a missing axis. This ns is a thin facade over `document`: create → `document/create`,
   rename → `document/edit`, resolve → the general document resolver."
   (:require
-   [clojure.string                 :as str]
-   [landing.agora.db               :as db]
-   [landing.agora.document         :as document]
-   [landing.agora.document.lineage :as lineage]
-   [landing.agora.document.store   :as store]))
+   [clojure.string                  :as str]
+   [landing.agora.db                :as db]
+   [landing.agora.document          :as document]
+   [landing.agora.document.db-store :as dbs]
+   [landing.agora.document.lineage  :as lineage]
+   [landing.agora.document.store    :as store]))
 
 (defn- view
   "Endpoint view of a publication row: the stable **cid** as `:id` (a publication is a lineage
@@ -23,7 +24,7 @@
   rename → new minor), the authored fields, and `:owner-id` renamed to the public `:author-id`
   (as for documents). nil for a row that is not a publication."
   [doc]
-  (when (= "publication" (:type doc))
+  (when (= :publication (:type doc))
     {:id (:name doc)
      :type (:type doc)
      :title (:title doc)
@@ -42,13 +43,13 @@
   [cid]
   (when-let
     [{:keys [major lang]}
-     (store/q1!
+     (dbs/q1!
       db/ds
       ["SELECT major, lang FROM AGORA_DOCUMENT
                 WHERE type = 'publication' AND name = ? ORDER BY minor DESC LIMIT 1"
        cid]
-      store/kebab)]
-    (store/resolve-latest-any-id "publication" cid major lang)))
+      dbs/kebab)]
+    (store/resolve-latest-any-id :publication cid major lang)))
 
 (defn fetch
   "The publication lineage `cid` (its latest minor) as a view, or nil."
@@ -63,7 +64,7 @@
   (open ⇒ draft), author/owner/timestamp; `:status \"open\"` rides in content like a KI's `:kind`.
   Created outside any publication, so `publication-id` is nil. Returns the publication view."
   [owner-id name title lang]
-  (let [created (document/create "publication"
+  (let [created (document/create :publication
                                  owner-id
                                  (cond-> {:title title
                                           :lang lang
@@ -102,7 +103,7 @@
   owner in-process — publications are few and each `fetch` is cached; a denormalized owner column
   can optimize this later if the count grows."
   [owner-id]
-  (->> (store/q! db/ds lineages-newest-first store/kebab)
+  (->> (dbs/q! db/ds lineages-newest-first dbs/kebab)
        (keep (comp fetch :name))
        (filter #(and (= owner-id (:author-id %)) (= "open" (:status %))))
        vec))
@@ -113,7 +114,7 @@
   in-process — they are few and each `fetch` is cached."
   [q owner-id]
   (let [q' (str/lower-case (str/trim (or q "")))]
-    (->> (store/q! db/ds lineages-newest-first store/kebab)
+    (->> (dbs/q! db/ds lineages-newest-first dbs/kebab)
          (keep (comp fetch :name))
          (filter (fn [p]
                    (if (str/blank? q')
@@ -132,7 +133,7 @@
   [cid owner-id title]
   (when-let [id (resolve-latest cid)]
     (let [doc (store/fetch-document id)]
-      (when (and (= "publication" (:type doc)) (= owner-id (:owner-id doc)))
+      (when (and (= :publication (:type doc)) (= owner-id (:owner-id doc)))
         (document/edit id owner-id {:title title} nil)
         (fetch cid)))))
 
@@ -145,9 +146,9 @@
   "The distinct lineages this publication created — each at its latest tagged minor. This is
   the publication's *modified set* (what a close=publish will promote, and the staging panel)."
   [publication-id]
-  (->> (store/q! db/ds
-                 ["SELECT id FROM AGORA_DOCUMENT WHERE publication_id = ?" publication-id]
-                 store/kebab)
+  (->> (dbs/q! db/ds
+               ["SELECT id FROM AGORA_DOCUMENT WHERE publication_id = ?" publication-id]
+               dbs/kebab)
        (keep (comp store/fetch-document :id))
        (group-by (juxt :type :name :lang :major))
        vals

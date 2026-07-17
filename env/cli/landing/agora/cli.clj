@@ -1,5 +1,5 @@
 (ns landing.agora.cli
-  "An EDN-file CLI over the pure `landing.agora.corpus` domain — Agora with a flat EDN file as its
+  "An EDN-file CLI over the pure `landing.agora.document.corpus` domain — Agora with a flat EDN file as its
   entire store, no database. It loads a corpus, runs one command, prints a compact view, and (for
   a mutation) writes the corpus back. Its whole point is that the domain needs no infrastructure:
   every command is a `corpus/…` call over a value read from and written to disk, so the model can
@@ -16,12 +16,12 @@
 
   Mutations rewrite <file.edn> in place."
   (:require
-   [clojure.edn                    :as edn]
-   [clojure.pprint                 :as pp]
-   [clojure.string                 :as str]
-   [landing.agora.corpus           :as corpus]
-   [landing.agora.corpus-print     :as cprint]
-   [landing.agora.document.lineage :as lineage]))
+   [clojure.edn                         :as edn]
+   [clojure.pprint                      :as pp]
+   [clojure.string                      :as str]
+   [landing.agora.document.corpus       :as corpus]
+   [landing.agora.document.corpus-print :as cprint]
+   [landing.agora.document.lineage      :as lineage]))
 
 (defn- load-corpus [file] (edn/read-string (slurp file)))
 
@@ -29,7 +29,7 @@
 
 (defn- tnlr
   [type name lang]
-  {:type type
+  {:type (keyword type)
    :name name
    :lang lang
    :major 1})
@@ -50,14 +50,14 @@
                 (println "not found")))
       "create" (let [[type name lang & more] args
                      doc (if (= type "publication")
-                           {:type type
+                           {:type (keyword type)
                             :name name
                             :lang lang
                             :status "open"
                             :title (str/join " " more)
                             :author "cli"}
                            (let [[kind & title] more]
-                             {:type type
+                             {:type (keyword type)
                               :name name
                               :lang lang
                               :kind kind

@@ -70,7 +70,7 @@
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
           ;; the path segment is `<cid>~<slug>` (or bare cid); resolve by the cid
           name (di/cid-of name)
-          ki (document/fetch-by-major "ki" name major-n lang)
+          ki (document/fetch-by-major :ki name major-n lang)
           base (seo/base-url req)
           head (if ki
                  (seo/ki-head base lang name major-n ki)
@@ -118,7 +118,7 @@
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
           ;; the path segment is `<cid>~<slug>` (or bare cid); resolve by the cid
           name (di/cid-of name)
-          art (document/fetch-by-major "article" name major-n lang)
+          art (document/fetch-by-major :article name major-n lang)
           base (seo/base-url req)
           head (if art
                  (seo/article-head base lang name major-n art)

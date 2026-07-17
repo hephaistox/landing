@@ -8,13 +8,13 @@
 ;; --- Stubs --------------------------------------------------------------
 
 (def t-a
-  {:type "ki"
+  {:type :ki
    :name "a"
    :lang "fr"
    :major 1})
 
 (def t-b
-  {:type "ki"
+  {:type :ki
    :name "b"
    :lang "fr"
    :major 1})
@@ -40,7 +40,7 @@
 ;; --- TNLR -----------------------------------------------------------------------------
 
 (deftest tnlr
-  (is (= ["ki" "a" "fr" 1] (sut/tnlr-key t-a)))
+  (is (= [:ki "a" "fr" 1] (sut/tnlr-key t-a)))
   (is (= t-a (sut/tnlr (assoc t-a :minor 3 :id "x"))) "strips non-identity fields")
   (is (sut/same-tnlr? t-a (assoc t-a :minor 9 :id "z")) "identity ignores minor/id")
   (is (not (sut/same-tnlr? t-a t-b))))
@@ -48,20 +48,24 @@
 ;; --- citation grammar (the input link, expressed in prose) ----------------------------
 
 (deftest cite-refs
-  (is (= [{:type "ki"
-           :name "confidence-is-partial"
-           :lang "fr"
-           :major 1}
-          {:type "ki"
-           :name "confidence-over-binary"
-           :lang "fr"
-           :major 2}]
-         (sut/cite-refs
-          "See [[ki:confidence-is-partial@1|partial]] then [[ki:confidence-over-binary@2]] here."
-          "fr"))
-      "extracts cited KIs from body tokens as ki-input TNLRs in the given lang")
+  (is (= [] (sut/cite-refs "See [[non-existing-type:confidence-is-partial@1|partial]] here." "fr"))
+      "Non existing type is skipped")
+  (is
+   (=
+    [{:type :ki
+      :name "confidence-is-partial"
+      :lang "fr"
+      :major 1}
+     {:type :ki
+      :name "confidence-over-binary"
+      :lang "fr"
+      :major 2}]
+    (sut/cite-refs
+     "See [[ki:confidence-is-partial@1|partial]] then [[ki:confidence-over-binary@2]] here. [[fake:@1]]"
+     "fr"))
+   "extracts cited KIs from body tokens as ki-input TNLRs in the given lang")
   (testing "dedupes repeated citations and tolerates no tokens"
-    (is (= [{:type "ki"
+    (is (= [{:type :ki
              :name "a"
              :lang "en"
              :major 1}]
@@ -69,13 +73,13 @@
     (is (= [] (sut/cite-refs "no citations here" "fr")))
     (is (= [] (sut/cite-refs nil "fr"))))
   (testing "a token's own language overrides the fallback (cross-language citation)"
-    (is (= [{:type "ki"
+    (is (= [{:type :ki
              :name "a"
-             :lang "en"
+             :lang :en
              :major 1}
-            {:type "ki"
+            {:type :ki
              :name "b"
-             :lang "fr"
+             :lang :fr
              :major 2}]
            (sut/cite-refs "[[ki:a:en@1]] and [[ki:b:fr@2|label]]" "fr")))))
 
@@ -83,36 +87,64 @@
   (testing "strip-cite removes a dropped input's citation, keeping its display text"
     (is (= "See partial then [[ki:other@2]] here."
            (sut/strip-cite "See [[ki:confidence@1|partial]] then [[ki:other@2]] here."
-                           "confidence"
-                           1)))
+                           {:type :ki
+                            :name "confidence"
+                            :lang nil
+                            :major 1})))
     (is (= "See partial then other here."
            (-> "See [[ki:confidence@1|partial]] then [[ki:other@2]] here."
-               (sut/strip-cite "confidence" 1)
-               (sut/strip-cite "other" 2))))
-    (is (= "keep partial." (sut/strip-cite "keep [[ki:x:en@1|partial]]." "x" 1))
-        "a lang-carrying token strips by name+major too")))
+               (sut/strip-cite {:type :ki
+                                :name "confidence"
+                                :lang nil
+                                :major 1})
+               (sut/strip-cite {:type :ki
+                                :name "other"
+                                :lang nil
+                                :major 2}))))
+    (is (= "keep partial."
+           (sut/strip-cite "keep [[ki:x:en@1|partial]]."
+                           {:type :ki
+                            :name "x"
+                            :lang :en
+                            :major 1}))
+        "a lang-carrying token strips by name+major too"))
+  (testing "type is part of the citation identity: dropping a :ki leaves an [[article:…]] alone"
+    (is (= "keep [[article:x@1|partial]]."
+           (sut/strip-cite "keep [[article:x@1|partial]]."
+                           {:type :ki
+                            :name "x"
+                            :lang :en
+                            :major 1})))))
 
 ;; --- inputs -------------------------------------------------------------------
 
+(deftest pinned
+  (is (sut/pinned? (assoc t-a :id "x")) "an inline :id marks a pinned (frozen) input")
+  (is (not (sut/pinned? t-a)) "a bare TNLR is floating"))
+
 (deftest declarations
-  (is (= [t-b t-a]
+  (is (= [t-b (assoc t-a :id "x")]
          (-> []
-             (sut/add-declared (assoc t-a :id "x"))
-             (sut/add-declared t-b)
-             (sut/add-declared t-a)))
-      "add-declared dedups by TNLR and keeps only the TNLR")
+             (sut/add-declared-input t-a)
+             (sut/add-declared-input t-b)
+             (sut/add-declared-input (assoc t-a :id "x"))))
+      "add-declared dedups by lineage and keeps a pin (:id) when the input carries one")
   (is (= [t-b]
          (-> []
-             (sut/add-declared t-a)
-             (sut/add-declared t-b)
-             (sut/drop-declared t-a)))
-      "drop-declared removes by TNLR"))
+             (sut/add-declared-input (assoc t-a :id "x"))
+             (sut/add-declared-input t-b)
+             (sut/drop-declared-input t-a)))
+      "drop-declared-input removes by lineage, pinned or floating"))
 
 (deftest pins
   (is (= {(sut/tnlr-key t-a) "a-latest"
           (sut/tnlr-key t-b) "b-latest"}
          (sut/pin-all [t-a t-b] #(str (:name %) "-latest")))
-      "pin-all resolves every declaration to its latest id, keyed by tnlr-key")
+      "pin-all resolves every floating declaration to its latest id, keyed by tnlr-key")
+  (is (= {(sut/tnlr-key t-a) "frozen"
+          (sut/tnlr-key t-b) "b-latest"}
+         (sut/pin-all [(assoc t-a :id "frozen") t-b] #(str (:name %) "-latest")))
+      "a pinned input keeps its frozen id — never resolved")
   (is (= {(sut/tnlr-key t-a) "a2"
           (sut/tnlr-key t-b) "b1"}
          (sut/repin {(sut/tnlr-key t-a) "a1"
@@ -124,7 +156,10 @@
 (deftest refs-and-successors
   (testing "input-refs zip declarations with their pins (nil id when unpinned)"
     (is (= [(assoc t-a :id "a1") (assoc t-b :id nil)]
-           (sut/input-refs [t-a t-b] {(sut/tnlr-key t-a) "a1"})))))
+           (sut/input-refs [t-a t-b] {(sut/tnlr-key t-a) "a1"}))))
+  (testing "input-refs prefers a pinned input's own :id over the (stale) pin cache"
+    (is (= [(assoc t-a :id "frozen")]
+           (sut/input-refs [(assoc t-a :id "frozen")] {(sut/tnlr-key t-a) "stale"})))))
 
 (deftest successor-tuples-tes
   (is (= [{:tnlr t-a

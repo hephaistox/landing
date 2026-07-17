@@ -1,9 +1,10 @@
-(ns landing.agora.corpus-print
+(ns landing.agora.document.corpus-print
   "Compact, human-readable rendering of documents / publications / a whole corpus — for the CLI
-  and the corpus tests. Pure presentation over the domain (`document.lineage`), kept out of both
-  the `corpus` substrate and the shipped app."
+  console, the corpus tests, or a client-side dump. Pure (cljc) presentation over the domain
+  (`document.lineage`) and the corpus holder's graph queries (`corpus/members` / `latest-lineages`)."
   (:require
    [clojure.string                 :as str]
+   [landing.agora.document.corpus  :as corpus]
    [landing.agora.document.lineage :as lineage]))
 
 (defn- ver [doc] (str (:major doc) "." (:minor doc)))
@@ -15,7 +16,7 @@
   membership after `∈`, and a `(draft)` flag. Absent parts are omitted."
   [doc]
   (let [ins (lineage/declared-inputs doc)]
-    (str (:type doc)
+    (str (name (:type doc))
          " "
          (:name doc)
          "@"
@@ -38,7 +39,7 @@
         • ki reason-is-fuzzy@1.0 en [inference] \"…\" ⇐ fuzzy-confidence@1 ∈ meta-graph (draft)
         • article on-partial-knowledge@1.0 en [explainer] \"…\" ∈ meta-graph (draft)"
   [corpus pub]
-  (let [ms (lineage/members corpus pub)]
+  (let [ms (corpus/members corpus pub)]
     (str (compact-doc pub)
          " — "
          (count ms)
@@ -50,8 +51,8 @@
   "The whole `corpus` as compact lines — one per current lineage version (publications last, with
   their members expanded), so a reader sees the graph at a glance."
   [corpus]
-  (let [ls (lineage/latest-lineages corpus)
+  (let [ls (corpus/latest-lineages corpus)
         {pubs true
          docs false}
-        (group-by #(= "publication" (:type %)) ls)]
+        (group-by #(= :publication (:type %)) ls)]
     (str/join "\n" (concat (map compact-doc docs) (map #(compact-publication corpus %) pubs)))))

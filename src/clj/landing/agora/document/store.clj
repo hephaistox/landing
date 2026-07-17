@@ -5,78 +5,24 @@
 
   A row keeps only the identity columns — `id`, `type` (object type, the T), `name`,
   `lang`, `major`, `minor` — plus two EDN blobs: immutable `content` and mutable
-  `computed` ({:pins {tnlr-key → id}}). Type-specific view shaping and writes live in
-  landing.agora.document, which calls these primitives so that all
-  document I/O, successor indexing and cache eviction stay in one place (and one cache)."
+  `computed` ({:pins {tnlr-key → id}}). The **raw SQL** lives one layer down in
+  `landing.agora.document.db-store` (queries move there one at a time); this namespace is the
+  **Caffeine cache + write orchestration** over it, and `landing.agora.document` composes on top."
   (:require
-   [auto-core.log                   :as core-log]
-   [clojure.edn                     :as edn]
    [landing.agora.cache             :as cache]
    [landing.agora.db                :as db]
+   [landing.agora.document.db-store :as dbs
+                                    :refer
+                                    [decode-content decode-pins encode-pins kebab q! q1! t->s]]
    [landing.agora.document.identity :as di]
-   [next.jdbc                       :as jdbc]
-   [next.jdbc.result-set            :as rs])
-  (:import (java.sql SQLException)
-           (java.time Instant)
-           (java.time.temporal ChronoUnit)
-           (java.util UUID)))
+   [landing.agora.document.lineage  :as lineage]
+   [landing.language                :as language]))
 
-;; --- DB access with failure handling (→ 503 at the API boundary; see endpoints.error)
-
-(defn- db-error!
-  [e]
-  (core-log/error-exception e "Agora DB error")
-  (throw (ex-info "database unavailable" {:type ::db-unavailable} e)))
-
-(defn q! [& args] (try (apply jdbc/execute! args) (catch SQLException e (db-error! e))))
-(defn q1! [& args] (try (apply jdbc/execute-one! args) (catch SQLException e (db-error! e))))
-
-(def kebab {:builder-fn rs/as-unqualified-kebab-maps})
-(defn uuid [] (str (UUID/randomUUID)))
-(defn now-iso [] (str (.truncatedTo (Instant/now) ChronoUnit/SECONDS)))
-
-;; --- EDN (de)serialization of the content / computed blobs
-
-(defn decode-content
-  [s]
-  (or (some-> s
-              edn/read-string)
-      {}))
-(defn encode-content [m] (pr-str m))
-(defn decode-pins
-  [s]
-  (:pins (or (some-> s
-                     edn/read-string)
-             {:pins {}})))
-(defn encode-pins [pins] (pr-str {:pins pins}))
-
-;; --- id → document (cached): identity columns + content + resolved pins
-
-(defn truthy?
-  "MySQL TINYINT(1) comes back as a Boolean or a 0/1 number depending on the driver flags —
-  normalize either to a real boolean."
-  [v]
-  (if (number? v) (not (zero? v)) (boolean v)))
-
-(defn- load-document
-  [id]
-  (when-let
-    [row
-     (q1!
-      db/ds
-      ["SELECT id, type, name, lang, major, minor, draft, publication_id, content, computed
-         FROM AGORA_DOCUMENT WHERE id = ?"
-       id]
-      kebab)]
-    (merge (select-keys row [:id :type :name :lang :major :minor])
-           {:draft (truthy? (:draft row))
-            :publication-id (:publication-id row)}
-           (decode-content (:content row))
-           {:pins (decode-pins (:computed row))})))
+;; --- id → document (cached): the raw `dbs/load-document` behind a Caffeine cache
 
 (def ^:private document-cache
   "id → document (identity + immutable content + resolved pins)."
-  (cache/loading 20000 load-document))
+  (cache/loading 20000 dbs/load-document))
 
 (defn fetch-document "The document for `id` (cached), or nil." [id] (cache/fetch document-cache id))
 
@@ -92,7 +38,7 @@
        db/ds
        ["SELECT successor_id FROM AGORA_SUCCESSOR
           WHERE input_type = ? AND input_name = ? AND input_lang = ? AND input_major = ?"
-        ty
+        (t->s ty)
         nm
         lang
         major]
@@ -103,30 +49,16 @@
   [tnlr-key]
   (cache/fetch successors-cache tnlr-key))
 
-(def ^:private versions-cache
-  (cache/loading
-   20000
-   (fn [[ty nm lang major]]
-     (mapv
-      (fn [r]
-        {:id (:id r)
-         :minor (:minor r)
-         :draft (truthy? (:draft r))})
-      (q!
-       db/ds
-       ["SELECT id, minor, draft FROM AGORA_DOCUMENT
-               WHERE type = ? AND name = ? AND lang = ? AND major = ? ORDER BY minor"
-        ty
-        nm
-        lang
-        major]
-       kebab)))))
+(def ^:private documents-cache
+  (cache/loading 20000 (fn [[ty nm lang major]] (dbs/documents ty nm lang major))))
 
-(defn versions-of
-  "[{:id :minor :draft} …] ascending for a TNLR lineage — includes unpublished draft minors
-  (flagged `:draft true`) so the version picker can show them, styled differently."
-  [tnlr-key]
-  (cache/fetch versions-cache tnlr-key))
+(defn documents
+  "All versions (minors) of a TNLR lineage — `[{:id :minor :draft :publication-id} …]` ascending,
+  drafts included — cached. This is 'download the lineage'; the caller resolves *which* version it
+  wants with the `lineage` rules (`latest-published`, `latest-with-drafts`, `draft-in-publication`)
+  — resolution is Clojure's job, this only fetches."
+  [ty nm lang major]
+  (cache/fetch documents-cache [ty nm lang major]))
 
 (def ^:private translations-cache
   (cache/loading
@@ -136,7 +68,7 @@
       db/ds
       ["SELECT DISTINCT name, major, lang FROM AGORA_DOCUMENT
          WHERE type = ? AND name = ? AND lang <> ? AND draft = 0 ORDER BY lang"
-       ty
+       (t->s ty)
        nm
        lang]
       kebab))))
@@ -146,86 +78,52 @@
   [ty nm lang]
   (cache/fetch translations-cache [ty nm lang]))
 
+;; --- Resolution: fetch the lineage (`documents`), let `lineage` pick. One implementation, in
+;; Clojure — the SQL never chooses a version. Cross-language fallback (a lineage not translated
+;; into `lang`) is a second `documents` call for the default language (rare).
+
 (defn resolve-latest-id
-  "The id of the latest **published** minor of (type, name, major) in `lang`, falling back to
-  any other language when that concept is not yet translated. Drafts are excluded — this is the
-  single lever behind the permalink, input/quote edges, successors and search, so an unpublished
-  edit never resolves and a draft-only lineage does not resolve at all (its permalink 404s; the
-  exact-version URL still works)."
+  "The id of the latest **published** minor of (type, name, major) in `lang`; if that lineage has
+  no version in `lang`, a second lookup falls back to the **default** language. Drafts excluded —
+  the single lever behind permalinks, input/quote edges, successors and search."
   [ty nm major lang]
-  (:id
-   (q1!
-    db/ds
-    ["SELECT id FROM AGORA_DOCUMENT
-       WHERE type = ? AND name = ? AND major = ? AND draft = 0
-       ORDER BY (lang = ?) DESC, minor DESC LIMIT 1"
-     ty
-     nm
-     major
-     lang]
-    kebab)))
+  (or (:id (lineage/latest-published (documents ty nm lang major)))
+      (when (not= lang language/default-lang)
+        (:id (lineage/latest-published (documents ty nm language/default-lang major))))))
 
 (defn resolve-latest-any-id
   "The id of the highest-minor version of (type, name, major) in `lang` — **drafts included** (the
-  current version even if unpublished). Public resolution uses `resolve-latest-id` (drafts
-  excluded); this owner-facing variant is for a surface that must resolve a still-unpublished
-  lineage — e.g. a publication, which is `draft` for as long as it is open."
+  current version even if unpublished). Owner-facing (e.g. a publication, `draft` while open)."
   [ty nm major lang]
-  (:id
-   (q1!
-    db/ds
-    ["SELECT id FROM AGORA_DOCUMENT
-       WHERE type = ? AND name = ? AND major = ? AND lang = ?
-       ORDER BY minor DESC LIMIT 1"
-     ty
-     nm
-     major
-     lang]
-    kebab)))
-
-(defn- latest-of
-  "The domain's injected `latest-of`: an input TNLR (carrying its own :type) → the id it should
-  pin to. Prefers the latest **published** minor; if the lineage has no published version at all
-  (draft-only), falls back to the latest version **including drafts** — so a draft's inputs pin to
-  a concrete exact-version id and render, instead of dangling with a nil id. This fallback can
-  only ever bite an input of an *unpublished* document (the publish invariant forbids a published
-  document from depending on a draft), so it never surfaces a draft in a public view. On publish,
-  successors re-pin to the now-published minor."
-  [{ty :type
-    nm :name
-    major :major
-    lang :lang
-    :as tnlr}]
-  (or (resolve-latest-id ty nm major lang) (:id (last (versions-of (di/tnlr-key tnlr))))))
+  (:id (lineage/latest-with-drafts (documents ty nm lang major))))
 
 (defn draft-in-publication
-  "The id of publication `pub-id`'s own draft of lineage (type, name, major) in `lang` — its
-  latest draft minor tagged with that publication — or nil."
+  "The id of publication `pub-id`'s own draft of lineage (type, name, major) in `lang`, or nil."
   [pub-id ty nm major lang]
-  (:id
-   (q1!
-    db/ds
-    ["SELECT id FROM AGORA_DOCUMENT
-       WHERE type = ? AND name = ? AND major = ? AND lang = ? AND draft = 1 AND publication_id = ?
-       ORDER BY minor DESC LIMIT 1"
-     ty
-     nm
-     major
-     lang
-     pub-id]
-    kebab)))
+  (:id (lineage/draft-in-publication (documents ty nm lang major) pub-id)))
 
 (defn resolve-in-publication
   "Resolve a TNLR within publication `pub-id`: the publication's own draft of that lineage if it
-  has one (the in-progress version), else the latest **published** minor (classical). This is the
-  exact-version resolution used while a publication is open — public reads use `resolve-latest-id`."
+  has one, else the latest **published** minor (classical). Used while a publication is open —
+  public reads use `resolve-latest-id`."
   [pub-id ty nm major lang]
   (or (draft-in-publication pub-id ty nm major lang) (resolve-latest-id ty nm major lang)))
 
+(defn- latest-of
+  "The domain's injected `latest-of`: an input TNLR → the id it should pin to. Latest **published**
+  (cross-lang), else the latest version **including drafts** in this lang — so a draft's inputs pin
+  to a concrete id and render rather than dangling. This draft fallback can only bite an input of an
+  *unpublished* document (the publish invariant), so it never surfaces a draft in a public view."
+  [{ty :type
+    nm :name
+    major :major
+    lang :lang}]
+  (or (resolve-latest-id ty nm major lang)
+      (:id (lineage/latest-with-drafts (documents ty nm lang major)))))
+
 (defn- latest-of-in
   "Pin resolver scoped to publication `pub-id`: an input TNLR → the id to pin, **preferring the
-  publication's own draft** of that lineage over the published version (so a version authored in a
-  publication references the publication's in-progress inputs)."
+  publication's own draft** of that lineage over the published version."
   [pub-id {ty :type
            nm :name
            major :major
@@ -236,14 +134,14 @@
 
 (defn evict-lineage!
   [ty nm lang major]
-  (cache/evict! versions-cache [ty nm lang major])
+  (cache/evict! documents-cache [ty nm lang major])
   (cache/evict! translations-cache [ty nm lang]))
 
 (defn clear-caches!
   []
   (cache/clear! document-cache)
   (cache/clear! successors-cache)
-  (cache/clear! versions-cache)
+  (cache/clear! documents-cache)
   (cache/clear! translations-cache))
 
 ;; --- Successor index (reverse edges) + re-pin
@@ -257,7 +155,7 @@
        db/ds
        ["INSERT IGNORE INTO AGORA_SUCCESSOR
           (input_type, input_name, input_lang, input_major, successor_id) VALUES (?, ?, ?, ?, ?)"
-        ty
+        (t->s ty)
         nm
         lang
         major
@@ -293,7 +191,7 @@
    ["DELETE FROM AGORA_SUCCESSOR WHERE successor_id IN
                 (SELECT id FROM AGORA_DOCUMENT
                   WHERE type = ? AND name = ? AND lang = ? AND major = ? AND draft = 1)"
-    ty
+    (t->s ty)
     nm
     lang
     major])
@@ -301,7 +199,7 @@
    db/ds
    ["DELETE FROM AGORA_DOCUMENT
                 WHERE type = ? AND name = ? AND lang = ? AND major = ? AND draft = 1"
-    ty
+    (t->s ty)
     nm
     lang
     major])
@@ -324,7 +222,7 @@
     db/ds
     ["SELECT COALESCE(MAX(minor) + 1, 0) AS m FROM AGORA_DOCUMENT
        WHERE type = ? AND name = ? AND lang = ? AND major = ?"
-     ty
+     (t->s ty)
      nm
      lang
      major]
@@ -336,7 +234,7 @@
    (q1!
     db/ds
     ["SELECT id FROM AGORA_DOCUMENT WHERE type = ? AND name = ? AND major = ? AND lang = ? LIMIT 1"
-     ty
+     (t->s ty)
      nm
      major
      lang]
@@ -349,36 +247,18 @@
   (some? (q1! db/ds ["SELECT id FROM AGORA_DOCUMENT WHERE name = ? LIMIT 1" cid] kebab)))
 
 (defn insert-document!
-  "Insert one immutable version. `ident` = {:id :type :name :lang :major :minor :draft?};
-  `content` is the immutable map (incl. its declared `:inputs`); pins are resolved from
-  those declarations, and the declared inputs are indexed as successors. `:draft?` (default
-  false = published) marks an unpublished draft — excluded from resolution/discovery until
-  Publish clears it."
-  [{:keys [id name lang major minor draft? publication-id]
-    doc-type :type}
+  "Insert one immutable version: **resolve** the declared inputs' pins, write the row (raw persist
+  in `dbs/insert-row!`), then **index** the declared inputs as successors. `ident` = {:id :type
+  :name :lang :major :minor :draft? :publication-id}; `content` is the immutable map (incl. its
+  declared `:inputs`). Pins resolve to the publication's own drafts while authoring in one, else
+  classically. `:draft?` (default false = published) marks an unpublished draft — excluded from
+  resolution/discovery until Publish clears it."
+  [{:keys [id publication-id]
+    :as ident}
    content]
-  (let [tnlrs (:inputs content)]
-    (q!
-     db/ds
-     ["INSERT INTO AGORA_DOCUMENT
-         (id, type, name, lang, major, minor, draft, content, computed, published_at, publication_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-      id
-      doc-type
-      name
-      lang
-      major
-      minor
-      (if draft? 1 0)
-      (encode-content content)
-      ;; pins resolve to the publication's own drafts while authoring in one, else classically
-      (encode-pins (di/pin-all tnlrs
-                               (if publication-id (partial latest-of-in publication-id) latest-of)))
-      ;; denormalized copy of content.:published-at for sortable/rangeable reads
-      (:published-at content)
-      ;; the publication that created this version — permanent provenance, nil when authored
-      ;; outside a publication
-      publication-id])
+  (let [tnlrs (:inputs content)
+        pins (di/pin-all tnlrs (if publication-id (partial latest-of-in publication-id) latest-of))]
+    (dbs/insert-row! ident content pins)
     (index-successors! id tnlrs)))
 
 (defn backfill-published-at!

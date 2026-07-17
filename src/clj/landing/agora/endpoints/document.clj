@@ -49,7 +49,12 @@
   article `inference`)."
   [object-type]
   (into [:enum] (map name) (dk/kind-ids-of object-type)))
-(def ^:private input-ref-schema [:map [:name name-schema] [:major :int]])
+(def ^:private input-ref-schema
+  [:map
+   [:name name-schema]
+   [:major :int]
+   [:type {:optional true}
+    :keyword]])
 
 ;; the publication a mutation is authored in (an `AGORA_DOCUMENT.id`, `type=publication`),
 ;; tagged onto every version it mints — optional until authoring-in-a-publication is enforced
@@ -70,7 +75,8 @@
 ;; here rather than as a `[[ki:…]]` token. `document/create`/`edit` merge these into `:inputs`.
 ;; The client resubmits the full list on every edit (they aren't in the text to re-derive).
 (def ^:private quotes-schema
-  [:vector {:max 50}
+  ;; quotes fold into `:inputs`, so their cap IS the domain's input cap — one source of truth
+  [:vector {:max di/max-inputs}
    input-ref-schema])
 
 (def ^:private throttled [(:middleware-fn throttle/authoring-rate-limiter)])
@@ -125,8 +131,8 @@
 
 (def ^:private configs
   "object type (string) → its request-shaping config (see `config-for`)."
-  {"ki" (config-for "ki")
-   "article" (config-for "article")})
+  {:ki (config-for :ki)
+   :article (config-for :article)})
 
 (defn- not-found
   [& {:as extra}]
@@ -136,7 +142,8 @@
 (defn document-routes
   "The full route set for object `type` under `prefix`."
   [type prefix]
-  (let [{:keys [list create-body edit-body translate-body]} (configs type)
+  (let [type (keyword type)
+        {:keys [list create-body edit-body translate-body]} (configs type)
         body #(get-in % [:parameters :body])
         path-id #(get-in % [:parameters :path :id])
         ;; the publication the caller is authoring in (nil when authored outside one), tagged
@@ -251,7 +258,11 @@
      ["/by/:name/:major"
       {:get {:handler by-major-h
              :operationId (str "agora-" type "-by-major")
-             :parameters {:path [:map [:name name-schema] [:major :int]]
+             :parameters {:path [:map
+                                 [:name name-schema]
+                                 [:major :int]
+                                 [:type {:optional true}
+                                  :keyword]]
                           :query [:map
                                   [:lang {:optional true}
                                    lang-schema]

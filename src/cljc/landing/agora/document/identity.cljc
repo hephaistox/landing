@@ -1,22 +1,33 @@
 (ns landing.agora.document.identity
   "Document **identity** and the edges between documents — the pure, shared (cljc) core of how a
-  document is named, addressed, linked and resolved. No I/O and no persistence format.
+  document is named, addressed, linked and resolved.
+
+  No I/O and no persistence format.
 
   Identity is a **TNLR** = (Type, Name, Lang, major Release); the latest minor is the current
-  version. A document's `name` is an opaque, stable **cid** (never derived from the title); the
-  human URL carries a decorative `<cid>~<title-slug>` key, resolved back to the cid. Edges are
-  TNLRs too: **inputs** (a document's declared predecessor TNLRs — expressed in prose as
-  `[[ki:…]]` citations — each pinned to a concrete predecessor id) and **outputs** (the
-  reverse-edge rows a document contributes as a successor)."
+  version:
+  - A `type` is a keyword (e.g. `:ki`, `:article`, ...)
+  - A `name` is an opaque, stable **cid** (never derived from the title); the
+  human URL carries a decorative `<cid>~<title-slug>` key, resolved back to the cid.
+  - `Lang` is the language of the document
+  - `major release` is a major release 
+  
+  For one **TNLR** many versions are possible:
+  - A `minor release` carries it
+
+  The whole document has an `id` - a uuid - that identifies it precisely
+
+  Referencing a document is possible through two mechanism:
+  - **pin** a version so the reference is a precise *id*
+  - **TNLR** pointing to the latest minor version of a document in the same TLNR
+
+  That references can be set through a quote,  `[[<type>:<name>(:<lang>)?@<major>(|<label>)?]]`:
+  - `lang` is optional so user language will be picked
+  - `label` is optional so it replaces the link in the link with that label"
   (:require
    [clojure.string :as str]))
 
 ;; --- Identity slug & cid --------------------------------------------------------------
-;; A document's `name` is an opaque, stable **cid** — never derived from the title. The
-;; human URL carries a decorative `<cid>~<title-slug>` key (cid first, then the readable
-;; slug); `~` never occurs in a slug or a cid, so the cid is recovered as everything
-;; *before* the first `~`. Shared clj/cljs so the server (SEO/sitemap) and the SPA build
-;; byte-identical URLs and resolve them the same way.
 
 (defn slugify
   "A URL slug from a title: `\"L'Être\"` → `\"l-etre\"`. Accents stripped, every run of
@@ -45,47 +56,45 @@
     (if (or (str/blank? s) (= s "untitled")) cid (str cid "~" s))))
 
 (defn cid-of
-  "The stable cid parsed from a permalink key `<cid>~<slug>` (or a bare `<cid>`) — the part
+  "The stable cid parsed from a `permalink-slug`: `<cid>~<slug>` (or a bare `<cid>`) — the part
   before the first `~`."
-  [k]
-  (let [k (str k)]
-    (if-let [i (str/index-of k "~")]
-      (subs k 0 i)
-      k)))
+  [permalink-slug]
+  (let [permalink-slug (str permalink-slug)]
+    (if-let [i (str/index-of permalink-slug "~")]
+      (subs permalink-slug 0 i)
+      permalink-slug)))
 
 ;; --- object types ---------------------------------------------------------------------
 
 (def object-types
-  "The identity T values (object types sharing the single AGORA_DOCUMENT table)."
+  "The identity document values (object types sharing the single AGORA_DOCUMENT table)."
   [:ki :objection :article])
+
+(def object-types-set
+  "The identity document values (object types sharing the single AGORA_DOCUMENT table)."
+  (into #{} object-types))
 
 ;; --- TNLR -----------------------------------------------------------------------------
 
 (defn tnlr
-  "The TNLR of a node or ref map — {:type :name :lang :major} (type = object type)."
-  [m]
-  (select-keys m [:type :name :lang :major]))
+  "The TNLR of a document or ref map — {:type :name :lang :major} (type = object type)."
+  [TNLR-or-doc]
+  (select-keys TNLR-or-doc [:type :name :lang :major]))
 
 (defn tnlr-key
   "A comparable/cacheable vector form of a TNLR: [type name lang major]."
-  [m]
-  [(:type m) (:name m) (:lang m) (:major m)])
+  [doc-ref]
+  [(:type doc-ref) (:name doc-ref) (:lang doc-ref) (:major doc-ref)])
 
 (defn same-tnlr? [a b] (= (tnlr-key a) (tnlr-key b)))
 
 ;; --- citation grammar (the input link, expressed in prose) ----------------------------
-;; A `[[ki:<name>@<major>]]` (or `…|custom text]]`) token in a body cites a KI. The grammar
-;; is defined once here so the renderer (frontend) and the citation extractor (backend) never
-;; drift. A citation IS an input edge — its declaration is a TNLR.
 
 (def cite-pattern
-  "Regex for one in-body KI citation `[[ki:<name>(:<lang>)?@<major>(|<label>)?]]`. Capture groups:
-  (1) name, (2) **optional** language, (3) major, (4) optional label. The language is optional as a
-  *transition* fallback — an old `[[ki:name@major]]` inherits the citing document's language — but
-  the **target form carries it** (`[[ki:name:en@major]]`), so a citation names a full TNLR and can
-  point at a specific-language sibling. Defined once so the renderer (frontend) and the citation
-  extractor (backend) never drift."
-  #"\[\[ki:([^@:\]|]+)(?::([^@:\]|]+))?@(\d+)(?:\|([^\]]+))?\]\]")
+  "Regex for one in-prose document citation `[[<type>:<name>(:<lang>)?@<major>(|<label>)?]]`.
+  Capture groups: (1) target type, (2) name, (3) **optional** language, (4) major, (5) optional
+  label."
+  #"\[\[([^@:\]|]+):([^@:\]|]+)(?::([^@:\]|]+))?@(\d+)(?:\|([^\]]+))?\]\]")
 
 (defn- parse-major
   [s]
@@ -93,75 +102,81 @@
      :cljs (js/parseInt s 10)))
 
 (defn cite-refs
-  "The distinct KIs cited in `body`, as input declarations — a vector of TNLRs
-  {:type \"ki\" :name … :lang … :major …}, order-preserving and deduped. Each citation's language
-  is **read from its token** when present (`[[ki:name:en@major]]`), else it falls back to `lang`
-  (the citing document's language). These are exactly KI inputs, so an article reuses the whole
-  input/pin/successor model."
+  "Parse the `body` and returns all quotation - as in [[cite-pattern]], returns a vector of TNLRs
+  {:type … :name … :lang … :major …} order-preserving and deduped."
   [body lang]
   (->> (re-seq cite-pattern (or body ""))
-       (map (fn [[_ nm lang-tok mj]]
-              {:type "ki"
-               :name nm
-               :lang (or lang-tok lang)
-               :major (parse-major mj)}))
+       (keep (fn [[_ type nm lang-tok mj]]
+               (let [type (keyword type)
+                     lang-tok (keyword lang-tok)]
+                 (when (object-types-set type)
+                   {:type type
+                    :name nm
+                    :lang (or lang-tok lang)
+                    :major (parse-major mj)}))))
        (distinct)
        (vec)))
 
 (defn strip-cite
-  "Remove every `[[ki:<name>…@<major>…]]` citation of (`name`, `major`) from `text`, leaving its
-  display text — the custom label if the token had one, else the bare name — as plain prose. Used
-  when an input is dropped from the input field: the inline mention stays readable, but the
-  citation (and therefore the input edge, which is derived from the text) is gone and can't be
-  re-derived on the next edit."
-  [text name major]
-  (if (str/blank? text)
-    text
-    (str/replace text
-                 cite-pattern
-                 (fn [[whole nm _lang mj label]]
-                   (if (and (= nm name) (= (parse-major mj) major)) (or label nm) whole)))))
+  "Remove every quotation from `body`, leaving its display body —
+  the custom label if the token had one, else the bare name — as plain prose."
+  [body TNLR]
+  (if (str/blank? body)
+    body
+    (let [{:keys [type name lang major]} TNLR]
+      (str/replace body
+                   cite-pattern
+                   (fn [[whole re-type re-name re-lang re-major label]]
+                     (if (and (= (keyword re-type) type)
+                              (= re-name name)
+                              (= (keyword re-lang) lang)
+                              (= (parse-major re-major) major))
+                       (or label re-name)
+                       whole))))))
 
 ;; --- inputs -------------------------------------------------------------------
-;; An input has two halves that live in different places:
-;;   - the DECLARATION — a TNLR — is authored, part of the KI's meaning, and lives in
-;;     the immutable `content` (`:inputs [TNLR…]`). Changing it versions the KI.
-;;   - the PIN — the resolved predecessor id — is derived (re-resolved when a
-;;     predecessor gets a new minor) and lives in the mutable `computed`
-;;     (`:pins {tnlr-key → id}`).
 
-(def max-inputs
-  "Cap on the number of declared inputs a single KI may carry. Inputs are added one
-  at a time (each a new minor), with no natural bound, so this protects the read
-  model — the envelope blob size and the successor-cache fan-out — from an
-  unbounded input list. A generous ceiling; real reasoning steps use a handful."
-  50)
+(def max-inputs "Cap on the number of declared inputs a single KI may carry." 50)
 
-(defn add-declared
-  "Add TNLR `t` to the declared inputs (dedup by TNLR). Returns the new declarations."
-  [tnlrs t]
-  (conj (filterv #(not (same-tnlr? % t)) tnlrs) (tnlr t)))
+(defn pinned?
+  "Is input `inp` **pinned** — frozen to an exact version by an inline `:id` — rather than
+  **floating** (a bare TNLR that follows its lineage's latest minor)?"
+  [inp]
+  (some? (:id inp)))
 
-(defn drop-declared
-  "Remove the declared input on TNLR `t`."
-  [tnlrs t]
-  (filterv #(not (same-tnlr? % t)) tnlrs))
+(defn add-declared-input
+  "Add `doc-ref` to the declared `inputs` (dedup by lineage/TNLR). Keeps `doc-ref`'s pin (`:id`) when it
+  carries one (a pinned ref), else records the bare TNLR (a floating ref)."
+  [inputs doc-ref]
+  (conj (filterv #(not (same-tnlr? % doc-ref)) inputs)
+        (select-keys doc-ref [:type :name :lang :major :id])))
+
+(defn drop-declared-input
+  "Remove the declared input on TNLR `doc-ref` — matched by lineage, pinned or floating alike."
+  [inputs doc-ref]
+  (filterv #(not (same-tnlr? % doc-ref)) inputs))
 
 (defn pin-all
-  "Resolve every declared TNLR to its current latest id → {tnlr-key → id}. `latest-of`
-  maps a TNLR → id."
-  [tnlrs latest-of]
-  (into {} (map (fn [t] [(tnlr-key t) (latest-of t)])) tnlrs))
+  "Resolve every **floating** input to its lineage's current id; a **pinned** input keeps its own
+  frozen `:id`. → {tnlr-key → id}. `latest-of` (a TNLR → id) resolves the floating ones only — a
+  pinned input needs no resolution (it already names an exact version), which is exactly what
+  isolates a change: a new minor never repins it."
+  [inputs latest-of]
+  (into {} (map (fn [inp] [(tnlr-key inp) (or (:id inp) (latest-of inp))])) inputs))
 
 (defn repin
-  "Point the pin for TNLR `t` at `new-id` (used when `t` gets a new minor)."
-  [pins t new-id]
-  (assoc pins (tnlr-key t) new-id))
+  "Point the pin for TNLR `doc-ref` at `new-id` (used when `doc-ref` gets a new minor). The caller repins only
+  **floating** successor inputs — a **pinned** input (`pinned?`) is frozen and must be skipped,
+  which is how a change stays isolated."
+  [pins doc-ref new-id]
+  (assoc pins (tnlr-key doc-ref) new-id))
 
 (defn input-refs
-  "The API-facing input refs — each declared TNLR plus its pinned id."
-  [tnlrs pins]
-  (mapv (fn [t] (assoc t :id (get pins (tnlr-key t)))) tnlrs))
+  "The API-facing input refs — each declared input plus its resolved id: a **pinned** input's own
+  frozen `:id`, else the **floating** pin from `pins`. Preferring the inline id lets a pinned ref
+  survive even a stale pin cache."
+  [inputs pins]
+  (mapv (fn [inp] (assoc inp :id (or (:id inp) (get pins (tnlr-key inp))))) inputs))
 
 ;; --- outputs (successor index) -----------------------------------------------
 
@@ -169,7 +184,7 @@
   "The reverse-edge rows for `successor-id`: one {:tnlr … :successor-id …} per declared
   input TNLR."
   [successor-id tnlrs]
-  (mapv (fn [t]
-          {:tnlr t
+  (mapv (fn [doc-ref]
+          {:tnlr doc-ref
            :successor-id successor-id})
         tnlrs))

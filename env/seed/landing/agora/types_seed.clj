@@ -16,13 +16,14 @@
     (require 'landing.agora.types-seed)
     (landing.agora.types-seed/seed!)"
   (:require
-   [clojure.edn                  :as edn]
-   [clojure.java.io              :as io]
-   [landing.agora.auth           :as auth]
-   [landing.agora.db             :as db]
-   [landing.agora.document.kind  :as dk]
-   [landing.agora.document.store :as store]
-   [landing.agora.publication    :as publication]))
+   [clojure.edn                     :as edn]
+   [clojure.java.io                 :as io]
+   [landing.agora.auth              :as auth]
+   [landing.agora.db                :as db]
+   [landing.agora.document.db-store :as dbs]
+   [landing.agora.document.kind     :as dk]
+   [landing.agora.document.store    :as store]
+   [landing.agora.publication       :as publication]))
 
 (def ^:private defs
   "kind keyword → {lang → {:title :statement}}, read from the seed resource."
@@ -51,9 +52,9 @@
                              {:keys [title statement]} (get-in defs [kw lang])]
                        ;; EXACT-language existence — `resolve-latest-id` would cross-language
                        ;; fall back (and, having just seeded `fr`, wrongly skip `en`)
-                       :when (and title (not (store/lang-exists? "ki" slug mj lang)))]
-                   (do (store/insert-document! {:id (store/uuid)
-                                                :type "ki"
+                       :when (and title (not (store/lang-exists? :ki slug mj lang)))]
+                   (do (store/insert-document! {:id (dbs/uuid)
+                                                :type :ki
                                                 :name slug
                                                 :lang lang
                                                 :major mj
@@ -66,7 +67,7 @@
                                                 ;; the platform is a normal (login-less) AGORA_USER, not a nil owner
                                                 :author (:display-name agora)
                                                 :owner-id (:id agora)
-                                                :published-at (store/now-iso)})
+                                                :published-at (dbs/now-iso)})
                        [slug lang])))]
     (store/clear-caches!)
     (vec created)))
@@ -79,6 +80,6 @@
   []
   (doseq [{kw :id} dk/kinds
           :let [{slug :name} (get dk/kind-def (name kw))]]
-    (store/q! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = 'ki' AND name = ?" slug]))
+    (dbs/q! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = 'ki' AND name = ?" slug]))
   (store/clear-caches!)
   (seed!))
