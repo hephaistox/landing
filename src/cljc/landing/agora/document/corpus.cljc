@@ -1,5 +1,5 @@
 (ns landing.agora.document.corpus
-  "A portable (cljc) in-memory **corpus** holder — a corpus is a flat vector of document versions,
+  "New Wire compatible. A portable (cljc) in-memory **corpus** holder — a corpus is a flat vector of document versions,
   usable from any stack (the CLI today; a client-side graph feature could hold one too). This
   namespace owns what is *specific to that substrate*:
 

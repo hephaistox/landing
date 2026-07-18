@@ -1,5 +1,5 @@
 (ns landing.agora.document.kind
-  "The Agora document **register** of `kind` (it's an epistemic/rhetorical family and the
+  "New Wire compatible. The Agora document **register** of `kind` (it's an epistemic/rhetorical family and the
   capabilities that follow from it)."
   (:require
    [clojure.string :as str]))

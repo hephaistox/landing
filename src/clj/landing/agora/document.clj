@@ -551,9 +551,10 @@
   `content LIKE '%source-id%'` prefilter, confirmed on the decoded `:source` ref."
   [author-id lang]
   (let [source-ids (into #{}
-                         (map :id)
+                         (map :source-id)
                          (dbs/q! db/ds
-                                 ["SELECT id FROM AGORA_SOURCE WHERE person_id = ?" author-id]
+                                 ["SELECT source_id FROM AGORA_SOURCE WHERE author_id = ?"
+                                  author-id]
                                  dbs/kebab))]
     (if (empty? source-ids)
       []
@@ -563,7 +564,7 @@
          ["SELECT DISTINCT k.id, k.type, k.name, k.lang, k.major, k.minor, k.content
                 FROM AGORA_DOCUMENT k
                 JOIN AGORA_SOURCE s
-                  ON s.person_id = ? AND k.content LIKE CONCAT('%', s.id, '%')
+                  ON s.author_id = ? AND k.content LIKE CONCAT('%', s.source_id, '%')
                WHERE k.lang = ? AND k.draft = 0
                  AND k.minor = (SELECT MAX(k2.minor) FROM AGORA_DOCUMENT k2
                                 WHERE k2.type = k.type AND k2.name = k.name

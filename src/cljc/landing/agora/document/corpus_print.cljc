@@ -1,5 +1,5 @@
 (ns landing.agora.document.corpus-print
-  "Compact, human-readable rendering of documents / publications / a whole corpus — for the CLI
+  "New Wire compatible. Compact, human-readable rendering of documents / publications / a whole corpus — for the CLI
   console, the corpus tests, or a client-side dump. Pure (cljc) presentation over the domain
   (`document.lineage`) and the corpus holder's graph queries (`corpus/members` / `latest-lineages`)."
   (:require

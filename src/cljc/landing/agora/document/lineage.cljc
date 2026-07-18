@@ -1,5 +1,5 @@
 (ns landing.agora.document.lineage
-  "The **lineage** layer scoped to *a lineage's set of minors* (resolve which minor is current,
+  "New Wire compatible.  The **lineage** layer scoped to *a lineage's set of minors* (resolve which minor is current,
   compute the next, construct the next on create / edit / publish) plus the referential-integrity rules.
   It sits above `document.identity`(TNLR + citation grammar) and `document.kind` (which kinds may take
   inputs), and it is the single home of the rule **a version's text determines its inputs**.

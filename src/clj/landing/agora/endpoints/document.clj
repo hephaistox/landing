@@ -2,7 +2,7 @@
   "One generic HTTP route set over the document engine (landing.agora.document),
   mounted once per object type — `(document-routes \"ki\" \"/agora/api/ki\")`,
   `(document-routes \"article\" \"/agora/api/article\")`. Every type gets the full
-  surface: list/search, create, by-permanent-identity, by-id, edit, translate and
+  surface: list/search, create, by-permanent-identity, edit, translate and
   input (add/drop). The request surface is **generated identically** for every type
   (`config-for`); the only per-type value is which kinds it accepts (`kind-enum-for`).
 
@@ -180,11 +180,6 @@
                          {:status 200
                           :body d}
                          (not-found :name n :major mj))))
-        by-id-h (fn [req]
-                  (if-let [d (document/fetch (path-id req))]
-                    {:status 200
-                     :body d}
-                    (not-found :id (path-id req))))
         edit-h (fn [req]
                  (if-let [u (uid req)]
                    (if-let [d (document/edit (path-id req) u (body req) (pub-id req))]
@@ -269,11 +264,6 @@
                                   [:publication {:optional true}
                                    publication-id-schema]]}
              :summary (str "Latest minor of a " type " by (name, major)")}}]
-     ["/:id"
-      {:get {:handler by-id-h
-             :operationId (str "agora-" type "-by-id")
-             :parameters {:path [:map [:id :string]]}
-             :summary (str "A " type " by id")}}]
      ["/:id/edit"
       {:post {:handler edit-h
               :middleware throttled
