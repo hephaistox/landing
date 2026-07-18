@@ -21,7 +21,7 @@
   [{:author "Anthony"
     :draft false
     :kind "definition"
-    :lang "en"
+    :lang :en
     :major 1
     :minor 0
     :name "fuzzy-confidence"
@@ -31,7 +31,7 @@
    {:author "Anthony"
     :draft false
     :kind "definition"
-    :lang "en"
+    :lang :en
     :major 1
     :minor 1
     :name "fuzzy-confidence"
@@ -42,7 +42,7 @@
    {:author "Anthony"
     :draft false
     :kind "definition"
-    :lang "fr"
+    :lang :fr
     :major 1
     :minor 0
     :name "fuzzy-confidence"
@@ -52,16 +52,16 @@
     :type :ki}
    {:author "Anthony"
     :draft true
-    :inputs [{:lang "en"
+    :inputs [{:lang :en
               :major 1
               :name "fuzzy-confidence"
               :type :ki}]
     :kind "inference"
-    :lang "en"
+    :lang :en
     :major 1
     :minor 0
     :name "reason-is-fuzzy"
-    :publication {:lang "en"
+    :publication {:lang :en
                   :major 1
                   :name "meta-graph"
                   :type :publication}
@@ -71,20 +71,20 @@
     :type :ki}
    {:author "Anthony"
     :draft true
-    :inputs [{:lang "en"
+    :inputs [{:lang :en
               :major 1
               :name "fuzzy-confidence"
               :type :ki}
-             {:lang "en"
+             {:lang :en
               :major 1
               :name "reason-is-fuzzy"
               :type :ki}]
     :kind "explainer"
-    :lang "en"
+    :lang :en
     :major 1
     :minor 0
     :name "on-partial-knowledge"
-    :publication {:lang "en"
+    :publication {:lang :en
                   :major 1
                   :name "meta-graph"
                   :type :publication}
@@ -95,11 +95,11 @@
    {:author "A. Believer"
     :draft true
     :kind "belief"
-    :lang "en"
+    :lang :en
     :major 1
     :minor 0
     :name "god-exists"
-    :publication {:lang "en"
+    :publication {:lang :en
                   :major 1
                   :name "theology"
                   :type :publication}
@@ -109,11 +109,11 @@
    {:author "A. Skeptic"
     :draft true
     :kind "belief"
-    :lang "en"
+    :lang :en
     :major 1
     :minor 0
     :name "god-absent"
-    :publication {:lang "en"
+    :publication {:lang :en
                   :major 1
                   :name "theology"
                   :type :publication}
@@ -122,7 +122,7 @@
     :type :ki}
    {:author "Anthony"
     :draft true
-    :lang "en"
+    :lang :en
     :major 1
     :minor 0
     :name "meta-graph"
@@ -131,7 +131,7 @@
     :type :publication}
    {:author "Anthony"
     :draft true
-    :lang "en"
+    :lang :en
     :major 1
     :minor 0
     :name "theology"
@@ -156,68 +156,68 @@
     (let [[c' d] (sut/create corpus
                              {:type :ki
                               :name "new-claim"
-                              :lang "en"
+                              :lang :en
                               :kind "inference"
                               :title "A new claim"
                               :author "Tester"
                               :text "this builds on [[ki:fuzzy-confidence:en@1]]."})]
       (is (= [{:type :ki
                :name "fuzzy-confidence"
-               :lang "en"
+               :lang :en
                :major 1}]
              (:inputs d))
           "inputs derived from the [[ki:…]] citation in the text")
-      (is (= d (current c' (tnlr :ki "new-claim" "en"))) "and it is now the current version")))
+      (is (= d (current c' (tnlr :ki "new-claim" :en))) "and it is now the current version")))
   (testing "edit appends a new minor; the original corpus is untouched (immutable)"
     (let [[_ d]
-          (sut/edit corpus (tnlr :ki "fuzzy-confidence" "en") {:title "Fuzzy confidence (v2)"})]
+          (sut/edit corpus (tnlr :ki "fuzzy-confidence" :en) {:title "Fuzzy confidence (v2)"})]
       (is (= 2 (:minor d)))
       (is (= "Fuzzy confidence (v2)" (:title d)))
-      (is (= "Fuzzy confidence" (:title (current corpus (tnlr :ki "fuzzy-confidence" "en"))))
+      (is (= "Fuzzy confidence" (:title (current corpus (tnlr :ki "fuzzy-confidence" :en))))
           "the original corpus is unchanged")))
   (testing "editing the text re-derives :inputs (removing a citation drops the input)"
     (let [[_ d] (sut/edit corpus
-                          (tnlr :ki "reason-is-fuzzy" "en")
+                          (tnlr :ki "reason-is-fuzzy" :en)
                           {:text "now standalone, with no citation."})]
       (is (= [] (:inputs d)))))
   (testing "editing an absent lineage is a no-op"
-    (is (= [corpus nil] (sut/edit corpus (tnlr :ki "ghost" "en") {:title "x"})))))
+    (is (= [corpus nil] (sut/edit corpus (tnlr :ki "ghost" :en) {:title "x"})))))
 
 (deftest compact-print
   (testing "a document renders as one dense, stable line"
-    (is (= "ki fuzzy-confidence@1.1 en [definition] \"Fuzzy confidence\""
-           (cprint/compact-doc (current corpus (tnlr :ki "fuzzy-confidence" "en")))))
+    (is (= "ki fuzzy-confidence@1.1 :en [definition] \"Fuzzy confidence\""
+           (cprint/compact-doc (current corpus (tnlr :ki "fuzzy-confidence" :en)))))
     (is
      (=
-      "ki reason-is-fuzzy@1.0 en [inference] \"Human reasoning is fuzzy\" ⇐ fuzzy-confidence@1 ∈ meta-graph (draft)"
-      (cprint/compact-doc (current corpus (tnlr :ki "reason-is-fuzzy" "en")))))
+      "ki reason-is-fuzzy@1.0 :en [inference] \"Human reasoning is fuzzy\" ⇐ fuzzy-confidence@1 ∈ meta-graph (draft)"
+      (cprint/compact-doc (current corpus (tnlr :ki "reason-is-fuzzy" :en)))))
     (is
      (=
-      "article on-partial-knowledge@1.0 en [explainer] \"On partial knowledge\" ⇐ fuzzy-confidence@1, reason-is-fuzzy@1 ∈ meta-graph (draft)"
-      (cprint/compact-doc (current corpus (tnlr :article "on-partial-knowledge" "en")))))
-    (is (= "publication meta-graph@1.0 en <open> \"The meta-graph of Agora\" (draft)"
-           (cprint/compact-doc (current corpus (tnlr :publication "meta-graph" "en"))))))
+      "article on-partial-knowledge@1.0 :en [explainer] \"On partial knowledge\" ⇐ fuzzy-confidence@1, reason-is-fuzzy@1 ∈ meta-graph (draft)"
+      (cprint/compact-doc (current corpus (tnlr :article "on-partial-knowledge" :en)))))
+    (is (= "publication meta-graph@1.0 :en <open> \"The meta-graph of Agora\" (draft)"
+           (cprint/compact-doc (current corpus (tnlr :publication "meta-graph" :en))))))
   (testing "a publication renders with its members indented beneath it"
     (is
      (=
       (str
-       "publication meta-graph@1.0 en <open> \"The meta-graph of Agora\" (draft) — 2 members\n"
-       "  • article on-partial-knowledge@1.0 en [explainer] \"On partial knowledge\" ⇐ fuzzy-confidence@1, reason-is-fuzzy@1 ∈ meta-graph (draft)\n"
-       "  • ki reason-is-fuzzy@1.0 en [inference] \"Human reasoning is fuzzy\" ⇐ fuzzy-confidence@1 ∈ meta-graph (draft)")
-      (cprint/compact-publication corpus (current corpus (tnlr :publication "meta-graph" "en"))))))
+       "publication meta-graph@1.0 :en <open> \"The meta-graph of Agora\" (draft) — 2 members\n"
+       "  • article on-partial-knowledge@1.0 :en [explainer] \"On partial knowledge\" ⇐ fuzzy-confidence@1, reason-is-fuzzy@1 ∈ meta-graph (draft)\n"
+       "  • ki reason-is-fuzzy@1.0 :en [inference] \"Human reasoning is fuzzy\" ⇐ fuzzy-confidence@1 ∈ meta-graph (draft)")
+      (cprint/compact-publication corpus (current corpus (tnlr :publication "meta-graph" :en))))))
   (testing "the whole corpus lists every current lineage (documents, then publications expanded)"
     (let [dump (cprint/compact-corpus corpus)]
-      (is (re-find #"ki fuzzy-confidence@1\.1 en" dump))
-      (is (re-find #"ki fuzzy-confidence@1\.0 fr" dump))
-      (is (re-find #"publication theology@1\.0 en <open>.*— 2 members" dump)))))
+      (is (re-find #"ki fuzzy-confidence@1\.1 :en" dump))
+      (is (re-find #"ki fuzzy-confidence@1\.0 :fr" dump))
+      (is (re-find #"publication theology@1\.0 :en <open>.*— 2 members" dump)))))
 
 (deftest graph-queries
   (testing "resolve-latest narrows to a lineage and takes its current minor (drafts included)"
-    (is (= 1 (:minor (sut/resolve-latest corpus (tnlr :ki "fuzzy-confidence" "en")))))
-    (is (nil? (sut/resolve-latest corpus (tnlr :ki "ghost" "en")))))
+    (is (= 1 (:minor (sut/resolve-latest corpus (tnlr :ki "fuzzy-confidence" :en)))))
+    (is (nil? (sut/resolve-latest corpus (tnlr :ki "ghost" :en)))))
   (testing "resolved-inputs resolves each declared input to its current version"
     (let [ins (sut/resolved-inputs corpus
-                                   (sut/resolve-latest corpus (tnlr :ki "reason-is-fuzzy" "en")))]
+                                   (sut/resolve-latest corpus (tnlr :ki "reason-is-fuzzy" :en)))]
       (is (= 1 (count ins)))
       (is (= "fuzzy-confidence" (:name (:tnlr (first ins)))))
       (is (= 1 (:minor (:doc (first ins)))) "resolves to the definition's latest minor")))
@@ -225,20 +225,20 @@
     (is (= "meta-graph"
            (:name (sut/publication-of corpus
                                       (sut/resolve-latest corpus
-                                                          (tnlr :ki "reason-is-fuzzy" "en"))))))
+                                                          (tnlr :ki "reason-is-fuzzy" :en))))))
     (is (nil? (sut/publication-of corpus
-                                  (sut/resolve-latest corpus (tnlr :ki "fuzzy-confidence" "en"))))))
+                                  (sut/resolve-latest corpus (tnlr :ki "fuzzy-confidence" :en))))))
   (testing "members finds a publication's documents at their current version"
     (is (= #{"on-partial-knowledge" "reason-is-fuzzy"}
            (set (map :name
                      (sut/members corpus
                                   (sut/resolve-latest corpus
-                                                      (tnlr :publication "meta-graph" "en"))))))))
+                                                      (tnlr :publication "meta-graph" :en))))))))
   (testing "latest-lineages lists the current version of every distinct lineage"
     (is (contains? (set (map (juxt :type :name) (sut/latest-lineages corpus)))
                    [:ki "fuzzy-confidence"])))
   (testing "ref-issues over the corpus: a well-formed doc validates against its live lineages"
     (let [existing (into #{} (map (juxt :type :name :major)) corpus)]
-      (is (empty? (:broken (lineage/ref-issues
-                            (sut/resolve-latest corpus (tnlr :ki "reason-is-fuzzy" "en"))
-                            existing)))))))
+      (is (empty? (:broken (lineage/ref-issues (sut/resolve-latest corpus
+                                                                   (tnlr :ki "reason-is-fuzzy" :en))
+                                               existing)))))))
