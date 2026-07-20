@@ -90,8 +90,8 @@
                            :kind (:kind doc)
                            :text (cite/node-text doc)
                            :source (:source doc)
-                           ;; the quoted source-KIs (edge-only inputs) — resubmitted on save
-                           :quotes (vec (:quotes doc))
+                           ;; the cited source-KIs (edge-only inputs) — resubmitted on save
+                           :cites (vec (:cites doc))
                            ;; citations present when editing began — to warn if an input
                            ;; reference gets removed before saving.
                            :orig-cites (cite/citations (cite/node-text doc))
@@ -103,7 +103,7 @@
 
 (rf/reg-event-fx ::edit-save
                  (fn [{:keys [db]} _]
-                   (let [{:keys [type id title kind text source quotes orig-cites]} (::edit db)
+                   (let [{:keys [type id title kind text source cites orig-cites]} (::edit db)
                          removed? (seq (remove (cite/citations text) orig-cites))]
                      (if (and removed?
                               (not (js/confirm (i18n/t (i18n/current db) :cite/removed-warning))))
@@ -116,7 +116,7 @@
                                          (cond-> {:title title
                                                   :text text
                                                   :source (source/strip-source source)
-                                                  :quotes (source/strip-quotes quotes)}
+                                                  :cites (source/strip-cites cites)}
                                            kind (assoc :kind kind))
                                          [::saved-ok]
                                          [::op-failed])}))))
@@ -139,7 +139,7 @@
 
 (rf/reg-event-fx ::new-submit
                  (fn [{:keys [db]} _]
-                   (let [{:keys [type show-kind? title kind lang text source quotes]} (::new db)]
+                   (let [{:keys [type show-kind? title kind lang text source cites]} (::new db)]
                      {:db (assoc-in db [::new :submitting?] true)
                       :fetch (json-req :post
                                        (str "/agora/api/" type)
@@ -147,7 +147,7 @@
                                                 :lang (or lang (i18n/current db))
                                                 :text text
                                                 :source (source/strip-source source)
-                                                :quotes (source/strip-quotes quotes)}
+                                                :cites (source/strip-cites cites)}
                                          show-kind? (assoc :kind kind))
                                        [::saved-ok]
                                        [::op-failed])})))
@@ -466,11 +466,11 @@
   from the form's `kind`/`title`/`source` and the authoring user (the source's author when a
   source is set, else the user). Nothing for the free-form `inference` kind — so the author
   writes only the body, and the grammar is enforced without being stored."
-  [{:keys [kind title source quotes]} author-name lang]
+  [{:keys [kind title source cites]} author-name lang]
   (when-let [p (dk/statement-prefix-of {:kind kind
                                         :title title
                                         :source source
-                                        :quote-author-name (:author-name (first quotes))
+                                        :cite-author-name (:author-name (first cites))
                                         :author author-name}
                                        lang)]
     [:div {:style {:font-size "0.9em"
@@ -489,7 +489,7 @@
     :keys [major minor published-at author]}
    {:keys [show-kind? labels]
     object-type :type}]
-  (let [{:keys [title kind text source quotes saving? error]} @(rf/subscribe [::edit])
+  (let [{:keys [title kind text source cites saving? error]} @(rf/subscribe [::edit])
         lang @(rf/subscribe [::i18n/lang])
         user @(rf/subscribe [::auth/user])]
     [:article {:style card-style}
@@ -519,7 +519,7 @@
      [prefix-label {:kind kind
                     :title title
                     :source source
-                    :quotes quotes}
+                    :cites cites}
       (:display-name user)
       ;; the doc's content language (not the interface lang) — the prefix is part of the text
       doc-lang]
@@ -529,10 +529,10 @@
       (lbl lang labels :text-ph)
       doc-name
       (dk/kind-allows-inputs? kind)
-      #(rf/dispatch [::edit-set :quotes (source/add-quote quotes %)])]
-     [source/quotes-list quotes #(rf/dispatch [::edit-set :quotes %])]
+      #(rf/dispatch [::edit-set :cites (source/add-cite cites %)])]
+     [source/cites-list cites #(rf/dispatch [::edit-set :cites %])]
      ;; only a source-KI carries a `:source` (a reference to its shared work) — offer the
-     ;; source picker just for that kind; other KIs relate to sources by *quoting* them (above)
+     ;; source picker just for that kind; other KIs relate to sources by *citing* them (above)
      (when (= kind "source")
        [:div {:style {:margin-top "0.8em"}}
         [source/source-editor source #(rf/dispatch [::edit-set :source %])]])
@@ -571,7 +571,7 @@
     :as cfg}]
   (r/with-let
    [_ (rf/dispatch-sync [::new-reset cfg])]
-   (let [{:keys [title kind text source quotes submitting?]
+   (let [{:keys [title kind text source cites submitting?]
           form-lang :lang}
          @(rf/subscribe [::new])
          user @(rf/subscribe [::auth/user])
@@ -606,7 +606,7 @@
       [prefix-label {:kind kind
                      :title title
                      :source source
-                     :quotes quotes}
+                     :cites cites}
        (:display-name user)
        ;; the content language being authored (the selected form language), not the interface
        (or form-lang lang)]
@@ -616,8 +616,8 @@
        (lbl lang labels :text-ph)
        nil
        (dk/kind-allows-inputs? (or kind "inference"))
-       #(rf/dispatch [::new-set :quotes (source/add-quote quotes %)])]
-      [source/quotes-list quotes #(rf/dispatch [::new-set :quotes %])]
+       #(rf/dispatch [::new-set :cites (source/add-cite cites %)])]
+      [source/cites-list cites #(rf/dispatch [::new-set :cites %])]
       (when (= kind "source")
         [:div {:style {:margin "0.9em 0 0.2em"}}
          [source/source-editor source #(rf/dispatch [::new-set :source %])]])

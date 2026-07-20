@@ -49,27 +49,42 @@
   [v]
   (if (number? v) (not (zero? v)) (boolean v)))
 
-;; --- id → one document row -------------------------------------------------------------------
+;; --- id → full document(s) -------------------------------------------------------------------
+
+(def ^:private select-doc
+  "SELECT id, type, name, lang, major, minor, draft, publication_id, content, computed
+     FROM AGORA_DOCUMENT ")
+
+(defn- row->doc
+  "A raw row → a full document: identity columns (`:type` and `:lang` keyworded), decoded `content`,
+  resolved `:pins`."
+  [row]
+  (merge (-> (select-keys row [:id :type :name :lang :major :minor])
+             (update :type keyword)
+             (update :lang keyword))
+         {:draft (truthy? (:draft row))
+          :publication-id (:publication-id row)}
+         (decode-content (:content row))
+         {:pins (decode-pins (:computed row))}))
 
 (defn fetch
-  "Document for `id`: identity columns (`:type` and `:lang` keyworded), decoded `content`, resolved
-  `:pins`. nil if absent."
+  "Document for `id`, or nil."
   [id]
-  (when-let
-    [row
-     (q1!
-      db/ds
-      ["SELECT id, type, name, lang, major, minor, draft, publication_id, content, computed
-                          FROM AGORA_DOCUMENT WHERE id = ?"
-       id]
-      kebab)]
-    (merge (-> (select-keys row [:id :type :name :lang :major :minor])
-               (update :type keyword)
-               (update :lang keyword))
-           {:draft (truthy? (:draft row))
-            :publication-id (:publication-id row)}
-           (decode-content (:content row))
-           {:pins (decode-pins (:computed row))})))
+  (some-> (q1! db/ds [(str select-doc "WHERE id = ?") id] kebab)
+          row->doc))
+
+(defn published-of-tnr
+  "Every **published** document of a TNR (a ref's type, name, major) — all languages, all minors — as
+  full docs. One query; the caller (`lineage/resolve-latest`) picks which to serve. Drafts excluded:
+  a draft only surfaces by exact id inside a change."
+  [{:keys [type name major]}]
+  (mapv row->doc
+        (q! db/ds
+            [(str select-doc "WHERE type = ? AND name = ? AND major = ? AND draft = 0")
+             (t->s type)
+             name
+             major]
+            kebab)))
 
 ;; --- lineage indexes ------------------------------------------------------------------------
 

@@ -305,14 +305,14 @@
   "The KI kinds as clickable badges (selected highlighted, rest dimmed) — for the inline
   new-KI form. Local to cite so the low-level editor stays free of the `edit` layer. Only
   *in-text* kinds are offered: this form always splices a `[[ki:…]]` citation, so an edge-only
-  kind (`source`) — which is never written into prose — is excluded (it has its own quote flow)."
+  kind (`source`) — which is never written into prose — is excluded (it has its own cite flow)."
   [selected on-select]
   (into [:div {:style {:display "flex"
                        :flex-wrap "wrap"
                        :gap "0.3em"}}]
         (for [k (->> (dk/kind-ids-of "ki")
                      (map name)
-                     (filter dk/kind-quotes-in-text?))]
+                     (filter dk/kind-citations-in-text?))]
           ^{:key k}
           [:button {:on-click #(on-select k)
                     :title k
@@ -332,9 +332,9 @@
   citations, this is how you add an input. `value` is the text; `set-text!` is called
   with the new text on every edit and insert; `placeholder` is the textarea hint.
   `self-name` (optional) is the identity name of the document being edited — it is
-  removed from the search results so a document can never quote itself (a self-reference
+  removed from the search results so a document can never cite itself (a self-reference
   is a degenerate cycle; see the *Consistency rules* in agora/CLAUDE.md). `inputs?` (default
-  true) toggles the **quotation feature** (the cite/create search box); pass false for a kind
+  true) toggles the **citation feature** (the cite/create search box); pass false for a kind
   that may not have inputs (see `dk/kind-allows-inputs?`) — the prose textarea stays."
   [_value _set-text! _placeholder _self-name _inputs?]
   (let [node (atom nil)
@@ -409,15 +409,15 @@
                                  (reset! form? false)
                                  (insert! (js->clj ki :keywordize-keys true))))
                         (.catch (fn [_] (reset! busy? false))))))]
-    (fn [value set-text! placeholder self-name inputs? on-quote]
+    (fn [value set-text! placeholder self-name inputs? on-cite]
       (reset! setter set-text!)
       (let [lang @(rf/subscribe [::i18n/lang])
-            ;; classical quoting: an in-text kind is spliced into the prose; a source (edge-only
-            ;; kind) is handed to `on-quote` as an input, never written into the text
+            ;; classical citing: an in-text kind is spliced into the prose; a source (edge-only
+            ;; kind) is handed to `on-cite` as an input, never written into the text
             pick! (fn [k]
-                    (if (dk/kind-quotes-in-text? (:kind k))
+                    (if (dk/kind-citations-in-text? (:kind k))
                       (insert! k)
-                      (do (when on-quote (on-quote k)) (reset! q "") (reset! results []))))]
+                      (do (when on-cite (on-cite k)) (reset! q "") (reset! results []))))]
         [:div
          [ui/composed-field {:element :textarea
                              :ref (fn [el] (reset! node el) (when el (js/setTimeout fit! 0)))
@@ -435,7 +435,7 @@
                                      :line-height "1.55"
                                      :border "1px solid #ccc"
                                      :border-radius "0.3em"}}]
-         ;; the quotation feature — hidden for kinds that may not have inputs (e.g. source)
+         ;; the citation feature — hidden for kinds that may not have inputs (e.g. source)
          (when-not (false? inputs?)
            [:div {:style {:position "relative"
                           :margin "0.4em 0 0"}}
@@ -468,7 +468,7 @@
                                    [mini-kind-badge (:kind k)]
                                    [:span {:style {:font-weight 600}}
                                     (or (:title k) (humanize (:name k)))]])
-                                ;; a document can't quote itself — drop its own lineage
+                                ;; a document can't cite itself — drop its own lineage
                                 (remove #(= (:name %) self-name) @results))
                           ^{:key "__new__"}
                           [:button {:on-click #(open-form!)

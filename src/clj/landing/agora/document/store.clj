@@ -82,10 +82,16 @@
 ;; Clojure — the SQL never chooses a version. Cross-language fallback (a lineage not translated
 ;; into `lang`) is a second `documents` call for the default language (rare).
 
+(defn latest-with-drafts
+  "The current version among a lineage's `minors` — the highest minor, drafts included (the
+  owner/working view). The store's own copy: the domain (`lineage`) keeps it private."
+  [minors]
+  (when (seq minors) (apply max-key :minor minors)))
+
 (defn resolve-latest-id
   "The id of the latest **published** minor of (type, name, major) in `lang`; if that lineage has
   no version in `lang`, a second lookup falls back to the **default** language. Drafts excluded —
-  the single lever behind permalinks, input/quote edges, successors and search."
+  the single lever behind permalinks, input/cite edges, successors and search."
   [ty nm major lang]
   (or (:id (lineage/latest-published (documents ty nm lang major)))
       (when (not= lang language/default-lang)
@@ -95,12 +101,19 @@
   "The id of the highest-minor version of (type, name, major) in `lang` — **drafts included** (the
   current version even if unpublished). Owner-facing (e.g. a publication, `draft` while open)."
   [ty nm major lang]
-  (:id (lineage/latest-with-drafts (documents ty nm lang major))))
+  (:id (latest-with-drafts (documents ty nm lang major))))
+
+(defn- draft-in-publication*
+  "The lineage's own **draft in publication `pub-id`** — its latest draft minor tagged with that
+  publication — or nil. Pure over the lineage's `minors` (each carrying `:draft`/`:publication-id`);
+  the holder fetches the minors, this rule picks."
+  [minors pub-id]
+  (latest-with-drafts (filter #(and (:draft %) (= (:publication-id %) pub-id)) minors)))
 
 (defn draft-in-publication
   "The id of publication `pub-id`'s own draft of lineage (type, name, major) in `lang`, or nil."
   [pub-id ty nm major lang]
-  (:id (lineage/draft-in-publication (documents ty nm lang major) pub-id)))
+  (:id (draft-in-publication* (documents ty nm lang major) pub-id)))
 
 (defn resolve-in-publication
   "Resolve a TNLR within publication `pub-id`: the publication's own draft of that lineage if it
@@ -108,6 +121,25 @@
   public reads use `resolve-latest-id`."
   [pub-id ty nm major lang]
   (or (draft-in-publication pub-id ty nm major lang) (resolve-latest-id ty nm major lang)))
+
+;; --- pure change-model rules (the publish lifecycle + its invariant), relocated from the domain ---
+;; Kept in Clojure — the publication/change model lives here, not in the shared cljc lineage layer.
+
+(defn pending?
+  "The `inputs` (declared TNLRs) whose lineage has **no published version** — `published?` is a
+  predicate `tnlr → boolean`. These break the publish invariant (a public node may not depend on a
+  draft), so `publish` must refuse until they are published. Pure — the caller supplies `published?`."
+  [inputs published?]
+  (filterv #(not (published? %)) inputs))
+
+(defn publish
+  "**Close=publish** a publication: `publication` becomes closed + published, and **every draft it
+  gathers** (`members`) becomes published (`:draft false`), **all at once**. Publishing together keeps
+  the invariant that no published version depends on a draft, so the flip is order-independent.
+  Returns `[publication & members]`, all published; the caller persists (and, in the DB, prunes each
+  lineage's intermediate drafts)."
+  [publication members]
+  (into [(assoc publication :status "closed" :draft false)] (map #(assoc % :draft false)) members))
 
 (defn- latest-of
   "The domain's injected `latest-of`: an input TNLR → the id it should pin to. Latest **published**
@@ -118,8 +150,7 @@
     nm :name
     major :major
     lang :lang}]
-  (or (resolve-latest-id ty nm major lang)
-      (:id (lineage/latest-with-drafts (documents ty nm lang major)))))
+  (or (resolve-latest-id ty nm major lang) (:id (latest-with-drafts (documents ty nm lang major)))))
 
 (defn- latest-of-in
   "Pin resolver scoped to publication `pub-id`: an input TNLR → the id to pin, **preferring the

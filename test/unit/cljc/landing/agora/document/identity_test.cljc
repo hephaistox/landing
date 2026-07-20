@@ -125,16 +125,16 @@
 (deftest declarations
   (is (= [t-b (assoc t-a :id "x")]
          (-> []
-             (sut/add-declared-input t-a)
-             (sut/add-declared-input t-b)
-             (sut/add-declared-input (assoc t-a :id "x"))))
+             (sut/add-input t-a)
+             (sut/add-input t-b)
+             (sut/add-input (assoc t-a :id "x"))))
       "add-declared dedups by lineage and keeps a pin (:id) when the input carries one")
   (is (= [t-b]
          (-> []
-             (sut/add-declared-input (assoc t-a :id "x"))
-             (sut/add-declared-input t-b)
-             (sut/drop-declared-input t-a)))
-      "drop-declared-input removes by lineage, pinned or floating"))
+             (sut/add-input (assoc t-a :id "x"))
+             (sut/add-input t-b)
+             (sut/drop-input t-a)))
+      "drop-input removes by lineage, pinned or floating"))
 
 (deftest pins
   (is (= {(sut/tnlr-key t-a) "a-latest"

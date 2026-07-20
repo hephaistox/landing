@@ -365,7 +365,7 @@
   "A list item linking to a neighbouring document's permalink."
   [base {:keys [type name lang major title]}]
   (str "<li><a href=\""
-       (esc (str base "/agora/" lang "/" (name (or type :ki)) "/" (key-of name title) "/" major))
+       (esc (str base "/agora/" lang "/" (clojure.core/name (or type :ki)) "/" (key-of name title) "/" major))
        "\">"
        (esc (if (str/blank? title) (humanize name) title))
        "</a></li>"))

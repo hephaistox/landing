@@ -10,8 +10,10 @@
      canonical permalink."
   (:require
    [clojure.java.io                 :as io]
+   [clojure.set                     :as set]
    [landing.agora.auth              :as auth]
    [landing.agora.document          :as document]
+   [landing.agora.document.engine   :as engine]
    [landing.agora.document.identity :as di]
    [landing.agora.seo               :as seo]
    [landing.endpoints.html          :refer [html-middlewares]]
@@ -59,6 +61,17 @@
               "Reasoning made legible — a knowledge graph of challengeable reasoning steps.")]
     (html-response (seo/inject @public-template head lang))))
 
+(defn- for-ssr
+  "Compat for the SEO renderer, written against the old view: string `:lang` (it builds hreflang and
+  neighbour URLs from it) and a source's id as `:id`. New Wire carries keyword `:lang` and
+  `:source-id`; normalize at this boundary. Drops once seo adopts them."
+  [doc]
+  (-> doc
+      (update :lang name)
+      (update :translations (partial mapv #(update % :lang name)))
+      (cond->
+        (:source doc) (update :source set/rename-keys {:source-id :id}))))
+
 (def ki-page-response
   "Serve the public KI permalink shell with per-KI SEO: title, description,
   OpenGraph and schema.org Article (name, description, datePublished, author,
@@ -70,7 +83,11 @@
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
           ;; the path segment is `<cid>~<slug>` (or bare cid); resolve by the cid
           name (di/cid-of name)
-          ki (document/fetch-by-major :ki name major-n lang)
+          ki (some-> (engine/read-by-major {:type :ki
+                                            :name name
+                                            :lang (keyword lang)
+                                            :major major-n})
+                     for-ssr)
           base (seo/base-url req)
           head (if ki
                  (seo/ki-head base lang name major-n ki)
@@ -118,7 +135,11 @@
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
           ;; the path segment is `<cid>~<slug>` (or bare cid); resolve by the cid
           name (di/cid-of name)
-          art (document/fetch-by-major :article name major-n lang)
+          art (some-> (engine/read-by-major {:type :article
+                                             :name name
+                                             :lang (keyword lang)
+                                             :major major-n})
+                      for-ssr)
           base (seo/base-url req)
           head (if art
                  (seo/article-head base lang name major-n art)

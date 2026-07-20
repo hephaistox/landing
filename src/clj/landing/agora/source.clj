@@ -4,7 +4,7 @@
 
   The author's display name is **denormalized into `author_name` at creation** (and re-derived on
   edit), so reads need no join. One source maps to **many `kind=source` KIs** — one per
-  quotation/idea — which share the source's fields and each carry their own locator. A `kind=source`
+  citation/idea — which share the source's fields and each carry their own locator. A `kind=source`
   KI references its source on `content.:source = {:source-id :locator}`; `resolve-ref` turns that
   into the source's display fields + the locator, on read. A read-through Caffeine cache fronts
   id → resolved source, so resolving never N+1s the DB. No dependency on `document` — keeps the graph

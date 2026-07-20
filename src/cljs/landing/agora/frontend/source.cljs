@@ -1,16 +1,16 @@
 (ns landing.agora.frontend.source
   "Bibliographic sources — authoring + display. Two roles (see agora/CLAUDE.md §Sources):
 
-   1. **A source-editor for a `kind=source` KI** (a *quotation*): pick/create the shared
+   1. **A source-editor for a `kind=source` KI** (a *citation*): pick/create the shared
       **work** (`AGORA_SOURCE` — author / title / year / editor / url) via the `\"Find a
-      source\" search modal` (or a recent chip), plus this quotation's own `:locator`.
+      source\" search modal` (or a recent chip), plus this citation's own `:locator`.
       `strip-source` reduces it to the `{:source-id :locator}` the API stores. Shown by the
       forms **only when kind=source** — other KIs never *attach* a source.
 
-   2. **Quotes for a KI that quotes sources**: a KI relates to a source by *quoting* a
+   2. **Cites for a KI that cites sources**: a KI relates to a source by *citing* a
       `kind=source` KI (an edge-only input; `cite`'s search box routes such a pick to
-      `on-quote`). `add-quote`/`strip-quotes` manage the list, `quotes-list` renders the
-      authoring chips, `quotes-view` the read-page list (title · work-author · locator).
+      `on-cite`). `add-cite`/`strip-cites` manage the list, `cites-list` renders the
+      authoring chips, `cites-view` the read-page list (title · cite author · locator).
 
   Low-level (no dependency on the page namespaces), like `cite`."
   (:require
@@ -33,24 +33,24 @@
      :locator (:locator src)}
     {:source-id ""}))
 
-;; --- quotes (a KI quoting kind=source KIs) ----------------------------------
-(defn strip-quotes
-  "Reduce the editor's quotes (resolved source-KIs) to the `[{:name :major}…]` the API stores
+;; --- cites (a KI citing kind=source KIs) ----------------------------------
+(defn strip-cites
+  "Reduce the editor's cites (resolved source-KIs) to the `[{:name :major}…]` the API stores
   (they become edge-only inputs)."
-  [quotes]
-  (mapv #(select-keys % [:name :major]) (or quotes [])))
+  [cites]
+  (mapv #(select-keys % [:name :major]) (or cites [])))
 
-(defn add-quote
-  "Add a picked source-KI (a search-result card) to `quotes`, deduped by (name, major).
-  Keeps display fields (`:title`, work `:author-name`) for the chip; `strip-quotes` drops them."
-  [quotes k]
+(defn add-cite
+  "Add a picked source-KI (a search-result card) to `cites`, deduped by (name, major).
+  Keeps display fields (`:title`, work `:author-name`) for the chip; `strip-cites` drops them."
+  [cites k]
   (let [q {:name (:name k)
            :major (:major k)
            :title (:title k)
            :author-name (:author-name (:source k))}]
-    (if (some #(and (= (:name %) (:name q)) (= (:major %) (:major q))) quotes)
-      (vec quotes)
-      (conj (vec quotes) q))))
+    (if (some #(and (= (:name %) (:name q)) (= (:major %) (:major q))) cites)
+      (vec cites)
+      (conj (vec cites) q))))
 
 ;; --- tiny fetch helpers (raw fetch, like cite.cljs) -------------------------
 (defn- GET*
@@ -439,19 +439,19 @@
             #(do (reset! open? false) (reset! edit? false))
             (when @edit? value)])]))))
 
-;; --- quotes chosen while authoring ------------------------------------------
-(defn quotes-list
-  "The source quotes chosen for a document (authoring): each shows the quoted source-KI's title
-  + its work author, with a remove ✕. Adding is done via the citation search box (`on-quote`)."
-  [quotes set-quotes!]
-  (when (seq quotes)
+;; --- cites chosen while authoring ------------------------------------------
+(defn cites-list
+  "The source cites chosen for a document (authoring): each shows the cited source-KI's title
+  + its work author, with a remove ✕. Adding is done via the citation search box (`on-cite`)."
+  [cites set-cites!]
+  (when (seq cites)
     (let [lang @(rf/subscribe [::i18n/lang])
-          qs (vec quotes)]
+          qs (vec cites)]
       [:div {:style {:margin "0.4em 0"}}
        [:div {:style {:font-size "0.8em"
                       :color "#555"
                       :margin-bottom "0.2em"}}
-        (i18n/t lang :quote/heading)]
+        (i18n/t lang :cite/heading)]
        (into [:div]
              (for [[i q] (map-indexed vector qs)]
                ^{:key (str (:name q) "-" i)}
@@ -467,7 +467,7 @@
                    [:span {:style {:color "#8a7a55"}}
                     (str " — " (:author-name q))])]
                 [:button {:title (i18n/t lang :ref/remove)
-                          :on-click #(set-quotes! (into (subvec qs 0 i) (subvec qs (inc i))))
+                          :on-click #(set-cites! (into (subvec qs 0 i) (subvec qs (inc i))))
                           :style {:border "none"
                                   :background "transparent"
                                   :color "#c92a2a"
@@ -517,11 +517,11 @@
           [:span {:style {:color "#888"}}
            (str " — " (:locator src))])]])))
 
-(defn quotes-view
-  "Read display of the source-KIs a document **quotes** — each links to the quotation (a
+(defn cites-view
+  "Read display of the source-KIs a document **cites** — each links to the citation (a
   `kind=source` KI) and shows its work author + locator. Nothing when none."
-  [quotes]
-  (when (seq quotes)
+  [cites]
+  (when (seq cites)
     (let [lang @(rf/subscribe [::i18n/lang])]
       [:div {:style {:margin-top "1.1em"}}
        [:div {:style {:font-weight 700
@@ -530,13 +530,13 @@
                       :text-transform "uppercase"
                       :letter-spacing "0.04em"
                       :margin-bottom "0.35em"}}
-        (i18n/t lang :quote/heading)]
+        (i18n/t lang :cite/heading)]
        (into [:ul {:style {:margin 0
                            :padding-left "1.2em"
                            :color "#555"
                            :font-size "0.9em"
                            :line-height "1.5"}}]
-             (for [q quotes]
+             (for [q cites]
                ^{:key (str (:name q) "-" (:major q))}
                [:li
                 "❝ "

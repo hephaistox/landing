@@ -62,23 +62,20 @@
            (sut/inputs-of {:kind "source"
                            :text "[[ki:x@1]]"}
                           :en))))
-  (testing "explicit source :quotes are folded in as ki inputs (edge-only, not in prose)"
+  (testing "explicit source :cites are folded in as ki inputs (edge-only, not in prose)"
     (is (= [{:type :ki
              :name "q"
              :lang :en
              :major 3}]
            (sut/inputs-of {:kind "definition"
                            :text ""
-                           :quotes [{:name "q"
+                           :cites [{:name "q"
                                      :major 3}]}
                           :en)))))
 
 ;; --- resolution over a lineage's minors --------------------------------------
 
 (deftest resolution
-  (testing "latest is the highest minor, drafts included"
-    (is (= 2 (:minor (sut/latest-with-drafts minors))))
-    (is (nil? (sut/latest-with-drafts []))))
   (testing "latest-published is the highest non-draft minor, or nil when draft-only"
     (is (= 1 (:minor (sut/latest-published minors))))
     (is (nil? (sut/latest-published [{:minor 0
@@ -86,6 +83,36 @@
   (testing "next-minor is one past the highest, or 0 for an empty lineage"
     (is (= 3 (sut/next-minor minors)))
     (is (= 0 (sut/next-minor [])))))
+
+(deftest resolve-latest
+  (let [vs [{:id "en0"
+             :lang :en
+             :minor 0
+             :draft false}
+            {:id "en1"
+             :lang :en
+             :minor 1
+             :draft false}
+            {:id "en2"
+             :lang :en
+             :minor 2
+             :draft true} ; a draft, never resolved publicly
+            {:id "fr0"
+             :lang :fr
+             :minor 0
+             :draft false}]]
+    (testing "latest published minor in the requested language"
+      (is (= "en1" (:id (sut/resolve-latest vs :en :fr))))
+      (is (= "fr0" (:id (sut/resolve-latest vs :fr :en)))))
+    (testing "cross-language fallback to the default lang when the requested lang is absent"
+      (is (= "fr0" (:id (sut/resolve-latest vs :de :fr)))))
+    (testing "nil when neither language has a published version"
+      (is (nil? (sut/resolve-latest vs :de :es)))
+      (is (nil? (sut/resolve-latest [{:lang :en
+                                      :minor 0
+                                      :draft true}]
+                                    :en
+                                    :fr))))))
 
 ;; --- lifecycle --------------------------------------
 
@@ -131,43 +158,6 @@
       (is (nil? (:pins v)))))
   (testing "edit of an empty lineage is nil" (is (nil? (sut/edit [] {:title "x"})))))
 
-(deftest close-publish
-  (testing "publish closes the publication and publishes every draft it gathers, at once"
-    (let [publication {:type :publication
-                       :name "p"
-                       :lang :en
-                       :major 1
-                       :minor 0
-                       :status "open"
-                       :draft true
-                       :title "P"}
-          members [{:type :ki
-                    :name "a"
-                    :lang :en
-                    :major 1
-                    :minor 3
-                    :draft true}
-                   {:type :ki
-                    :name "b"
-                    :lang :en
-                    :major 1
-                    :minor 0
-                    :draft true}]
-          [pub' & members'] (sut/publish publication members)]
-      (is (= {:status "closed"
-              :draft false}
-             (select-keys pub' [:status :draft]))
-          "the publication becomes closed + published")
-      (is (= 2 (count members')))
-      (is (every? (comp false? :draft) members') "every member draft becomes published")))
-  (testing "a publication with no members still closes"
-    (is (= {:status "closed"
-            :draft false}
-           (select-keys (first (sut/publish {:status "open"
-                                             :draft true}
-                                            []))
-                        [:status :draft])))))
-
 ;; --- a version's declared inputs ---------------------------------------------
 
 (deftest declared-inputs
@@ -187,27 +177,6 @@
                                  :name "leaf"})))))
 
 ;; --- referential-integrity rules ---------------------------------------------
-
-(deftest pending?
-  (testing "the inputs with no published version, per the injected predicate"
-    (let [published? #{{:type :ki
-                        :name "ok"
-                        :lang :en
-                        :major 1}}
-          inputs [{:type :ki
-                   :name "ok"
-                   :lang :en
-                   :major 1}
-                  {:type :ki
-                   :name "draft-only"
-                   :lang :en
-                   :major 1}]]
-      (is (= [{:type :ki
-               :name "draft-only"
-               :lang :en
-               :major 1}]
-             (sut/pending? inputs published?)))
-      (is (= [] (sut/pending? [] published?))))))
 
 (deftest ref-issues
   (testing "flags dangling references (a ref whose lineage is not in `existing`)"

@@ -795,10 +795,10 @@
                     :display "flex"
                     :align-items "baseline"
                     :gap "0.5em"}}
-      (let [src-author (or (:quote-author-name node) (:author-name (:source node)))]
+      (let [src-author (or (:cite-author-name node) (:author-name (:source node)))]
         (if src-author
-          ;; the KI quotes a source → attribute the cited author
-          [:span {:title (i18n/t lang :card/quotes)}
+          ;; the KI cites a source → attribute the cited author
+          [:span {:title (i18n/t lang :card/cites)}
            "📖 "
            [:span {:style {:color "#b9770e"
                            :font-weight 600}}

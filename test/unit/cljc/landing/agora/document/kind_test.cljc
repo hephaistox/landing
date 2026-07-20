@@ -26,9 +26,9 @@
     (is (sut/kind-allows-inputs? "definition"))
     (is (not (sut/kind-allows-inputs? "source")) "a source is a leaf")
     (is (sut/kind-allows-inputs? nil) "an article has no kind → may take inputs"))
-  (testing "kind-quotes-in-text?: quoting a source is an edge only; every other kind is in-text"
-    (is (sut/kind-quotes-in-text? "definition"))
-    (is (not (sut/kind-quotes-in-text? "source"))))
+  (testing "kind-citations-in-text?: citing a source is an edge only; every other kind is in-text"
+    (is (sut/kind-citations-in-text? "definition"))
+    (is (not (sut/kind-citations-in-text? "source"))))
   (testing "kind-def points each kind at its self-hosting definition KI"
     (is (= {:type :ki
             :name "type-inference"
@@ -52,9 +52,9 @@
     (is (nil? (sut/statement-subject-kind "inference"))))
   (testing "an unknown language falls back to English"
     (is (= "X believes that " (sut/statement-prefix "belief" :de "x"))))
-  (testing "attributed-author prefers the quoted source's author, then the quote author, then own"
+  (testing "attributed-author prefers the cited source's author, then the cite author, then own"
     (is (= "David Fricke"
-           (sut/attributed-author {:quote-author-name "David Fricke"
+           (sut/attributed-author {:cite-author-name "David Fricke"
                                    :author "Poster"})))
     (is (= "Poster" (sut/attributed-author {:author "Poster"}))))
   (testing "compose-statement assembles prefix + body for a document"

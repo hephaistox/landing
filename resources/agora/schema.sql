@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS `AGORA_USER` (
   UNIQUE KEY `uq_user_provider` (`provider`, `provider_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- KIs, articles and (kind=source) quotations — one polymorphic table.
+-- KIs, articles and (kind=source) citations — one polymorphic table.
 CREATE TABLE IF NOT EXISTS `AGORA_DOCUMENT` (
   `id`           CHAR(36)     NOT NULL COMMENT 'UUID, stable permanent identity of a version',
   `type`         VARCHAR(32)  NOT NULL DEFAULT 'ki' COMMENT 'Object type (ki / article)',

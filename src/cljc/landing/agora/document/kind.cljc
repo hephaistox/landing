@@ -1,6 +1,7 @@
 (ns landing.agora.document.kind
-  "New Wire compatible. The Agora document **register** of `kind` (it's an epistemic/rhetorical family and the
-  capabilities that follow from it)."
+  "New Wire.
+  The Agora document **register** of `kind`
+  it's an epistemic/rhetorical family and the capabilities that follow from it)."
   (:require
    [clojure.string :as str]))
 
@@ -16,10 +17,13 @@
    - `:color`  — accent colour.
    - `:inputs?` — **may a document of this kind take inputs** (in-text `[[ki:…]]` citations)? A
      `source` is a leaf work and takes none; everything else does. This one flag drives both
-     the backend (input derivation) and the UI (whether the quotation feature is shown).
+     the backend (input derivation) and the UI (whether the citation feature is shown).
    - `:def-name` + `:def-major` — a pointer to the KI that *defines* the kind. The rest of that
      identity is implied — `type` is `ki`, `minor` resolves to the latest, `lang` is the
      reader's — so only name + major are declared here (see `kind-def`).
+   - `:say` — the statement scaffold `{:subject :author|:term, :phrase {lang → connector}}` that
+     opens the kind's sentence (\"<author> believes that …\", \"<term> designates …\"). Absent for
+     free-form kinds (`inference`); drives `statement-prefix` (see `statement-say`).
   The set is NOT enforced by the DB; the API validates against it and the UI renders it."
   [{:id :inference
     :color "#2c5aa0"
@@ -32,25 +36,37 @@
     :inputs? true
     :object-type :ki
     :def-name "type-prediction"
-    :def-major 1}
+    :def-major 1
+    :say {:subject :author
+          :phrase {:en "predicts that"
+                   :fr "prédit que"}}}
    {:id :definition
     :color "#a61e8c"
     :inputs? true
     :object-type :ki
     :def-name "type-definition"
-    :def-major 1}
+    :def-major 1
+    :say {:subject :term
+          :phrase {:en "designates"
+                   :fr "désigne"}}}
    {:id :belief
     :color "#2b8a3e"
     :inputs? true
     :object-type :ki
     :def-name "type-belief"
-    :def-major 1}
+    :def-major 1
+    :say {:subject :author
+          :phrase {:en "believes that"
+                   :fr "croit que"}}}
    {:id :assumption
     :color "#e8590c"
     :inputs? true
     :object-type :ki
     :def-name "type-assumption"
-    :def-major 1}
+    :def-major 1
+    :say {:subject :author
+          :phrase {:en "assumes that"
+                   :fr "suppose que"}}}
    {:id :illustration
     :color "#1098ad"
     :inputs? true
@@ -108,11 +124,11 @@
   (not (false? (get kind-inputs? kind))))
 
 (def ^:private kind-in-text?
-  "kind name (string) → whether *quoting* a KI of that kind writes the citation into the prose."
+  "kind name (string) → whether *citing* a KI of that kind writes the citation into the prose."
   (into {} (map (juxt (comp name :id) :in-text?)) kinds))
 
-(defn kind-quotes-in-text?
-  "When a KI quotes a document of `kind`, is the citation written **into the prose** (an inline
+(defn kind-citations-in-text?
+  "When a KI cites a document of `kind`, is the citation written **into the prose** (an inline
   `[[ki:…]]` token, the default) or recorded as an **input edge only**?"
   [kind]
   (not (false? (get kind-in-text? kind))))
@@ -140,21 +156,10 @@
 ;; the prefix is DERIVED here (shared clj + cljs) so it stays correct as kind/author change
 ;; and the SPA can render it instantly, without waiting on the read endpoint.
 
-(def statement-say
-  "kind (string) → {:subject :author|:term, :phrase {lang → connector}} — the scaffold for
-  that kind's statement opening. Absent for the open `inference` (free-form)."
-  {"belief" {:subject :author
-             :phrase {:en "believes that"
-                      :fr "croit que"}}
-   "assumption" {:subject :author
-                 :phrase {:en "assumes that"
-                          :fr "suppose que"}}
-   "prediction" {:subject :author
-                 :phrase {:en "predicts that"
-                          :fr "prédit que"}}
-   "definition" {:subject :term
-                 :phrase {:en "designates"
-                          :fr "désigne"}}})
+(def ^:private statement-say
+  "kind (string) → its `:say` scaffold `{:subject :author|:term, :phrase {lang → connector}}`, read
+  straight from `kinds`. Absent for free-form kinds (`inference`) which declare no `:say`."
+  (into {} (keep (fn [{:keys [id say]}] (when say [(name id) say])) kinds)))
 
 (defn statement-subject-kind
   "Whether `kind`'s prefix subject is the `:author` or the `:term`, or nil for a free-form
@@ -178,13 +183,13 @@
 (defn attributed-author
   "The person a statement is attributed to, in priority order:
    1. `:source`'s author — for a `kind=source` KI itself (its `:source` resolves to the work);
-   2. `:quote-author-name` — for a KI that **quotes a source** (the work-author of the source-KI
+   2. `:cite-author-name` — for a KI that **cites a source** (the cite author of the source-KI
       it inputs), computed by the read layer from the inputs;
    3. else the document's own author.
-  So \"Led Zeppelin est le meilleur groupe de rock\" (a position quoting a Rolling Stone source
+  So \"Led Zeppelin est le meilleur groupe de rock\" (a position citing a Rolling Stone source
   by David Fricke) reads \"David Fricke soutient que …\"."
   [doc]
-  (or (:author-name (:source doc)) (:quote-author-name doc) (:author doc)))
+  (or (:author-name (:source doc)) (:cite-author-name doc) (:author doc)))
 
 (defn statement-prefix-of
   "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil

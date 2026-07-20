@@ -1,6 +1,6 @@
 (ns landing.agora.document.lineage
-  "New Wire compatible.  The **lineage** layer scoped to *a lineage's set of minors* (resolve which minor is current,
-  compute the next, construct the next on create / edit / publish) plus the referential-integrity rules.
+  "New Wire.  The **lineage** layer scoped to *a lineage's set of minors* (resolve which minor is current,
+  compute the next, construct the next on create / edit) plus the referential-integrity rules.
   It sits above `document.identity`(TNLR + citation grammar) and `document.kind` (which kinds may take
   inputs), and it is the single home of the rule **a version's text determines its inputs**.
 
@@ -16,19 +16,21 @@
 
 ;; --- content & the input-derivation rule -------------------------------------
 
-(def carried
-  "The content keys that constitute a document and **carry forward onto a new minor** —
-  everything authored, plus the derived `:inputs` and the provenance `:author`/`:owner-id`;
-  `:status` is a publication's lifecycle field, carried so a rename preserves open/closed.
-  Excludes per-version identity (`:major`/`:minor`/`:id`), the derived `:pins`, and
-  `:published-at` (re-stamped each version). A storage adapter selects these from a persisted
-  row to carry an edit forward; the caller re-stamps the timestamp and reassigns identity.
-  (`:source` is a `kind=source` KI's reference to its shared source, resolved on read.)"
-  [:kind :title :text :author :owner-id :inputs :source :status])
+(def ^:private not-carried
+  "The keys a new minor does **not** carry from the current version — so a storage adapter carries
+  an edit forward by `(apply dissoc current not-carried)` and **everything else is kept**. A
+  drop-list, not a keep-list: a new *content* key (`:kind :title :text :author :owner-id :inputs
+  :source :status`, and any future one) carries automatically, with nothing to remember.
+  Dropped are per-version identity (`:type :name :lang :major :minor :id` — reassigned), the
+  version's state (`:draft :publication-id`), the derived `:pins`, and `:published-at` (re-stamped
+  each version)."
+  [:type :name :lang :major :minor :id :draft :publication-id :pins :published-at])
+
+(defn content-for-new-version "Remove version specific data" [doc] (apply dissoc doc not-carried))
 
 (defn inputs-of
   "The input TNLRs of a version, **derived from its content**: the `[[ki:…]]` citations in its
-  text (`di/cite-refs`) plus any explicit source `:quotes` (edge-only inputs never written into
+  text (`di/cite-refs`) plus any explicit source `:cites` (edge-only inputs never written into
   prose), all in `lang`. Empty when the kind takes no inputs (`dk/kind-allows-inputs?`). This is
   the one rule 'new text → new inputs', so every caller derives inputs the same way."
   [content lang]
@@ -39,7 +41,7 @@
                          :name name
                          :lang lang
                          :major major})
-                      (:quotes content)))
+                      (:cites content)))
          (distinct)
          (vec))
     []))
@@ -48,11 +50,7 @@
 ;; `minors` is a seq of versions that all share one TNLR (the caller has already narrowed to a
 ;; single lineage — the DB with a WHERE clause, the corpus by scanning its vector).
 
-(defn latest-with-drafts
-  "The current version among a lineage's `minors` — the highest minor, **drafts included** (the
-  owner-facing / working view). nil for an empty lineage."
-  [minors]
-  (when (seq minors) (apply max-key :minor minors)))
+(defn- latest [minors] (when (seq minors) (apply max-key :minor minors)))
 
 (defn latest-published
   "The highest **published** (non-draft) minor among `minors` — the public view. nil for a
@@ -60,17 +58,20 @@
   [minors]
   (let [published (remove :draft minors)] (when (seq published) (apply max-key :minor published))))
 
+(defn resolve-latest
+  "The version to serve for `lang` from a TNR's `versions` — every language and minor of one
+  (type, name, major). The latest published minor in `lang`, else — cross-language fallback — the
+  latest published in `fallback-lang`. nil if neither has a published version. `versions` mixes
+  languages; each is resolved by `latest-published`."
+  [versions lang fallback-lang]
+  (or (latest-published (filter #(= lang (:lang %)) versions))
+      (when (not= lang fallback-lang)
+        (latest-published (filter #(= fallback-lang (:lang %)) versions)))))
+
 (defn next-minor
   "The minor a new version would take: one past the highest in `minors`, or 0 if empty."
   [minors]
-  (if (seq minors) (inc (:minor (latest-with-drafts minors))) 0))
-
-(defn draft-in-publication
-  "The lineage's own **draft in publication `pub-id`** — its latest draft minor tagged with that
-  publication — or nil. Pure over the lineage's `minors` (each carrying `:draft`/`:publication-id`);
-  the holder fetches the minors, this rule picks."
-  [minors pub-id]
-  (latest-with-drafts (filter #(and (:draft %) (= (:publication-id %) pub-id)) minors)))
+  (if (seq minors) (inc (:minor (latest minors))) 0))
 
 ;; --- lifecycle constructors (pure) -------------------------------------------
 ;; Each returns a new version *value*. The text drives the inputs; the caller adds any
@@ -92,24 +93,13 @@
   if the lineage is empty. Per-version fields (`:id`, `:pins`) are dropped — the caller reassigns
   them on persist."
   [minors changes]
-  (when-let [current (latest-with-drafts minors)]
+  (when-let [current (latest minors)]
     (let [merged (-> (merge current changes)
                      (dissoc :id :pins))]
       (assoc merged
              :minor (next-minor minors)
              :draft true
              :inputs (inputs-of merged (:lang merged))))))
-
-(defn publish
-  "**Close=publish** a publication: `publication` becomes closed + published, and **every draft it
-  gathers** (`members` — the versions linked to it) becomes published (`:draft false`), **all at
-  once**. Publishing simultaneously keeps the invariant that no published version depends on a draft,
-  so the flip is order-independent. `:status` and `:draft` stay consistent on the publication
-  (closed ⟺ published). Returns `[publication & members]`, all published; the caller persists (and,
-  in the DB, prunes each lineage's intermediate drafts). Finding a publication's members is a
-  collection query the caller runs first (the corpus by `:publication`, the DB by `publication_id`)."
-  [publication members]
-  (into [(assoc publication :status "closed" :draft false)] (map #(assoc % :draft false)) members))
 
 ;; --- a version's declared inputs ---------------------------------------------
 
@@ -121,17 +111,8 @@
   (vec (:inputs doc)))
 
 ;; --- referential-integrity rules ---------------------------------------------
-;; The publish invariant and the consistency scan, as pure rules. The caller supplies the graph
-;; data (a `published?` predicate / the set of live lineages) — the engine from SQL, the corpus
-;; from a scan of its vector.
-
-(defn pending?
-  "The `inputs` (declared TNLRs) whose lineage has **no published version** — `published?` is a
-  predicate `tnlr → boolean`. These are the inputs that would break the publish invariant (a public
-  node may not depend on a draft), so `publish` must refuse until they are published. Pure — the
-  caller supplies `published?` (a SQL lookup in the engine, a corpus scan in the tool)."
-  [inputs published?]
-  (filterv #(not (published? %)) inputs))
+;; The consistency scan as pure rules. The caller supplies the set of live lineages — the engine
+;; from SQL, the corpus from a scan of its vector.
 
 (defn ref-issues
   "The reference-consistency issues of `doc` given `existing` — a set of live lineage keys, each

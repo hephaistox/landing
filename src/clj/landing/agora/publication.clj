@@ -15,7 +15,6 @@
    [landing.agora.db                :as db]
    [landing.agora.document          :as document]
    [landing.agora.document.db-store :as dbs]
-   [landing.agora.document.lineage  :as lineage]
    [landing.agora.document.store    :as store]))
 
 (defn- view
@@ -152,7 +151,7 @@
        (keep (comp store/fetch-document :id))
        (group-by (juxt :type :name :lang :major))
        vals
-       (mapv (comp summary lineage/latest-with-drafts))))
+       (mapv (comp summary store/latest-with-drafts))))
 
 (defn open-drafts
   "The still-draft members of this publication's modified set — its unpublished cluster."

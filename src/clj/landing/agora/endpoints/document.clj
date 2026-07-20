@@ -61,8 +61,8 @@
 (def ^:private publication-id-schema
   [:maybe [:string {:max 64}]])
 
-;; `:source` — only a `kind=source` KI (a quotation) carries one: a reference to its shared
-;; **source** work (`AGORA_SOURCE`) plus this quotation's own locator (page/chapter/line/entry).
+;; `:source` — only a `kind=source` KI (a citation) carries one: a reference to its shared
+;; **source** work (`AGORA_SOURCE`) plus this citation's own locator (page/chapter/line/entry).
 ;; The client sends `{:source-id :locator}`; a blank `:source-id` clears it.
 (def ^:private source-schema
   [:map
@@ -70,12 +70,12 @@
    [:locator {:optional true}
     [:maybe [:string {:max 500}]]]])
 
-;; `:quotes` — the `kind=source` KIs this document quotes. A source is quoted as an **input
-;; edge only** (never written into the prose; see `dk/kind-quotes-in-text?`), so it rides
+;; `:cites` — the `kind=source` KIs this document cites. A source is cited as an **input
+;; edge only** (never written into the prose; see `dk/kind-citations-in-text?`), so it rides
 ;; here rather than as a `[[ki:…]]` token. `document/create`/`edit` merge these into `:inputs`.
 ;; The client resubmits the full list on every edit (they aren't in the text to re-derive).
-(def ^:private quotes-schema
-  ;; quotes fold into `:inputs`, so their cap IS the domain's input cap — one source of truth
+(def ^:private cites-schema
+  ;; cites fold into `:inputs`, so their cap IS the domain's input cap — one source of truth
   [:vector {:max di/max-inputs}
    input-ref-schema])
 
@@ -106,8 +106,8 @@
                    [:text text-schema]
                    [:source {:optional true}
                     source-schema]
-                   [:quotes {:optional true}
-                    quotes-schema]
+                   [:cites {:optional true}
+                    cites-schema]
                    [:publication-id {:optional true}
                     publication-id-schema]]
      :edit-body [:map
@@ -116,8 +116,8 @@
                  [:text text-schema]
                  [:source {:optional true}
                   source-schema]
-                 [:quotes {:optional true}
-                  quotes-schema]
+                 [:cites {:optional true}
+                  cites-schema]
                  [:publication-id {:optional true}
                   publication-id-schema]]
      :translate-body [:map

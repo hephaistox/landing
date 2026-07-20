@@ -44,10 +44,10 @@
   (when-let [id (or id (store/resolve-latest-id (or type :ki) name major lang))]
     (store/fetch-document id)))
 
-(defn- quote-author-name
-  "The work-author of a document's first `kind=source` input — the person a quoting KI's
-  statement is attributed to (`document.kind/attributed-author`). nil when it quotes none. Used by the
-  discovery `card` (which has bare input TNLRs, not the split `:quotes`)."
+(defn- cite-author-name
+  "The cite author of a document's first `kind=source` input — the person a citing KI's
+  statement is attributed to (`document.kind/attributed-author`). nil when it cites none. Used by the
+  discovery `card` (which has bare input TNLRs, not the split `:cites`)."
   [inputs lang]
   (some (fn [inp]
           (when-let [d (input-doc inp lang)]
@@ -55,9 +55,9 @@
         inputs))
 
 (defn- split-inputs
-  "Partition a document's resolved input refs into `{:inputs :quotes}`. A `kind=source` input
-  is a **quote** — not a normal in-prose citation — so it is pulled out and resolved to its
-  quotation + shared work `{:name :major :id :title :author-name :author-id :locator}` for the
+  "Partition a document's resolved input refs into `{:inputs :cites}`. A `kind=source` input
+  is a **cite** — not a normal in-prose citation — so it is pulled out and resolved to its
+  citation + shared work `{:name :major :id :title :author-name :author-id :locator}` for the
   UI (display + re-edit). The rest stay as `:inputs` (the in-text citations)."
   [inputs lang]
   (reduce (fn [acc inp]
@@ -65,7 +65,7 @@
               (if (= "source" (:kind d))
                 (let [work (source/resolve-ref (:source d))]
                   (update acc
-                          :quotes
+                          :cites
                           conj
                           {:name (:name inp)
                            :major (:major inp)
@@ -76,7 +76,7 @@
                            :locator (:locator work)}))
                 (update acc :inputs conj inp))))
           {:inputs []
-           :quotes []}
+           :cites []}
           inputs))
 
 (defn- successor-refs
@@ -91,23 +91,22 @@
        (remove :draft) ; an unpublished successor stays hidden until it is published
        (group-by (juxt :type :name :lang :major))
        vals
-       (mapv (fn [ds] {:id (:id (lineage/latest-with-drafts ds))}))))
+       (mapv (fn [ds] {:id (:id (store/latest-with-drafts ds))}))))
 
 (defn view
   "Endpoint view of an already-fetched document `doc`: resolved input refs, successor ids,
   version lineage and translations. `:pins` is dropped; `:owner-id` is renamed to the
   public `:author-id` (the owning account, used to link the author badge to its profile
-  page) — nil for unowned/seeded documents. `kind=source` inputs are split out as `:quotes`
-  (with their work-author) and the statement is attributed to the first quote's author
-  (`:quote-author-name`). Uniform across types."
+  page) — nil for unowned/seeded documents. `kind=source` inputs are split out as `:cites`
+  (with their cite author) and the statement is attributed to the first cite's author
+  (`:cite-author-name`). Uniform across types."
   [doc]
   (let [tnlr (di/tnlr-key doc)
-        {:keys [inputs quotes]} (split-inputs (di/input-refs (:inputs doc) (:pins doc))
-                                              (:lang doc))]
+        {:keys [inputs cites]} (split-inputs (di/input-refs (:inputs doc) (:pins doc)) (:lang doc))]
     (-> doc
         (assoc :inputs inputs
-               :quotes quotes
-               :quote-author-name (:author-name (first quotes))
+               :cites cites
+               :cite-author-name (:author-name (first cites))
                :author-id (:owner-id doc)
                ;; resolve the source *reference* to the shared work's display fields
                :source (source/resolve-ref (:source doc))
@@ -155,7 +154,7 @@
 ;; ---------------------------------------------------------------------------
 
 ;; A document's inputs are derived from its content (the `[[ki:…]]` citations in the text, plus any
-;; edge-only source `:quotes`) by `landing.agora.document.lineage/inputs-of` — the single home of
+;; edge-only source `:cites`) by `landing.agora.document.lineage/inputs-of` — the single home of
 ;; that rule, shared with the storage-free corpus. This engine calls it on create/edit.
 
 ;; `slugify` / `permalink-slug` / `cid-of` live in `landing.agora.document.identity` (cljc)
@@ -229,9 +228,9 @@
       :publication-id publication-id}
      (normalize-source
       (-> content
-          ;; `:quotes` is transient — it is folded into
+          ;; `:cites` is transient — it is folded into
           ;; `:inputs`
-          (dissoc :name :lang :quotes)
+          (dissoc :name :lang :cites)
           (assoc :inputs inputs :author author :owner-id owner-id :published-at (dbs/now-iso)))))
     (store/evict-lineage! type name lang 1)
     (fetch id)))
@@ -242,7 +241,7 @@
   `id` is unknown."
   [id owner-id changes publication-id]
   (when-let [src (store/fetch-document id)]
-    (let [merged (merge (select-keys src lineage/carried)
+    (let [merged (merge (lineage/content-for-new-version src)
                         (into {} (remove (comp nil? val) changes))
                         {:author (store/author-name owner-id)
                          :owner-id owner-id})
@@ -250,7 +249,7 @@
       (new-minor! src
                   (-> merged
                       (assoc :inputs inputs)
-                      (dissoc :quotes))
+                      (dissoc :cites))
                   publication-id))))
 
 (defn add-input
@@ -272,11 +271,11 @@
                  :name in-name
                  :lang lang
                  :major in-major}
-              inputs (di/add-declared-input (:inputs src) t)]
+              inputs (di/add-input (:inputs src) t)]
           (if (> (count inputs) di/max-inputs)
             :input-limit
             (new-minor! src
-                        (merge (select-keys src lineage/carried)
+                        (merge (lineage/content-for-new-version src)
                                {:inputs inputs
                                 :author (store/author-name owner-id)
                                 :owner-id owner-id})
@@ -308,8 +307,8 @@
              :major in-major}
           text (:text src)]
       (new-minor! src
-                  (cond-> (merge (select-keys src lineage/carried)
-                                 {:inputs (di/drop-declared-input (:inputs src) t)
+                  (cond-> (merge (lineage/content-for-new-version src)
+                                 {:inputs (di/drop-input (:inputs src) t)
                                   :author (store/author-name owner-id)
                                   :owner-id owner-id})
                     text (assoc :text (di/strip-cite text t)))
@@ -340,7 +339,7 @@
                                                  :minor 0
                                                  :draft? true
                                                  :publication-id publication-id}
-                                                (merge (select-keys s lineage/carried)
+                                                (merge (lineage/content-for-new-version s)
                                                        {:inputs []
                                                         :author author
                                                         :owner-id owner-id
@@ -364,8 +363,8 @@
          ;; keep only content keys from `overrides` — the caller passes
          ;; the whole request body, whose `:lang` is the *target* language
          ;; (identity), not content, and must not leak into the blob
-         (merge (select-keys src lineage/carried)
-                (into {} (remove (comp nil? val) (select-keys overrides lineage/carried)))
+         (merge (lineage/content-for-new-version src)
+                (into {} (remove (comp nil? val) (lineage/content-for-new-version overrides)))
                 {:inputs declarations
                  :author author
                  :owner-id owner-id
@@ -376,12 +375,12 @@
 (defn- pending-inputs
   "The declared `inputs` of a document that have **no published version** (draft-only lineages) —
   `publish!` refuses until they are published, so a public node never depends on a hidden one. The
-  pending *set* is the domain rule (`lineage/pending?`, given a SQL `published?` predicate); each
+  pending *set* is the change-model rule (`store/pending?`, given a SQL `published?` predicate); each
   entry is enriched here with the input's latest (draft) version id + title so the UI can link it."
   [inputs]
-  (->> (lineage/pending? inputs
-                         (fn [{:keys [type name major lang]}]
-                           (some? (store/resolve-latest-id type name major lang))))
+  (->> (store/pending? inputs
+                       (fn [{:keys [type name major lang]}]
+                         (some? (store/resolve-latest-id type name major lang))))
        (mapv (fn [{:keys [type name major lang]}]
                (let [latest (last (store/documents type name lang major))
                      d (some-> (:id latest)
@@ -446,7 +445,7 @@
            :author (:author c)
            :author-id (:owner-id c)
            :source (source/resolve-ref (:source c))
-           :quote-author-name (quote-author-name (:inputs c) (:lang row))
+           :cite-author-name (cite-author-name (:inputs c) (:lang row))
            :published-at (:published-at c))))
 
 (defn cards-in-publication
@@ -462,7 +461,7 @@
      dbs/kebab)
     (group-by (juxt :type :name :lang :major))
     vals
-    (mapv (comp card lineage/latest-with-drafts))
+    (mapv (comp card store/latest-with-drafts))
     (sort-by :published-at #(compare %2 %1))
     vec))
 
@@ -544,7 +543,7 @@
 
 (defn- sourced-by
   "Latest-minor `kind=source` KIs in `lang` whose **source** is authored by `author-id` — the
-  quotations *from this person's works* (as opposed to `owned-by`'s own claims). A person
+  citations *from this person's works* (as opposed to `owned-by`'s own claims). A person
   authors **sources** (`AGORA_SOURCE`); each source maps to many `kind=source` KIs (via
   `content.:source.:source-id`). This is why a cited figure (e.g. Sun Tzu) has a populated
   profile even though they claim nothing. Joins the source-KIs to the author's sources by a
@@ -577,7 +576,7 @@
 
 (defn by-author
   "Everything attributed to person `author-id` in `lang`: documents they OWN (their own
-  claims) plus documents that CITE them as a source author (works that quote them),
+  claims) plus documents that CITE them as a source author (works that cite them),
   latest minor per lineage, deduped by id, most recent first — plus `:last-activity`."
   [author-id lang]
   (let [all (->> (concat (owned-by author-id lang) (sourced-by author-id lang))
@@ -623,7 +622,7 @@
     n))
 
 (defn sitemap-rows
-  "Every public permalink — all document types (KIs, incl. `kind=source` quotations, and
+  "Every public permalink — all document types (KIs, incl. `kind=source` citations, and
   articles) — as {:type :name :major :lang :lastmod}, one row per lineage (type, name, lang,
   major). `lastmod` is the lineage's latest publication date (`MAX(published_at)`, an ISO-8601
   string that sorts chronologically), so a crawler re-fetches a permalink only when its current
@@ -696,7 +695,7 @@
    - **`:broken`** — a **dangling reference**: an input edge / in-text `[[ki:…]]`
      citation pointing at a lineage that does not exist (in any language). Inputs and
      citations are the same thing under the model, so this catches a non-existing input
-     *and* a non-existing quote.
+     *and* a non-existing cite.
    - **`:self`** — a **self-reference**: the document cites its own lineage
      (same type + name + major). A document cannot be an input of itself — that is a
      degenerate cycle — so it is reported even though the target exists.
@@ -705,7 +704,7 @@
      `successor-cache-issues`), reported against the cited lineage.
 
   (A source having inputs is not scanned for — it is structurally impossible: `lineage/inputs-of`
-  forces a `type=source` document's inputs to `[]`, so the quotation feature never applies.)
+  forces a `type=source` document's inputs to `[]`, so the citation feature never applies.)
 
   Runs over current *and* former versions. Returns a vector of
   {:id :type :name :lang :major :minor :title :broken […] :self […]}, each ref as

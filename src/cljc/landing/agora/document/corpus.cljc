@@ -1,5 +1,5 @@
 (ns landing.agora.document.corpus
-  "New Wire compatible. A portable (cljc) in-memory **corpus** holder — a corpus is a flat vector of document versions,
+  "New Wire. A portable (cljc) in-memory **corpus** holder — a corpus is a flat vector of document versions,
   usable from any stack (the CLI today; a client-side graph feature could hold one too). This
   namespace owns what is *specific to that substrate*:
 
@@ -41,10 +41,16 @@
 ;; A different holder (the SQL engine, a frontend cache) narrows its own way and applies the same
 ;; pure rules — so these whole-corpus scans stay here, out of the shared domain.
 
+(defn- latest-with-drafts
+  "The highest minor of a lineage's `minors`, drafts included — the holder's own copy (the domain
+  keeps this private, as it is an owner/working-view resolver)."
+  [minors]
+  (when (seq minors) (apply max-key :minor minors)))
+
 (defn resolve-latest
   "The current version (latest minor, drafts included) of lineage `tnlr` in `corpus`, or nil."
   [corpus tnlr]
-  (lineage/latest-with-drafts (versions corpus tnlr)))
+  (latest-with-drafts (versions corpus tnlr)))
 
 (defn resolved-inputs
   "Each declared input of `doc`, resolved against `corpus`: `[{:tnlr … :doc <current|nil>} …]`.

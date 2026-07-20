@@ -190,11 +190,15 @@
   "Normalize the request URI by dropping any trailing slash (except the root `/`) before
   routing, so `/agora/en/discover/` resolves the same route as `/agora/en/discover`
   instead of 404-ing. Each page's `<link rel=canonical>` still points at the slash-less
-  form, so search engines consolidate on one URL."
+  form, so search engines consolidate on one URL. The Swagger UI is exempt — it is served
+  from the *directory* path `/api/api-docs/`, whose trailing slash is significant (stripping
+  it 404s the docs)."
   [handler]
   (fn [req]
     (let [uri (:uri req)]
-      (handler (if (and (> (count uri) 1) (str/ends-with? uri "/"))
+      (handler (if (and (> (count uri) 1)
+                        (str/ends-with? uri "/")
+                        (not (str/starts-with? uri "/api/api-docs")))
                  (assoc req :uri (str/replace uri #"/+$" ""))
                  req)))))
 

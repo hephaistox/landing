@@ -1,6 +1,7 @@
 (ns landing.agora.document.identity
-  "New Wire compatible. Document **identity** and the edges between documents — the pure, shared (cljc) core of how a
-  document is named, addressed, linked and resolved.
+  "New Wire.
+  Document **identity** and the edges between documents
+  how a document is named, addressed, linked and resolved.
 
   No I/O and no persistence format.
 
@@ -9,19 +10,20 @@
   - A `type` is a keyword (e.g. `:ki`, `:article`, ...)
   - A `name` is an opaque, stable **cid** (never derived from the title); the
   human URL carries a decorative `<cid>~<title-slug>` key, resolved back to the cid.
-  - `Lang` is the language of the document
-  - `major release` is a major release 
+  - `lang` is the language of the document
+  - `major` is a major release 
   
   For one **TNLR** many versions are possible:
-  - A `minor release` carries it
+  - A `minor` release carries that differences
 
   The whole document has an `id` - a uuid - that identifies it precisely
 
-  Referencing a document is possible through two mechanism:
-  - **pin** a version so the reference is a precise *id*
-  - **TNLR** pointing to the latest minor version of a document in the same TLNR
+  Referencing a document is possible through two mechanisms:
+  - **pin** a version so the reference is a precise `id`
+  - **TNLR** listing the minor version of a document in the same TLNR
+  - **TNR** listing the minor version and language of a TNLR
 
-  That references can be set through a quote,  `[[<type>:<name>(:<lang>)?@<major>(|<label>)?]]`:
+  That references can be set through a cite,  `[[<type>:<name>(:<lang>)?@<major>(|<label>)?]]`:
   - `lang` is optional so user language will be picked
   - `label` is optional so it replaces the link in the link with that label"
   (:require
@@ -102,7 +104,7 @@
      :cljs (js/parseInt s 10)))
 
 (defn cite-refs
-  "Parse the `body` and returns all quotation - as in [[cite-pattern]], returns a vector of TNLRs
+  "Parse the `body` and returns all citation - as in [[cite-pattern]], returns a vector of TNLRs
   {:type … :name … :lang … :major …} order-preserving and deduped."
   [body lang]
   (->> (re-seq cite-pattern (or body ""))
@@ -118,7 +120,7 @@
        (vec)))
 
 (defn strip-cite
-  "Remove every quotation from `body`, leaving its display body —
+  "Remove every citation from `body`, leaving its display body —
   the custom label if the token had one, else the bare name — as plain prose."
   [body TNLR]
   (if (str/blank? body)
@@ -136,7 +138,7 @@
 
 ;; --- inputs -------------------------------------------------------------------
 
-(def max-inputs "Cap on the number of declared inputs a single KI may carry." 50)
+(def max-inputs "Cap on the number of inputs a single KI may carry." 50)
 
 (defn pinned?
   "Is input `inp` **pinned** — frozen to an exact version by an inline `:id` — rather than
@@ -144,15 +146,15 @@
   [inp]
   (some? (:id inp)))
 
-(defn add-declared-input
-  "Add `doc-ref` to the declared `inputs` (dedup by lineage/TNLR). Keeps `doc-ref`'s pin (`:id`) when it
+(defn add-input
+  "Add `doc-ref` to the `inputs` (dedup by lineage/TNLR). Keeps `doc-ref`'s pin (`:id`) when it
   carries one (a pinned ref), else records the bare TNLR (a floating ref)."
   [inputs doc-ref]
   (conj (filterv #(not (same-tnlr? % doc-ref)) inputs)
         (select-keys doc-ref [:type :name :lang :major :id])))
 
-(defn drop-declared-input
-  "Remove the declared input on TNLR `doc-ref` — matched by lineage, pinned or floating alike."
+(defn drop-input
+  "Remove the input on TNLR `doc-ref` — matched by lineage, pinned or floating alike."
   [inputs doc-ref]
   (filterv #(not (same-tnlr? % doc-ref)) inputs))
 
@@ -172,7 +174,7 @@
   (assoc pins (tnlr-key doc-ref) new-id))
 
 (defn input-refs
-  "The API-facing input refs — each declared input plus its resolved id: a **pinned** input's own
+  "The API-facing input refs — each input plus its resolved id: a **pinned** input's own
   frozen `:id`, else the **floating** pin from `pins`. Preferring the inline id lets a pinned ref
   survive even a stale pin cache."
   [inputs pins]

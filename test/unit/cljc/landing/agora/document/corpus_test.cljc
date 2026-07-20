@@ -147,9 +147,9 @@
    :major 1})
 
 (defn- current
-  "The current version of a lineage in the corpus — the peek + the domain resolver, composed."
+  "The current version of a lineage in the corpus (the holder's own resolver)."
   [corpus t]
-  (lineage/latest-with-drafts (sut/versions corpus t)))
+  (sut/resolve-latest corpus t))
 
 (deftest create-and-edit-append-to-the-corpus
   (testing "create appends a draft major-1/minor-0 document, deriving :inputs from its text"
