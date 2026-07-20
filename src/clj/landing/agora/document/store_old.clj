@@ -1,4 +1,4 @@
-(ns landing.agora.document.store
+(ns landing.agora.document.store-old
   "Shared adapter for AGORA_DOCUMENT — the single polymorphic table holding every object
   type (all document types today; objections later). SQL + Caffeine caches around the pure
   domain (landing.agora.document.identity).
@@ -6,12 +6,12 @@
   A row keeps only the identity columns — `id`, `type` (object type, the T), `name`,
   `lang`, `major`, `minor` — plus two EDN blobs: immutable `content` and mutable
   `computed` ({:pins {tnlr-key → id}}). The **raw SQL** lives one layer down in
-  `landing.agora.document.db-store` (queries move there one at a time); this namespace is the
-  **Caffeine cache + write orchestration** over it, and `landing.agora.document` composes on top."
+  `landing.agora.document.db-store-old` (queries move there one at a time); this namespace is the
+  **Caffeine cache + write orchestration** over it, and `landing.agora.document-old` composes on top."
   (:require
    [landing.agora.cache             :as cache]
    [landing.agora.db                :as db]
-   [landing.agora.document.db-store :as dbs
+   [landing.agora.document.db-store-old :as dbs
                                     :refer
                                     [decode-content decode-pins encode-pins kebab q! q1! t->s]]
    [landing.agora.document.identity :as di]

@@ -1,12 +1,12 @@
 (ns landing.agora.endpoints.source
-  "Bibliographic **source** API over AGORA_SOURCE (see landing.agora.source): search by
+  "Bibliographic **source** API over AGORA_SOURCE (see landing.agora.source-old): search by
   author/title/year, create, edit, list-recent (one-click reuse). A source is the shared work a
   `kind=source` KI references; the KI is authored via the normal document API. Search is
   anonymous; create + edit + recent need a logged-in user."
   (:require
    [landing.agora.endpoints.error     :as error]
    [landing.agora.endpoints.throttle  :as throttle]
-   [landing.agora.source              :as source]
+   [landing.agora.source-old              :as source]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]

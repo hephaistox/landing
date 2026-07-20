@@ -5,7 +5,7 @@
   and anonymous; the author page links here from any author badge."
   (:require
    [landing.agora.auth                :as auth]
-   [landing.agora.document            :as document]
+   [landing.agora.document-old            :as document]
    [landing.agora.endpoints.error     :as error]
    [landing.language                  :as language]
    [muuntaja.core                     :as m]

@@ -120,8 +120,10 @@
        (vec)))
 
 (defn strip-cite
-  "Remove every citation from `body`, leaving its display body —
-  the custom label if the token had one, else the bare name — as plain prose."
+  "Unweave the citations of **one** input — the given `TNLR` (type, name, lang, major) — from
+  `body`: each matching `[[…]]` token becomes its display text (the custom `|label`, else the bare
+  name) as plain prose, while **every other citation is left intact**. Used when an input is
+  dropped — its in-text citation comes out, the rest of the prose stays."
   [body TNLR]
   (if (str/blank? body)
     body

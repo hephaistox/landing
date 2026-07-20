@@ -10,7 +10,7 @@
   rule.
 
   The scanning is the holder's concern, so it lives here rather than in the shared domain: the SQL-backed
-  `landing.agora.document` engine narrows the same rules with indexed queries instead. Only *how versions are fetched* differs."
+  `landing.agora.document-old` engine narrows the same rules with indexed queries instead. Only *how versions are fetched* differs."
   (:require
    [landing.agora.document.identity :as di]
    [landing.agora.document.lineage  :as lineage]))

@@ -1,4 +1,4 @@
-(ns landing.agora.source
+(ns landing.agora.source-old
   "Bibliographic sources — the shared work (`AGORA_SOURCE`): a *work* authored by a
   person (`AGORA_USER`, possibly login-less/external), with title, year, editor and a url.
 

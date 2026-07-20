@@ -20,9 +20,9 @@
    [clojure.java.io                 :as io]
    [landing.agora.auth              :as auth]
    [landing.agora.db                :as db]
-   [landing.agora.document.db-store :as dbs]
+   [landing.agora.document.db-store-old :as dbs]
    [landing.agora.document.kind     :as dk]
-   [landing.agora.document.store    :as store]
+   [landing.agora.document.store-old    :as store]
    [landing.agora.publication       :as publication]))
 
 (def ^:private defs

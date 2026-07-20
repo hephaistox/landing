@@ -4,7 +4,7 @@
   started/stopped with the app via Mount."
   (:require
    [auto-core.log          :as core-log]
-   [landing.agora.document :as document]
+   [landing.agora.document-old :as document]
    [mount.core             :refer [defstate]])
   (:import (java.time Duration ZoneOffset ZonedDateTime)
            (java.time.temporal ChronoUnit)

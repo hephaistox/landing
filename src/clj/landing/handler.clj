@@ -6,7 +6,7 @@
    [landing.agora.endpoints.admin         :refer [admin-routes]]
    [landing.agora.endpoints.auth          :refer [auth-routes]]
    [landing.agora.endpoints.author        :refer [author-routes]]
-   [landing.agora.endpoints.document      :refer [document-routes translate-suggest-route]]
+   [landing.agora.endpoints.document-old      :refer [document-routes translate-suggest-route]]
    [landing.agora.endpoints.document-read :refer [document-read-routes]]
    [landing.agora.endpoints.people        :refer [people-routes]]
    [landing.agora.endpoints.publication   :refer [publication-routes]]

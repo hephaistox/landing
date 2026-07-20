@@ -12,7 +12,7 @@
    [clojure.java.io                 :as io]
    [clojure.set                     :as set]
    [landing.agora.auth              :as auth]
-   [landing.agora.document          :as document]
+   [landing.agora.document-old          :as document]
    [landing.agora.document.engine   :as engine]
    [landing.agora.document.identity :as di]
    [landing.agora.seo               :as seo]

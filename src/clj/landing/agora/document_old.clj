@@ -1,19 +1,19 @@
-(ns landing.agora.document
+(ns landing.agora.document-old
   "The single engine for versioned AGORA_DOCUMENT documents. Every document type is a
   `type` row here, sharing one implementation: create / edit / fetch, explicit inputs
   (add / drop), translate, search, discovery, admin and sitemap are all generic — the
   engine has no per-type behaviour of its own, so it never branches on a specific type.
 
   All graph decisions live in the domain; this ns only does the generic I/O on top of the
-  shared storage primitives (landing.agora.document.store)."
+  shared storage primitives (landing.agora.document.store-old)."
   (:require
    [clojure.string                  :as str]
    [landing.agora.db                :as db]
-   [landing.agora.document.db-store :as dbs]
+   [landing.agora.document.db-store-old :as dbs]
    [landing.agora.document.identity :as di]
    [landing.agora.document.lineage  :as lineage]
-   [landing.agora.document.store    :as store]
-   [landing.agora.source            :as source]
+   [landing.agora.document.store-old    :as store]
+   [landing.agora.source-old            :as source]
    [landing.language                :as language]))
 
 ;; Every document's prose lives under one content key, `:text`. A document's inputs ARE the
@@ -25,7 +25,7 @@
   `strip-source` already reduces it to that and sends `{:source-id \"\"}` as the explicit **clear**
   sentinel, turned into `:source nil` here (so a cleared source doesn't persist an empty-id ref).
   The source's fields live in `AGORA_SOURCE`, not the content, so many source-KIs share one source
-  (see landing.agora.source)."
+  (see landing.agora.source-old)."
   [content]
   (let [src (:source content)]
     (cond

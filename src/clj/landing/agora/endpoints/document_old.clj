@@ -1,5 +1,5 @@
-(ns landing.agora.endpoints.document
-  "One generic HTTP route set over the document engine (landing.agora.document),
+(ns landing.agora.endpoints.document-old
+  "One generic HTTP route set over the document engine (landing.agora.document-old),
   mounted once per object type — `(document-routes \"ki\" \"/agora/api/ki\")`,
   `(document-routes \"article\" \"/agora/api/article\")`. Every type gets the full
   surface: list/search, create, by-permanent-identity, edit, translate and
@@ -9,7 +9,7 @@
   The `/translate` machine-translation *suggestion* (stateless authoring aid, not a
   document op) is a standalone route here too."
   (:require
-   [landing.agora.document            :as document]
+   [landing.agora.document-old            :as document]
    [landing.agora.document.identity   :as di]
    [landing.agora.document.kind       :as dk]
    [landing.agora.endpoints.throttle  :as throttle]
