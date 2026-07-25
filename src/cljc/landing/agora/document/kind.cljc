@@ -183,13 +183,20 @@
 (defn attributed-author
   "The person a statement is attributed to, in priority order:
    1. `:source`'s author — for a `kind=source` KI itself (its `:source` resolves to the work);
-   2. `:cite-author-name` — for a KI that **cites a source** (the cite author of the source-KI
-      it inputs), computed by the read layer from the inputs;
-   3. else the document's own author.
-  So \"Led Zeppelin est le meilleur groupe de rock\" (a position citing a Rolling Stone source
-  by David Fricke) reads \"David Fricke soutient que …\"."
+   2. else the document's own author.
+  A KI that merely **cites** a source is *not* attributed to that source's author: the cited
+  author is shown on the source input itself (`:cites`), never migrated into the citing KI's
+  sentence. Attribution belongs to whoever authored the document."
   [doc]
-  (or (:author-name (:source doc)) (:cite-author-name doc) (:author doc)))
+  (or (:author-name (:source doc)) (:author doc)))
+
+(defn attributed-author-id
+  "The id of the person `attributed-author` names — for linking the byline to their profile hub.
+  Mirrors `attributed-author`: a `kind=source` KI's cited author (`:source`'s `:author-id`) →
+  else the document's `:owner-id`. So the byline's name and its link always point at the same
+  person. `:owner-id` stays the accountability/permissions concept; this is display only."
+  [doc]
+  (or (:author-id (:source doc)) (:owner-id doc)))
 
 (defn statement-prefix-of
   "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil

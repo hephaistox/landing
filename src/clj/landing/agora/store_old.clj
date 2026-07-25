@@ -1,4 +1,4 @@
-(ns landing.agora.document.store-old
+(ns landing.agora.store-old
   "Shared adapter for AGORA_DOCUMENT — the single polymorphic table holding every object
   type (all document types today; objections later). SQL + Caffeine caches around the pure
   domain (landing.agora.document.identity).
@@ -9,14 +9,14 @@
   `landing.agora.document.db-store-old` (queries move there one at a time); this namespace is the
   **Caffeine cache + write orchestration** over it, and `landing.agora.document-old` composes on top."
   (:require
-   [landing.agora.cache             :as cache]
-   [landing.agora.db                :as db]
+   [landing.agora.cache                 :as cache]
+   [landing.agora.db                    :as db]
    [landing.agora.document.db-store-old :as dbs
-                                    :refer
-                                    [decode-content decode-pins encode-pins kebab q! q1! t->s]]
-   [landing.agora.document.identity :as di]
-   [landing.agora.document.lineage  :as lineage]
-   [landing.language                :as language]))
+                                        :refer
+                                        [decode-content decode-pins encode-pins kebab q! q1! t->s]]
+   [landing.agora.document.identity     :as di]
+   [landing.agora.document.lineage-old  :as lineage]
+   [landing.language                    :as language]))
 
 ;; --- id → document (cached): the raw `dbs/load-document` behind a Caffeine cache
 

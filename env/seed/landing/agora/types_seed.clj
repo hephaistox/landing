@@ -16,14 +16,14 @@
     (require 'landing.agora.types-seed)
     (landing.agora.types-seed/seed!)"
   (:require
-   [clojure.edn                     :as edn]
-   [clojure.java.io                 :as io]
-   [landing.agora.auth              :as auth]
-   [landing.agora.db                :as db]
+   [clojure.edn                         :as edn]
+   [clojure.java.io                     :as io]
+   [landing.agora.auth                  :as auth]
+   [landing.agora.db                    :as db]
    [landing.agora.document.db-store-old :as dbs]
-   [landing.agora.document.kind     :as dk]
-   [landing.agora.document.store-old    :as store]
-   [landing.agora.publication       :as publication]))
+   [landing.agora.document.kind         :as dk]
+   [landing.agora.publication           :as publication]
+   [landing.agora.store-old             :as store]))
 
 (def ^:private defs
   "kind keyword → {lang → {:title :statement}}, read from the seed resource."

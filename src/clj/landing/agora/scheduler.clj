@@ -3,9 +3,9 @@
   caches), so any drift from incremental updates self-heals. Needs no external cron;
   started/stopped with the app via Mount."
   (:require
-   [auto-core.log          :as core-log]
+   [auto-core.log              :as core-log]
    [landing.agora.document-old :as document]
-   [mount.core             :refer [defstate]])
+   [mount.core                 :refer [defstate]])
   (:import (java.time Duration ZoneOffset ZonedDateTime)
            (java.time.temporal ChronoUnit)
            (java.util.concurrent Executors ScheduledExecutorService TimeUnit)))

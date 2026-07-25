@@ -795,9 +795,9 @@
                     :display "flex"
                     :align-items "baseline"
                     :gap "0.5em"}}
-      (let [src-author (or (:cite-author-name node) (:author-name (:source node)))]
+      (let [src-author (:author-name (:source node))]
         (if src-author
-          ;; the KI cites a source → attribute the cited author
+          ;; a source KI → show its own cited author (never a citing KI's cited source)
           [:span {:title (i18n/t lang :card/cites)}
            "📖 "
            [:span {:style {:color "#b9770e"

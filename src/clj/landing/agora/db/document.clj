@@ -67,91 +67,53 @@
          (decode-content (:content row))
          {:pins (decode-pins (:computed row))}))
 
-(defn fetch
+(defn fetch-id
   "Document for `id`, or nil."
   [id]
   (some-> (q1! db/ds [(str select-doc "WHERE id = ?") id] kebab)
           row->doc))
 
-(defn published-of-tnr
-  "Every **published** document of a TNR (a ref's type, name, major) — all languages, all minors — as
-  full docs. One query; the caller (`lineage/resolve-latest`) picks which to serve. Drafts excluded:
-  a draft only surfaces by exact id inside a change."
-  [{:keys [type name major]}]
-  (mapv row->doc
-        (q! db/ds
-            [(str select-doc "WHERE type = ? AND name = ? AND major = ? AND draft = 0")
-             (t->s type)
-             name
-             major]
-            kebab)))
-
 ;; --- lineage indexes ------------------------------------------------------------------------
 
-(defn versions
-  "Every minor of a lineage — a `ref`'s (type, name, lang, major): `[{:id :minor :draft
-  :publication-id} …]`, ascending, drafts included. The caller picks the version; SQL never resolves."
+(defn latest-published-id
+  "The `id` of the latest published minor of a lineage (a `ref`'s type, name, lang, major), or nil
+  when it has no published minor in that language. A single indexed lookup — the caller caches the
+  tnlr→id mapping. No cross-language fallback: a lineage absent in `lang` resolves to nil."
   [{:keys [type name lang major]}]
-  (mapv
-   (fn [r]
-     {:id (:id r)
-      :minor (:minor r)
-      :draft (truthy? (:draft r))
-      :publication-id (:publication-id r)})
-   (q!
+  (:id
+   (q1!
     db/ds
-    ["SELECT id, minor, draft, publication_id FROM AGORA_DOCUMENT
-                WHERE type = ? AND name = ? AND lang = ? AND major = ? ORDER BY minor"
+    ["SELECT id FROM AGORA_DOCUMENT
+                WHERE type = ? AND name = ? AND lang = ? AND major = ? AND draft = 0
+                ORDER BY minor DESC LIMIT 1"
      (t->s type)
      name
      (t->s lang)
      major]
     kebab)))
 
-(comment
-  (versions {:type :article
-             :name "hzkr69fHJl"
-             :lang :fr
-             :major 1})
-  ;;
-)
-
-(defn successor-ids
-  "Ids that declare a lineage — a `ref`'s (type, name, lang, major) — as an input. The reverse edge,
-  from AGORA_SUCCESSOR."
+(defn successor-latest-ids
+  "For a `ref` (an input lineage's type, name, lang, major), the id of each **successor lineage's
+  latest published minor** — the reverse edge, resolved in SQL. A successor lineage appears only if
+  its *latest* published minor still declares `ref` as an input (a later minor that dropped the input
+  is excluded); drafts never match. One id per successor lineage, no domain collapse."
   [{:keys [type name lang major]}]
   (mapv
-   :successor-id
+   :id
    (q!
     db/ds
-    ["SELECT successor_id FROM AGORA_SUCCESSOR
-                WHERE input_type = ? AND input_name = ? AND input_lang = ? AND input_major = ?"
+    ["SELECT DISTINCT d.id
+        FROM AGORA_SUCCESSOR s
+        JOIN AGORA_DOCUMENT d ON d.id = s.successor_id
+       WHERE s.input_type = ? AND s.input_name = ? AND s.input_lang = ? AND s.input_major = ?
+         AND d.draft = 0
+         AND d.minor = (SELECT MAX(d2.minor) FROM AGORA_DOCUMENT d2
+                         WHERE d2.type = d.type AND d2.name = d.name
+                           AND d2.lang = d.lang AND d2.major = d.major AND d2.draft = 0)"
      (t->s type)
      name
      (t->s lang)
      major]
     kebab)))
 
-(comment
-  (successor-ids {:type :ki
-                  :name "hT5A3WClsI"
-                  :lang :fr
-                  :major 1})
-  ;;
-)
 
-(defn translations
-  "Published language siblings `{:name :major :lang}` of a `ref` — the same (type, name, major) in
-  other languages, excluding the ref's own `lang`."
-  [{:keys [type name lang major]}]
-  (mapv
-   #(update % :lang keyword)
-   (q!
-    db/ds
-    ["SELECT DISTINCT name, major, lang FROM AGORA_DOCUMENT
-             WHERE type = ? AND name = ? AND major = ? AND lang <> ? AND draft = 0 ORDER BY lang"
-     (t->s type)
-     name
-     major
-     (t->s lang)]
-    kebab)))

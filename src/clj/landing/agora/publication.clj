@@ -11,11 +11,11 @@
   not a missing axis. This ns is a thin facade over `document`: create → `document/create`,
   rename → `document/edit`, resolve → the general document resolver."
   (:require
-   [clojure.string                  :as str]
-   [landing.agora.db                :as db]
+   [clojure.string                      :as str]
+   [landing.agora.db                    :as db]
    [landing.agora.document-old          :as document]
    [landing.agora.document.db-store-old :as dbs]
-   [landing.agora.document.store-old    :as store]))
+   [landing.agora.store-old             :as store]))
 
 (defn- view
   "Endpoint view of a publication row: the stable **cid** as `:id` (a publication is a lineage

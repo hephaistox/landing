@@ -9,7 +9,7 @@
   The `/translate` machine-translation *suggestion* (stateless authoring aid, not a
   document op) is a standalone route here too."
   (:require
-   [landing.agora.document-old            :as document]
+   [landing.agora.document-old        :as document]
    [landing.agora.document.identity   :as di]
    [landing.agora.document.kind       :as dk]
    [landing.agora.endpoints.throttle  :as throttle]

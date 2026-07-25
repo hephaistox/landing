@@ -466,11 +466,10 @@
   from the form's `kind`/`title`/`source` and the authoring user (the source's author when a
   source is set, else the user). Nothing for the free-form `inference` kind — so the author
   writes only the body, and the grammar is enforced without being stored."
-  [{:keys [kind title source cites]} author-name lang]
+  [{:keys [kind title source]} author-name lang]
   (when-let [p (dk/statement-prefix-of {:kind kind
                                         :title title
                                         :source source
-                                        :cite-author-name (:author-name (first cites))
                                         :author author-name}
                                        lang)]
     [:div {:style {:font-size "0.9em"

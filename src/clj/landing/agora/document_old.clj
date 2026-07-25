@@ -5,16 +5,16 @@
   engine has no per-type behaviour of its own, so it never branches on a specific type.
 
   All graph decisions live in the domain; this ns only does the generic I/O on top of the
-  shared storage primitives (landing.agora.document.store-old)."
+  shared storage primitives (landing.agora.store-old)."
   (:require
-   [clojure.string                  :as str]
-   [landing.agora.db                :as db]
+   [clojure.string                      :as str]
+   [landing.agora.db                    :as db]
    [landing.agora.document.db-store-old :as dbs]
-   [landing.agora.document.identity :as di]
-   [landing.agora.document.lineage  :as lineage]
-   [landing.agora.document.store-old    :as store]
+   [landing.agora.document.identity     :as di]
+   [landing.agora.document.lineage-old  :as lineage]
    [landing.agora.source-old            :as source]
-   [landing.language                :as language]))
+   [landing.agora.store-old             :as store]
+   [landing.language                    :as language]))
 
 ;; Every document's prose lives under one content key, `:text`. A document's inputs ARE the
 ;; `[[ki:…]]` citations in that text (parsed on write) — an in-text citation is an input edge.
@@ -102,7 +102,7 @@
   (`:cite-author-name`). Uniform across types."
   [doc]
   (let [tnlr (di/tnlr-key doc)
-        {:keys [inputs cites]} (split-inputs (di/input-refs (:inputs doc) (:pins doc)) (:lang doc))]
+        {:keys [inputs cites]} (split-inputs (:pins doc) (:lang doc))]
     (-> doc
         (assoc :inputs inputs
                :cites cites
@@ -154,7 +154,7 @@
 ;; ---------------------------------------------------------------------------
 
 ;; A document's inputs are derived from its content (the `[[ki:…]]` citations in the text, plus any
-;; edge-only source `:cites`) by `landing.agora.document.lineage/inputs-of` — the single home of
+;; edge-only source `:cites`) by `landing.agora.document.lineage-old/inputs-of` — the single home of
 ;; that rule, shared with the storage-free corpus. This engine calls it on create/edit.
 
 ;; `slugify` / `permalink-slug` / `cid-of` live in `landing.agora.document.identity` (cljc)
@@ -426,7 +426,7 @@
                   (when-let [d (store/fetch-document id)]
                     {:name name
                      :title (:title d)}))))
-        (di/cite-refs (or (:text content) "") lang)))
+        (di/cite-refs (or (:text content) ""))))
 
 (defn- card
   "A discovery/search card from a row with a `content` blob — enough to render a preview
@@ -641,7 +641,7 @@
                             GROUP BY type, name, major, lang) g
                        ON d.type = g.type AND d.name = g.name AND d.major = g.major
                           AND d.lang = g.lang AND d.minor = g.latest
-                    WHERE d.draft = 0"]
+                    WHERE d.draft = 0 AND d.type <> 'source'"]
      dbs/kebab)
     (mapv (fn [{:keys [content]
                 :as r}]

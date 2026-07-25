@@ -1,5 +1,7 @@
-(ns landing.agora.document.lineage
-  "New Wire.  The **lineage** layer scoped to *a lineage's set of minors* (resolve which minor is current,
+(ns landing.agora.document.lineage-old
+  "New Wire.
+
+  The **lineage** layer scoped to *a lineage's set of minors* (resolve which minor is current,
   compute the next, construct the next on create / edit) plus the referential-integrity rules.
   It sits above `document.identity`(TNLR + citation grammar) and `document.kind` (which kinds may take
   inputs), and it is the single home of the rule **a version's text determines its inputs**.
@@ -35,7 +37,7 @@
   the one rule 'new text → new inputs', so every caller derives inputs the same way."
   [content lang]
   (if (dk/kind-allows-inputs? (:kind content))
-    (->> (concat (di/cite-refs (:text content) lang)
+    (->> (concat (map #(update % :lang (fn [l] (or l lang))) (di/cite-refs (:text content)))
                  (map (fn [{:keys [name major]}]
                         {:type :ki
                          :name name
@@ -57,16 +59,6 @@
   draft-only lineage."
   [minors]
   (let [published (remove :draft minors)] (when (seq published) (apply max-key :minor published))))
-
-(defn resolve-latest
-  "The version to serve for `lang` from a TNR's `versions` — every language and minor of one
-  (type, name, major). The latest published minor in `lang`, else — cross-language fallback — the
-  latest published in `fallback-lang`. nil if neither has a published version. `versions` mixes
-  languages; each is resolved by `latest-published`."
-  [versions lang fallback-lang]
-  (or (latest-published (filter #(= lang (:lang %)) versions))
-      (when (not= lang fallback-lang)
-        (latest-published (filter #(= fallback-lang (:lang %)) versions)))))
 
 (defn next-minor
   "The minor a new version would take: one past the highest in `minors`, or 0 if empty."
@@ -124,7 +116,9 @@
   [doc existing]
   (let [self [(:type doc) (:name doc) (:major doc)]
         ref-id (juxt :type :name :major)
-        refs (distinct (concat (declared-inputs doc) (di/cite-refs (:text doc) (:lang doc))))
+        refs (distinct (concat (declared-inputs doc)
+                               (map #(update % :lang (fn [l] (or l (:lang doc))))
+                                    (di/cite-refs (:text doc)))))
         pick (fn [rs]
                (->> rs
                     (map #(select-keys % [:name :major :lang]))

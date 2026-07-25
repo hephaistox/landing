@@ -1,7 +1,7 @@
 (ns landing.agora.document.db-store-old
   "The **raw DB-query layer** for AGORA_DOCUMENT — the bare SQL statements plus the connection
   primitives and EDN (de)serialization they share. **No caching, no domain logic**: it sits at the
-  bottom, `landing.agora.document.store-old` wraps these queries in Caffeine caches + write
+  bottom, `landing.agora.store-old` wraps these queries in Caffeine caches + write
   orchestration, and `landing.agora.document-old` composes on top. The intent is that *every*
   AGORA_DOCUMENT query lives here, so the persistence surface is one namespace — queries move in
   from `store`/`document` one at a time."

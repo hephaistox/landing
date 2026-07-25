@@ -164,9 +164,9 @@
                         "url" url}
                  (prose ki) (assoc "articleBody" (prose ki))
                  (:published-at ki) (assoc "datePublished" (:published-at ki))
-                 (:author ki) (assoc "author"
-                                     {"@type" "Person"
-                                      "name" (:author ki)})
+                 (:attributed-author ki) (assoc "author"
+                                                {"@type" "Person"
+                                                 "name" (:attributed-author ki)})
                  ;; the reasoning edges: this KI is derived from
                  ;; its input KIs (declared as linked works)
                  (seq (:inputs ki)) (assoc "isBasedOn" (mapv #(ref-entry base %) (:inputs ki)))
@@ -211,9 +211,9 @@
                                          "inLanguage" lang
                                          "url" url}
                                   (:published-at art) (assoc "datePublished" (:published-at art))
-                                  (:author art) (assoc "author"
-                                                       {"@type" "Person"
-                                                        "name" (:author art)})
+                                  (:attributed-author art) (assoc "author"
+                                                                  {"@type" "Person"
+                                                                   "name" (:attributed-author art)})
                                   (:source art) (assoc "citation"
                                                        (ref->citation (:source art)))))]))))
 
@@ -365,7 +365,11 @@
   "A list item linking to a neighbouring document's permalink."
   [base {:keys [type name lang major title]}]
   (str "<li><a href=\""
-       (esc (str base "/agora/" lang "/" (clojure.core/name (or type :ki)) "/" (key-of name title) "/" major))
+       (esc (str base
+                 "/agora/" lang
+                 "/" (clojure.core/name (or type :ki))
+                 "/" (key-of name title)
+                 "/" major))
        "\">"
        (esc (if (str/blank? title) (humanize name) title))
        "</a></li>"))

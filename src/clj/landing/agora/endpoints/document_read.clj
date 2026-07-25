@@ -22,7 +22,7 @@
    rcoercion/coerce-request-middleware])
 
 (defn- serve
-  "Wire-compat: the domain names a source's id `:source-id`, but the frontend still reads it as
+  "The domain names a source's id `:source-id`, but the frontend still reads it as
   `:id` on a document's `:source`. Rename it back at the wire. Drops once the frontend adopts
   `:source-id`."
   [doc]
@@ -30,8 +30,9 @@
     (:source doc) (update :source set/rename-keys {:source-id :id})))
 
 (defn document-read-routes
-  "By-id read route under `prefix`. `GET <prefix>/:id` returns the endpoint view, or 404."
-  [prefix]
+  "By-id read route under `prefix`, reading from the injected `doc-storage`. `GET <prefix>/:id`
+  returns the endpoint view, or 404."
+  [doc-storage prefix]
   [prefix {:coercion coercion
            :muuntaja m/instance
            :swagger {:tags #{:agora}}
@@ -39,7 +40,7 @@
    ["/:id"
     {:get {:handler (fn [req]
                       (let [id (get-in req [:parameters :path :id])]
-                        (if-let [d (engine/read-by-id id)]
+                        (if-let [d (engine/read-by-id doc-storage id)]
                           {:status 200
                            :body (serve d)}
                           {:status 404

@@ -48,31 +48,30 @@
 ;; --- citation grammar (the input link, expressed in prose) ----------------------------
 
 (deftest cite-refs
-  (is (= [] (sut/cite-refs "See [[non-existing-type:confidence-is-partial@1|partial]] here." "fr"))
+  (is (= [] (sut/cite-refs "See [[non-existing-type:confidence-is-partial@1|partial]] here."))
       "Non existing type is skipped")
   (is
    (=
     [{:type :ki
       :name "confidence-is-partial"
-      :lang "fr"
+      :lang nil
       :major 1}
      {:type :ki
       :name "confidence-over-binary"
-      :lang "fr"
+      :lang nil
       :major 2}]
     (sut/cite-refs
-     "See [[ki:confidence-is-partial@1|partial]] then [[ki:confidence-over-binary@2]] here. [[fake:@1]]"
-     "fr"))
-   "extracts cited KIs from body tokens as ki-input TNLRs in the given lang")
+     "See [[ki:confidence-is-partial@1|partial]] then [[ki:confidence-over-binary@2]] here. [[fake:@1]]"))
+   "a bare token has nil lang — the consumer fills the context language")
   (testing "dedupes repeated citations and tolerates no tokens"
     (is (= [{:type :ki
              :name "a"
-             :lang "en"
+             :lang nil
              :major 1}]
-           (sut/cite-refs "[[ki:a@1]] and again [[ki:a@1]]" "en")))
-    (is (= [] (sut/cite-refs "no citations here" "fr")))
-    (is (= [] (sut/cite-refs nil "fr"))))
-  (testing "a token's own language overrides the fallback (cross-language citation)"
+           (sut/cite-refs "[[ki:a@1]] and again [[ki:a@1]]")))
+    (is (= [] (sut/cite-refs "no citations here")))
+    (is (= [] (sut/cite-refs nil))))
+  (testing "a token's own language is kept (cross-language citation)"
     (is (= [{:type :ki
              :name "a"
              :lang :en
@@ -81,7 +80,7 @@
              :name "b"
              :lang :fr
              :major 2}]
-           (sut/cite-refs "[[ki:a:en@1]] and [[ki:b:fr@2|label]]" "fr")))))
+           (sut/cite-refs "[[ki:a:en@1]] and [[ki:b:fr@2|label]]")))))
 
 (deftest strip-cite
   (testing "strip-cite removes a dropped input's citation, keeping its display text"
@@ -118,11 +117,7 @@
 
 ;; --- inputs -------------------------------------------------------------------
 
-(deftest pinned
-  (is (sut/pinned? (assoc t-a :id "x")) "an inline :id marks a pinned (frozen) input")
-  (is (not (sut/pinned? t-a)) "a bare TNLR is floating"))
-
-(deftest declarations
+(deftest input-test
   (is (= [t-b (assoc t-a :id "x")]
          (-> []
              (sut/add-input t-a)
@@ -137,29 +132,15 @@
       "drop-input removes by lineage, pinned or floating"))
 
 (deftest pins
-  (is (= {(sut/tnlr-key t-a) "a-latest"
-          (sut/tnlr-key t-b) "b-latest"}
-         (sut/pin-all [t-a t-b] #(str (:name %) "-latest")))
-      "pin-all resolves every floating declaration to its latest id, keyed by tnlr-key")
-  (is (= {(sut/tnlr-key t-a) "frozen"
-          (sut/tnlr-key t-b) "b-latest"}
-         (sut/pin-all [(assoc t-a :id "frozen") t-b] #(str (:name %) "-latest")))
-      "a pinned input keeps its frozen id — never resolved")
-  (is (= {(sut/tnlr-key t-a) "a2"
-          (sut/tnlr-key t-b) "b1"}
-         (sut/repin {(sut/tnlr-key t-a) "a1"
-                     (sut/tnlr-key t-b) "b1"}
-                    t-a
-                    "a2"))
-      "repin updates only the matching TNLR's pin"))
-
-(deftest refs-and-successors
-  (testing "input-refs zip declarations with their pins (nil id when unpinned)"
-    (is (= [(assoc t-a :id "a1") (assoc t-b :id nil)]
-           (sut/input-refs [t-a t-b] {(sut/tnlr-key t-a) "a1"}))))
-  (testing "input-refs prefers a pinned input's own :id over the (stale) pin cache"
-    (is (= [(assoc t-a :id "frozen")]
-           (sut/input-refs [(assoc t-a :id "frozen")] {(sut/tnlr-key t-a) "stale"})))))
+  (testing "pin-all sets each input's :id — its lineage's latest for a floating input"
+    (is (= [(assoc t-a :id "a-latest") (assoc t-b :id "b-latest")]
+           (sut/pin-all [t-a t-b] #(str (:name %) "-latest")))))
+  (testing "a pinned input keeps its own frozen :id — never re-resolved"
+    (is (= [(assoc t-a :id "frozen") (assoc t-b :id "b-latest")]
+           (sut/pin-all [(assoc t-a :id "frozen") t-b] #(str (:name %) "-latest")))))
+  (testing "repin sets only the matching input's :id, leaving the others"
+    (is (= [(assoc t-a :id "a2") (assoc t-b :id "b1")]
+           (sut/repin [(assoc t-a :id "a1") (assoc t-b :id "b1")] t-a "a2")))))
 
 (deftest successor-tuples-tes
   (is (= [{:tnlr t-a

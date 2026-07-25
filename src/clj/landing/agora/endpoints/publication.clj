@@ -3,7 +3,7 @@
   publications. A publication is owned by its creator, so create and list are auth-gated;
   fetch-by-id is public (a publication is not secret, just a work-package)."
   (:require
-   [landing.agora.document-old            :as document]
+   [landing.agora.document-old        :as document]
    [landing.agora.endpoints.error     :as error]
    [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.publication         :as publication]

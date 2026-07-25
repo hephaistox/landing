@@ -3,10 +3,11 @@
   (:require
    [clojure.string                        :as str]
    [env]
+   [landing.agora.document.cached-db      :as dcd]
    [landing.agora.endpoints.admin         :refer [admin-routes]]
    [landing.agora.endpoints.auth          :refer [auth-routes]]
    [landing.agora.endpoints.author        :refer [author-routes]]
-   [landing.agora.endpoints.document-old      :refer [document-routes translate-suggest-route]]
+   [landing.agora.endpoints.document-old  :refer [document-routes translate-suggest-route]]
    [landing.agora.endpoints.document-read :refer [document-read-routes]]
    [landing.agora.endpoints.people        :refer [people-routes]]
    [landing.agora.endpoints.publication   :refer [publication-routes]]
@@ -106,19 +107,21 @@
               (when lang
                 (fn [handler] (fn [req] (handler (assoc-in req [:path-params :lang] lang))))))})
 
-(def ^:private agora-shell-routes
+(defn- agora-shell-routes
   "Path suffix (under `/agora/<lang>`) → the route builder for each public language shell.
   Enumerated per language in `agora-lang-routes` so the language segment is a **literal**,
   not a wildcard — a `:lang` wildcard would overlap the literal `/agora/api…` and
-  `/agora/sitemap.xml`, which is what forced reitit onto the slow quarantine router."
+  `/agora/sitemap.xml`, which is what forced reitit onto the slow quarantine router. The
+  permalink shells read documents, so `doc-storage` is injected into their builders."
+  [doc-storage]
   [["" home-shell-route]
-   ["/ki/:name/:major" ki-page-route]
+   ["/ki/:name/:major" (partial ki-page-route doc-storage)]
    ["/discover" public-shell-route]
    ["/preferences" public-shell-route]
    ["/articles" public-shell-route]
    ["/authors" public-shell-route]
    ["/sources" public-shell-route]
-   ["/article/:name/:major" article-page-route]
+   ["/article/:name/:major" (partial article-page-route doc-storage)]
    ["/new" app-shell-route]
    ["/ki/:id" app-shell-route]
    ["/article/:id" app-shell-route]
@@ -130,14 +133,17 @@
   "Every public shell, enumerated once per supported language, with the literal language
   baked into both the path and the route data (`:lang`). An unsupported language matches no
   route and 404s — cleaner than a wildcard silently falling back to a default."
-  []
+  [doc-storage]
   (for [lang languages
-        [suffix route-fn] agora-shell-routes
+        [suffix route-fn] (agora-shell-routes doc-storage)
         :let [[path data] (route-fn (str "/agora/" lang suffix))]]
     [path (assoc data :lang lang)]))
 
 (defn router
   []
+  ;; `cached-db` is the concrete `DocumentStorage` (a DB-backed read cache); it is injected here,
+  ;; the composition root, into every endpoint that reads documents, so the read stack stays
+  ;; backend-agnostic.
   (rring/router (into [(ping-route "/ping")
                        (root-redirect-route "/")
                        (lang-page-redirect-route "/index.html")
@@ -153,8 +159,8 @@
                        ;; The whole KI/article API surface — one generic route set per object type.
                        (document-routes "ki" "/agora/api/ki")
                        (document-routes "article" "/agora/api/article")
-                       (document-read-routes "/agora/api/ki")
-                       (document-read-routes "/agora/api/article")
+                       (document-read-routes dcd/document-cached-db "/agora/api/ki")
+                       (document-read-routes dcd/document-cached-db "/agora/api/article")
                        (author-routes "/agora/api/author")
                        (people-routes "/agora/api/people")
                        (publication-routes "/agora/api/publication")
@@ -162,7 +168,7 @@
                        (translate-suggest-route "/agora/api/translate")
                        (api-swagger "/api")
                        (w3c-validate-route "/w3c-validate")]
-                      (agora-lang-routes))
+                      (agora-lang-routes dcd/document-cached-db))
                 {:data {:middleware [lang-injector]}}))
 
 (defn wrap-agora-canonical-host

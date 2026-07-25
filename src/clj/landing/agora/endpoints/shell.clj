@@ -12,7 +12,7 @@
    [clojure.java.io                 :as io]
    [clojure.set                     :as set]
    [landing.agora.auth              :as auth]
-   [landing.agora.document-old          :as document]
+   [landing.agora.document-old      :as document]
    [landing.agora.document.engine   :as engine]
    [landing.agora.document.identity :as di]
    [landing.agora.seo               :as seo]
@@ -72,18 +72,20 @@
       (cond->
         (:source doc) (update :source set/rename-keys {:source-id :id}))))
 
-(def ki-page-response
+(defn ki-page-response
   "Serve the public KI permalink shell with per-KI SEO: title, description,
   OpenGraph and schema.org Article (name, description, datePublished, author,
   isBasedOn), server-rendered so crawlers and unfurlers see it without running the
-  SPA."
+  SPA. Reads from the injected `doc-storage`."
+  [doc-storage]
   (fn [req]
     (let [{:keys [lang name major]} (:path-params req)
           lang (language/normalize lang)
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
           ;; the path segment is `<cid>~<slug>` (or bare cid); resolve by the cid
           name (di/cid-of name)
-          ki (some-> (engine/read-by-major {:type :ki
+          ki (some-> (engine/read-by-major doc-storage
+                                           {:type :ki
                                             :name name
                                             :lang (keyword lang)
                                             :major major-n})
@@ -119,23 +121,26 @@
                  :summary "Public Agora page (discover / preferences)"}}])
 
 (defn ki-page-route
-  "Serve the public KI permalink shell with server-rendered SEO metadata."
-  [prefix]
+  "Serve the public KI permalink shell with server-rendered SEO metadata, reading from `doc-storage`."
+  [doc-storage prefix]
   [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler ki-page-response
+                 :handler (ki-page-response doc-storage)
                  :middleware html-middlewares
                  :summary "Public KI permalink (SEO head injected)"}}])
 
-(def article-page-response
+(defn article-page-response
   "Serve the public article permalink shell with per-article SEO (title, description,
-  OpenGraph, schema.org Article), server-rendered so crawlers see it without the SPA."
+  OpenGraph, schema.org Article), server-rendered so crawlers see it without the SPA.
+  Reads from the injected `doc-storage`."
+  [doc-storage]
   (fn [req]
     (let [{:keys [lang name major]} (:path-params req)
           lang (language/normalize lang)
           major-n (try (Integer/parseInt (str major)) (catch Exception _ 1))
           ;; the path segment is `<cid>~<slug>` (or bare cid); resolve by the cid
           name (di/cid-of name)
-          art (some-> (engine/read-by-major {:type :article
+          art (some-> (engine/read-by-major doc-storage
+                                            {:type :article
                                              :name name
                                              :lang (keyword lang)
                                              :major major-n})
@@ -148,10 +153,11 @@
       (html-response (seo/inject @public-template head lang body)))))
 
 (defn article-page-route
-  "Serve the public article permalink shell with server-rendered SEO metadata."
-  [prefix]
+  "Serve the public article permalink shell with server-rendered SEO metadata, reading from
+  `doc-storage`."
+  [doc-storage prefix]
   [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler article-page-response
+                 :handler (article-page-response doc-storage)
                  :middleware html-middlewares
                  :summary "Public article permalink (SEO head injected)"}}])
 

@@ -1,10 +1,10 @@
-(ns landing.agora.document.lineage-test
+(ns landing.agora.document.lineage-old-test
   "Pure lineage rules — resolution over a set of minors, the create/edit/publish constructors, and
   the 'text → inputs' derivation. No database, no adapter; a lineage is just a seq of version
   maps in, a value out."
   (:require
-   [clojure.test                   :refer [deftest is testing]]
-   [landing.agora.document.lineage :as sut]))
+   [clojure.test                       :refer [deftest is testing]]
+   [landing.agora.document.lineage-old :as sut]))
 
 (def minors
   "One lineage's versions: v0/v1 published, v2 a draft (an in-progress edit)."
@@ -70,7 +70,7 @@
            (sut/inputs-of {:kind "definition"
                            :text ""
                            :cites [{:name "q"
-                                     :major 3}]}
+                                    :major 3}]}
                           :en)))))
 
 ;; --- resolution over a lineage's minors --------------------------------------
@@ -83,36 +83,6 @@
   (testing "next-minor is one past the highest, or 0 for an empty lineage"
     (is (= 3 (sut/next-minor minors)))
     (is (= 0 (sut/next-minor [])))))
-
-(deftest resolve-latest
-  (let [vs [{:id "en0"
-             :lang :en
-             :minor 0
-             :draft false}
-            {:id "en1"
-             :lang :en
-             :minor 1
-             :draft false}
-            {:id "en2"
-             :lang :en
-             :minor 2
-             :draft true} ; a draft, never resolved publicly
-            {:id "fr0"
-             :lang :fr
-             :minor 0
-             :draft false}]]
-    (testing "latest published minor in the requested language"
-      (is (= "en1" (:id (sut/resolve-latest vs :en :fr))))
-      (is (= "fr0" (:id (sut/resolve-latest vs :fr :en)))))
-    (testing "cross-language fallback to the default lang when the requested lang is absent"
-      (is (= "fr0" (:id (sut/resolve-latest vs :de :fr)))))
-    (testing "nil when neither language has a published version"
-      (is (nil? (sut/resolve-latest vs :de :es)))
-      (is (nil? (sut/resolve-latest [{:lang :en
-                                      :minor 0
-                                      :draft true}]
-                                    :en
-                                    :fr))))))
 
 ;; --- lifecycle --------------------------------------
 

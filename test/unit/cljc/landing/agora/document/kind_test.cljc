@@ -52,11 +52,24 @@
     (is (nil? (sut/statement-subject-kind "inference"))))
   (testing "an unknown language falls back to English"
     (is (= "X believes that " (sut/statement-prefix "belief" :de "x"))))
-  (testing "attributed-author prefers the cited source's author, then the cite author, then own"
+  (testing "attributed-author: a source KI's own cited author, else the document's own author"
     (is (= "David Fricke"
-           (sut/attributed-author {:cite-author-name "David Fricke"
-                                   :author "Poster"})))
-    (is (= "Poster" (sut/attributed-author {:author "Poster"}))))
+           (sut/attributed-author {:source {:author-name "David Fricke"}
+                                   :author "Poster"}))
+        "a kind=source KI is attributed to its cited work's author")
+    (is (= "Poster" (sut/attributed-author {:author "Poster"}))
+        "a KI that only cites a source is attributed to its own author, not the cited one")
+    (is (= "Poster"
+           (sut/attributed-author {:cites [{:author-name "David Fricke"}]
+                                   :author "Poster"}))
+        "the cited author lives on :cites for display — it never becomes the citing KI's subject"))
+  (testing "attributed-author-id mirrors attributed-author, so byline name and link agree"
+    (is (= "fricke-id"
+           (sut/attributed-author-id {:source {:author-id "fricke-id"}
+                                      :owner-id "typer-id"}))
+        "a source KI links to its cited author's hub, not the typer's account")
+    (is (= "owner-id" (sut/attributed-author-id {:owner-id "owner-id"}))
+        "a non-source KI links to its owner"))
   (testing "compose-statement assembles prefix + body for a document"
     (is (= "Anthony believes that reasoning is fuzzy."
            (sut/compose-statement {:kind "belief"

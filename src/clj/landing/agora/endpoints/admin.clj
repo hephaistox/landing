@@ -4,7 +4,7 @@
   any logged-in user."
   (:require
    [landing.agora.auth                :as auth]
-   [landing.agora.document-old            :as document]
+   [landing.agora.document-old        :as document]
    [landing.agora.endpoints.error     :as error]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]

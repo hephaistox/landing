@@ -1,27 +1,26 @@
 (ns landing.agora.document.engine
   "New Wire. Shapes a document into its endpoint view, from `cache`, the `db` layer (`db.document`,
-  `db.source`) and the domain (`identity`, `lineage`). Type-agnostic: every type shapes the same."
+  `db.source`) and the domain (`identity`, `kind`). Type-agnostic: every type shapes the
+  same."
   (:require
-   [landing.agora.db.document       :as db]
-   [landing.agora.db.source         :as source]
-   [landing.agora.document.cache    :as cache]
-   [landing.agora.document.identity :as di]
-   [landing.agora.document.lineage  :as lineage]
-   [landing.language                :as language]))
+   [landing.agora.db.document      :as db-doc]
+   [landing.agora.db.source        :as source]
+   [landing.agora.document.kind    :as dk]
+   [landing.agora.document.storage :as ds]))
 
 (defn- input-doc
   "Resolve an input `ref` to its document. A ref with an `:id` (a pinned input) loads that exact
   version. A ref without one is unresolved here (nil) — resolving by TNLR is a different path."
-  [{:keys [id]}]
-  (when id (cache/document id)))
+  [doc-storage {:keys [id]}]
+  (when id (ds/fetch-id doc-storage id)))
 
 (defn- split-inputs
   "Split resolved input refs into `{:inputs :cites}`. A `kind=source` input is a cite — an
   edge-only citation of a work. It becomes `{:name :major :id :title :author-name :author-id
   :locator}`. Others stay `:inputs`."
-  [inputs]
+  [doc-storage inputs]
   (reduce (fn [acc inp]
-            (let [d (input-doc inp)]
+            (let [d (input-doc doc-storage inp)]
               (if (= "source" (:kind d))
                 (let [work (source/resolve-ref (:source d))]
                   (update acc
@@ -40,75 +39,47 @@
           inputs))
 
 (defn- successor-refs
-  "Distinct successor lineages of `ref`, each `{:id latest-published-minor}`. Drops dangling ids and
-  drafts, then collapses each lineage's published minors to its latest. A draft-only successor is
-  dropped whole (removed before grouping), so it never resolves to a nil id."
+  "Each successor lineage of `ref`, as `{:id latest-published-minor}`. Resolved in SQL: one id per
+  lineage whose latest published minor still declares `ref`. No fetch, no domain collapse."
   [ref]
-  (->> (db/successor-ids ref)
-       (keep cache/document)
-       (remove :draft) ; an unpublished successor stays hidden until it is published
-       (group-by (juxt :type :name :lang :major))
-       vals
-       (mapv (fn [ds] {:id (:id (lineage/latest-published ds))}))))
+  (mapv (fn [id] {:id id}) (db-doc/successor-latest-ids ref)))
 
-(defn expand-document
-  "Shape `doc` into the full endpoint view — the document plus its whole environment: resolved
-  inputs, `:cites`, successors, source, plus the given `versions` and `translations`. The caller
-  supplies those two (queried fresh, or drawn from an already-fetched sibling set), since they are
-  what a by-id and a by-major read hold differently. Drops `:pins`. Renames `:owner-id` to
-  `:author-id`. Attributes the statement to the first cite's author."
-  [doc versions translations]
-  (let [{:keys [inputs cites]} (split-inputs (di/input-refs (:inputs doc) (:pins doc)))]
+(defn- expand-document
+  "Shape `doc` into the endpoint view
+  — the document plus its resolved environment: inputs, `:cites`, successors and source.
+
+  Drops `:pins` and the internal `:author`/`:owner-id`, exposing the byline person as the derived
+  `:attributed-author` (name) + `:attributed-author-id` (id) — via `kind/attributed-author[-id]`: a
+  source KI's cited author, else the document's owner. Name and profile link always agree.
+
+  The version list is not part of the view — it is fetched on demand (version history, publish-time
+  resolution), not on every read."
+  [doc-storage doc]
+  (let [{:keys [inputs cites]} (split-inputs doc-storage (:pins doc))]
     (-> doc
         (assoc :inputs inputs
                :cites cites
-               :cite-author-name (:author-name (first cites))
-               :author-id (:owner-id doc)
+               :attributed-author (dk/attributed-author doc)
+               :attributed-author-id (dk/attributed-author-id doc)
                :source (source/resolve-ref (:source doc))
-               :successors (successor-refs doc)
-               :versions versions
-               :translations translations)
-        (dissoc :owner-id :pins))))
+               :successors (successor-refs doc))
+        (dissoc :author :owner-id :pins))))
 
-(defn view-full
-  "The full endpoint view of `doc` — a by-id read, so its versions (drafts included) and translations
-  are queried fresh. Several queries; for a document page or edition, not a list."
-  [doc]
-  (expand-document doc (db/versions doc) (db/translations doc)))
+;; ********************************************************************************
+;; Picking a document — both reads fetch a single document, then shape it. Same shape, different
+;; selector: by exact id, or by the latest published minor of a lineage (DB-resolved).
 
 (defn read-by-id
-  "Document `id` as the endpoint view, or nil. Loads by exact id."
-  [id]
-  (when-let [doc (cache/document id)] (view-full doc)))
-
-(defn- versions-of
-  "The `:versions` list — this lineage's published minors — drawn from the TNR's published docs
-  `pubs` (no extra query). Public, so drafts are absent by construction."
-  [pubs doc]
-  (->> pubs
-       (filter #(= (:lang doc) (:lang %)))
-       (sort-by :minor)
-       (mapv #(select-keys % [:id :minor :draft :publication-id]))))
-
-(defn- translations-of
-  "The `:translations` list — other-language published siblings `{:name :major :lang}` — drawn from
-  the TNR's docs `pubs` (no extra query). Same set/shape as `db/translations`."
-  [pubs doc]
-  (->> pubs
-       (remove #(= (:lang doc) (:lang %)))
-       (map #(select-keys % [:name :major :lang]))
-       distinct
-       (sort-by :lang)
-       vec))
+  "Document `id` as the endpoint view, or nil. One fetch, by exact id."
+  [doc-storage id]
+  (some->> id
+           (ds/fetch-id doc-storage)
+           (expand-document doc-storage)))
 
 (defn read-by-major
-  "The published document of TNR `ref` (type, name, major) to serve for the reader's `lang`, as the
-  endpoint view — the public permalink — or nil. **One** query fetches the TNR's published docs
-  (every language, every minor); `lineage/resolve-latest` picks the latest in `lang` (cross-language
-  fallback to the default lang); the version + translation lists are drawn from that same set, no
-  re-query. Drafts never resolve here — they surface by exact id inside a change."
-  [{:keys [lang]
-    :as ref}]
-  (let [pubs (db/published-of-tnr ref)]
-    (when-let [doc (lineage/resolve-latest pubs lang language/default-language)]
-      (expand-document doc (versions-of pubs doc) (translations-of pubs doc)))))
+  "The latest published minor of `ref` (a TNLR) as the endpoint view, or nil when the lineage has no
+  published minor in that language. One fetch, DB-resolved."
+  [doc-storage ref]
+  (some->> ref
+           (ds/fetch-latest-revision doc-storage)
+           (expand-document doc-storage)))

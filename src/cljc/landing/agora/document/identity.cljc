@@ -1,7 +1,6 @@
 (ns landing.agora.document.identity
   "New Wire.
   Document **identity** and the edges between documents
-  how a document is named, addressed, linked and resolved.
 
   No I/O and no persistence format.
 
@@ -21,7 +20,7 @@
   Referencing a document is possible through two mechanisms:
   - **pin** a version so the reference is a precise `id`
   - **TNLR** listing the minor version of a document in the same TLNR
-  - **TNR** listing the minor version and language of a TNLR
+  - **TNR** listing all languages and minor version of a TNLR
 
   That references can be set through a cite,  `[[<type>:<name>(:<lang>)?@<major>(|<label>)?]]`:
   - `lang` is optional so user language will be picked
@@ -69,8 +68,9 @@
 ;; --- object types ---------------------------------------------------------------------
 
 (def object-types
-  "The identity document values (object types sharing the single AGORA_DOCUMENT table)."
-  [:ki :objection :article])
+  "The identity document values (object types sharing the single AGORA_DOCUMENT table). `:source` is
+  the bibliographic *work* a `kind=source` citation references — a leaf, never in a public feed."
+  [:ki :objection :article :source])
 
 (def object-types-set
   "The identity document values (object types sharing the single AGORA_DOCUMENT table)."
@@ -104,17 +104,18 @@
      :cljs (js/parseInt s 10)))
 
 (defn cite-refs
-  "Parse the `body` and returns all citation - as in [[cite-pattern]], returns a vector of TNLRs
-  {:type … :name … :lang … :major …} order-preserving and deduped."
-  [body lang]
+  "Parse `body` and return the TNLRs of its `[[…]]` citations (see `cite-pattern`) — order-preserving
+  and deduped. `:lang` is the citation token's **own** language, or **nil** when the token omits one:
+  a bare `[[ki:name@major]]` is language-neutral in the prose, and resolving nil → a context language
+  is the *consumer's* job, done where the ref is consumed (`lineage/inputs-of` fills the doc's lang)."
+  [body]
   (->> (re-seq cite-pattern (or body ""))
        (keep (fn [[_ type nm lang-tok mj]]
-               (let [type (keyword type)
-                     lang-tok (keyword lang-tok)]
+               (let [type (keyword type)]
                  (when (object-types-set type)
                    {:type type
                     :name nm
-                    :lang (or lang-tok lang)
+                    :lang (keyword lang-tok)
                     :major (parse-major mj)}))))
        (distinct)
        (vec)))
@@ -122,8 +123,7 @@
 (defn strip-cite
   "Unweave the citations of **one** input — the given `TNLR` (type, name, lang, major) — from
   `body`: each matching `[[…]]` token becomes its display text (the custom `|label`, else the bare
-  name) as plain prose, while **every other citation is left intact**. Used when an input is
-  dropped — its in-text citation comes out, the rest of the prose stays."
+  name) as plain prose, while **every other citation is left intact**."
   [body TNLR]
   (if (str/blank? body)
     body
@@ -142,12 +142,6 @@
 
 (def max-inputs "Cap on the number of inputs a single KI may carry." 50)
 
-(defn pinned?
-  "Is input `inp` **pinned** — frozen to an exact version by an inline `:id` — rather than
-  **floating** (a bare TNLR that follows its lineage's latest minor)?"
-  [inp]
-  (some? (:id inp)))
-
 (defn add-input
   "Add `doc-ref` to the `inputs` (dedup by lineage/TNLR). Keeps `doc-ref`'s pin (`:id`) when it
   carries one (a pinned ref), else records the bare TNLR (a floating ref)."
@@ -161,26 +155,21 @@
   (filterv #(not (same-tnlr? % doc-ref)) inputs))
 
 (defn pin-all
-  "Resolve every **floating** input to its lineage's current id; a **pinned** input keeps its own
-  frozen `:id`. → {tnlr-key → id}. `latest-of` (a TNLR → id) resolves the floating ones only — a
-  pinned input needs no resolution (it already names an exact version), which is exactly what
-  isolates a change: a new minor never repins it."
+  "Resolve every input to a doc carrying its `:id`: a **floating** input gets its lineage's current
+  id (via `latest-of`), a **pinned** input keeps its own frozen `:id` — never re-resolved, which is
+  what isolates a change (a new minor never repins it). Returns the inputs, each with `:id` set.
+  This is the value stored as `computed.:pins`, and — since each entry is already the input plus its
+  resolved id — it *is* the API-facing input refs on read (no separate zip step)."
   [inputs latest-of]
-  (into {} (map (fn [inp] [(tnlr-key inp) (or (:id inp) (latest-of inp))])) inputs))
+  (mapv (fn [inp] (assoc inp :id (or (:id inp) (latest-of inp)))) inputs))
 
 (defn repin
-  "Point the pin for TNLR `doc-ref` at `new-id` (used when `doc-ref` gets a new minor). The caller repins only
-  **floating** successor inputs — a **pinned** input (`pinned?`) is frozen and must be skipped,
-  which is how a change stays isolated."
+  "Re-point the pin of the input on TNLR `doc-ref` to `new-id` (used when `doc-ref` gets a new
+  minor): set that input's `:id` in `pins`, leaving the others untouched. The caller repins only
+  **floating** successor inputs — a **pinned** input (`pinned?`) is frozen and skipped, which is how
+  a change stays isolated."
   [pins doc-ref new-id]
-  (assoc pins (tnlr-key doc-ref) new-id))
-
-(defn input-refs
-  "The API-facing input refs — each input plus its resolved id: a **pinned** input's own
-  frozen `:id`, else the **floating** pin from `pins`. Preferring the inline id lets a pinned ref
-  survive even a stale pin cache."
-  [inputs pins]
-  (mapv (fn [inp] (assoc inp :id (or (:id inp) (get pins (tnlr-key inp))))) inputs))
+  (mapv (fn [inp] (if (same-tnlr? inp doc-ref) (assoc inp :id new-id) inp)) pins))
 
 ;; --- outputs (successor index) -----------------------------------------------
 

@@ -1,9 +1,9 @@
-(ns landing.agora.document.store-old-test
+(ns landing.agora.store-old-test
   "Pure change-model rules that live in the store (clj), not the shared domain: the publish
   lifecycle (`publish`) and its invariant (`pending?`)."
   (:require
-   [clojure.test                 :refer [deftest is testing]]
-   [landing.agora.document.store-old :as sut]))
+   [clojure.test            :refer [deftest is testing]]
+   [landing.agora.store-old :as sut]))
 
 (deftest publish
   (testing "publish closes the publication and publishes every draft it gathers, at once"
