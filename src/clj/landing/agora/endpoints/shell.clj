@@ -11,8 +11,6 @@
   (:require
    [clojure.java.io                 :as io]
    [clojure.set                     :as set]
-   [landing.agora.auth              :as auth]
-   [landing.agora.document-old      :as document]
    [landing.agora.document.engine   :as engine]
    [landing.agora.document.identity :as di]
    [landing.agora.seo               :as seo]
@@ -94,7 +92,7 @@
           head (if ki
                  (seo/ki-head base lang name major-n ki)
                  (seo/generic-head base lang (str "/ki/" name "/" major-n) "Agora" "Agora"))
-          body (when ki (seo/document-body base lang ki (document/resolve-successors ki) name))]
+          body (when ki (seo/document-body base lang ki [] name))]
       (html-response (seo/inject @public-template head lang body)))))
 
 (defn home-page-response
@@ -149,7 +147,7 @@
           head (if art
                  (seo/article-head base lang name major-n art)
                  (seo/generic-head base lang (str "/article/" name "/" major-n) "Agora" "Agora"))
-          body (when art (seo/document-body base lang art (document/resolve-successors art) name))]
+          body (when art (seo/document-body base lang art [] name))]
       (html-response (seo/inject @public-template head lang body)))))
 
 (defn article-page-route
@@ -169,12 +167,11 @@
     (let [{:keys [lang id]} (:path-params req)
           lang (language/normalize lang)
           base (seo/base-url req)
-          profile (auth/author-profile id)
+          profile nil ; fresh-start stub — author profile rebuilds on the New Wire
           head (if profile
                  (seo/author-head base lang id profile)
                  (seo/generic-head base lang (str "/author/" id) "Agora" "Agora"))
-          body (when profile
-                 (seo/author-body base lang profile (:documents (document/by-author id lang))))]
+          body (when profile (seo/author-body base lang profile []))]
       (html-response (seo/inject @public-template head lang body)))))
 
 (defn author-page-route
@@ -192,7 +189,7 @@
     {:status 200
      :headers {"Content-Type" "application/xml; charset=utf-8"
                "Cache-Control" "public, max-age=3600"}
-     :body (seo/sitemap-xml (seo/base-url req) (document/sitemap-rows))}))
+     :body (seo/sitemap-xml (seo/base-url req) [])}))
 
 (defn sitemap-route
   [prefix]

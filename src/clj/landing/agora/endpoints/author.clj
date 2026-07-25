@@ -1,46 +1,17 @@
 (ns landing.agora.endpoints.author
-  "Public author profile API. `GET /agora/api/author/:id` returns the author card
-  (display name, avatar, account-creation date — no email) plus their documents (latest
-  minor per lineage, in the requested language) and last-activity timestamp. Read-only
-  and anonymous; the author page links here from any author badge."
-  (:require
-   [landing.agora.auth                :as auth]
-   [landing.agora.document-old        :as document]
-   [landing.agora.endpoints.error     :as error]
-   [landing.language                  :as language]
-   [muuntaja.core                     :as m]
-   [reitit.coercion.malli             :refer [coercion]]
-   [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.muuntaja   :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]))
+  "Fresh-start stub. Routes preserved as the rebuild checklist; every handler returns `{}` until
+  reimplemented on the New Wire.")
 
-(def ^:private author-handler
-  (fn [req]
-    (let [id (get-in req [:parameters :path :id])
-          lang (or (get-in req [:parameters :query :lang]) language/default-lang)]
-      (if-let [profile (auth/author-profile id)]
-        (let [{:keys [documents last-activity]} (document/by-author id lang)]
-          {:status 200
-           :body (assoc profile :documents documents :last-activity last-activity)})
-        {:status 404
-         :body {:error "author not found"}}))))
+(defn- ok
+  [_]
+  {:status 200
+   :headers {"Content-Type" "application/json"}
+   :body "{}"})
 
 (defn author-routes
   [prefix]
-  [prefix {:coercion coercion
-           :muuntaja m/instance
-           :swagger {:tags #{:agora}}
-           :middleware [parameters/parameters-middleware
-                        muuntaja/format-negotiate-middleware
-                        muuntaja/format-response-middleware
-                        error/exception-middleware
-                        muuntaja/format-request-middleware
-                        rcoercion/coerce-request-middleware]}
+  [prefix
    ["/:id"
-    {:get {:handler author-handler
+    {:get {:handler ok
            :operationId "agora-author"
-           :parameters {:path [:map [:id :string]]
-                        :query [:map
-                                [:lang {:optional true}
-                                 [:string {:max 8}]]]}
-           :summary "Public author profile: card, documents, last activity"}}]])
+           :summary "Public author profile: card + documents + last activity"}}]])

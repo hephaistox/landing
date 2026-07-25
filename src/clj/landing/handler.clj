@@ -7,7 +7,6 @@
    [landing.agora.endpoints.admin         :refer [admin-routes]]
    [landing.agora.endpoints.auth          :refer [auth-routes]]
    [landing.agora.endpoints.author        :refer [author-routes]]
-   [landing.agora.endpoints.document-old  :refer [document-routes translate-suggest-route]]
    [landing.agora.endpoints.document-read :refer [document-read-routes]]
    [landing.agora.endpoints.people        :refer [people-routes]]
    [landing.agora.endpoints.publication   :refer [publication-routes]]
@@ -157,15 +156,12 @@
                        (auth-routes "/agora/api/auth")
                        (admin-routes "/agora/api/admin")
                        ;; The whole KI/article API surface — one generic route set per object type.
-                       (document-routes "ki" "/agora/api/ki")
-                       (document-routes "article" "/agora/api/article")
                        (document-read-routes dcd/document-cached-db "/agora/api/ki")
                        (document-read-routes dcd/document-cached-db "/agora/api/article")
                        (author-routes "/agora/api/author")
                        (people-routes "/agora/api/people")
                        (publication-routes "/agora/api/publication")
                        (source-routes "/agora/api/source")
-                       (translate-suggest-route "/agora/api/translate")
                        (api-swagger "/api")
                        (w3c-validate-route "/w3c-validate")]
                       (agora-lang-routes dcd/document-cached-db))
