@@ -6,11 +6,13 @@
   `:fr`). `fetch` keywords them on read; queries coerce back with `t->s`. Other fields are returned
   as stored."
   (:require
-   [auto-core.log        :as core-log]
-   [clojure.edn          :as edn]
-   [landing.agora.db     :as db]
-   [next.jdbc            :as jdbc]
-   [next.jdbc.result-set :as rs])
+   [auto-core.log                   :as core-log]
+   [clojure.edn                     :as edn]
+   [clojure.string                  :as str]
+   [landing.agora.db                :as db]
+   [landing.agora.document.identity :as di]
+   [next.jdbc                       :as jdbc]
+   [next.jdbc.result-set            :as rs])
   (:import (java.sql SQLException)))
 
 ;; --- connection + failure handling. A DB error throws ::db-unavailable.
@@ -75,6 +77,42 @@
 
 ;; --- lineage indexes ------------------------------------------------------------------------
 
+(defn rebuild-successor-index!
+  "Recompute AGORA_SUCCESSOR from scratch: wipe it, then re-insert one reverse edge (input TNLR →
+  successor id) per declared input of **each lineage's latest published minor** — older minors are
+  not indexed (their history stays reconstructable from AGORA_DOCUMENT, and reads only ever want the
+  latest). A derived cache, so a full rebuild self-heals drift. Returns the number of lineages
+  scanned."
+  []
+  (q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])
+  (let
+    [docs
+     (q!
+      db/ds
+      ["SELECT d.id, d.content
+                     FROM AGORA_DOCUMENT d
+                     JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
+                             FROM AGORA_DOCUMENT WHERE draft = 0
+                            GROUP BY type, name, lang, major) g
+                       ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                          AND d.major = g.major AND d.minor = g.latest
+                    WHERE d.draft = 0"]
+      kebab)]
+    (doseq [{:keys [id content]} docs
+            {:keys [tnlr]} (di/successor-tuples id (:inputs (decode-content content)))
+            :let [{:keys [type name lang major]} tnlr]]
+      (q!
+       db/ds
+       ["INSERT IGNORE INTO AGORA_SUCCESSOR
+              (input_type, input_name, input_lang, input_major, successor_id)
+            VALUES (?, ?, ?, ?, ?)"
+        (t->s type)
+        name
+        (t->s lang)
+        major
+        id]))
+    (count docs)))
+
 (defn latest-published-id
   "The `id` of the latest published minor of a lineage (a `ref`'s type, name, lang, major), or nil
   when it has no published minor in that language. A single indexed lookup — the caller caches the
@@ -93,27 +131,46 @@
     kebab)))
 
 (defn successor-latest-ids
-  "For a `ref` (an input lineage's type, name, lang, major), the id of each **successor lineage's
-  latest published minor** — the reverse edge, resolved in SQL. A successor lineage appears only if
-  its *latest* published minor still declares `ref` as an input (a later minor that dropped the input
-  is excluded); drafts never match. One id per successor lineage, no domain collapse."
+  "For a `ref` (an input lineage's type, name, lang, major), the id of each successor lineage's
+  latest published minor that declares `ref` as an input. AGORA_SUCCESSOR holds only those latest
+  minors (see `rebuild-successor-index!`), so this is a plain reverse lookup — one id per successor
+  lineage, no join or collapse."
   [{:keys [type name lang major]}]
   (mapv
-   :id
+   :successor-id
    (q!
     db/ds
-    ["SELECT DISTINCT d.id
-        FROM AGORA_SUCCESSOR s
-        JOIN AGORA_DOCUMENT d ON d.id = s.successor_id
-       WHERE s.input_type = ? AND s.input_name = ? AND s.input_lang = ? AND s.input_major = ?
-         AND d.draft = 0
-         AND d.minor = (SELECT MAX(d2.minor) FROM AGORA_DOCUMENT d2
-                         WHERE d2.type = d.type AND d2.name = d.name
-                           AND d2.lang = d.lang AND d2.major = d.major AND d2.draft = 0)"
+    ["SELECT successor_id FROM AGORA_SUCCESSOR
+            WHERE input_type = ? AND input_name = ? AND input_lang = ? AND input_major = ?"
      (t->s type)
      name
      (t->s lang)
      major]
     kebab)))
 
+(defn- decode
+  [s]
+  (some-> s
+          edn/read-string))
 
+(defn- project
+  "A work document (`id` + decoded `content`) → the resolved work `{:source-id :author-id
+  :author-name :title :year :editor :url :owner-id}`."
+  [id content]
+  (when content
+    (assoc (select-keys content [:author-id :author-name :title :year :editor :url :owner-id])
+           :source-id
+           id)))
+
+(defn resolve-ref
+  "Resolve a citation's `content.:source` ref `{:source-id :locator}` to the work's display fields +
+  locator. `:source-id` is the work document's id. nil for a blank/absent ref or an unknown work."
+  [{:keys [source-id locator]}]
+  (when-not (str/blank? source-id)
+    (when-let [row (jdbc/execute-one!
+                    db/ds
+                    ["SELECT content FROM AGORA_DOCUMENT WHERE id = ? AND type = 'source'"
+                     source-id]
+                    kebab)]
+      (some-> (project source-id (decode (:content row)))
+              (assoc :locator locator)))))

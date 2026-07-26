@@ -1,11 +1,11 @@
 (ns landing.agora.scheduler
-  "Daily in-process rebuild of the Agora successor index and document pins (both derived
-  caches), so any drift from incremental updates self-heals. Needs no external cron;
-  started/stopped with the app via Mount."
+  "Daily in-process rebuild of the Agora successor index (a derived cache), so any drift from
+  incremental updates self-heals. Needs no external cron; started/stopped with the app via Mount.
+  (Pin rebuild returns with the New Wire write path.)"
   (:require
-   [auto-core.log              :as core-log]
-   [landing.agora.document-old :as document]
-   [mount.core                 :refer [defstate]])
+   [auto-core.log             :as core-log]
+   [landing.agora.db.document :as db-doc]
+   [mount.core                :refer [defstate]])
   (:import (java.time Duration ZoneOffset ZonedDateTime)
            (java.time.temporal ChronoUnit)
            (java.util.concurrent Executors ScheduledExecutorService TimeUnit)))
@@ -15,9 +15,9 @@
 (defn- rebuild!
   []
   (try (core-log/info "Agora: rebuilding successor index")
-       (document/rebuild-successor-index!)
-       (let [n (document/rebuild-pins!)] (core-log/info (str "Agora: re-pinned " n " document(s)")))
-       (catch Throwable e (core-log/error-exception e "Agora: successor/pin rebuild failed"))))
+       (let [n (db-doc/rebuild-successor-index!)]
+         (core-log/info (str "Agora: successor index rebuilt from " n " document(s)")))
+       (catch Throwable e (core-log/error-exception e "Agora: successor rebuild failed"))))
 
 (defn- millis-until-next-run
   "Milliseconds from now until the next `run-hour-utc`:00 UTC (today if still ahead,

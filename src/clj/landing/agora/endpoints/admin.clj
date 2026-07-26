@@ -1,12 +1,20 @@
 (ns landing.agora.endpoints.admin
-  "Fresh-start stub. Routes preserved as the rebuild checklist; every handler returns `{}` until
-  reimplemented on the New Wire.")
+  "Fresh-start stub. Routes preserved as the rebuild checklist."
+  (:require
+   [landing.agora.db.document :as db-doc]))
 
 (defn- ok
   [_]
   {:status 200
    :headers {"Content-Type" "application/json"}
    :body "{}"})
+
+(defn- rebuild
+  "Recompute the successor index now. Unguarded for the fresh start (auth is stubbed)."
+  [_]
+  {:status 200
+   :headers {"Content-Type" "application/json"}
+   :body (str "{\"lineages\":" (db-doc/rebuild-successor-index!) "}")})
 
 (defn admin-routes
   [prefix]
@@ -28,6 +36,6 @@
             :operationId "agora-admin-compact-tnr"
             :summary "Keep only the latest minor per language of a lineage"}}]
    ["/rebuild"
-    {:post {:handler ok
+    {:post {:handler rebuild
             :operationId "agora-admin-rebuild"
             :summary "Recompute derived caches now (the successor index)"}}]])

@@ -4,7 +4,6 @@
   same."
   (:require
    [landing.agora.db.document      :as db-doc]
-   [landing.agora.db.source        :as source]
    [landing.agora.document.kind    :as dk]
    [landing.agora.document.storage :as ds]))
 
@@ -22,7 +21,7 @@
   (reduce (fn [acc inp]
             (let [d (input-doc doc-storage inp)]
               (if (= "source" (:kind d))
-                (let [work (source/resolve-ref (:source d))]
+                (let [work (db-doc/resolve-ref (:source d))]
                   (update acc
                           :cites
                           conj
@@ -61,7 +60,7 @@
                :cites cites
                :attributed-author (dk/attributed-author doc)
                :attributed-author-id (dk/attributed-author-id doc)
-               :source (source/resolve-ref (:source doc))
+               :source (db-doc/resolve-ref (:source doc))
                :successors (successor-refs doc))
         (dissoc :author :owner-id :pins))))
 
