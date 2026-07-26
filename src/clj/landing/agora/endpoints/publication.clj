@@ -1,6 +1,6 @@
 (ns landing.agora.endpoints.publication
-  "Fresh-start stub. Routes preserved as the rebuild checklist; every handler returns `{}` until
-  reimplemented on the New Wire.")
+  "Publications: open one, list the caller's open ones, fetch, rename, and list a publication's
+  documents.")
 
 (defn- ok
   [_]

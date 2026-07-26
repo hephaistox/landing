@@ -19,10 +19,10 @@
              :uri "/x"})))
 
 (deftest db-failures-become-503
-  (testing "the store's ::db-unavailable ex-info is surfaced as 503"
+  (testing "a ::db-unavailable ex-info is surfaced as 503"
     (is (= 503
            (status-for (ex-info "database unavailable"
-                                {:type :landing.agora.store-old/db-unavailable})))))
+                                {:type :landing.agora.db.document/db-unavailable})))))
   (testing "a raw java.sql.SQLException (e.g. connection refused) is surfaced as 503"
     (is (= 503 (status-for (java.sql.SQLException. "connection refused")))))
   (testing "an unrelated error keeps the default handling (not a 503)"

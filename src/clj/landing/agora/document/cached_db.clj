@@ -1,5 +1,5 @@
 (ns landing.agora.document.cached-db
-  "New Wire. Read `db` through cache.
+  "Read `db` through cache.
 
   A read misses to `db`, stores the row, then serves memory on a hit.
 

@@ -1,5 +1,5 @@
 (ns landing.agora.document.engine
-  "New Wire. Shapes a document into its endpoint view, from `cache`, the `db` layer (`db.document`,
+  "Shapes a document into its endpoint view, from `cache`, the `db` layer (`db.document`,
   `db.source`) and the domain (`identity`, `kind`). Type-agnostic: every type shapes the
   same."
   (:require

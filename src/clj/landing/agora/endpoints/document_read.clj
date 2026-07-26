@@ -1,5 +1,5 @@
 (ns landing.agora.endpoints.document-read
-  "New Wire. HTTP by-id read route. `GET <prefix>/:id` returns a document's endpoint view.
+  "HTTP by-id read route. `GET <prefix>/:id` returns a document's endpoint view.
 
   Mounted once per type, at literal prefixes. A `/:type/:id` wildcard would swallow the sibling
   `/agora/api/{author,publication,source}/:id` routes."
@@ -22,9 +22,7 @@
    rcoercion/coerce-request-middleware])
 
 (defn- serve
-  "The domain names a source's id `:source-id`, but the frontend still reads it as
-  `:id` on a document's `:source`. Rename it back at the wire. Drops once the frontend adopts
-  `:source-id`."
+  "Rename a document's `:source` `:source-id` to `:id` for the wire (the client reads `:id`)."
   [doc]
   (cond-> doc
     (:source doc) (update :source set/rename-keys {:source-id :id})))

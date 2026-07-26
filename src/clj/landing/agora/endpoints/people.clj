@@ -1,6 +1,5 @@
 (ns landing.agora.endpoints.people
-  "Fresh-start stub. Routes preserved as the rebuild checklist; every handler returns `{}` until
-  reimplemented on the New Wire.")
+  "People: search, and create a login-less external (cited) person.")
 
 (defn- ok
   [_]

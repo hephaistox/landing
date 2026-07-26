@@ -1,6 +1,5 @@
 (ns landing.agora.endpoints.author
-  "Fresh-start stub. Routes preserved as the rebuild checklist; every handler returns `{}` until
-  reimplemented on the New Wire.")
+  "Public author profile: a person's card, their documents, and last activity.")
 
 (defn- ok
   [_]

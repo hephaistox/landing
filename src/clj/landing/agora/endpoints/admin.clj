@@ -1,5 +1,6 @@
 (ns landing.agora.endpoints.admin
-  "Fresh-start stub. Routes preserved as the rebuild checklist."
+  "Maintenance and consistency routes over the document store: list lineages, list reference issues,
+  drop or compact a lineage, recompute the successor index."
   (:require
    [landing.agora.db.document :as db-doc]))
 
@@ -10,7 +11,7 @@
    :body "{}"})
 
 (defn- rebuild
-  "Recompute the successor index now. Unguarded for the fresh start (auth is stubbed)."
+  "Recompute the successor index."
   [_]
   {:status 200
    :headers {"Content-Type" "application/json"}

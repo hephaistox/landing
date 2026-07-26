@@ -1,7 +1,6 @@
 (ns landing.agora.scheduler
-  "Daily in-process rebuild of the Agora successor index (a derived cache), so any drift from
-  incremental updates self-heals. Needs no external cron; started/stopped with the app via Mount.
-  (Pin rebuild returns with the New Wire write path.)"
+  "Daily in-process rebuild of the Agora successor index (a derived cache). Needs no external cron;
+  started/stopped with the app via Mount."
   (:require
    [auto-core.log             :as core-log]
    [landing.agora.db.document :as db-doc]

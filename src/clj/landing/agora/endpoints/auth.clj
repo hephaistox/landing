@@ -1,6 +1,6 @@
 (ns landing.agora.endpoints.auth
-  "Fresh-start stub. Routes preserved as the rebuild checklist; every handler returns `{}` until
-  reimplemented on the New Wire.")
+  "Account and session: registration, login and logout, current user, interface-language preference,
+  and Google OAuth.")
 
 (defn- ok
   [_]

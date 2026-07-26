@@ -60,9 +60,8 @@
     (html-response (seo/inject @public-template head lang))))
 
 (defn- for-ssr
-  "Compat for the SEO renderer, written against the old view: string `:lang` (it builds hreflang and
-  neighbour URLs from it) and a source's id as `:id`. New Wire carries keyword `:lang` and
-  `:source-id`; normalize at this boundary. Drops once seo adopts them."
+  "Shape a document for the SEO renderer: string `:lang` (it builds hreflang and neighbour URLs from
+  it) and a source's id as `:id`."
   [doc]
   (-> doc
       (update :lang name)
@@ -167,7 +166,7 @@
     (let [{:keys [lang id]} (:path-params req)
           lang (language/normalize lang)
           base (seo/base-url req)
-          profile nil ; fresh-start stub — author profile rebuilds on the New Wire
+          profile nil
           head (if profile
                  (seo/author-head base lang id profile)
                  (seo/generic-head base lang (str "/author/" id) "Agora" "Agora"))

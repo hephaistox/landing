@@ -1,6 +1,5 @@
 (ns landing.agora.document.identity
-  "New Wire.
-  Document **identity** and the edges between documents
+  "Document **identity** and the edges between documents
 
   No I/O and no persistence format.
 

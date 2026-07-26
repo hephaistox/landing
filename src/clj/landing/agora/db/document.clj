@@ -1,5 +1,5 @@
 (ns landing.agora.db.document
-  "New Wire. Raw AGORA_DOCUMENT SQL, plus the connection and EDN codec the queries share. No cache.
+  "Raw AGORA_DOCUMENT SQL, plus the connection and EDN codec the queries share. No cache.
   No domain rules.
 
   The `type` and `lang` columns are text (`\"ki\"`, `\"fr\"`); the domain uses keywords (`:ki`,
@@ -80,9 +80,8 @@
 (defn rebuild-successor-index!
   "Recompute AGORA_SUCCESSOR from scratch: wipe it, then re-insert one reverse edge (input TNLR →
   successor id) per declared input of **each lineage's latest published minor** — older minors are
-  not indexed (their history stays reconstructable from AGORA_DOCUMENT, and reads only ever want the
-  latest). A derived cache, so a full rebuild self-heals drift. Returns the number of lineages
-  scanned."
+  not indexed (the documents themselves hold every minor's inputs). A derived cache, rebuilt from the
+  documents. Returns the number of lineages scanned."
   []
   (q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])
   (let
