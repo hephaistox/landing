@@ -390,7 +390,7 @@
   before the SPA runs; the SPA replaces #agora-app on mount. Latest minor only."
   [base
    lang
-   {:keys [major minor kind author author-id published-at inputs source]
+   {:keys [major minor kind attributed-author attributed-author-id published-at inputs source]
     :as doc}
    successors
    doc-name]
@@ -410,8 +410,12 @@
      "<p>"
      (when-not (str/blank? kind) (str "<strong>" (esc (humanize kind)) "</strong> · "))
      (cond
-       author-id (str "<a href=\"" (esc (str home "/author/" author-id)) "\">" (esc author) "</a>")
-       author (esc author)
+       attributed-author-id (str "<a href=\""
+                                 (esc (str home "/author/" attributed-author-id))
+                                 "\">"
+                                 (esc attributed-author)
+                                 "</a>")
+       attributed-author (esc attributed-author)
        :else "")
      (when-let [d (day published-at)] (str " · <time>" (esc d) "</time>"))
      " · v"

@@ -69,6 +69,16 @@
       (cond->
         (:source doc) (update :source set/rename-keys {:source-id :id}))))
 
+(defn- ssr-body
+  "The server-rendered permalink body for `doc`, with its input and successor edges resolved to real
+  permalink links (crawlable) instead of bare ids."
+  [doc-storage base lang doc doc-name]
+  (seo/document-body base
+                     lang
+                     (assoc doc :inputs (engine/resolve-links doc-storage (:inputs doc)))
+                     (engine/resolve-links doc-storage (:successors doc))
+                     doc-name))
+
 (defn ki-page-response
   "Serve the public KI permalink shell with per-KI SEO: title, description,
   OpenGraph and schema.org Article (name, description, datePublished, author,
@@ -91,7 +101,7 @@
           head (if ki
                  (seo/ki-head base lang name major-n ki)
                  (seo/generic-head base lang (str "/ki/" name "/" major-n) "Agora" "Agora"))
-          body (when ki (seo/document-body base lang ki [] name))]
+          body (when ki (ssr-body doc-storage base lang ki name))]
       (html-response (seo/inject @public-template head lang body)))))
 
 (defn home-page-response
@@ -146,7 +156,7 @@
           head (if art
                  (seo/article-head base lang name major-n art)
                  (seo/generic-head base lang (str "/article/" name "/" major-n) "Agora" "Agora"))
-          body (when art (seo/document-body base lang art [] name))]
+          body (when art (ssr-body doc-storage base lang art name))]
       (html-response (seo/inject @public-template head lang body)))))
 
 (defn article-page-route
@@ -181,18 +191,19 @@
                  :middleware html-middlewares
                  :summary "Public author profile (SEO head + hub)"}}])
 
-(def sitemap-response
+(defn sitemap-response
   "sitemap.xml of every document permalink (KIs + articles) + the home/discover/articles
-  hubs, generated from the DB so it reflects every publication."
+  hubs, generated from `doc-storage` so it reflects every publication."
+  [doc-storage]
   (fn [req]
     {:status 200
      :headers {"Content-Type" "application/xml; charset=utf-8"
                "Cache-Control" "public, max-age=3600"}
-     :body (seo/sitemap-xml (seo/base-url req) [])}))
+     :body (seo/sitemap-xml (seo/base-url req) (engine/sitemap-rows doc-storage))}))
 
 (defn sitemap-route
-  [prefix]
-  [prefix {:get {:handler sitemap-response
+  [doc-storage prefix]
+  [prefix {:get {:handler (sitemap-response doc-storage)
                  :middleware html-middlewares
                  :no-doc true
                  :summary "Agora sitemap"}}])

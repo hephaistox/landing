@@ -105,3 +105,27 @@
   documents comes from `doc-storage` (cached); each is shaped into a card."
   [doc-storage type lang limit offset]
   (mapv #(card doc-storage %) (ds/documents doc-storage type lang limit offset)))
+
+(defn sitemap-rows
+  "Every published lineage's permalink row for the sitemap, from `doc-storage`."
+  [doc-storage]
+  (ds/published-permalinks doc-storage))
+
+(defn- link-of
+  "A document's permalink link item `{:type :name :lang :major :title}` — `:lang` as a string, the
+  form a server-rendered link builds its URL from."
+  [doc]
+  (-> (select-keys doc [:type :name :lang :major :title])
+      (update :lang name)))
+
+(defn resolve-links
+  "Resolve neighbour refs (`{:id …}`) to permalink link items `{:type :name :lang :major :title}`,
+  fetching each through `doc-storage` (cached). Skips a ref whose document is absent. Used to give a
+  server-rendered body real, crawlable links instead of bare ids."
+  [doc-storage refs]
+  (into []
+        (keep (fn [{:keys [id]}]
+                (some->> id
+                         (ds/fetch-id doc-storage)
+                         link-of)))
+        refs))

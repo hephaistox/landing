@@ -151,7 +151,7 @@
                        (contact-route "/contact")
                        (check-url-route "/check-url")
                        (agora-lang-redirect-route "/agora")
-                       (sitemap-route "/agora/sitemap.xml")
+                       (sitemap-route dcd/document-cached-db "/agora/sitemap.xml")
                        (auth-routes "/agora/api/auth")
                        (admin-routes "/agora/api/admin")
                        ;; The whole KI/article API surface — one generic route set per object type.

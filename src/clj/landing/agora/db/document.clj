@@ -102,6 +102,34 @@
      offset]
     kebab)))
 
+(defn published-permalinks
+  "Every published lineage's latest minor, all types and languages, as sitemap rows
+  `{:type :name :major :lang :title :lastmod}` — one per language version, newest first.
+  `:type`/`:lang` stay as DB strings (the sitemap builds URLs from them); `:title` is decoded
+  from `content` to render the permalink slug."
+  []
+  (mapv
+   (fn [row]
+     {:type (:type row)
+      :name (:name row)
+      :major (:major row)
+      :lang (:lang row)
+      :title (:title (decode-content (:content row)))
+      :lastmod (:published-at row)})
+   (q!
+    db/ds
+    ["SELECT d.type, d.name, d.lang, d.major, d.published_at, d.content
+                   FROM AGORA_DOCUMENT d
+                   JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
+                           FROM AGORA_DOCUMENT
+                          WHERE draft = 0
+                          GROUP BY type, name, lang, major) g
+                     ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                        AND d.major = g.major AND d.minor = g.latest
+                  WHERE d.draft = 0
+                  ORDER BY d.published_at DESC"]
+    kebab)))
+
 ;; --- lineage indexes ------------------------------------------------------------------------
 
 (defn rebuild-successor-index!
