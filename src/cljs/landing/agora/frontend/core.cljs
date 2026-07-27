@@ -12,6 +12,7 @@
   refs are used as returned."
   (:require
    [cljs.pprint                             :refer [pprint]]
+   [landing.agora.document.identity         :as di]
    [landing.agora.frontend.admin            :as admin]
    [landing.agora.frontend.article-page     :as article-page]
    [landing.agora.frontend.auth             :as auth]
@@ -119,10 +120,12 @@
 ;; ---------------------------------------------------------------------------
 ;; Fetched-document cache (bounded LRU)
 ;;
-;; :cache {key {:data … :at ms}} — KIs/articles keyed by id (or permalink key),
-;; capped so the SPA holds only recently-shown documents. Inputs are pinned and
-;; successors re-pinned server-side, so there is NO client-side latest-minor
-;; resolution — neighbour refs are used exactly as the backend returned them.
+;; :cache {id {:data … :at ms}} — every document held once, under its id, capped so
+;; the SPA holds only recently-shown documents. :tnlr {[type lang cid major] id} indexes
+;; a lineage identity to its current id, so the permalink and living-citation loads (which
+;; hold an identity, not an id) resolve into the same store. Inputs are pinned and successors
+;; re-pinned server-side, so there is NO client-side latest-minor resolution — neighbour refs
+;; are used exactly as the backend returned them.
 ;; ---------------------------------------------------------------------------
 
 (def ^:private cache-max-entries 1000)
@@ -148,19 +151,57 @@
              (into {} (take-last cache-max-entries (sort-by (comp :at val) entries)))
              entries))))
 
+(defn- tnlr-key
+  "Normalized identity key for the `:tnlr` index. The same lineage maps to one key
+  whatever shape the caller holds it in — keyword or string type/lang, a bare cid or
+  a `cid~slug` name, an int or a numeric-string major."
+  [type lang doc-name major]
+  [(keyword type)
+   (keyword lang)
+   (di/cid-of doc-name)
+   (if (number? major) major (js/parseInt major))])
+
+(defn- cache-put-doc
+  "Ingest a fetched document into the one id-keyed store and index its identity.
+  Every loader — by id, by permalink, by citation — funnels through here, so a
+  document is held once (under its id) and the `:tnlr` index resolves a lineage
+  identity to that id."
+  [db doc]
+  (let [doc (kw-kind doc)]
+    (-> db
+        (cache-put (:id doc) doc)
+        (assoc-in [:tnlr (tnlr-key (:type doc) (:lang doc) (:name doc) (:major doc))] (:id doc)))))
+
+(defn- doc-by-id
+  "The cached document held under `id` (nil if absent)."
+  [db id]
+  (get-in db [:cache id :data]))
+
+(defn- doc-by-tnlr
+  "The cached document for a lineage identity, resolved through the `:tnlr` index."
+  [db type lang doc-name major]
+  (doc-by-id db (get-in db [:tnlr (tnlr-key type lang doc-name major)])))
+
 (defn- cache-evict-lineage
-  "Drop every cached entry belonging to the same lineage as `doc` — same (type, name, major),
-  any minor / id / language / cache key. Used after a local write so the focal view, the
-  permalink (`[:*-public …]`), the neighbour previews and the old-minor id all refetch fresh
-  instead of serving the pre-edit version until the TTL lapses."
+  "Drop every cached entry belonging to the same lineage as `doc` — same (type, name,
+  major), any minor / id / language. Used after a local write so the focal view, the
+  permalink, the neighbour previews and the old-minor id all refetch fresh instead of
+  serving the pre-edit version until the TTL lapses."
   [db {:keys [type name major]}]
-  (update db
-          :cache
-          (fn [cache]
-            (into {}
-                  (remove (fn [[_ {d :data}]]
-                            (and (= (:type d) type) (= (:name d) name) (= (:major d) major))))
-                  cache))))
+  (let [t (keyword type)
+        cid (di/cid-of name)
+        mj (if (number? major) major (js/parseInt major))]
+    (-> db
+        (update :cache
+                (fn [cache]
+                  (into {}
+                        (remove (fn [[_ {d :data}]]
+                                  (and (= (:type d) type) (= (:name d) name) (= (:major d) major))))
+                        cache)))
+        (update
+         :tnlr
+         (fn [idx]
+           (into {} (remove (fn [[[kt _ kn kmj] _]] (and (= kt t) (= kn cid) (= kmj mj)))) idx))))))
 
 ;; ---------------------------------------------------------------------------
 ;; State
@@ -169,7 +210,7 @@
 (defn- route-changed-fetch
   "Cache-or-fetch a :ki/:article route."
   [db kind id]
-  (let [entry (get-in db [:cache [kind id]])
+  (let [entry (get-in db [:cache id])
         fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
     (if fresh?
       ;; Fresh cache hit — swap instantly, no request.
@@ -192,8 +233,7 @@
   comes from the URL — it is the content language to display for this KI, which is
   independent of the interface-language preference (the permalink overrides it)."
   [db ki-name ki-major lang]
-  (let [ck [:ki-public lang ki-name ki-major]
-        entry (get-in db [:cache ck])
+  (let [entry (get-in db [:cache (get-in db [:tnlr (tnlr-key :ki lang ki-name ki-major)])])
         fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
     (if fresh?
       {:db (assoc db
@@ -202,22 +242,24 @@
                   :loading? false
                   :error nil)}
       {:db (assoc db :loading? true :error nil)
-       :fetch {:method :get
-               :url
-               (str "/agora/api/ki/by/" (js/encodeURIComponent ki-name) "/" ki-major "?lang=" lang)
-               :headers {"Accept" "application/json"}
-               :response-content-types {#"application/json" :json}
-               :on-success [::fetch-public-ok ck]
-               :on-failure [::fetch-failed]}})))
+       :fetch
+       {:method :get
+        :url (str "/agora/api/documents/ki/" (js/encodeURIComponent ki-name) "/" lang "/" ki-major)
+        :headers {"Accept" "application/json"}
+        :response-content-types {#"application/json" :json}
+        :on-success [::fetch-public-ok :ki-public]
+        :on-failure [::fetch-failed]}})))
 
+;; Both permalink loaders (KI and article) land here — the returned document carries
+;; its `:id`, so it drops into the one id-keyed store and its identity is indexed.
 (rf/reg-event-db ::fetch-public-ok
-                 (fn [db [_ ck response]]
-                   (let [ki (:body response)]
+                 (fn [db [_ view-kind response]]
+                   (let [doc (kw-kind (:body response))]
                      (-> db
-                         (assoc :view {:kind :ki-public
-                                       :data ki}
-                                :loading? false)
-                         (cache-put ck ki)))))
+                         (cache-put-doc doc)
+                         (assoc :view {:kind view-kind
+                                       :data doc}
+                                :loading? false)))))
 
 (defn- route-changed-fetch-list
   "Fetch the KI list (GET /agora/api/documents/ki?lang=), scoped to the current content language,
@@ -261,8 +303,7 @@
 (defn- route-changed-fetch-article-public
   "Cache-or-fetch the public article permalink /agora/{lang}/article/{name}/{major}."
   [db art-name art-major lang]
-  (let [ck [:article-public lang art-name art-major]
-        entry (get-in db [:cache ck])
+  (let [entry (get-in db [:cache (get-in db [:tnlr (tnlr-key :article lang art-name art-major)])])
         fresh? (and entry (< (- (js/Date.now) (:at entry)) cache-ttl-ms))]
     (if fresh?
       {:db (assoc db
@@ -272,22 +313,13 @@
                   :error nil)}
       {:db (assoc db :loading? true :error nil)
        :fetch {:method :get
-               :url (str "/agora/api/article/by/" (js/encodeURIComponent art-name)
-                         "/" art-major
-                         "?lang=" lang)
+               :url (str "/agora/api/documents/article/" (js/encodeURIComponent art-name)
+                         "/" lang
+                         "/" art-major)
                :headers {"Accept" "application/json"}
                :response-content-types {#"application/json" :json}
-               :on-success [::fetch-article-public-ok ck]
+               :on-success [::fetch-public-ok :article-public]
                :on-failure [::fetch-failed]}})))
-
-(rf/reg-event-db ::fetch-article-public-ok
-                 (fn [db [_ ck response]]
-                   (let [a (:body response)]
-                     (-> db
-                         (assoc :view {:kind :article-public
-                                       :data a}
-                                :loading? false)
-                         (cache-put ck a)))))
 
 ;; Author profile: the author card + their documents + last activity, scoped to the
 ;; interface language. Cached by [:author id lang].
@@ -368,13 +400,13 @@
        (route-changed-fetch db kind id)))))
 
 (rf/reg-event-db ::fetch-ok
-                 (fn [db [_ kind id response]]
-                   (let [data (kw-kind (:body response))]
+                 (fn [db [_ kind _id response]]
+                   (let [doc (kw-kind (:body response))]
                      (-> db
+                         (cache-put-doc doc)
                          (assoc :view {:kind kind
-                                       :data data}
-                                :loading? false)
-                         (cache-put [kind id] data)))))
+                                       :data doc}
+                                :loading? false)))))
 
 (rf/reg-event-db ::fetch-author-ok
                  (fn [db [_ ck response]]
@@ -394,59 +426,56 @@
 ;; This fills the cache without touching the current view, and skips already-cached.
 (rf/reg-event-fx :agora/ensure-ki
                  (fn [{:keys [db]} [_ id]]
-                   (when-not (get-in db [:cache [:ki id]])
+                   (when-not (get-in db [:cache id])
                      {:fetch {:method :get
-                              :url (str "/agora/api/ki/" id)
+                              :url (str "/agora/api/documents/ki/" id)
                               :headers {"Accept" "application/json"}
                               :response-content-types {#"application/json" :json}
-                              :on-success [::neighbour-ok id]
+                              :on-success [::neighbour-ok]
                               :on-failure [::fetch-failed]}})))
 
-(rf/reg-event-db ::neighbour-ok (fn [db [_ id response]] (cache-put db [:ki id] (:body response))))
+(rf/reg-event-db ::neighbour-ok (fn [db [_ response]] (cache-put-doc db (:body response))))
 
 ;; Article KI-citations are *living* references (name + major → latest minor), so
-;; they resolve through the by-major endpoint, not by id. They fill the same cache
-;; slot the permalink page uses (`[:ki-public lang name major]`), so citing a KI in
-;; an article also warms its permalink. Skips already-cached.
+;; they resolve through the by-TNLR endpoint, not by id. The returned document lands
+;; in the one id-keyed store, so citing a KI in an article also warms its permalink.
+;; Skips already-cached.
 (rf/reg-event-fx :agora/ensure-ki-by-major
                  (fn [{:keys [db]} [_ ki-name ki-major lang]]
-                   (let [ck [:ki-public lang ki-name ki-major]]
-                     (when-not (get-in db [:cache ck])
-                       {:fetch {:method :get
-                                :url (str "/agora/api/ki/by/" (js/encodeURIComponent ki-name)
-                                          "/" ki-major
-                                          "?lang=" lang)
-                                :headers {"Accept" "application/json"}
-                                :response-content-types {#"application/json" :json}
-                                :on-success [::cite-ok ck]
-                                :on-failure [::fetch-failed]}}))))
+                   (when-not (doc-by-tnlr db :ki lang ki-name ki-major)
+                     {:fetch {:method :get
+                              :url (str "/agora/api/documents/ki/" (js/encodeURIComponent ki-name)
+                                        "/" lang
+                                        "/" ki-major)
+                              :headers {"Accept" "application/json"}
+                              :response-content-types {#"application/json" :json}
+                              :on-success [::cite-ok]
+                              :on-failure [::fetch-failed]}})))
 
-(rf/reg-event-db ::cite-ok (fn [db [_ ck response]] (cache-put db ck (:body response))))
+(rf/reg-event-db ::cite-ok (fn [db [_ response]] (cache-put-doc db (:body response))))
 
 ;; The cached living-citation doc for (name, major) in `lang` (nil until it lands).
 (rf/reg-sub :agora/cite-doc
-            (fn [db [_ ki-name ki-major lang]]
-              (get-in db [:cache [:ki-public lang ki-name ki-major] :data])))
+            (fn [db [_ ki-name ki-major lang]] (doc-by-tnlr db :ki lang ki-name ki-major)))
 
 ;; Generic (any-type) by-major fetch + sub — used by hover previews of a node
 ;; (KI or article) wherever we only hold its identity (e.g. the admin page).
 (rf/reg-event-fx :agora/ensure-by-major
                  (fn [{:keys [db]} [_ type doc-name doc-major lang]]
-                   (let [ck [:node-public type lang doc-name doc-major]]
-                     (when-not (get-in db [:cache ck])
-                       {:fetch {:method :get
-                                :url (str "/agora/api/" type
-                                          "/by/" (js/encodeURIComponent doc-name)
-                                          "/" doc-major
-                                          "?lang=" lang)
-                                :headers {"Accept" "application/json"}
-                                :response-content-types {#"application/json" :json}
-                                :on-success [::cite-ok ck]
-                                :on-failure [::fetch-failed]}}))))
+                   (when-not (doc-by-tnlr db type lang doc-name doc-major)
+                     {:fetch {:method :get
+                              :url (str "/agora/api/documents/" type
+                                        "/" (js/encodeURIComponent doc-name)
+                                        "/" lang
+                                        "/" doc-major)
+                              :headers {"Accept" "application/json"}
+                              :response-content-types {#"application/json" :json}
+                              :on-success [::cite-ok]
+                              :on-failure [::fetch-failed]}})))
 
 (rf/reg-sub :agora/node-doc
             (fn [db [_ type doc-name doc-major lang]]
-              (get-in db [:cache [:node-public type lang doc-name doc-major] :data])))
+              (doc-by-tnlr db type lang doc-name doc-major)))
 
 ;; Generic (any-type) by-**id** fetch + sub — a *pinned* version. Unlike by-major
 ;; (which resolves to the latest minor), this returns the exact version, so a hover
@@ -454,16 +483,15 @@
 ;; to a specific version.
 (rf/reg-event-fx :agora/ensure-by-id
                  (fn [{:keys [db]} [_ type id]]
-                   (let [ck [:node type id]]
-                     (when-not (get-in db [:cache ck])
-                       {:fetch {:method :get
-                                :url (str "/agora/api/" type "/" id)
-                                :headers {"Accept" "application/json"}
-                                :response-content-types {#"application/json" :json}
-                                :on-success [::cite-ok ck]
-                                :on-failure [::fetch-failed]}}))))
+                   (when-not (get-in db [:cache id])
+                     {:fetch {:method :get
+                              :url (str "/agora/api/documents/" type "/" id)
+                              :headers {"Accept" "application/json"}
+                              :response-content-types {#"application/json" :json}
+                              :on-success [::cite-ok]
+                              :on-failure [::fetch-failed]}})))
 
-(rf/reg-sub :agora/node-doc-by-id (fn [db [_ type id]] (get-in db [:cache [:node type id] :data])))
+(rf/reg-sub :agora/node-doc-by-id (fn [db [_ _type id]] (doc-by-id db id)))
 
 ;; Called after any successful create/edit (both document types): ingest the new version
 ;; locally under its by-id cache key and navigate to its concrete-version app URL — no
@@ -478,7 +506,7 @@
                               ;; bust the whole lineage first (old minor + permalink + previews),
                               ;; then cache the freshly saved version by its new id
                               (cache-evict-lineage doc)
-                              (cache-put [(keyword type) id] doc)
+                              (cache-put-doc doc)
                               ;; render the saved version immediately. Publish keeps the SAME id, so
                               ;; the navigate below is a no-op (already on this URL) and would leave
                               ;; the stale draft on screen; setting :view here refreshes regardless.
@@ -616,7 +644,7 @@
 
 (rf/reg-sub ::view (fn [db _] (:view db)))
 ;; The cached document for a KI id (nil until a neighbour fetch lands).
-(rf/reg-sub :agora/doc (fn [db [_ id]] (get-in db [:cache [:ki id] :data])))
+(rf/reg-sub :agora/doc (fn [db [_ id]] (doc-by-id db id)))
 (rf/reg-sub ::loading? (fn [db _] (:loading? db)))
 (rf/reg-sub ::loading-kind (fn [db _] (:loading-kind db)))
 (rf/reg-sub ::error (fn [db _] (:error db)))
