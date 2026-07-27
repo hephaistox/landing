@@ -23,14 +23,17 @@
                                   :results []})}
                      {:db (assoc-in db [::search :q] q)
                       :fetch {:method :get
-                              :url (str "/agora/api/ki?lang=" (i18n/current db)
+                              :url (str "/agora/api/documents/ki?lang=" (i18n/current db)
                                         "&q=" (js/encodeURIComponent q))
                               :headers {"Accept" "application/json"}
                               :response-content-types {#"application/json" :json}
                               :on-success [::search-ok]
                               :on-failure [::op-failed]}})))
 
-(rf/reg-event-db ::search-ok (fn [db [_ resp]] (assoc-in db [::search :results] (:body resp))))
+(rf/reg-event-db ::search-ok
+                 (fn [db [_ resp]]
+                   ;; keyword each result's `:kind` at the wire boundary (the badge keys on it)
+                   (assoc-in db [::search :results] (mapv #(update % :kind keyword) (:body resp)))))
 
 (defn search-box
   "A search input that queries name + output statement and shows matches as a

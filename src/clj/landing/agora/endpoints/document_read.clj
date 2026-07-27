@@ -45,22 +45,26 @@
     {:get {:handler
            (fn [req]
              (let [{:keys [type]} (get-in req [:parameters :path])
-                   {:keys [lang limit offset]} (get-in req [:parameters :query])]
+                   {:keys [lang limit offset q]} (get-in req [:parameters :query])
+                   lang (or lang "fr")]
                {:status 200
-                :body
-                (mapv
-                 serve
-                 (engine/list-cards doc-storage type (or lang "fr") (or limit 20) (or offset 0)))}))
+                :body (mapv
+                       serve
+                       (if (some? q)
+                         (engine/search-cards doc-storage type lang q)
+                         (engine/list-cards doc-storage type lang (or limit 20) (or offset 0))))}))
            :operationId "agora-list-documents"
            :parameters {:path [:map [:type :string]]
                         :query [:map
                                 [:lang {:optional true}
                                  [:maybe :string]]
+                                [:q {:optional true}
+                                 [:maybe :string]]
                                 [:limit {:optional true}
                                  [:maybe :int]]
                                 [:offset {:optional true}
                                  [:maybe :int]]]}
-           :summary "Browse documents of a type"}}]
+           :summary "Browse documents of a type, or search them with `?q=`"}}]
    ["/:type/:name/:lang/:major"
     {:get
      {:handler (fn [req]

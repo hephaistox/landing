@@ -469,7 +469,7 @@
                                         :title title
                                         :source source
                                         :author author-name}
-                                       lang)]
+                                       (keyword lang))]
     [:div {:style {:font-size "0.9em"
                    :color "#8a7a55"
                    :font-style "italic"

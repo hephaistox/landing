@@ -742,7 +742,7 @@
   ;; are flattened to the cited KI's title (`:cite-titles`, since names are opaque cids).
   (let [titles (into {} (map (juxt :name :title)) (:cite-titles node))
         ;; prefix in the card's CONTENT language (`:lang node`), not the reader's interface lang
-        excerpt (str (dk/statement-prefix-of node (:lang node))
+        excerpt (str (dk/statement-prefix-of node (keyword (:lang node)))
                      (cite/plain-text (cite/node-text node) titles))]
     [:a {;; a draft doesn't resolve by permalink — link it by its exact-version URL
          :href (if (:draft node) (i18n/doc-url lang (:type node) (:id node)) (permalink lang node))

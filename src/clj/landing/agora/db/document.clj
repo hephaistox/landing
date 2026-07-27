@@ -102,6 +102,35 @@
      offset]
     kebab)))
 
+(defn search-of-type
+  "The latest published minor of every lineage of `type` in `lang` whose name or content matches `q`
+  (substring, case-insensitive), as full documents, capped at `limit`. `content` is the EDN blob, so
+  this matches title and body text; a blank `q` is the caller's concern."
+  [type lang q limit]
+  (let [like (str "%" q "%")]
+    (mapv
+     row->doc
+     (q!
+      db/ds
+      ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
+                     d.content, d.computed
+                FROM AGORA_DOCUMENT d
+                JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
+                        FROM AGORA_DOCUMENT
+                       WHERE type = ? AND lang = ? AND draft = 0
+                       GROUP BY type, name, lang, major) g
+                  ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                     AND d.major = g.major AND d.minor = g.latest
+               WHERE d.draft = 0 AND (d.name LIKE ? OR d.content LIKE ?)
+               ORDER BY d.name, d.major
+               LIMIT ?"
+       (t->s type)
+       (t->s lang)
+       like
+       like
+       limit]
+      kebab))))
+
 (defn- published-latest-rows
   "Raw rows for the latest published minor of every lineage, all types and languages, newest first:
   identity columns + `published_at` + the `content` blob (decoded by the caller)."

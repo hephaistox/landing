@@ -106,6 +106,12 @@
   [doc-storage type lang limit offset]
   (mapv #(card doc-storage %) (ds/documents doc-storage type lang limit offset)))
 
+(defn search-cards
+  "Browse cards for documents of `type` in `lang` matching `q` (name or content). A blank `q` returns
+  no results. Not cached — the query runs per keystroke against the DB."
+  [doc-storage type lang q]
+  (if (str/blank? q) [] (mapv #(card doc-storage %) (db-doc/search-of-type type lang q 50))))
+
 (defn sitemap-rows
   "Every published lineage's permalink row for the sitemap: `{:type :name :major :lang :title
   :lastmod}`, projected from `doc-storage`'s published-latest set."

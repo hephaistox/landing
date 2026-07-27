@@ -61,14 +61,12 @@
     (html-response (seo/inject @public-template head lang))))
 
 (defn- for-ssr
-  "Shape a document for the SEO renderer: string `:lang` (it builds hreflang and neighbour URLs from
-  it) and a source's id as `:id`."
+  "Shape a document for the SEO renderer: keep the identity `:lang` a keyword (the domain functions
+  it feeds — `compose-statement`/`statement-prefix-of` — key on it; the renderer stringifies with
+  `name` where a URL needs it) and expose a source's id as `:id`."
   [doc]
-  (-> doc
-      (update :lang name)
-      (update :translations (partial mapv #(update % :lang name)))
-      (cond->
-        (:source doc) (update :source set/rename-keys {:source-id :id}))))
+  (cond-> doc
+    (:source doc) (update :source set/rename-keys {:source-id :id})))
 
 (defn- ssr-body
   "The server-rendered permalink body for `doc`, with its input and successor edges resolved to real

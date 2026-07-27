@@ -1,52 +1,93 @@
 (ns landing.agora.endpoints.admin
   "Maintenance and consistency routes over the document store: list lineages, list reference issues,
-  drop or compact a lineage, recompute the successor index. Restricted to the platform owner
-  (`auth/admin-emails`)."
+  drop or compact a lineage, recompute the successor index. Every route is restricted to the
+  platform owner (`admin-only`): 401 when anonymous, 403 when logged in but not on the admin
+  allowlist."
   (:require
-   [landing.agora.auth        :as auth]
-   [landing.agora.db.document :as db-doc]))
+   [landing.agora.admin               :as admin]
+   [landing.agora.auth                :as auth]
+   [landing.agora.db.document         :as db-doc]
+   [muuntaja.core                     :as m]
+   [reitit.ring.middleware.muuntaja   :as muuntaja]
+   [reitit.ring.middleware.parameters :as parameters]))
 
-(defn- json
-  [status body]
-  {:status status
-   :headers {"Content-Type" "application/json"}
-   :body body})
-
-(defn- ok [_] (json 200 "{}"))
+(def ^:private mw
+  [parameters/parameters-middleware
+   muuntaja/format-negotiate-middleware
+   muuntaja/format-response-middleware
+   muuntaja/format-request-middleware])
 
 (defn- admin-only
-  "Call `f` only for an authenticated administrator: 401 when anonymous, 403 when logged in but not
-  on the admin allowlist."
+  "Run `(f req)` only for an authenticated administrator; 401 anonymous, 403 non-admin."
   [req f]
   (if-let [uid (get-in req [:session :user-id])]
-    (if (:admin (auth/get-user uid)) (f) (json 403 "{\"error\":\"admin only\"}"))
-    (json 401 "{\"error\":\"login required\"}")))
+    (if (:admin (auth/get-user uid))
+      (f req)
+      {:status 403
+       :body {:error "admin only"}})
+    {:status 401
+     :body {:error "login required"}}))
+
+(defn- tnrs
+  [req]
+  (admin-only req
+              (fn [_]
+                {:status 200
+                 :body (admin/all-tnrs)})))
+
+(defn- issues
+  [req]
+  (admin-only req
+              (fn [_]
+                {:status 200
+                 :body (admin/consistency-issues)})))
+
+(defn- drop-tnr
+  [req]
+  (admin-only req
+              (fn [{{:keys [type lang major]
+                     doc-name :name}
+                    :body-params}]
+                {:status 200
+                 :body {:removed (admin/delete-tnr! type doc-name lang major)}})))
+
+(defn- compact-tnr
+  [req]
+  (admin-only req
+              (fn [{{:keys [type lang major]
+                     doc-name :name}
+                    :body-params}]
+                {:status 200
+                 :body {:removed (admin/compact-tnr! type doc-name lang major)}})))
 
 (defn- rebuild
-  "Recompute the successor index."
   [req]
-  (admin-only req #(json 200 (str "{\"lineages\":" (db-doc/rebuild-successor-index!) "}"))))
+  (admin-only req
+              (fn [_]
+                {:status 200
+                 :body {:lineages (db-doc/rebuild-successor-index!)}})))
 
 (defn admin-routes
   [prefix]
-  [prefix
+  [prefix {:muuntaja m/instance
+           :middleware mw}
    ["/tnrs"
-    {:get {:handler ok
+    {:get {:handler tnrs
            :operationId "agora-admin-tnrs"
-           :summary "List KI lineages (TNRs) with counts"}}]
+           :summary "List document lineages (TNRs) with version counts"}}]
    ["/issues"
-    {:get {:handler ok
+    {:get {:handler issues
            :operationId "agora-admin-issues"
-           :summary "Nodes with dangling references (broken input / citation)"}}]
+           :summary "Versions with reference problems (dangling / self / successor-cache drift)"}}]
    ["/drop-tnr"
-    {:post {:handler ok
+    {:post {:handler drop-tnr
             :operationId "agora-admin-drop-tnr"
-            :summary "Drop a whole (name, major) lineage"}}]
+            :summary "Drop a whole (type, name, lang, major) lineage"}}]
    ["/compact-tnr"
-    {:post {:handler ok
+    {:post {:handler compact-tnr
             :operationId "agora-admin-compact-tnr"
-            :summary "Keep only the latest minor per language of a lineage"}}]
+            :summary "Keep only the latest minor of a lineage"}}]
    ["/rebuild"
     {:post {:handler rebuild
             :operationId "agora-admin-rebuild"
-            :summary "Recompute derived caches now (the successor index)"}}]])
+            :summary "Recompute the successor index"}}]])
