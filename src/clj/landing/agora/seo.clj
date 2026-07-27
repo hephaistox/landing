@@ -78,7 +78,7 @@
 
 (defn- ref->citation
   "A schema.org CreativeWork for a bibliographic reference (a cited external source):
-  the work's title, its author (Person), publication year and publisher — declaring the
+  the source's title, its author (Person), publication year and publisher — declaring the
   document's external provenance as linked data (`citation`)."
   [{:keys [title year editor author-name url]}]
   (cond-> {"@type" "CreativeWork"

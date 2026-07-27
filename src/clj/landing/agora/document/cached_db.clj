@@ -19,13 +19,23 @@
 
 (def ^:private by-tnlr (caffeine/loading 20000 db/latest-published-id))
 
+;; A browse page depends on the whole set of a type's published lineages, so it can't be
+;; invalidated per document; it expires by TTL instead — a page may be a few minutes stale.
+(def ^:private page-ttl-seconds 120)
+
+(def ^:private by-page
+  (caffeine/loading 2000
+                    (fn [[type lang limit offset]] (db/published-of-type type lang limit offset))
+                    page-ttl-seconds))
+
 (defn- evict! "Drop the cached document for `id`." [id] (caffeine/evict! by-id id))
 
 (defn clear!
-  "Drop every cached document and lineage-resolution."
+  "Drop every cached document, lineage-resolution and browse page."
   []
   (caffeine/clear! by-id)
-  (caffeine/clear! by-tnlr))
+  (caffeine/clear! by-tnlr)
+  (caffeine/clear! by-page))
 
 (defrecord DocumentCachedDB []
   ds/DocumentStorage
@@ -34,6 +44,7 @@
     (fetch-latest-revision [_this ref]
       (some->> (caffeine/fetch by-tnlr (di/tnlr ref))
                (caffeine/fetch by-id)))
+    (documents [_this type lang limit offset] (caffeine/fetch by-page [type lang limit offset]))
     (publish-change! [_this change-id] (evict! change-id))
     (probe-tnr-languages [_this _tnr] nil)
     ;; a new minor changes which id is latest for this lineage — drop the stale tnlr→id entry

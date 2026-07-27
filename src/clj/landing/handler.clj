@@ -114,12 +114,12 @@
   [doc-storage]
   [["" home-shell-route]
    ["/ki/:name/:major" (partial ki-page-route doc-storage)]
+   ["/article/:name/:major" (partial article-page-route doc-storage)]
+   ;; one browse feed for every document type — the SPA reads `:type` (ki | article | source)
+   ["/documents/:type" public-shell-route]
    ["/discover" public-shell-route]
    ["/preferences" public-shell-route]
-   ["/articles" public-shell-route]
    ["/authors" public-shell-route]
-   ["/sources" public-shell-route]
-   ["/article/:name/:major" (partial article-page-route doc-storage)]
    ["/new" app-shell-route]
    ["/ki/:id" app-shell-route]
    ["/article/:id" app-shell-route]
@@ -155,8 +155,7 @@
                        (auth-routes "/agora/api/auth")
                        (admin-routes "/agora/api/admin")
                        ;; The whole KI/article API surface — one generic route set per object type.
-                       (document-read-routes dcd/document-cached-db "/agora/api/ki")
-                       (document-read-routes dcd/document-cached-db "/agora/api/article")
+                       (document-read-routes dcd/document-cached-db "/agora/api/documents")
                        (author-routes "/agora/api/author")
                        (people-routes "/agora/api/people")
                        (publication-routes "/agora/api/publication")

@@ -1,38 +1,45 @@
 (ns landing.agora.document.engine
-  "Shapes a document into its endpoint view, from `cache`, the `db` layer (`db.document`,
-  `db.source`) and the domain (`identity`, `kind`). Type-agnostic: every type shapes the
-  same."
+  "Shapes a document into its endpoint view, from the `db` layer (`db.document`) and the domain
+  (`identity`, `kind`). Type-agnostic: every type shapes the same."
   (:require
+   [clojure.string                 :as str]
    [landing.agora.db.document      :as db-doc]
    [landing.agora.document.kind    :as dk]
    [landing.agora.document.storage :as ds]))
 
-(defn- input-doc
-  "Resolve an input `ref` to its document. A ref with an `:id` (a pinned input) loads that exact
-  version. A ref without one is unresolved here (nil) — resolving by TNLR is a different path."
-  [doc-storage {:keys [id]}]
-  (when id (ds/fetch-id doc-storage id)))
+(defn- resolve-source
+  "Resolve a `:source` ref `{:source-id :locator}` to the cited source's display fields + locator,
+  fetching the source document through `doc-storage` (cached). nil for a blank/absent ref or an
+  unknown source."
+  [doc-storage {:keys [source-id locator]}]
+  (when-not (str/blank? source-id)
+    (when-let [d (ds/fetch-id doc-storage source-id)]
+      (-> (select-keys d [:author-id :author-name :title :year :editor :url :owner-id])
+          (assoc :source-id source-id :locator locator)))))
 
 (defn- split-inputs
   "Split resolved input refs into `{:inputs :cites}`. A `kind=source` input is a cite — an
-  edge-only citation of a work. It becomes `{:name :major :id :title :author-name :author-id
+  edge-only citation of a source. It becomes `{:name :major :id :title :author-name :author-id
   :locator}`. Others stay `:inputs`."
   [doc-storage inputs]
-  (reduce (fn [acc inp]
-            (let [d (input-doc doc-storage inp)]
-              (if (= "source" (:kind d))
-                (let [work (db-doc/resolve-ref (:source d))]
-                  (update acc
-                          :cites
-                          conj
-                          {:name (:name inp)
-                           :major (:major inp)
-                           :id (:id inp)
-                           :title (:title d)
-                           :author-name (:author-name work)
-                           :author-id (:author-id work)
-                           :locator (:locator work)}))
-                (update acc :inputs conj inp))))
+  (reduce (fn [acc
+               {:keys [id]
+                :as inp}]
+            (when id
+              (let [d (ds/fetch-id doc-storage id)]
+                (if (= :source (:kind d))
+                  (let [src (resolve-source doc-storage (:source d))]
+                    (update acc
+                            :cites
+                            conj
+                            {:name (:name inp)
+                             :major (:major inp)
+                             :id (:id inp)
+                             :title (:title d)
+                             :author-name (:author-name src)
+                             :author-id (:author-id src)
+                             :locator (:locator src)}))
+                  (update acc :inputs conj inp)))))
           {:inputs []
            :cites []}
           inputs))
@@ -60,7 +67,7 @@
                :cites cites
                :attributed-author (dk/attributed-author doc)
                :attributed-author-id (dk/attributed-author-id doc)
-               :source (db-doc/resolve-ref (:source doc))
+               :source (resolve-source doc-storage (:source doc))
                :successors (successor-refs doc))
         (dissoc :author :owner-id :pins))))
 
@@ -82,3 +89,19 @@
   (some->> ref
            (ds/fetch-latest-revision doc-storage)
            (expand-document doc-storage)))
+
+(defn- card
+  "A browse card for `doc`: identity and kind, title, prose, the byline, and the resolved source —
+  enough to render a preview without the full input/successor environment."
+  [doc-storage doc]
+  (-> doc
+      (select-keys [:id :type :name :lang :major :minor :draft :kind :title :text :published-at])
+      (assoc :attributed-author (dk/attributed-author doc)
+             :attributed-author-id (dk/attributed-author-id doc)
+             :source (resolve-source doc-storage (:source doc)))))
+
+(defn list-cards
+  "One page of browse cards for `type` in `lang`, newest first (`limit`/`offset`). The page of
+  documents comes from `doc-storage` (cached); each is shaped into a card."
+  [doc-storage type lang limit offset]
+  (mapv #(card doc-storage %) (ds/documents doc-storage type lang limit offset)))

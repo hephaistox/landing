@@ -5,6 +5,8 @@
    (fetch-id [_this id])
    ;; "Returns the document with latest minor of `TNLR`"
    (fetch-latest-revision [_this id])
+   ;; "Documents of `type` in `lang`, newest first (paged by limit/offset)"
+   (documents [_this type lang limit offset])
    ;; "Publish a whole change"
    (publish-change! [_this change-id])
    ;; "Returns languages of a tnr - expensive"

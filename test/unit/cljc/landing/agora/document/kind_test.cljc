@@ -8,7 +8,7 @@
 
 (deftest kind-data
   (is (= (count sut/kinds) (count (distinct sut/kind-ids))) "kind ids are unique")
-  (is (every? sut/kind-color (map name sut/kind-ids)) "every kind has an accent colour")
+  (is (every? sut/kind-color sut/kind-ids) "every kind has an accent colour")
   (is (seq (sut/kind-ids-of "ki")) "KI kinds exist")
   (is (seq (sut/kind-ids-of "article")) "article kinds exist")
   (is (not-any? (set (sut/kind-ids-of "ki")) (sut/kind-ids-of "article"))
@@ -22,36 +22,35 @@
     (is (= (sut/kinds-of :ki) (sut/kinds-of "ki")) "kinds-of coerces string ↔ keyword type"))
   (testing
     "kind-allows-inputs?: only a source is inputless; an absent kind (article) defaults to yes"
-    (is (sut/kind-allows-inputs? "inference"))
-    (is (sut/kind-allows-inputs? "definition"))
-    (is (not (sut/kind-allows-inputs? "source")) "a source is a leaf")
+    (is (sut/kind-allows-inputs? :inference))
+    (is (sut/kind-allows-inputs? :definition))
+    (is (not (sut/kind-allows-inputs? :source)) "a source is a leaf")
     (is (sut/kind-allows-inputs? nil) "an article has no kind → may take inputs"))
   (testing "kind-citations-in-text?: citing a source is an edge only; every other kind is in-text"
-    (is (sut/kind-citations-in-text? "definition"))
-    (is (not (sut/kind-citations-in-text? "source"))))
+    (is (sut/kind-citations-in-text? :definition))
+    (is (not (sut/kind-citations-in-text? :source))))
   (testing "kind-def points each kind at its self-hosting definition KI"
     (is (= {:type :ki
             :name "type-inference"
             :major 1}
-           (get sut/kind-def "inference")))
+           (get sut/kind-def :inference)))
     (is (= {:type :ki
             :name "type-source"
             :major 1}
-           (get sut/kind-def "source"))))
-  (testing "every kind carries an accent colour"
-    (is (every? sut/kind-color (map name sut/kind-ids)))))
+           (get sut/kind-def :source))))
+  (testing "every kind carries an accent colour" (is (every? sut/kind-color sut/kind-ids))))
 
 (deftest statement-scaffold
   (testing "author-kinds open with '<Author> <verb> that '"
-    (is (= "Sun Tzŭ believes that " (sut/statement-prefix "belief" :en "Sun Tzŭ")))
-    (is (= "Sun Tzŭ suppose que " (sut/statement-prefix "assumption" :fr "Sun Tzŭ"))))
+    (is (= "Sun Tzŭ believes that " (sut/statement-prefix :belief :en "Sun Tzŭ")))
+    (is (= "Sun Tzŭ suppose que " (sut/statement-prefix :assumption :fr "Sun Tzŭ"))))
   (testing "a definition opens with '<Term> designates '"
-    (is (= "Quick designates " (sut/statement-prefix "definition" :en "quick"))))
+    (is (= "Quick designates " (sut/statement-prefix :definition :en "quick"))))
   (testing "a free-form inference has no prefix and no subject"
-    (is (nil? (sut/statement-prefix "inference" :en "x")))
-    (is (nil? (sut/statement-subject-kind "inference"))))
+    (is (nil? (sut/statement-prefix :inference :en "x")))
+    (is (nil? (sut/statement-subject-kind :inference))))
   (testing "an unknown language falls back to English"
-    (is (= "X believes that " (sut/statement-prefix "belief" :de "x"))))
+    (is (= "X believes that " (sut/statement-prefix :belief :de "x"))))
   (testing "attributed-author: a source KI's own cited author, else the document's own author"
     (is (= "David Fricke"
            (sut/attributed-author {:source {:author-name "David Fricke"}
@@ -72,11 +71,11 @@
         "a non-source KI links to its owner"))
   (testing "compose-statement assembles prefix + body for a document"
     (is (= "Anthony believes that reasoning is fuzzy."
-           (sut/compose-statement {:kind "belief"
+           (sut/compose-statement {:kind :belief
                                    :author "Anthony"}
                                   :en
                                   "reasoning is fuzzy.")))
-    (is (= "just the body" (sut/compose-statement {:kind "inference"} :en "just the body")))))
+    (is (= "just the body" (sut/compose-statement {:kind :inference} :en "just the body")))))
 
 (deftest prose-structure
   (testing "parse-blocks groups bullet runs and paragraph runs, dropping blank separators"

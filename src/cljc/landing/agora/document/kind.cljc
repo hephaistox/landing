@@ -15,7 +15,7 @@
      (`kind-ids-of`).
    - `:color`  — accent colour.
    - `:inputs?` — **may a document of this kind take inputs** (in-text `[[ki:…]]` citations)? A
-     `source` is a leaf work and takes none; everything else does. This one flag drives both
+     a `source` is a leaf and takes none; everything else does. This one flag drives both
      the backend (input derivation) and the UI (whether the citation feature is shown).
    - `:def-name` + `:def-major` — a pointer to the KI that *defines* the kind. The rest of that
      identity is implied — `type` is `ki`, `minor` resolves to the latest, `lang` is the
@@ -109,37 +109,52 @@
   [object-type]
   (mapv :id (kinds-of object-type)))
 
-(def kind-color
-  "kind name (string) → accent colour."
-  (into {} (map (juxt (comp name :id) :color)) kinds))
+(def ^:private kind->color
+  "kind (keyword) → accent colour."
+  (into {} (map (juxt :id :color)) kinds))
+
+(defn kind-color
+  "Accent colour for `kind` (a keyword), or `default`."
+  ([kind] (kind-color kind nil))
+  ([kind default]
+   (get kind->color
+        (some-> kind
+                keyword)
+        default)))
 
 (def ^:private kind-inputs?
-  "kind name (string) → whether a KI of that kind may take inputs."
-  (into {} (map (juxt (comp name :id) :inputs?)) kinds))
+  "kind (keyword) → whether a KI of that kind may take inputs."
+  (into {} (map (juxt :id :inputs?)) kinds))
 
 (defn kind-allows-inputs?
-  "May a document of `kind` have inputs (in-text `[[ki:…]]` citations)?"
+  "May a document of `kind` (a keyword) have inputs (in-text
+  `[[ki:…]]` citations)?"
   [kind]
-  (not (false? (get kind-inputs? kind))))
+  (not (false? (get kind-inputs?
+                    (some-> kind
+                            keyword)))))
 
 (def ^:private kind-in-text?
-  "kind name (string) → whether *citing* a KI of that kind writes the citation into the prose."
-  (into {} (map (juxt (comp name :id) :in-text?)) kinds))
+  "kind (keyword) → whether *citing* a KI of that kind writes the citation into the prose."
+  (into {} (map (juxt :id :in-text?)) kinds))
 
 (defn kind-citations-in-text?
-  "When a KI cites a document of `kind`, is the citation written **into the prose** (an inline
-  `[[ki:…]]` token, the default) or recorded as an **input edge only**?"
+  "When a KI cites a document of `kind` (a keyword), is the
+  citation written **into the prose** (an inline `[[ki:…]]` token, the default) or recorded as an
+  **input edge only**?"
   [kind]
-  (not (false? (get kind-in-text? kind))))
+  (not (false? (get kind-in-text?
+                    (some-> kind
+                            keyword)))))
 
 (def kind-def
-  "kind name (string) → the identity of the KI that defines it: `{:type :name :major}`.
+  "kind (keyword) → the identity of the KI that defines it: `{:type :name :major}`.
   `type` is always `ki` and `minor` is omitted (it resolves to the latest via by-major);
   the caller supplies the reader's `:lang`. This is the single source of the kind ↔
   definition-KI link — the badge (frontend) and the type seed (backend) both read it, so
   the `type-<kind>` slug convention lives in exactly one place."
   (into {}
-        (map (juxt (comp name :id)
+        (map (juxt :id
                    (fn [{:keys [def-name def-major]}]
                      {:type :ki
                       :name def-name
@@ -156,15 +171,17 @@
 ;; and the SPA can render it instantly, without waiting on the read endpoint.
 
 (def ^:private statement-say
-  "kind (string) → its `:say` scaffold `{:subject :author|:term, :phrase {lang → connector}}`, read
+  "kind (keyword) → its `:say` scaffold `{:subject :author|:term, :phrase {lang → connector}}`, read
   straight from `kinds`. Absent for free-form kinds (`inference`) which declare no `:say`."
-  (into {} (keep (fn [{:keys [id say]}] (when say [(name id) say])) kinds)))
+  (into {} (keep (fn [{:keys [id say]}] (when say [id say])) kinds)))
 
 (defn statement-subject-kind
-  "Whether `kind`'s prefix subject is the `:author` or the `:term`, or nil for a free-form
-  kind (`inference`)."
+  "Whether `kind`'s (keyword or string) prefix subject is the `:author` or the `:term`, or nil for a
+  free-form kind (`inference`)."
   [kind]
-  (:subject (get statement-say kind)))
+  (:subject (get statement-say
+                 (some-> kind
+                         keyword))))
 
 (defn- cap-first
   [s]
@@ -175,13 +192,15 @@
   free-form kind. `subject` is the attributed author (author-kinds) or the defined term
   (definition). E.g. (\"belief\" \"en\" \"Sun Tzŭ\") → \"Sun Tzŭ believes that \"."
   [kind lang subject]
-  (when-let [{:keys [phrase]} (get statement-say kind)]
+  (when-let [{:keys [phrase]} (get statement-say
+                                   (some-> kind
+                                           keyword))]
     (when-let [connector (or (get phrase lang) (get phrase :en))]
       (when-not (str/blank? subject) (str (cap-first subject) " " connector " ")))))
 
 (defn attributed-author
   "The person a statement is attributed to, in priority order:
-   1. `:source`'s author — for a `kind=source` KI itself (its `:source` resolves to the work);
+   1. `:source`'s author — for a `kind=source` KI itself (its `:source` resolves to the source);
    2. else the document's own author.
   A KI that merely **cites** a source is *not* attributed to that source's author: the cited
   author is shown on the source input itself (`:cites`), never migrated into the citing KI's

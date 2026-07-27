@@ -58,7 +58,7 @@
 
 (defn- cite-link-style
   [kind]
-  (let [c (get dk/kind-color kind "#b9770e")]
+  (let [c (dk/kind-color kind "#b9770e")]
     {:color c
      :text-decoration "none"
      :border-bottom (str "1px dotted " c)
@@ -73,10 +73,10 @@
                     :letter-spacing "0.04em"
                     :text-transform "uppercase"
                     :color "#fff"
-                    :background (get dk/kind-color kind "#666")
+                    :background (dk/kind-color kind "#666")
                     :padding "0.15em 0.45em"
                     :border-radius "0.25em"}}
-     (i18n/t @(rf/subscribe [::i18n/lang]) (keyword "kind" kind))]))
+     (i18n/t @(rf/subscribe [::i18n/lang]) (keyword "kind" (name kind)))]))
 
 (defn- mini-lang-badge
   [lang]
@@ -311,11 +311,10 @@
                        :flex-wrap "wrap"
                        :gap "0.3em"}}]
         (for [k (->> (dk/kind-ids-of "ki")
-                     (map name)
                      (filter dk/kind-citations-in-text?))]
           ^{:key k}
           [:button {:on-click #(on-select k)
-                    :title k
+                    :title (name k)
                     :style {:border "none"
                             :background "transparent"
                             :padding "0.1em"
@@ -347,7 +346,7 @@
         form? (r/atom false)
         nt (r/atom "")
         nx (r/atom "")
-        nk (r/atom "inference")
+        nk (r/atom :inference)
         fit! (fn []
                (when-let [el @node]
                  (set! (.. el -style -height) "auto")
@@ -387,7 +386,7 @@
                         (.then #(reset! results (js->clj % :keywordize-keys true)))
                         (.catch (fn [_] (reset! results []))))))
         ;; open the inline new-KI form, seeding the title from the current query
-        open-form! (fn [] (reset! nt @q) (reset! nx "") (reset! nk "inference") (reset! form? true))
+        open-form! (fn [] (reset! nt @q) (reset! nx "") (reset! nk :inference) (reset! form? true))
         ;; create the predecessor from the form (statement optional — falls back to the title so
         ;; the required :text is always non-blank), then splice its citation at the cursor
         submit! (fn [lang]

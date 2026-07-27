@@ -43,11 +43,10 @@
   where the badge stands on its own (e.g. the node page header)."
   ([kind] (kind-badge kind nil))
   ([kind {:keys [link?]}]
-   (when-let [kind (not-empty (some-> kind
-                                      name))]
+   (when kind
      (let [lang @(rf/subscribe [::i18n/lang])
            style {:display "inline-block"
-                  :background (get dk/kind-color kind "#666")
+                  :background (dk/kind-color kind "#666")
                   :color "#fff"
                   :font-size "0.7em"
                   :font-weight 700
@@ -55,7 +54,7 @@
                   :text-transform "uppercase"
                   :padding "0.2em 0.6em"
                   :border-radius "0.25em"}
-           label (i18n/t lang (keyword "kind" kind))
+           label (i18n/t lang (keyword "kind" (name kind)))
            pill [:span {:style style}
                  label]]
        (if-let [def-ref (when link? (get dk/kind-def kind))]

@@ -68,7 +68,7 @@
 
 (def object-types
   "The identity document values (object types sharing the single AGORA_DOCUMENT table). `:source` is
-  the bibliographic *work* a `kind=source` citation references — a leaf, never in a public feed."
+  the bibliographic *source* a `kind=source` citation references — a leaf, never in a public feed."
   [:ki :objection :article :source])
 
 (def object-types-set

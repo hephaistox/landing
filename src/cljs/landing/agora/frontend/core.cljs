@@ -35,8 +35,8 @@
 (goog-define ENV "dev")
 
 (def ^:private api-path
-  {:ki "/agora/api/ki/"
-   :article "/agora/api/article/"})
+  {:ki "/agora/api/documents/ki/"
+   :article "/agora/api/documents/article/"})
 
 (def ^:private cache-ttl-ms
   "How long a cached resource stays fresh before it is refetched. Kept short: documents are
@@ -127,6 +127,13 @@
 
 (def ^:private cache-max-entries 1000)
 
+(defn- kw-kind
+  "Keyword a document's epistemic `:kind` at the wire boundary — JSON delivers it as a string, the
+  domain uses keywords (`:source`, `:inference`)."
+  [doc]
+  (cond-> doc
+    (:kind doc) (update :kind keyword)))
+
 (defn- cache-put
   "Store `data` under `k` with a timestamp, evicting the least-recently-fetched
   entries beyond the cap."
@@ -213,13 +220,13 @@
                          (cache-put ck ki)))))
 
 (defn- route-changed-fetch-list
-  "Fetch the KI list (GET /agora/api/ki?lang=), scoped to the current content language,
+  "Fetch the KI list (GET /agora/api/documents/ki?lang=), scoped to the current content language,
   for the given `view-kind` (`:home` landing or `:discover` grid). Not cached — each
   visit re-fetches so the visit-weighted random order refreshes."
   [db lang view-kind]
   {:db (assoc db :loading? true :error nil)
    :fetch {:method :get
-           :url (str "/agora/api/ki?lang=" lang)
+           :url (str "/agora/api/documents/ki?lang=" lang)
            :headers {"Accept" "application/json"}
            :response-content-types {#"application/json" :json}
            :on-success [::fetch-list-ok view-kind]
@@ -229,16 +236,16 @@
                  (fn [db [_ view-kind response]]
                    (assoc db
                           :view {:kind view-kind
-                                 :data (:body response)}
+                                 :data (mapv kw-kind (:body response))}
                           :loading? false)))
 
 (defn- route-changed-fetch-article-list
-  "Fetch the article discover list (GET /agora/api/article?lang=). Not cached, like the
+  "Fetch the article discover list (GET /agora/api/documents/article?lang=). Not cached, like the
   KI discover list."
   [db lang]
   {:db (assoc db :loading? true :error nil)
    :fetch {:method :get
-           :url (str "/agora/api/article?lang=" lang)
+           :url (str "/agora/api/documents/article?lang=" lang)
            :headers {"Accept" "application/json"}
            :response-content-types {#"application/json" :json}
            :on-success [::fetch-articles-ok]
@@ -248,7 +255,7 @@
                  (fn [db [_ response]]
                    (assoc db
                           :view {:kind :articles
-                                 :data (:body response)}
+                                 :data (mapv kw-kind (:body response))}
                           :loading? false)))
 
 (defn- route-changed-fetch-article-public
@@ -362,7 +369,7 @@
 
 (rf/reg-event-db ::fetch-ok
                  (fn [db [_ kind id response]]
-                   (let [data (:body response)]
+                   (let [data (kw-kind (:body response))]
                      (-> db
                          (assoc :view {:kind kind
                                        :data data}
@@ -554,13 +561,15 @@
 ;; Admin — list / prune KI lineages (TNRs)
 ;; ---------------------------------------------------------------------------
 
-(rf/reg-event-db ::admin-tnrs-ok (fn [db [_ resp]] (assoc db :admin-tnrs (:body resp))))
+(rf/reg-event-db ::admin-tnrs-ok
+                 (fn [db [_ resp]] (assoc db :admin-tnrs (mapv kw-kind (:body resp)))))
 
 ;; On failure (403 not-admin, or 503 DB down) show an empty list rather than
 ;; assoc-ing the error body — the admin table iterates :admin-tnrs.
 (rf/reg-event-db ::admin-tnrs-failed (fn [db _] (assoc db :admin-tnrs [])))
 
-(rf/reg-event-db ::admin-issues-ok (fn [db [_ resp]] (assoc db :admin-issues (:body resp))))
+(rf/reg-event-db ::admin-issues-ok
+                 (fn [db [_ resp]] (assoc db :admin-issues (mapv kw-kind (:body resp)))))
 (rf/reg-event-db ::admin-issues-failed (fn [db _] (assoc db :admin-issues [])))
 
 (rf/reg-event-fx ::admin-issues-fetch

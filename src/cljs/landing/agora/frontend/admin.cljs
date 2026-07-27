@@ -288,10 +288,10 @@
                                 :letter-spacing "0.04em"
                                 :text-transform "uppercase"
                                 :color "#fff"
-                                :background (get dk/kind-color k "#666")
+                                :background (dk/kind-color k "#666")
                                 :padding "0.15em 0.5em"
                                 :border-radius "0.25em"}}
-                 (i18n/t lang (keyword "kind" k))])]
+                 (i18n/t lang (keyword "kind" (name k)))])]
              [:td {:style (assoc td :font-weight 600)}
               ;; show the human title (the identity slug is internal); fall back
               ;; to the slug only if a row somehow has no title

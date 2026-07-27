@@ -39,18 +39,16 @@
 (defn kind-selector
   "Every kind of `object-type` (KI kinds vs article kinds are disjoint sets) as a clickable
   badge; the selected one highlighted, the others dimmed. Calls `on-select` with the chosen
-  kind string."
+  kind keyword."
   [object-type selected on-select]
   (into [:div {:style {:display "flex"
                        :flex-wrap "wrap"
                        :gap "0.4em"}}]
-        ;; `dk/kind-ids-of` is the canonical per-type set as keywords; the DB/API represent
-        ;; the kind as a string, so map to `(name kw)` at this boundary.
-        (for [t (map name (dk/kind-ids-of object-type))
+        (for [t (dk/kind-ids-of object-type)
               :let [current? (= t selected)]]
           ^{:key t}
           [:button {:on-click #(on-select t)
-                    :title t
+                    :title (name t)
                     :style {:border "none"
                             :background "transparent"
                             :padding "0.1em"
@@ -134,7 +132,7 @@
                            :show-kind? show-kind?
                            ;; seed the type's default kind (first in its display order:
                            ;; inference for KIs, explainer for articles)
-                           :kind (name (first (dk/kind-ids-of type)))})))
+                           :kind (first (dk/kind-ids-of type))})))
 (rf/reg-event-db ::new-set (fn [db [_ k v]] (assoc-in db [::new k] v)))
 
 (rf/reg-event-fx ::new-submit
@@ -312,7 +310,7 @@
                 ;; seed the new KI's text with a citation of the parent → parent becomes
                 ;; its input. Same content language as the parent so the edge resolves.
                 {:title title
-                 :kind "inference"
+                 :kind :inference
                  :lang (:lang parent)
                  :text
                  (str "[[" (or (:type parent) "ki") ":" (:name parent) "@" (:major parent) "]]")}
@@ -532,7 +530,7 @@
      [source/cites-list cites #(rf/dispatch [::edit-set :cites %])]
      ;; only a source-KI carries a `:source` (a reference to its shared work) — offer the
      ;; source picker just for that kind; other KIs relate to sources by *citing* them (above)
-     (when (= kind "source")
+     (when (= kind :source)
        [:div {:style {:margin-top "0.8em"}}
         [source/source-editor source #(rf/dispatch [::edit-set :source %])]])
      (when error
@@ -614,10 +612,10 @@
        #(rf/dispatch [::new-set :text %])
        (lbl lang labels :text-ph)
        nil
-       (dk/kind-allows-inputs? (or kind "inference"))
+       (dk/kind-allows-inputs? (or kind :inference))
        #(rf/dispatch [::new-set :cites (source/add-cite cites %)])]
       [source/cites-list cites #(rf/dispatch [::new-set :cites %])]
-      (when (= kind "source")
+      (when (= kind :source)
         [:div {:style {:margin "0.9em 0 0.2em"}}
          [source/source-editor source #(rf/dispatch [::new-set :source %])]])
       [:div {:style {:display "flex"

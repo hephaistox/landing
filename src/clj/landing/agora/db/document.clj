@@ -8,7 +8,6 @@
   (:require
    [auto-core.log                   :as core-log]
    [clojure.edn                     :as edn]
-   [clojure.string                  :as str]
    [landing.agora.db                :as db]
    [landing.agora.document.identity :as di]
    [next.jdbc                       :as jdbc]
@@ -58,22 +57,50 @@
      FROM AGORA_DOCUMENT ")
 
 (defn- row->doc
-  "A raw row → a full document: identity columns (`:type` and `:lang` keyworded), decoded `content`,
-  resolved `:pins`."
+  "A raw row → a full document: identity columns (`:type` and `:lang` keyworded), decoded `content`
+  (its `:kind` keyworded), resolved `:pins`."
   [row]
-  (merge (-> (select-keys row [:id :type :name :lang :major :minor])
-             (update :type keyword)
-             (update :lang keyword))
-         {:draft (truthy? (:draft row))
-          :publication-id (:publication-id row)}
-         (decode-content (:content row))
-         {:pins (decode-pins (:computed row))}))
+  (let [content (decode-content (:content row))]
+    (cond-> (merge (-> (select-keys row [:id :type :name :lang :major :minor])
+                       (update :type keyword)
+                       (update :lang keyword))
+                   {:draft (truthy? (:draft row))
+                    :publication-id (:publication-id row)}
+                   content
+                   {:pins (decode-pins (:computed row))})
+      (:kind content) (update :kind keyword))))
 
 (defn fetch-id
   "Document for `id`, or nil."
   [id]
   (some-> (q1! db/ds [(str select-doc "WHERE id = ?") id] kebab)
           row->doc))
+
+(defn published-of-type
+  "One page of the browse feed: the latest published minor of every lineage of `type` in `lang`,
+  newest first (`published_at`), as full documents. `limit`/`offset` page it."
+  [type lang limit offset]
+  (mapv
+   row->doc
+   (q!
+    db/ds
+    ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
+                     d.content, d.computed
+                FROM AGORA_DOCUMENT d
+                JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
+                        FROM AGORA_DOCUMENT
+                       WHERE type = ? AND lang = ? AND draft = 0
+                       GROUP BY type, name, lang, major) g
+                  ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                     AND d.major = g.major AND d.minor = g.latest
+               WHERE d.draft = 0
+               ORDER BY d.published_at DESC
+               LIMIT ? OFFSET ?"
+     (t->s type)
+     (t->s lang)
+     limit
+     offset]
+    kebab)))
 
 ;; --- lineage indexes ------------------------------------------------------------------------
 
@@ -146,30 +173,3 @@
      (t->s lang)
      major]
     kebab)))
-
-(defn- decode
-  [s]
-  (some-> s
-          edn/read-string))
-
-(defn- project
-  "A work document (`id` + decoded `content`) → the resolved work `{:source-id :author-id
-  :author-name :title :year :editor :url :owner-id}`."
-  [id content]
-  (when content
-    (assoc (select-keys content [:author-id :author-name :title :year :editor :url :owner-id])
-           :source-id
-           id)))
-
-(defn resolve-ref
-  "Resolve a citation's `content.:source` ref `{:source-id :locator}` to the work's display fields +
-  locator. `:source-id` is the work document's id. nil for a blank/absent ref or an unknown work."
-  [{:keys [source-id locator]}]
-  (when-not (str/blank? source-id)
-    (when-let [row (jdbc/execute-one!
-                    db/ds
-                    ["SELECT content FROM AGORA_DOCUMENT WHERE id = ? AND type = 'source'"
-                     source-id]
-                    kebab)]
-      (some-> (project source-id (decode (:content row)))
-              (assoc :locator locator)))))
