@@ -9,6 +9,9 @@
   `type-definitions.edn`); each language is a sibling KI sharing the `type-<kind>` name
   (translation-by-name), so a reader gets the definition in their own language.
 
+  Self-contained: a type-definition has no inputs, so it is written with one direct INSERT
+  (empty pins, no publication) rather than through the general write path.
+
   Lives in the `env/seed` environment (not `src`), added to the classpath by the
   `:env-seed` alias. Dev points at the shared **production** MySQL, so run it from a
   REPL, never a build:
@@ -16,14 +19,16 @@
     (require 'landing.agora.types-seed)
     (landing.agora.types-seed/seed!)"
   (:require
-   [clojure.edn                         :as edn]
-   [clojure.java.io                     :as io]
-   [landing.agora.auth                  :as auth]
-   [landing.agora.db                    :as db]
-   [landing.agora.document.db-store-old :as dbs]
-   [landing.agora.document.kind         :as dk]
-   [landing.agora.publication           :as publication]
-   [landing.agora.store-old             :as store]))
+   [clojure.edn                      :as edn]
+   [clojure.java.io                  :as io]
+   [landing.agora.auth               :as auth]
+   [landing.agora.db                 :as db]
+   [landing.agora.document.cached-db :as dcd]
+   [landing.agora.document.kind      :as dk]
+   [next.jdbc                        :as jdbc])
+  (:import (java.time Instant)
+           (java.time.temporal ChronoUnit)
+           (java.util UUID)))
 
 (def ^:private defs
   "kind keyword → {lang → {:title :statement}}, read from the seed resource."
@@ -34,52 +39,79 @@
   (translation-by-name)."
   ["fr" "en"])
 
+(defn- now-iso
+  "Current UTC instant as a sortable second-resolution ISO-8601 string (matches `published_at`)."
+  []
+  (str (.truncatedTo (Instant/now) ChronoUnit/SECONDS)))
+
+(defn- lang-exists?
+  "True when a `type-<slug>` KI already exists in `lang` at `major`. Exact-language check —
+  a cross-language fallback would, having just seeded `fr`, wrongly skip `en`."
+  [slug major lang]
+  (some?
+   (jdbc/execute-one!
+    db/ds
+    ["SELECT 1 FROM AGORA_DOCUMENT WHERE type = 'ki' AND name = ? AND major = ? AND lang = ? LIMIT 1"
+     slug
+     major
+     lang])))
+
+(defn- insert!
+  "Insert one published `definition` KI directly: immutable `content`, empty `:pins`, no
+  publication. A type-definition has no inputs, so nothing to pin and no successor edge."
+  [{:keys [slug lang major title statement author owner-id published-at]}]
+  (jdbc/execute!
+   db/ds
+   ["INSERT INTO AGORA_DOCUMENT
+       (id, type, name, lang, major, minor, draft, content, computed, published_at)
+     VALUES (?, 'ki', ?, ?, ?, 0, 0, ?, ?, ?)"
+    (str (UUID/randomUUID))
+    slug
+    lang
+    major
+    (pr-str {:kind "definition"
+             :title title
+             :text statement
+             :inputs []
+             :author author
+             :owner-id owner-id
+             :published-at published-at})
+    (pr-str {:pins {}})
+    published-at]))
+
 (defn seed!
-  "Insert a `definition` KI for every epistemic kind that doesn't yet have one, and
-  clear the read caches. Returns the slugs it created (empty on a no-op re-run)."
+  "Insert a `definition` KI for every epistemic kind that doesn't yet have one, owned by the
+  (login-less) \"Agora\" person, then clear the read caches. Returns the `[slug lang]` pairs it
+  created (empty on a no-op re-run)."
   []
   (let [agora (auth/find-or-create-external! "Agora")
-        ;; the type definitions are one subject — their own publication, so a fresh reseed
-        ;; produces them already grouped (not orphaned with a nil publication)
-        pub
-        (publication/ensure-named! (:id agora) "vocabulaire-des-types" "Vocabulaire des types" "fr")
-        created (doall
-                 (for [{kw :id} dk/kinds
-                       lang langs
-                       :let [{slug :name
-                              mj :major}
-                             (get dk/kind-def (name kw))
-                             {:keys [title statement]} (get-in defs [kw lang])]
-                       ;; EXACT-language existence — `resolve-latest-id` would cross-language
-                       ;; fall back (and, having just seeded `fr`, wrongly skip `en`)
-                       :when (and title (not (store/lang-exists? :ki slug mj lang)))]
-                   (do (store/insert-document! {:id (dbs/uuid)
-                                                :type :ki
-                                                :name slug
-                                                :lang lang
-                                                :major mj
-                                                :minor 0
-                                                :publication-id (:id pub)}
-                                               {:kind "definition"
-                                                :title title
-                                                :text statement
-                                                :inputs []
-                                                ;; the platform is a normal (login-less) AGORA_USER, not a nil owner
-                                                :author (:display-name agora)
-                                                :owner-id (:id agora)
-                                                :published-at (dbs/now-iso)})
-                       [slug lang])))]
-    (store/clear-caches!)
+        now (now-iso)
+        created (doall (for [{kw :id} dk/kinds
+                             lang langs
+                             :let [{slug :name
+                                    mj :major}
+                                   (get dk/kind-def kw)
+                                   {:keys [title statement]} (get-in defs [kw lang])]
+                             :when (and title (not (lang-exists? slug mj lang)))]
+                         (do (insert! {:slug slug
+                                       :lang lang
+                                       :major mj
+                                       :title title
+                                       :statement statement
+                                       :author (:display-name agora)
+                                       :owner-id (:id agora)
+                                       :published-at now})
+                             [slug lang])))]
+    (dcd/clear!)
     (vec created)))
 
 (defn reseed!
   "Delete every type-definition KI and re-create them owned by the (login-less) \"Agora\"
-  person. Use once to migrate definitions seeded before Agora became a real account — a
-  plain `seed!` skips existing types, so it can't fix their nil owner. REPL-only,
-  destructive; the type KIs have no inputs and aren't cited, so nothing dangles."
+  person. Use to fix definitions seeded wrongly — a plain `seed!` skips existing types.
+  REPL-only, destructive; the type KIs have no inputs and aren't cited, so nothing dangles."
   []
   (doseq [{kw :id} dk/kinds
-          :let [{slug :name} (get dk/kind-def (name kw))]]
-    (dbs/q! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = 'ki' AND name = ?" slug]))
-  (store/clear-caches!)
+          :let [{slug :name} (get dk/kind-def kw)]]
+    (jdbc/execute! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = 'ki' AND name = ?" slug]))
+  (dcd/clear!)
   (seed!))
