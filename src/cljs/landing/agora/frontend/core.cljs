@@ -410,7 +410,8 @@
 
 (rf/reg-event-db ::fetch-author-ok
                  (fn [db [_ ck response]]
-                   (let [a (:body response)]
+                   ;; keyword each listed document's `:kind` at the wire boundary, like the browse feed
+                   (let [a (update (:body response) :documents #(mapv kw-kind %))]
                      (-> db
                          (assoc :view {:kind :author
                                        :data a}

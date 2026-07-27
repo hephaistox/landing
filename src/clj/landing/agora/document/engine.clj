@@ -113,17 +113,42 @@
   (mapv #(select-keys % [:type :name :major :lang :title :lastmod])
         (ds/published-latest doc-storage)))
 
-(defn author-documents
-  "The author hub's document list: every published document whose derived byline person
-  (`kind/attributed-author-id` — a source's cited author, else the owner) is `author-id`, as
-  permalink link items. The source is resolved per document so a `kind=source` citation lands under
-  its cited author, consistent with its byline."
+(def ^:private author-docs-limit
+  "Cap on how many documents an author page lists (newest first). A holding value until the page
+  paginates."
+  50)
+
+(defn- author-refs
+  "The published-latest entries whose derived byline person (`kind/attributed-author-id` — a source's
+  cited author, else the owner) is `author-id`, newest first, capped at `author-docs-limit`. The
+  source is resolved per document so a `kind=source` citation matches its cited author, consistent
+  with its byline."
   [doc-storage author-id]
   (into []
         (comp (map (fn [d] (assoc d :source (resolve-source doc-storage (:source d)))))
               (filter (fn [d] (= author-id (dk/attributed-author-id d))))
-              (map #(select-keys % [:type :name :lang :major :title :lastmod])))
+              (take author-docs-limit))
         (ds/published-latest doc-storage)))
+
+(defn author-documents
+  "Permalink link items of the documents attributed to `author-id` — the server-rendered author hub's
+  list."
+  [doc-storage author-id]
+  (mapv #(select-keys % [:type :name :lang :major :title :lastmod])
+        (author-refs doc-storage author-id)))
+
+(defn author-cards
+  "Full browse cards for the documents attributed to `author-id` — the interactive author page's grid.
+  Each attributed lineage is fetched (cached) and shaped like a discover card."
+  [doc-storage author-id]
+  (mapv (fn [d]
+          (card doc-storage
+                (ds/fetch-latest-revision doc-storage
+                                          {:type (keyword (:type d))
+                                           :name (:name d)
+                                           :lang (keyword (:lang d))
+                                           :major (:major d)})))
+        (author-refs doc-storage author-id)))
 
 (defn- link-of
   "A document's permalink link item `{:type :name :lang :major :title}` — `:lang` as a string, the

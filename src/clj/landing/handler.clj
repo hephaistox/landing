@@ -156,7 +156,7 @@
                        (admin-routes "/agora/api/admin")
                        ;; The whole KI/article API surface — one generic route set per object type.
                        (document-read-routes dcd/document-cached-db "/agora/api/documents")
-                       (author-routes "/agora/api/author")
+                       (author-routes dcd/document-cached-db "/agora/api/author")
                        (people-routes "/agora/api/people")
                        (publication-routes "/agora/api/publication")
                        (api-swagger "/api")
