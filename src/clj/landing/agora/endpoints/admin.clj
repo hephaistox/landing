@@ -1,21 +1,31 @@
 (ns landing.agora.endpoints.admin
   "Maintenance and consistency routes over the document store: list lineages, list reference issues,
-  drop or compact a lineage, recompute the successor index."
+  drop or compact a lineage, recompute the successor index. Restricted to the platform owner
+  (`auth/admin-emails`)."
   (:require
+   [landing.agora.auth        :as auth]
    [landing.agora.db.document :as db-doc]))
 
-(defn- ok
-  [_]
-  {:status 200
+(defn- json
+  [status body]
+  {:status status
    :headers {"Content-Type" "application/json"}
-   :body "{}"})
+   :body body})
+
+(defn- ok [_] (json 200 "{}"))
+
+(defn- admin-only
+  "Call `f` only for an authenticated administrator: 401 when anonymous, 403 when logged in but not
+  on the admin allowlist."
+  [req f]
+  (if-let [uid (get-in req [:session :user-id])]
+    (if (:admin (auth/get-user uid)) (f) (json 403 "{\"error\":\"admin only\"}"))
+    (json 401 "{\"error\":\"login required\"}")))
 
 (defn- rebuild
   "Recompute the successor index."
-  [_]
-  {:status 200
-   :headers {"Content-Type" "application/json"}
-   :body (str "{\"lineages\":" (db-doc/rebuild-successor-index!) "}")})
+  [req]
+  (admin-only req #(json 200 (str "{\"lineages\":" (db-doc/rebuild-successor-index!) "}"))))
 
 (defn admin-routes
   [prefix]
