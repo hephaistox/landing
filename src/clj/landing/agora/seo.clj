@@ -408,7 +408,7 @@
      (esc title*)
      "</h1>"
      "<p>"
-     (when-not (str/blank? kind) (str "<strong>" (esc (humanize kind)) "</strong> · "))
+     (when kind (str "<strong>" (esc (humanize (name kind))) "</strong> · "))
      (cond
        attributed-author-id (str "<a href=\""
                                  (esc (str home "/author/" attributed-author-id))

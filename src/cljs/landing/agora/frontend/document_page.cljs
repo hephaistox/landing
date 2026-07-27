@@ -803,7 +803,7 @@
                            :font-weight 600}}
             src-author]]
           ;; no source → the byline author is this document's own (original) author
-          (when-let [a (:author node)]
+          (when-let [a (:attributed-author node)]
             [:span
              [:span {:style {:font-style "italic"}}
               (str (i18n/t lang :card/by) " ")]

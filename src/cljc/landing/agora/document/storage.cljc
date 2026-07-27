@@ -7,8 +7,8 @@
    (fetch-latest-revision [_this id])
    ;; "Documents of `type` in `lang`, newest first (paged by limit/offset)"
    (documents [_this type lang limit offset])
-   ;; "Every published lineage's current permalink, as sitemap rows"
-   (published-permalinks [_this])
+   ;; "Every published lineage's latest minor as decoded maps (sitemap + author hubs)"
+   (published-latest [_this])
    ;; "Publish a whole change"
    (publish-change! [_this change-id])
    ;; "Returns languages of a tnr - expensive"

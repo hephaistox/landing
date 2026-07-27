@@ -136,7 +136,7 @@
     [:span (str "v" (:major doc) "." (:minor doc))]
     [mini-lang-badge (:lang doc)]
     (when-let [d (fmt/utc (:published-at doc))] [:span "· " d])
-    (when-let [a (:author doc)] [:span "· " a])]])
+    (when-let [a (:attributed-author doc)] [:span "· " a])]])
 
 (defn ki-cite
   "An inline living citation of a KI (`name + major`). Fetches the KI (by-major,

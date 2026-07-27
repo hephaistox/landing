@@ -28,12 +28,13 @@
                     (fn [[type lang limit offset]] (db/published-of-type type lang limit offset))
                     page-ttl-seconds))
 
-;; The sitemap is a whole-corpus scan crawled infrequently; a single-entry TTL cache spares the
-;; DB a full scan per crawl hit, expiring on the same hour as the sitemap's Cache-Control.
-(def ^:private permalinks-ttl-seconds 3600)
+;; The sitemap and the author hubs both need the whole set of published-latest documents — a
+;; corpus scan crawled infrequently. A single-entry TTL cache spares the DB a full scan per hit,
+;; expiring on the same hour as those pages' Cache-Control; the engine projects/filters in memory.
+(def ^:private latest-ttl-seconds 3600)
 
-(def ^:private permalinks-cache
-  (caffeine/loading 1 (fn [_] (db/published-permalinks)) permalinks-ttl-seconds))
+(def ^:private latest-set
+  (caffeine/loading 1 (fn [_] (db/published-latest-docs)) latest-ttl-seconds))
 
 (defn- evict! "Drop the cached document for `id`." [id] (caffeine/evict! by-id id))
 
@@ -43,7 +44,7 @@
   (caffeine/clear! by-id)
   (caffeine/clear! by-tnlr)
   (caffeine/clear! by-page)
-  (caffeine/clear! permalinks-cache))
+  (caffeine/clear! latest-set))
 
 (defrecord DocumentCachedDB []
   ds/DocumentStorage
@@ -53,7 +54,7 @@
       (some->> (caffeine/fetch by-tnlr (di/tnlr ref))
                (caffeine/fetch by-id)))
     (documents [_this type lang limit offset] (caffeine/fetch by-page [type lang limit offset]))
-    (published-permalinks [_this] (caffeine/fetch permalinks-cache :all))
+    (published-latest [_this] (caffeine/fetch latest-set :all))
     (publish-change! [_this change-id] (evict! change-id))
     (probe-tnr-languages [_this _tnr] nil)
     ;; a new minor changes which id is latest for this lineage — drop the stale tnlr→id entry

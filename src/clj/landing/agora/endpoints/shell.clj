@@ -11,6 +11,7 @@
   (:require
    [clojure.java.io                 :as io]
    [clojure.set                     :as set]
+   [landing.agora.auth              :as auth]
    [landing.agora.document.engine   :as engine]
    [landing.agora.document.identity :as di]
    [landing.agora.seo               :as seo]
@@ -168,26 +169,29 @@
                  :middleware html-middlewares
                  :summary "Public article permalink (SEO head injected)"}}])
 
-(def author-page-response
+(defn author-page-response
   "Serve the public author-profile shell with per-author SEO (name, canonical, OpenGraph,
   schema.org Person) and a server-rendered author→documents hub, so a crawler reaches all
-  of a person's documents from one indexable page."
+  of a person's documents from one indexable page. Reads the person from `auth` and their
+  documents from the injected `doc-storage`."
+  [doc-storage]
   (fn [req]
     (let [{:keys [lang id]} (:path-params req)
           lang (language/normalize lang)
           base (seo/base-url req)
-          profile nil
+          profile (auth/author-profile id)
           head (if profile
                  (seo/author-head base lang id profile)
                  (seo/generic-head base lang (str "/author/" id) "Agora" "Agora"))
-          body (when profile (seo/author-body base lang profile []))]
+          body (when profile
+                 (seo/author-body base lang profile (engine/author-documents doc-storage id)))]
       (html-response (seo/inject @public-template head lang body)))))
 
 (defn author-page-route
   "Serve the public author profile shell (indexable, SEO head + author→documents hub)."
-  [prefix]
+  [doc-storage prefix]
   [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler author-page-response
+                 :handler (author-page-response doc-storage)
                  :middleware html-middlewares
                  :summary "Public author profile (SEO head + hub)"}}])
 

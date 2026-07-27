@@ -123,7 +123,7 @@
    ["/new" app-shell-route]
    ["/ki/:id" app-shell-route]
    ["/article/:id" app-shell-route]
-   ["/author/:id" author-page-route]
+   ["/author/:id" (partial author-page-route doc-storage)]
    ["/admin" app-shell-route]
    ["/publication/:id" app-shell-route]])
 

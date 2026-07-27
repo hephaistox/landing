@@ -46,7 +46,7 @@
   editable page) a login-gated pencil opens the in-place editor; the public page passes
   nil (read-only)."
   [{doc-type :type
-    :keys [title major minor published-at versions author author-id]
+    :keys [title major minor published-at versions attributed-author attributed-author-id]
     :as doc}
    cfg]
   (let [lang @(rf/subscribe [::i18n/lang])
@@ -83,7 +83,7 @@
      [:h1 {:style {:font-size "1.3em"
                    :margin "0.2em 0 0.1em"}}
       title]
-     [byline author published-at author-id]
+     [byline attributed-author published-at attributed-author-id]
      ;; a draft the owner is viewing gets a Publish banner, right above the body
      [edit/publish-action doc]
      [:div {:style {:font-size "1.05em"

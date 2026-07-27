@@ -102,33 +102,43 @@
      offset]
     kebab)))
 
-(defn published-permalinks
-  "Every published lineage's latest minor, all types and languages, as sitemap rows
-  `{:type :name :major :lang :title :lastmod}` — one per language version, newest first.
-  `:type`/`:lang` stay as DB strings (the sitemap builds URLs from them); `:title` is decoded
-  from `content` to render the permalink slug."
+(defn- published-latest-rows
+  "Raw rows for the latest published minor of every lineage, all types and languages, newest first:
+  identity columns + `published_at` + the `content` blob (decoded by the caller)."
   []
-  (mapv
-   (fn [row]
-     {:type (:type row)
-      :name (:name row)
-      :major (:major row)
-      :lang (:lang row)
-      :title (:title (decode-content (:content row)))
-      :lastmod (:published-at row)})
-   (q!
-    db/ds
-    ["SELECT d.type, d.name, d.lang, d.major, d.published_at, d.content
-                   FROM AGORA_DOCUMENT d
-                   JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
-                           FROM AGORA_DOCUMENT
-                          WHERE draft = 0
-                          GROUP BY type, name, lang, major) g
-                     ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
-                        AND d.major = g.major AND d.minor = g.latest
-                  WHERE d.draft = 0
-                  ORDER BY d.published_at DESC"]
-    kebab)))
+  (q!
+   db/ds
+   ["SELECT d.type, d.name, d.lang, d.major, d.published_at, d.content
+                  FROM AGORA_DOCUMENT d
+                  JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
+                          FROM AGORA_DOCUMENT
+                         WHERE draft = 0
+                         GROUP BY type, name, lang, major) g
+                    ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                       AND d.major = g.major AND d.minor = g.latest
+                 WHERE d.draft = 0
+                 ORDER BY d.published_at DESC"]
+   kebab))
+
+(defn published-latest-docs
+  "Every published lineage's latest minor, all types and languages, as decoded maps — the identity
+  columns (`:type`/`:lang` kept as DB strings, the form URLs are built from), plus `:title`, `:kind`,
+  the raw `:source` ref, `:owner-id` and `:lastmod`. Newest first. One scan feeding both the sitemap
+  and the author hubs; each caller projects or filters (attribution is derived in the domain, so the
+  raw `:source`/`:owner-id` ride along here rather than being resolved in SQL)."
+  []
+  (mapv (fn [row]
+          (let [c (decode-content (:content row))]
+            {:type (:type row)
+             :name (:name row)
+             :lang (:lang row)
+             :major (:major row)
+             :title (:title c)
+             :kind (:kind c)
+             :source (:source c)
+             :owner-id (:owner-id c)
+             :lastmod (:published-at row)}))
+        (published-latest-rows)))
 
 ;; --- lineage indexes ------------------------------------------------------------------------
 

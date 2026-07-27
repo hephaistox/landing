@@ -57,7 +57,9 @@
 
 (rf/reg-event-fx ::me-ok
                  (fn [{:keys [db]} [_ resp]]
-                   (let [user (:body resp)]
+                   ;; a real session carries a user `:id`; an id-less body (e.g. no session) is
+                   ;; logged-out, not a `{}` "user" — `logged-in?`/owner checks key off `:id`.
+                   (let [user (let [u (:body resp)] (when (:id u) u))]
                      (cond-> {:db (assoc db ::user user)}
                        ;; adopt the account's saved interface-language preference
                        (:lang user) (assoc :dispatch [:agora/adopt-lang (:lang user)])))))

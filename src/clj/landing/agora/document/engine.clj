@@ -107,9 +107,23 @@
   (mapv #(card doc-storage %) (ds/documents doc-storage type lang limit offset)))
 
 (defn sitemap-rows
-  "Every published lineage's permalink row for the sitemap, from `doc-storage`."
+  "Every published lineage's permalink row for the sitemap: `{:type :name :major :lang :title
+  :lastmod}`, projected from `doc-storage`'s published-latest set."
   [doc-storage]
-  (ds/published-permalinks doc-storage))
+  (mapv #(select-keys % [:type :name :major :lang :title :lastmod])
+        (ds/published-latest doc-storage)))
+
+(defn author-documents
+  "The author hub's document list: every published document whose derived byline person
+  (`kind/attributed-author-id` — a source's cited author, else the owner) is `author-id`, as
+  permalink link items. The source is resolved per document so a `kind=source` citation lands under
+  its cited author, consistent with its byline."
+  [doc-storage author-id]
+  (into []
+        (comp (map (fn [d] (assoc d :source (resolve-source doc-storage (:source d)))))
+              (filter (fn [d] (= author-id (dk/attributed-author-id d))))
+              (map #(select-keys % [:type :name :lang :major :title :lastmod])))
+        (ds/published-latest doc-storage)))
 
 (defn- link-of
   "A document's permalink link item `{:type :name :lang :major :title}` — `:lang` as a string, the
