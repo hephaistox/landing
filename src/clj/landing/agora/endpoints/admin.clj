@@ -6,7 +6,6 @@
   (:require
    [landing.agora.admin               :as admin]
    [landing.agora.auth                :as auth]
-   [landing.agora.db.document         :as db-doc]
    [muuntaja.core                     :as m]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
    [reitit.ring.middleware.parameters :as parameters]))
@@ -65,7 +64,7 @@
   (admin-only req
               (fn [_]
                 {:status 200
-                 :body {:lineages (db-doc/rebuild-successor-index!)}})))
+                 :body (admin/rebuild!)})))
 
 (defn admin-routes
   [prefix]

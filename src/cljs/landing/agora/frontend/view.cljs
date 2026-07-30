@@ -98,7 +98,6 @@
        (cite/node-text doc)
        (when-let [prefix (dk/statement-prefix-of doc (keyword (:lang doc)))] [prefix-pill prefix])]]
      [source/source-view (:source doc)]
-     [source/cites-view (:cites doc)]
      ;; owner-only maintenance, right on the read view (no need to enter edit mode)
      [edit/admin-actions doc]]))
 

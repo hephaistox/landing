@@ -17,6 +17,7 @@
                                                   ki-page-route
                                                   public-shell-route
                                                   sitemap-route]]
+   [landing.agora.endpoints.source        :refer [source-routes]]
    [landing.endpoints.check-url           :refer [check-url-route]]
    [landing.endpoints.contact             :refer [contact-route]]
    [landing.endpoints.default-handler     :refer [default-handler not-found-for-lang]]
@@ -159,6 +160,7 @@
                        (author-routes dcd/document-cached-db "/agora/api/author")
                        (people-routes "/agora/api/people")
                        (publication-routes "/agora/api/publication")
+                       (source-routes "/agora/api/source")
                        (api-swagger "/api")
                        (w3c-validate-route "/w3c-validate")]
                       (agora-lang-routes dcd/document-cached-db))

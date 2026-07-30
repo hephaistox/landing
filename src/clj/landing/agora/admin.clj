@@ -8,6 +8,7 @@
   (:require
    [clojure.edn                      :as edn]
    [landing.agora.db                 :as db]
+   [landing.agora.db.document        :as db-doc]
    [landing.agora.document.cached-db :as cached-db]
    [landing.agora.document.identity  :as di]
    [next.jdbc                        :as jdbc]
@@ -133,6 +134,18 @@
                                  :self self)))))
               docs)
         (into (successor-drift)))))
+
+;; --- derived-state maintenance --------------------------------------------
+
+(defn rebuild!
+  "Recompute the derived state from the documents — every version's `computed.:pins` and the
+  `AGORA_SUCCESSOR` index — then clear the read caches. Returns `{:pins :lineages}` counts."
+  []
+  (let [pins (db-doc/rebuild-pins!)
+        lineages (db-doc/rebuild-successor-index!)]
+    (cached-db/clear!)
+    {:pins pins
+     :lineages lineages}))
 
 ;; --- destructive maintenance ----------------------------------------------
 

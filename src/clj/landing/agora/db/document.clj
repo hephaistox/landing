@@ -102,6 +102,29 @@
      offset]
     kebab)))
 
+(defn latest-published-of-type
+  "The latest published minor of every lineage of `type`, across all languages, newest first, as full
+  documents. Unlike `published-of-type` it is neither language-scoped nor paginated — for a type-wide
+  listing (e.g. the source picker); the caller projects/filters."
+  [type]
+  (mapv
+   row->doc
+   (q!
+    db/ds
+    ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
+                     d.content, d.computed
+                FROM AGORA_DOCUMENT d
+                JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
+                        FROM AGORA_DOCUMENT
+                       WHERE type = ? AND draft = 0
+                       GROUP BY type, name, lang, major) g
+                  ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                     AND d.major = g.major AND d.minor = g.latest
+               WHERE d.draft = 0
+               ORDER BY d.published_at DESC"
+     (t->s type)]
+    kebab)))
+
 (defn search-of-type
   "The latest published minor of every lineage of `type` in `lang` whose name or content matches `q`
   (substring, case-insensitive), as full documents, capped at `limit`. `content` is the EDN blob, so
@@ -222,6 +245,23 @@
      (t->s lang)
      major]
     kebab)))
+
+(defn rebuild-pins!
+  "Recompute every document's `computed.:pins` from its declared `content.:inputs`, resolving each
+  input to its lineage's latest published id. Heals pin drift and migrates the old
+  `{tnlr-key → id}` map form to the current vector-of-refs form (`identity/pin-all`), which the read
+  path (`split-inputs`) expects. Returns the number of documents re-pinned."
+  []
+  (let [docs (q! db/ds ["SELECT id, content, computed FROM AGORA_DOCUMENT"] kebab)]
+    (doseq [{:keys [id content computed]} docs]
+      (let [pins (di/pin-all (:inputs (decode-content content)) latest-published-id)
+            comp (assoc (or (some-> computed
+                                    edn/read-string)
+                            {})
+                        :pins
+                        pins)]
+        (q1! db/ds ["UPDATE AGORA_DOCUMENT SET computed = ? WHERE id = ?" (pr-str comp) id])))
+    (count docs)))
 
 (defn successor-latest-ids
   "For a `ref` (an input lineage's type, name, lang, major), the id of each successor lineage's

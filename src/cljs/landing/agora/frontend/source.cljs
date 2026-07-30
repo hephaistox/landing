@@ -10,7 +10,8 @@
    2. **Cites for a KI that cites sources**: a KI relates to a source by *citing* a
       `kind=source` KI (an edge-only input; `cite`'s search box routes such a pick to
       `on-cite`). `add-cite`/`strip-cites` manage the list, `cites-list` renders the
-      authoring chips, `cites-view` the read-page list (title · cite author · locator).
+      authoring chips; on the read page cited sources render as input cards (with locator)
+      in the graph, alongside the KI inputs.
 
   Low-level (no dependency on the page namespaces), like `cite`."
   (:require
@@ -367,7 +368,7 @@
             user @(rf/subscribe [::auth/user])]
         (when-not @loaded?
           (reset! loaded? true)
-          (GET* "/agora/api/source-recent" #(reset! recent %)))
+          (GET* "/agora/api/source/recent" #(reset! recent %)))
         [:div
          [:div {:style {:font-size "0.8em"
                         :color "#555"
@@ -517,35 +518,3 @@
           [:span {:style {:color "#888"}}
            (str " — " (:locator src))])]])))
 
-(defn cites-view
-  "Read display of the source-KIs a document **cites** — each links to the citation (a
-  `kind=source` KI) and shows its work author + locator. Nothing when none."
-  [cites]
-  (when (seq cites)
-    (let [lang @(rf/subscribe [::i18n/lang])]
-      [:div {:style {:margin-top "1.1em"}}
-       [:div {:style {:font-weight 700
-                      :color "#8a7a55"
-                      :font-size "0.82em"
-                      :text-transform "uppercase"
-                      :letter-spacing "0.04em"
-                      :margin-bottom "0.35em"}}
-        (i18n/t lang :cite/heading)]
-       (into [:ul {:style {:margin 0
-                           :padding-left "1.2em"
-                           :color "#555"
-                           :font-size "0.9em"
-                           :line-height "1.5"}}]
-             (for [q cites]
-               ^{:key (str (:name q) "-" (:major q))}
-               [:li
-                "❝ "
-                [:a {:href (i18n/ki lang q)
-                     :style {:color "#b9770e"
-                             :text-decoration "none"
-                             :font-weight 600}}
-                 (:title q)]
-                (when-not (str/blank? (:author-name q)) (str " — " (:author-name q)))
-                (when-not (str/blank? (:locator q))
-                  [:span {:style {:color "#888"}}
-                   (str " (" (:locator q) ")")])]))])))

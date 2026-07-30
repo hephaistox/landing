@@ -434,7 +434,8 @@
     c-type :kind
     :keys [major minor]}
    link
-   on-drop]
+   on-drop
+   locator]
   [:div {:style {:position "relative"
                  :width "16em"
                  :max-width "100%"}}
@@ -455,7 +456,13 @@
      [version-tag major minor]]
     [:div {:style {:font-weight 600
                    :font-size "0.9em"}}
-     c-title]]
+     c-title]
+    ;; a cited source carries a locator (page / verse / entry); shown under the title
+    (when (seq locator)
+      [:div {:style {:font-size "0.78em"
+                     :color "#8a7a55"
+                     :margin-top "0.2em"}}
+       locator])]
    (when on-drop
      [:button {:on-click on-drop
                :title (i18n/t @(rf/subscribe [::i18n/lang]) :ki/remove-input)
@@ -486,9 +493,9 @@
   ✕ on-click."
   [id _opts]
   (rf/dispatch [:agora/ensure-ki id])
-  (fn [id {:keys [link-fn drop-fn]}]
+  (fn [id {:keys [link-fn drop-fn locator]}]
     (if-let [doc @(rf/subscribe [:agora/doc id])]
-      [mini-card doc (link-fn doc) (when drop-fn (drop-fn doc))]
+      [mini-card doc (link-fn doc) (when drop-fn (drop-fn doc)) locator]
       [skeleton-mini-card])))
 
 (defn- connector
@@ -671,7 +678,8 @@
           [neighbour-card
            (:id n)
            {:link-fn link-fn
-            :drop-fn drop-fn}])))
+            :drop-fn drop-fn
+            :locator (:locator n)}])))
 
 (defn input-drop-fn
   "For an editable node page: a fn of an input's loaded doc → the ✕ on-click that drops
@@ -698,17 +706,20 @@
   fn of an input-doc → its ✕ on-click (see `input-drop-fn`); passed only for editable
   pages, and only to the inputs row."
   ([doc central link-fn] (node-frame doc central link-fn nil))
-  ([{:keys [inputs successors]
+  ([{:keys [inputs cites successors]
      :as doc}
     central
     link-fn
     input-drop?]
-   (let [lang @(rf/subscribe [::i18n/lang])]
+   ;; sources (`:cites`) are inputs too — an edge-only citation — so they render in the same
+   ;; top row as the KI inputs rather than in a separate list below the prose
+   (let [lang @(rf/subscribe [::i18n/lang])
+         ins (concat inputs cites)]
      [:div {:style {:display "flex"
                     :flex-direction "column"
                     :align-items "center"
                     :padding "1em 0.6em 2em"}}
-      (when (seq inputs) [:<> [neighbours-row inputs link-fn input-drop?] [connector]])
+      (when (seq ins) [:<> [neighbours-row ins link-fn input-drop?] [connector]])
       central
       [language-mismatch-notice lang doc]
       (when (seq successors) [:<> [connector] [neighbours-row successors link-fn nil]])])))

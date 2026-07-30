@@ -1,19 +1,45 @@
 (ns landing.agora.endpoints.people
-  "People: search, and create a login-less external (cited) person.")
+  "People: search existing people (accounts + external cited authors) for the author picker, and
+  create a login-less external person for a citation whose author isn't a platform member. Both are
+  backed by `auth`; creating requires a session."
+  (:require
+   [clojure.string                    :as str]
+   [landing.agora.auth                :as auth]
+   [muuntaja.core                     :as m]
+   [reitit.ring.middleware.muuntaja   :as muuntaja]
+   [reitit.ring.middleware.parameters :as parameters]))
 
-(defn- ok
-  [_]
+(def ^:private mw
+  [parameters/parameters-middleware
+   muuntaja/format-negotiate-middleware
+   muuntaja/format-response-middleware
+   muuntaja/format-request-middleware])
+
+(defn- search
+  [req]
   {:status 200
-   :headers {"Content-Type" "application/json"}
-   :body "{}"})
+   :body (auth/search-people (get-in req [:query-params "q"]))})
+
+(defn- create
+  [req]
+  (if (get-in req [:session :user-id])
+    (let [nm (get-in req [:body-params :display-name])]
+      (if (str/blank? nm)
+        {:status 400
+         :body {:error "blank name"}}
+        {:status 200
+         :body (auth/create-external-person! nm)}))
+    {:status 401
+     :body {:error "login required"}}))
 
 (defn people-routes
   [prefix]
-  [prefix
+  [prefix {:muuntaja m/instance
+           :middleware mw}
    [""
-    {:get {:handler ok
+    {:get {:handler search
            :operationId "agora-people-search"
-           :summary "Search people"}
-     :post {:handler ok
+           :summary "Search people (accounts + external cited authors)"}
+     :post {:handler create
             :operationId "agora-people-create"
             :summary "Create a login-less external person"}}]])
