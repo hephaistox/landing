@@ -99,6 +99,32 @@
     publication-id])
   id)
 
+(defn translations-of
+  "The language siblings of the concept `name` (translation-by-name): the latest published minor in
+  each (language, major), as `{:lang :name :major :title}`, ordered by language. A single-language
+  concept yields one entry. Feeds the language switcher."
+  [name]
+  (mapv
+   (fn [row]
+     {:lang (:lang row)
+      :name (:name row)
+      :major (:major row)
+      :title (:title (decode-content (:content row)))})
+   (q!
+    db/ds
+    ["SELECT d.lang, d.name, d.major, d.content
+                FROM AGORA_DOCUMENT d
+                JOIN (SELECT lang, major, MAX(minor) AS latest
+                        FROM AGORA_DOCUMENT
+                       WHERE name = ? AND draft = 0
+                       GROUP BY lang, major) g
+                  ON d.lang = g.lang AND d.major = g.major AND d.minor = g.latest
+               WHERE d.name = ? AND d.draft = 0
+               ORDER BY d.lang"
+     name
+     name]
+    kebab)))
+
 (defn fetch-latest-any
   "The latest minor of lineage (`type`, `name`), **drafts included**, or nil. For objects that live
   as drafts (e.g. a publication, open the whole time), where `latest-published-id` would find
@@ -156,29 +182,6 @@
      (t->s lang)
      limit
      offset]
-    kebab)))
-
-(defn latest-published-of-type
-  "The latest published minor of every lineage of `type`, across all languages, newest first, as full
-  documents. Unlike `published-of-type` it is neither language-scoped nor paginated — for a type-wide
-  listing (e.g. the source picker); the caller projects/filters."
-  [type]
-  (mapv
-   row->doc
-   (q!
-    db/ds
-    ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
-                     d.content, d.computed
-                FROM AGORA_DOCUMENT d
-                JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
-                        FROM AGORA_DOCUMENT
-                       WHERE type = ? AND draft = 0
-                       GROUP BY type, name, lang, major) g
-                  ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
-                     AND d.major = g.major AND d.minor = g.latest
-               WHERE d.draft = 0
-               ORDER BY d.published_at DESC"
-     (t->s type)]
     kebab)))
 
 (defn search-of-type

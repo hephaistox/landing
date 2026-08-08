@@ -869,77 +869,52 @@
 (defn discover-grid
   "A responsive discover grid of preview cards for `:items`, ending with a `+` add-card and
   a mobile FAB pointing at `(new-href-fn lang)`. `:heading-key` is optional (omitted when
-  nil); `:tagline-key` sits above the grid; `:new-label-key` labels the add-card/FAB. When
-  `:type` (\"ki\"/\"article\") is given, a **show-drafts** toggle re-fetches the feed including
-  unpublished drafts (hidden by default), marked on their cards. Generic over document type —
-  each per-type facade supplies the i18n keys + create route."
-  [{:keys [heading-key tagline-key items new-href-fn new-label-key type]}]
-  (r/with-let
-   [drafts? (r/atom false) draft-items (r/atom nil)]
-   (let [lang @(rf/subscribe [::i18n/lang])
-         new-href (new-href-fn lang)
-         new-label (i18n/t lang new-label-key)
-         shown (if @drafts? (or @draft-items items) items)
-         toggle! (fn []
-                   (swap! drafts? not)
-                   (when (and @drafts? type)
-                     (-> (js/fetch (str "/agora/api/" type "?lang=" lang "&drafts=1")
-                                   #js {:headers #js {"Accept" "application/json"}})
-                         (.then #(.json %))
-                         (.then #(reset! draft-items (js->clj % :keywordize-keys true)))
-                         (.catch (fn [_])))))]
-     [:div {:style {:max-width "72em"
-                    :margin "1.5em auto"
-                    :padding "0 0.8em"
-                    :font-family "system-ui, sans-serif"}}
-      ;; header row: heading (optional) left, a top 'create' button right — so the
-      ;; create action is reachable without scrolling to the trailing add-card.
-      [:div {:style {:display "flex"
-                     :align-items "center"
-                     :gap "0.8em"
-                     :flex-wrap "wrap"
-                     :margin-bottom "0.2em"}}
-       (when heading-key
-         [:h1 {:style {:font-size "1.4em"
-                       :margin 0
-                       :color "#1b1a17"}}
-          (i18n/t lang heading-key)])
-       [:a {:href new-href
-            :title new-label
-            :style {:margin-left "auto"
-                    :display "inline-flex"
+  nil); `:tagline-key` sits above the grid; `:new-label-key` labels the add-card/FAB. Generic
+  over document type — each per-type facade supplies the i18n keys + create route."
+  [{:keys [heading-key tagline-key items new-href-fn new-label-key]}]
+  (let [lang @(rf/subscribe [::i18n/lang])
+        new-href (new-href-fn lang)
+        new-label (i18n/t lang new-label-key)]
+    [:div {:style {:max-width "72em"
+                   :margin "1.5em auto"
+                   :padding "0 0.8em"
+                   :font-family "system-ui, sans-serif"}}
+     ;; header row: heading (optional) left, a top 'create' button right — so the
+     ;; create action is reachable without scrolling to the trailing add-card.
+     [:div {:style {:display "flex"
                     :align-items "center"
-                    :gap "0.3em"
-                    :padding "0.5em 1em"
-                    :background "#b9770e"
-                    :color "#fff"
-                    :border-radius "0.4em"
-                    :font-size "0.9em"
-                    :font-weight 600
-                    :white-space "nowrap"
-                    :text-decoration "none"}}
-        (str "＋ " new-label)]]
-      [:p {:style {:color "#666"
-                   :margin "0 0 0.6em"}}
-       (i18n/t lang tagline-key)]
-      (when type
-        [:label {:style {:display "inline-flex"
-                         :align-items "center"
-                         :gap "0.35em"
-                         :font-size "0.85em"
-                         :color "#8a5709"
-                         :margin "0 0 0.9em"
-                         :cursor "pointer"}}
-         [:input {:type "checkbox"
-                  :checked @drafts?
-                  :on-change toggle!}]
-         (i18n/t lang :discover/show-drafts)])
-      (into [:div {:style {:display "grid"
-                           :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
-                           :gap "0.9em"}}]
-            (conj (mapv (fn [it] ^{:key (:id it)} [discover-card lang it]) shown)
-                  ^{:key "__add__"} [add-card new-href new-label]))
-      [fab new-href new-label]])))
+                    :gap "0.8em"
+                    :flex-wrap "wrap"
+                    :margin-bottom "0.2em"}}
+      (when heading-key
+        [:h1 {:style {:font-size "1.4em"
+                      :margin 0
+                      :color "#1b1a17"}}
+         (i18n/t lang heading-key)])
+      [:a {:href new-href
+           :title new-label
+           :style {:margin-left "auto"
+                   :display "inline-flex"
+                   :align-items "center"
+                   :gap "0.3em"
+                   :padding "0.5em 1em"
+                   :background "#b9770e"
+                   :color "#fff"
+                   :border-radius "0.4em"
+                   :font-size "0.9em"
+                   :font-weight 600
+                   :white-space "nowrap"
+                   :text-decoration "none"}}
+       (str "＋ " new-label)]]
+     [:p {:style {:color "#666"
+                  :margin "0 0 0.6em"}}
+      (i18n/t lang tagline-key)]
+     (into [:div {:style {:display "grid"
+                          :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
+                          :gap "0.9em"}}]
+           (conj (mapv (fn [it] ^{:key (:id it)} [discover-card lang it]) items)
+                 ^{:key "__add__"} [add-card new-href new-label]))
+     [fab new-href new-label]]))
 
 (defn language-selector
   "A language chooser: a badge per supported language, the selected one highlighted.

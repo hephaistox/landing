@@ -379,7 +379,7 @@
                   (reset! q text)
                   (if (str/blank? text)
                     (reset! results [])
-                    (-> (js/fetch (str "/agora/api/ki?lang=" lang
+                    (-> (js/fetch (str "/agora/api/documents/ki?lang=" lang
                                        "&q=" (js/encodeURIComponent text))
                                   #js {:headers #js {"Accept" "application/json"}})
                         (.then #(.json %))

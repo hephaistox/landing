@@ -2,20 +2,20 @@
   "Shapes a document into its endpoint view, from the `db` layer (`db.document`) and the domain
   (`identity`, `kind`). Type-agnostic: every type shapes the same."
   (:require
-   [clojure.string                 :as str]
-   [landing.agora.db.document      :as db-doc]
-   [landing.agora.document.kind    :as dk]
-   [landing.agora.document.storage :as ds]))
+   [clojure.string                  :as str]
+   [landing.agora.db.document       :as db-doc]
+   [landing.agora.document.identity :as di]
+   [landing.agora.document.kind     :as dk]
+   [landing.agora.document.storage  :as ds]
+   [landing.agora.source            :as source]))
 
 (defn- resolve-source
-  "Resolve a `:source` ref `{:source-id :locator}` to the cited source's display fields + locator,
-  fetching the source document through `doc-storage` (cached). nil for a blank/absent ref or an
-  unknown source."
-  [doc-storage {:keys [source-id locator]}]
-  (when-not (str/blank? source-id)
-    (when-let [d (ds/fetch-id doc-storage source-id)]
-      (-> (select-keys d [:author-id :author-name :title :year :editor :url :owner-id])
-          (assoc :source-id source-id :locator locator)))))
+  "Resolve a `:source` ref `{:source-id :locator}` to the cited work's display fields + locator.
+  Sources live in the dedicated `AGORA_SOURCE` table (see `landing.agora.source`), not the document
+  table — so this delegates there rather than fetching a document. Carries both the work's author and
+  the Agora contributor. nil for a blank/absent ref or an unknown source."
+  [_doc-storage ref]
+  (source/resolve-ref ref))
 
 (defn- split-inputs
   "Split resolved input refs into `{:inputs :cites}`. A `kind=source` input is a cite — an
@@ -58,8 +58,8 @@
   `:attributed-author` (name) + `:attributed-author-id` (id) — via `kind/attributed-author[-id]`: a
   source KI's cited author, else the document's owner. Name and profile link always agree.
 
-  The version list is not part of the view — it is fetched on demand (version history, publish-time
-  resolution), not on every read."
+  `:translations` (the concept's language siblings) is included so the language switcher can offer
+  the other languages."
   [doc-storage doc]
   (let [{:keys [inputs cites]} (split-inputs doc-storage (:pins doc))]
     (-> doc
@@ -68,7 +68,8 @@
                :attributed-author (dk/attributed-author doc)
                :attributed-author-id (dk/attributed-author-id doc)
                :source (resolve-source doc-storage (:source doc))
-               :successors (successor-refs doc))
+               :successors (successor-refs doc)
+               :translations (db-doc/translations-of (:name doc)))
         (dissoc :author :owner-id :pins))))
 
 ;; ********************************************************************************
@@ -90,15 +91,30 @@
            (ds/fetch-latest-revision doc-storage)
            (expand-document doc-storage)))
 
+(defn- cite-titles
+  "Each KI cited inline in `doc`'s text, as `{:name cid :title current-title}`, resolved through
+  `doc-storage` (cached). Lets a card excerpt show the cited titles in place of the raw `[[ki:…]]`
+  tokens. Skips a citation whose lineage no longer resolves."
+  [doc-storage doc]
+  (into []
+        (keep (fn [ref]
+                (let [ref (update ref :lang #(or % (:lang doc)))]
+                  (when-let [d (ds/fetch-latest-revision doc-storage ref)]
+                    {:name (:name ref)
+                     :title (:title d)}))))
+        (di/cite-refs (:text doc))))
+
 (defn- card
-  "A browse card for `doc`: identity and kind, title, prose, the byline, and the resolved source —
-  enough to render a preview without the full input/successor environment."
+  "A browse card for `doc`: identity and kind, title, prose, the byline, the resolved source, and the
+  titles of the KIs it cites (`:cite-titles`) — enough to render a preview with a readable excerpt,
+  without the full input/successor environment."
   [doc-storage doc]
   (-> doc
       (select-keys [:id :type :name :lang :major :minor :draft :kind :title :text :published-at])
       (assoc :attributed-author (dk/attributed-author doc)
              :attributed-author-id (dk/attributed-author-id doc)
-             :source (resolve-source doc-storage (:source doc)))))
+             :source (resolve-source doc-storage (:source doc))
+             :cite-titles (cite-titles doc-storage doc))))
 
 (defn list-cards
   "One page of browse cards for `type` in `lang`, newest first (`limit`/`offset`). The page of

@@ -477,8 +477,9 @@
 
 ;; --- read-only display on the page ------------------------------------------
 (defn source-view
-  "Render a document's one resolved source under the card (author → profile link,
-  title, year, editor, locator, and a link when the work has a URL). Nothing when none."
+  "Render a document's one resolved source under the card: the work's author (→ profile link), title,
+  year, editor, locator, a link when the work has a URL, and — distinctly — the Agora contributor who
+  added the source (`owner`). Nothing when none."
   [src]
   (when (:id src)
     (let [lang @(rf/subscribe [::i18n/lang])]
@@ -516,5 +517,17 @@
         (when-not (str/blank? (:editor src)) (str " · " (:editor src)))
         (when-not (str/blank? (:locator src))
           [:span {:style {:color "#888"}}
-           (str " — " (:locator src))])]])))
+           (str " — " (:locator src))])]
+       ;; the Agora contributor who added the source — distinct from the work's real-life author above
+       (when-not (str/blank? (:owner-name src))
+         [:div {:style {:color "#999"
+                        :font-size "0.8em"
+                        :margin-top "0.2em"}}
+          (str (i18n/t lang :source/added-by) " ")
+          (if (:owner-id src)
+            [:a {:href (i18n/author lang (:owner-id src))
+                 :style {:color "#b9770e"
+                         :text-decoration "none"}}
+             (:owner-name src)]
+            (:owner-name src))])])))
 
