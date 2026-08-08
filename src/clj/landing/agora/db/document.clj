@@ -75,6 +75,63 @@
   (some-> (q1! db/ds [(str select-doc "WHERE id = ?") id] kebab)
           row->doc))
 
+(defn insert!
+  "Insert one document row (any type). `content`/`computed` are maps, EDN-encoded here; `draft` a
+  boolean; `published-at` an ISO string; `publication-id` the change that created it, or nil. The
+  generic write primitive — a leaf create (no inputs) is just this call; the input/pin/successor
+  machinery is layered on top for citing documents. Returns the row `id`."
+  [{:keys [id type name lang major minor draft content computed published-at publication-id]}]
+  (q1!
+   db/ds
+   ["INSERT INTO AGORA_DOCUMENT
+       (id, type, name, lang, major, minor, draft, content, computed, published_at, publication_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    id
+    (t->s type)
+    name
+    (t->s lang)
+    major
+    minor
+    (if draft 1 0)
+    (pr-str content)
+    (pr-str computed)
+    published-at
+    publication-id])
+  id)
+
+(defn fetch-latest-any
+  "The latest minor of lineage (`type`, `name`), **drafts included**, or nil. For objects that live
+  as drafts (e.g. a publication, open the whole time), where `latest-published-id` would find
+  nothing."
+  [type name]
+  (some-> (q1! db/ds
+               [(str select-doc "WHERE type = ? AND name = ? ORDER BY minor DESC LIMIT 1")
+                (t->s type)
+                name]
+               kebab)
+          row->doc))
+
+(defn latest-any-of-type
+  "The latest minor of every lineage of `type`, **drafts included**, all languages, newest first, as
+  full documents. For draft-lived objects (publications); the caller filters (owner, status)."
+  [type]
+  (mapv
+   row->doc
+   (q!
+    db/ds
+    ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
+                     d.content, d.computed
+                FROM AGORA_DOCUMENT d
+                JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
+                        FROM AGORA_DOCUMENT
+                       WHERE type = ?
+                       GROUP BY type, name, lang, major) g
+                  ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                     AND d.major = g.major AND d.minor = g.latest
+               ORDER BY d.published_at DESC"
+     (t->s type)]
+    kebab)))
+
 (defn published-of-type
   "One page of the browse feed: the latest published minor of every lineage of `type` in `lang`,
   newest first (`published_at`), as full documents. `limit`/`offset` page it."
