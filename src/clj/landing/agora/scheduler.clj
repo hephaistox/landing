@@ -1,22 +1,22 @@
 (ns landing.agora.scheduler
-  "Daily in-process rebuild of the Agora successor index (a derived cache). Needs no external cron;
-  started/stopped with the app via Mount."
+  "Daily in-process reconcile of the Agora derived caches — `computed.:pins` and the successor index
+  are diffed against the immutable `content` and only discrepancies are repaired (see
+  `admin/reconcile!`). Needs no external cron; started/stopped with the app via Mount."
   (:require
-   [auto-core.log             :as core-log]
-   [landing.agora.db.document :as db-doc]
-   [mount.core                :refer [defstate]])
+   [auto-core.log       :as core-log]
+   [landing.agora.admin :as admin]
+   [mount.core          :refer [defstate]])
   (:import (java.time Duration ZoneOffset ZonedDateTime)
            (java.time.temporal ChronoUnit)
            (java.util.concurrent Executors ScheduledExecutorService TimeUnit)))
 
-(def ^:private run-hour-utc "Daily rebuild fires at this UTC hour." 4)
+(def ^:private run-hour-utc "Daily reconcile fires at this UTC hour." 4)
 
 (defn- rebuild!
   []
-  (try (core-log/info "Agora: rebuilding successor index")
-       (let [n (db-doc/rebuild-successor-index!)]
-         (core-log/info (str "Agora: successor index rebuilt from " n " document(s)")))
-       (catch Throwable e (core-log/error-exception e "Agora: successor rebuild failed"))))
+  (try (core-log/info "Agora: daily reconcile of derived caches")
+       (admin/reconcile!)
+       (catch Throwable e (core-log/error-exception e "Agora: derived-cache reconcile failed"))))
 
 (defn- millis-until-next-run
   "Milliseconds from now until the next `run-hour-utc`:00 UTC (today if still ahead,

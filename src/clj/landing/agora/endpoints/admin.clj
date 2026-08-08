@@ -64,7 +64,7 @@
   (admin-only req
               (fn [_]
                 {:status 200
-                 :body (admin/rebuild!)})))
+                 :body (admin/reconcile!)})))
 
 (defn admin-routes
   [prefix]

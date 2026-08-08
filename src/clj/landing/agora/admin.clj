@@ -6,7 +6,9 @@
   `type`/`lang` are DB strings here (`\"ki\"`, `\"fr\"`); the consistency rule keywords `type` at the
   read boundary because the domain (and the stored `:inputs`) work in keyword types."
   (:require
+   [auto-core.log                    :as core-log]
    [clojure.edn                      :as edn]
+   [clojure.set                      :as set]
    [landing.agora.db                 :as db]
    [landing.agora.db.document        :as db-doc]
    [landing.agora.document.cached-db :as cached-db]
@@ -137,15 +139,74 @@
 
 ;; --- derived-state maintenance --------------------------------------------
 
-(defn rebuild!
-  "Recompute the derived state from the documents — every version's `computed.:pins` and the
-  `AGORA_SUCCESSOR` index — then clear the read caches. Returns `{:pins :lineages}` counts."
+(defn discrepancies
+  "Pure diff of a `derivation-snapshot` against what the immutable `content` implies. Returns
+  `{:pin-fixes [{:id :computed}…]   ; versions whose computed.:pins ≠ pin-all(content.:inputs)
+    :edge-inserts [tuple…]          ; expected reverse edges missing from AGORA_SUCCESSOR
+    :edge-deletes [tuple…]}`        ; indexed edges no longer expected (stale)
+  Writes nothing; the corpus is consistent when all three are empty. Expected edges come from each
+  **latest-published** version's inputs only. Tuples are DB-string form, matching the snapshot."
+  [{:keys [versions edges]}]
+  (let [latest-pub (reduce (fn [m {:keys [id type name lang major minor draft]}]
+                             (if draft
+                               m
+                               (let [k [type name lang major]
+                                     cur (get m k)]
+                                 (if (or (nil? cur) (> minor (:minor cur)))
+                                   (assoc m
+                                          k
+                                          {:minor minor
+                                           :id id})
+                                   m))))
+                           {}
+                           versions)
+        latest-of (fn [{:keys [type name lang major]}]
+                    (:id (get latest-pub [type name lang major])))
+        latest-ids (into #{} (map (comp :id val)) latest-pub)
+        edge-tuple (fn [sid {:keys [type name lang major]}]
+                     [(clojure.core/name type) name (clojure.core/name lang) major sid])
+        pin-fixes (into []
+                        (keep (fn [{:keys [id inputs computed]}]
+                                (let [expected (di/pin-all inputs latest-of)]
+                                  (when (not= expected (:pins computed))
+                                    {:id id
+                                     :computed (assoc computed :pins expected)}))))
+                        versions)
+        expected-edges (into #{}
+                             (comp (filter #(contains? latest-ids (:id %)))
+                                   (mapcat (fn [{:keys [id inputs]}]
+                                             (map #(edge-tuple id (:tnlr %))
+                                                  (di/successor-tuples id inputs)))))
+                             versions)]
+    {:pin-fixes pin-fixes
+     :edge-inserts (vec (set/difference expected-edges edges))
+     :edge-deletes (vec (set/difference edges expected-edges))}))
+
+(defn reconcile!
+  "Detect-and-repair the derived caches: snapshot the corpus, diff it against what the immutable
+  `content` implies (`discrepancies`), and apply **only** the differences — re-pin drifted versions,
+  insert missing successor edges, delete stale ones. A consistent corpus writes nothing (and does not
+  even flush the cache). Logs every discrepancy found, then evicts the read caches if anything
+  changed. Returns a report `{:versions :pins-fixed :edges-inserted :edges-deleted}`."
   []
-  (let [pins (db-doc/rebuild-pins!)
-        lineages (db-doc/rebuild-successor-index!)]
-    (cached-db/clear!)
-    {:pins pins
-     :lineages lineages}))
+  (let [snap (db-doc/derivation-snapshot)
+        {:keys [pin-fixes edge-inserts edge-deletes]} (discrepancies snap)
+        drift? (or (seq pin-fixes) (seq edge-inserts) (seq edge-deletes))]
+    (if drift?
+      (core-log/warn (str "Agora reconcile: discrepancies found — "
+                          "pins " (mapv :id pin-fixes)
+                          "; edges+ " (vec edge-inserts)
+                          "; edges- " (vec edge-deletes)))
+      (core-log/info
+       (str "Agora reconcile: no discrepancies (" (count (:versions snap)) " version(s) scanned)")))
+    (db-doc/apply-pin-fixes! pin-fixes)
+    (db-doc/insert-successor-edges! edge-inserts)
+    (db-doc/delete-successor-edges! edge-deletes)
+    (when drift? (cached-db/clear!))
+    {:versions (count (:versions snap))
+     :pins-fixed (count pin-fixes)
+     :edges-inserted (count edge-inserts)
+     :edges-deleted (count edge-deletes)}))
 
 ;; --- destructive maintenance ----------------------------------------------
 

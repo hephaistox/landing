@@ -6,12 +6,11 @@
   `:fr`). `fetch` keywords them on read; queries coerce back with `t->s`. Other fields are returned
   as stored."
   (:require
-   [auto-core.log                   :as core-log]
-   [clojure.edn                     :as edn]
-   [landing.agora.db                :as db]
-   [landing.agora.document.identity :as di]
-   [next.jdbc                       :as jdbc]
-   [next.jdbc.result-set            :as rs])
+   [auto-core.log        :as core-log]
+   [clojure.edn          :as edn]
+   [landing.agora.db     :as db]
+   [next.jdbc            :as jdbc]
+   [next.jdbc.result-set :as rs])
   (:import (java.sql SQLException)))
 
 ;; --- connection + failure handling. A DB error throws ::db-unavailable.
@@ -194,41 +193,6 @@
 
 ;; --- lineage indexes ------------------------------------------------------------------------
 
-(defn rebuild-successor-index!
-  "Recompute AGORA_SUCCESSOR from scratch: wipe it, then re-insert one reverse edge (input TNLR →
-  successor id) per declared input of **each lineage's latest published minor** — older minors are
-  not indexed (the documents themselves hold every minor's inputs). A derived cache, rebuilt from the
-  documents. Returns the number of lineages scanned."
-  []
-  (q! db/ds ["DELETE FROM AGORA_SUCCESSOR"])
-  (let
-    [docs
-     (q!
-      db/ds
-      ["SELECT d.id, d.content
-                     FROM AGORA_DOCUMENT d
-                     JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
-                             FROM AGORA_DOCUMENT WHERE draft = 0
-                            GROUP BY type, name, lang, major) g
-                       ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
-                          AND d.major = g.major AND d.minor = g.latest
-                    WHERE d.draft = 0"]
-      kebab)]
-    (doseq [{:keys [id content]} docs
-            {:keys [tnlr]} (di/successor-tuples id (:inputs (decode-content content)))
-            :let [{:keys [type name lang major]} tnlr]]
-      (q!
-       db/ds
-       ["INSERT IGNORE INTO AGORA_SUCCESSOR
-              (input_type, input_name, input_lang, input_major, successor_id)
-            VALUES (?, ?, ?, ?, ?)"
-        (t->s type)
-        name
-        (t->s lang)
-        major
-        id]))
-    (count docs)))
-
 (defn latest-published-id
   "The `id` of the latest published minor of a lineage (a `ref`'s type, name, lang, major), or nil
   when it has no published minor in that language. A single indexed lookup — the caller caches the
@@ -246,27 +210,105 @@
      major]
     kebab)))
 
-(defn rebuild-pins!
-  "Recompute every document's `computed.:pins` from its declared `content.:inputs`, resolving each
-  input to its lineage's latest published id. Heals pin drift and migrates the old
-  `{tnlr-key → id}` map form to the current vector-of-refs form (`identity/pin-all`), which the read
-  path (`split-inputs`) expects. Returns the number of documents re-pinned."
+;; --- reconcile: snapshot + targeted repair of the derived caches -----------------------------
+;; The derived caches (`computed.:pins`, `AGORA_SUCCESSOR`) are reconciled against the immutable
+;; `content` by *diffing*, not rewriting: read a consistent snapshot, let the caller compute the
+;; discrepancies (see `admin/discrepancies`), then apply only those. A healthy corpus writes nothing.
+
+(defn derivation-snapshot
+  "A consistent point-in-time snapshot for the reconcile: every version's derivation data and every
+  successor edge. Both reads run in one **repeatable-read** transaction, so they share a single read
+  view — a write landing between the two SELECTs is invisible, and the versions and edges always
+  agree (relying on the connection's default isolation would not guarantee this). Returns
+  `{:versions [{:id :type :name :lang :major :minor :draft :inputs :computed}…]
+    :edges #{[input-type input-name input-lang input-major successor-id]…}}`
+  — `:type`/`:lang` keyworded, `:inputs`/`:computed` decoded; edges as DB-string tuples."
   []
-  (let [docs (q! db/ds ["SELECT id, content, computed FROM AGORA_DOCUMENT"] kebab)]
-    (doseq [{:keys [id content computed]} docs]
-      (let [pins (di/pin-all (:inputs (decode-content content)) latest-published-id)
-            comp (assoc (or (some-> computed
-                                    edn/read-string)
-                            {})
-                        :pins
-                        pins)]
-        (q1! db/ds ["UPDATE AGORA_DOCUMENT SET computed = ? WHERE id = ?" (pr-str comp) id])))
-    (count docs)))
+  (try
+    (jdbc/with-transaction
+     [tx
+      db/ds
+      {:read-only true
+       :isolation :repeatable-read}]
+     {:versions
+      (mapv
+       (fn [row]
+         (let [content (decode-content (:content row))]
+           {:id (:id row)
+            :type (keyword (:type row))
+            :name (:name row)
+            :lang (keyword (:lang row))
+            :major (:major row)
+            :minor (:minor row)
+            :draft (truthy? (:draft row))
+            :inputs (:inputs content)
+            :computed (or (some-> (:computed row)
+                                  edn/read-string)
+                          {})}))
+       (jdbc/execute!
+        tx
+        ["SELECT id, type, name, lang, major, minor, draft, content, computed
+                            FROM AGORA_DOCUMENT"]
+        kebab))
+      :edges
+      (into
+       #{}
+       (map (fn [e]
+              [(:input-type e) (:input-name e) (:input-lang e) (:input-major e) (:successor-id e)]))
+       (jdbc/execute!
+        tx
+        ["SELECT input_type, input_name, input_lang, input_major, successor_id
+                         FROM AGORA_SUCCESSOR"]
+        kebab))})
+    (catch SQLException e (db-error! e))))
+
+(defn apply-pin-fixes!
+  "Overwrite `computed` for each `{:id :computed}` fix (the versions whose pins drifted). Batched."
+  [fixes]
+  (when (seq fixes)
+    (try (with-open [conn (jdbc/get-connection db/ds)]
+           (jdbc/execute-batch! conn
+                                "UPDATE AGORA_DOCUMENT SET computed = ? WHERE id = ?"
+                                (mapv (fn [{:keys [id computed]}] [(pr-str computed) id]) fixes)
+                                {}))
+         (catch SQLException e (db-error! e)))))
+
+(defn insert-successor-edges!
+  "Insert reverse-edge tuples `[input-type input-name input-lang input-major successor-id]` (missing
+  edges). IGNORE dupes so a concurrent write that already added one is harmless. Batched."
+  [tuples]
+  (when (seq tuples)
+    (try
+      (with-open [conn (jdbc/get-connection db/ds)]
+        (jdbc/execute-batch!
+         conn
+         "INSERT IGNORE INTO AGORA_SUCCESSOR
+                                (input_type, input_name, input_lang, input_major, successor_id)
+                              VALUES (?, ?, ?, ?, ?)"
+         (mapv vec tuples)
+         {}))
+      (catch SQLException e (db-error! e)))))
+
+(defn delete-successor-edges!
+  "Delete reverse-edge tuples (stale edges) precisely by their five-column key — never a table wipe,
+  so only the drifted rows are touched. Batched."
+  [tuples]
+  (when (seq tuples)
+    (try
+      (with-open [conn (jdbc/get-connection db/ds)]
+        (jdbc/execute-batch!
+         conn
+         "DELETE FROM AGORA_SUCCESSOR
+                               WHERE input_type = ? AND input_name = ? AND input_lang = ?
+                                 AND input_major = ? AND successor_id = ?"
+         (mapv vec tuples)
+         {}))
+      (catch SQLException e (db-error! e)))))
 
 (defn successor-latest-ids
   "For a `ref` (an input lineage's type, name, lang, major), the id of each successor lineage's
   latest published minor that declares `ref` as an input. AGORA_SUCCESSOR holds only those latest
-  minors (see `rebuild-successor-index!`), so this is a plain reverse lookup — one id per successor
+  minors (see `rebuild-derived!`), so this is a plain reverse lookup — one id per successor
   lineage, no join or collapse."
   [{:keys [type name lang major]}]
   (mapv
