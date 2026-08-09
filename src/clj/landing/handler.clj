@@ -121,6 +121,7 @@
    ["/discover" public-shell-route]
    ["/preferences" public-shell-route]
    ["/authors" public-shell-route]
+   ["/publications" app-shell-route]
    ["/new" app-shell-route]
    ["/ki/:id" app-shell-route]
    ["/article/:id" app-shell-route]

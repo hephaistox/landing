@@ -78,6 +78,9 @@
     (re-find #"^/agora/([a-z]{2})/admin/?(?:[?#].*)?$" path)
     {:kind :admin
      :lang (second (re-find #"^/agora/([a-z]{2})/admin" path))}
+    (re-find #"^/agora/([a-z]{2})/publications/?(?:[?#].*)?$" path)
+    {:kind :publications
+     :lang (second (re-find #"^/agora/([a-z]{2})/publications" path))}
     (re-find #"^/agora/([a-z]{2})/publication/([^/?#]+)/?(?:[?#].*)?$" path)
     (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/publication/([^/?#]+)" path)]
       {:kind :publication
@@ -369,6 +372,12 @@
                           :loading? false
                           :error nil)
                :dispatch [:agora/admin-fetch]}
+       :publications {:db (assoc db
+                                 :view {:kind :publications
+                                        :data nil}
+                                 :loading? false
+                                 :error nil)
+                      :dispatch [::publications/search]}
        :publication {:db (assoc db
                                 :view {:kind :publication
                                        :data nil}
@@ -693,6 +702,7 @@
       (= kind :authors) [find-page/authors-page]
       (= kind :sources) [find-page/sources-page]
       (= kind :admin) [admin/admin-page]
+      (= kind :publications) [publications/publications-page]
       (= kind :publication) [publications/publication-page]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
@@ -722,15 +732,9 @@
                  :flex-direction "column"
                  :min-height "100vh"}}
    [chrome/header]
-   ;; the publications drawer is an in-flow sidebar (pushes the content, never overlays it),
-   ;; so it stays open while you edit the document beside it
-   [:div {:style {:display "flex"
-                  :flex "1 0 auto"
-                  :align-items "flex-start"}}
-    [publications/panel]
-    [:main {:style {:flex "1 1 auto"
-                    :min-width 0}}
-     [app-view]]]
+   [:main {:style {:flex "1 0 auto"
+                   :min-width 0}}
+    [app-view]]
    [chrome/site-footer]
    [auth/auth-modal]
    [document-page/translation-editor]])
@@ -749,8 +753,6 @@
   ;; the first paint; a logged-in user's account preference then overrides it when
   ;; /me returns (see auth ::me-ok → :agora/adopt-lang).
   (rf/dispatch-sync [:agora/adopt-lang (i18n/initial-pref)])
-  ;; adopt the stored publication working context (its documents load when the drawer opens)
-  (rf/dispatch [::publications/adopt-stored])
   (rf/dispatch [::auth/check])
   (reset! history (pushy/pushy #(rf/dispatch [::route-changed %]) path->route))
   ;; `start!` replays the current URL through the processor, dispatching the initial

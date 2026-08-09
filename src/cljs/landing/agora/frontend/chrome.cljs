@@ -7,7 +7,6 @@
    [landing.agora.frontend.document-page :as    dv
                                          :refer [kind-badge permalink version-tag]]
    [landing.agora.frontend.i18n          :as i18n]
-   [landing.agora.frontend.publications  :as publications]
    [re-frame.core                        :as rf]
    [superstructor.re-frame.fetch-fx]))
 
@@ -128,10 +127,12 @@
         (link (i18n/t lang :nav/discover-ki) (i18n/discover lang))
         (link (i18n/t lang :nav/discover-articles) (i18n/articles lang))
         (link (i18n/t lang :nav/authors) (i18n/authors lang))
-        (link (i18n/t lang :nav/sources) (i18n/sources lang))])
+        (link (i18n/t lang :nav/sources) (i18n/sources lang))
+        ;; Publications is authoring, so only for a logged-in user
+        (when @(rf/subscribe [::auth/user])
+          (link (i18n/t lang :nav/publications) (i18n/publications lang)))])
      [:div {:class "agora-header__search"}
       [search-box]]
-     [publications/toggle-button]
      [:div {:class "agora-header__auth"}
       [auth/auth-controls]]]))
 

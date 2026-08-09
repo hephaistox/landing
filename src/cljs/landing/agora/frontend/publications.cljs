@@ -1,51 +1,19 @@
 (ns landing.agora.frontend.publications
-  "The publications working context: an in-flow left drawer to pick the publication you're
-  authoring in (or return to the public view / create one), and a publication *page* that shows
-  its documents like the discover grid. The chosen publication is the app-wide current context,
-  persisted in localStorage."
+  "Publications — the work-packages you author in."
   (:require
    [clojure.string                       :as str]
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.document-page :as dv]
    [landing.agora.frontend.i18n          :as i18n]
-   [landing.agora.frontend.ui-commons    :as ui]
    [re-frame.core                        :as rf]
    [reagent.core                         :as r]
    [superstructor.re-frame.fetch-fx]))
 
-;; --- current-publication persistence (localStorage) -----------------------
-
-(def ^:private storage-key "agora-current-publication")
-
-(defn- read-stored
-  []
-  (try (not-empty (some-> js/localStorage
-                          (.getItem storage-key)))
-       (catch :default _ nil)))
-
-(defn- write-stored!
-  [id]
-  (try (if id (.setItem js/localStorage storage-key id) (.removeItem js/localStorage storage-key))
-       (catch :default _ nil)))
-
 ;; --- subs ------------------------------------------------------------------
 
-(rf/reg-sub ::current (fn [db _] (:agora/current-publication db)))
 (rf/reg-sub ::results (fn [db _] (:agora/publication-results db)))
-(rf/reg-sub ::recent (fn [db _] (:agora/recent-documents db)))
-(rf/reg-sub ::open? (fn [db _] (:agora/publications-panel-open? db)))
 (rf/reg-sub ::viewed (fn [db _] (:agora/viewed-publication db)))
 (rf/reg-sub ::viewed-cards (fn [db _] (:agora/viewed-publication-cards db)))
-(rf/reg-sub ::current-title
-            :<-
-            [::current]
-            :<-
-            [::results]
-            :<-
-            [::viewed]
-            (fn [[id results viewed] _]
-              (or (some #(when (= (:id %) id) (:title %)) results)
-                  (when (= (:id viewed) id) (:title viewed)))))
 
 ;; --- events ----------------------------------------------------------------
 
@@ -58,6 +26,7 @@
    :on-success ok
    :on-failure fail})
 
+;; the caller's open (draft) publications — the index list, optionally filtered by title `q`
 (rf/reg-event-fx ::search
                  (fn [_ [_ q]]
                    {:fetch (GET (str "/agora/api/publication?q=" (js/encodeURIComponent (or q "")))
@@ -65,38 +34,6 @@
                                 [::search-fail])}))
 (rf/reg-event-db ::search-ok (fn [db [_ resp]] (assoc db :agora/publication-results (:body resp))))
 (rf/reg-event-db ::search-fail (fn [db _] (assoc db :agora/publication-results [])))
-
-;; the current publication's 20 most-recently-modified documents (latest on top) — the panel's
-;; recent list; empty when no publication is selected (the list is publication-scoped)
-(rf/reg-event-fx
- ::load-recent
- (fn [{:keys [db]} _]
-   (if-let [cur (:agora/current-publication db)]
-     {:fetch (GET (str "/agora/api/publication/" cur "/documents") [::recent-ok] [::recent-fail])}
-     {:db (assoc db :agora/recent-documents [])})))
-(rf/reg-event-db ::recent-ok
-                 (fn [db [_ resp]] (assoc db :agora/recent-documents (vec (take 20 (:body resp))))))
-(rf/reg-event-db ::recent-fail (fn [db _] (assoc db :agora/recent-documents [])))
-
-;; set the working context (no navigation — the panel item is a link that navigates); the
-;; recent list is publication-scoped, so reload it whenever the context changes
-(rf/reg-event-fx ::select
-                 (fn [{:keys [db]} [_ id]]
-                   (write-stored! id)
-                   {:db (assoc db :agora/current-publication id)
-                    :dispatch [::load-recent]}))
-(rf/reg-event-fx ::clear
-                 (fn [{:keys [db]} _]
-                   (write-stored! nil)
-                   {:db (dissoc db :agora/current-publication)
-                    :dispatch [::load-recent]}))
-
-;; open/close the drawer — lazily loads my publications on open
-(rf/reg-event-fx ::toggle
-                 (fn [{:keys [db]} _]
-                   (let [opening? (not (:agora/publications-panel-open? db))]
-                     (cond-> {:db (update db :agora/publications-panel-open? not)}
-                       opening? (assoc :dispatch-n [[::search ""] [::load-recent]])))))
 
 (rf/reg-event-fx ::create
                  (fn [{:keys [db]} [_ title]]
@@ -109,23 +46,14 @@
                             :response-content-types {#"application/json" :json}
                             :on-success [::created]
                             :on-failure [::create-failed]}}))
+;; on create, go straight to the new publication's page (its documents live there); refresh the index
 (rf/reg-event-fx ::created
                  (fn [{:keys [db]} [_ resp]]
                    (let [id (:id (:body resp))]
-                     (write-stored! id)
-                     {:db (-> db
-                              (dissoc :agora/publication-creating?)
-                              (assoc :agora/current-publication id))
-                      :dispatch-n [[::search ""] [::load-recent]]
+                     {:db (dissoc db :agora/publication-creating?)
+                      :dispatch [::search]
                       :agora/navigate (i18n/publication (i18n/current db) id)})))
 (rf/reg-event-db ::create-failed (fn [db _] (dissoc db :agora/publication-creating?)))
-
-;; boot: adopt the stored context (the page/list load on demand)
-(rf/reg-event-db ::adopt-stored
-                 (fn [db _]
-                   (let [id (read-stored)]
-                     (cond-> db
-                       id (assoc :agora/current-publication id)))))
 
 ;; the publication page's data (the publication + its documents as discover cards)
 (rf/reg-event-fx
@@ -145,7 +73,7 @@
                  (fn [db [_ resp]] (assoc db :agora/viewed-publication-cards (:body resp))))
 (rf/reg-event-db ::page-cards-fail (fn [db _] (assoc db :agora/viewed-publication-cards [])))
 
-;; rename a publication → new minor (owner only, server-checked); refresh the page + the panel
+;; rename a publication → new minor (owner only, server-checked); refresh the page + the index
 (rf/reg-event-fx ::rename
                  (fn [_ [_ cid title]]
                    {:fetch {:method :put
@@ -159,7 +87,7 @@
 (rf/reg-event-fx ::rename-ok
                  (fn [{:keys [db]} [_ resp]]
                    {:db (assoc db :agora/viewed-publication (:body resp))
-                    :dispatch [::search ""]}))
+                    :dispatch [::search]}))
 (rf/reg-event-db ::rename-fail (fn [db _] db))
 
 ;; --- components ------------------------------------------------------------
@@ -170,194 +98,89 @@
    :box-sizing "border-box"
    :text-align "left"
    :text-decoration "none"
-   :padding "0.45em 0.6em"
+   :padding "0.55em 0.7em"
    :border "1px solid #e0d6c2"
    :border-radius "0.35em"
    :background "#fff"
    :color "#333"
-   :cursor "pointer"
-   :font-size "0.88em"
-   :margin-bottom "0.3em"})
+   :font-size "0.95em"
+   :margin-bottom "0.4em"})
 
-(defn- item
-  [active?]
-  (cond-> item-style
-    active? (assoc :background "#b9770e" :color "#fff" :border-color "#b9770e" :font-weight 600)))
+(def ^:private new-title-id "pub-new-title")
 
-(defn toggle-button
-  "Header control showing the current publication (or the public view), toggling the drawer.
-  Only for logged-in users — publications are yours to author in."
+(defn- search-or-create
+  "One box: typing filters your publications live; when the typed title isn't an exact existing one, a
+  '＋ Create «title»' button opens a new publication. `results` is the current (filtered) list, used
+  to decide whether the title already exists."
+  [lang results]
+  (r/with-let [q (r/atom "")]
+              (let [qv (str/trim @q)
+                    exact? (some #(= (str/lower-case (or (:title %) "")) (str/lower-case qv))
+                                 results)]
+                [:div {:style {:margin "0 0 1.2em"}}
+                 [:input {:id new-title-id
+                          :type "text"
+                          :value @q
+                          :placeholder (i18n/t lang :pub/search-ph)
+                          :on-change #(let [v (.. % -target -value)]
+                                        (reset! q v)
+                                        (rf/dispatch [::search v]))
+                          :style {:width "100%"
+                                  :box-sizing "border-box"
+                                  :padding "0.55em 0.7em"
+                                  :font-size "0.95em"
+                                  :border "1px solid #ccc"
+                                  :border-radius "0.4em"}}]
+                 (when (and (not (str/blank? qv)) (not exact?))
+                   [:button {:on-click #(do (rf/dispatch [::create qv]) (reset! q ""))
+                             :style {:width "100%"
+                                     :box-sizing "border-box"
+                                     :margin-top "0.3em"
+                                     :border "1px dashed #2b8a3e"
+                                     :background "#fff"
+                                     :color "#2b8a3e"
+                                     :border-radius "0.4em"
+                                     :padding "0.5em"
+                                     :cursor "pointer"
+                                     :font-size "0.9em"}}
+                    (str "＋ " (i18n/t lang :pub/create-q) " « " qv " »")])])))
+
+(defn- create-fab
+  "A mobile-only floating '+' that focuses the create-by-title input (hidden ≥640px by `.agora-fab`)."
+  [lang]
+  [:button {:class "agora-fab"
+            :title (i18n/t lang :pub/new-ph)
+            :on-click #(some-> (js/document.getElementById new-title-id)
+                               (.focus))}
+   "+"])
+
+(defn publications-page
+  "The publications index: a create-by-title control + a mobile FAB, then your open publications, each
+  linking to its page. Logged-in only (the header entry that leads here is gated too)."
   []
-  (when @(rf/subscribe [::auth/user])
-    (let [lang @(rf/subscribe [::i18n/lang])
-          cur @(rf/subscribe [::current])
-          title @(rf/subscribe [::current-title])]
-      [:button {:on-click #(rf/dispatch [::toggle])
-                :title (i18n/t lang :pub/panel)
-                :style {:border "1px solid #b9770e"
-                        :background (if cur "#b9770e" "#fff")
-                        :color (if cur "#fff" "#b9770e")
-                        :border-radius "0.35em"
-                        :padding "0.3em 0.7em"
-                        :cursor "pointer"
-                        :font-size "0.85em"
-                        :max-width "12em"
-                        :overflow "hidden"
-                        :text-overflow "ellipsis"
-                        :white-space "nowrap"}}
-       (str "📖 " (if cur (or title "…") (i18n/t lang :pub/public)))])))
-
-(defn- doc-link
-  "A compact document link for the panel — draft mark + title."
-  [lang d]
-  [:a {:href (i18n/doc-url lang (:type d) (:id d))
-       :style {:display "flex"
-               :align-items "center"
-               :gap "0.35em"
-               :padding "0.3em 0.4em"
-               :text-decoration "none"
-               :color "#333"
-               :font-size "0.83em"
-               :border-bottom "1px solid #eee"}}
-   (when (:draft d)
-     [:span {:style {:color "#b98a3e"}}
-      "✎"])
-   [:span {:style {:overflow "hidden"
-                   :text-overflow "ellipsis"
-                   :white-space "nowrap"}}
-    (or (:title d) (:name d))]])
-
-(def ^:private section-style
-  {:margin-top "1.1em"
-   :border-top "1px solid #e0d6c2"
-   :padding-top "0.6em"})
-
-(def ^:private section-label-style
-  {:font-weight 700
-   :color "#8a7a55"
-   :font-size "0.75em"
-   :text-transform "uppercase"
-   :letter-spacing "0.04em"
-   :margin-bottom "0.35em"})
-
-(def ^:private empty-hint-style
-  {:color "#aaa"
-   :font-size "0.8em"})
-
-(defn panel
-  "The in-flow left drawer, top→bottom: a search-or-create box, the current publication (with a
-  ✕ back to the public view), your recent publications, then the current publication's recently-
-  modified documents. Nothing when closed or logged out."
-  []
-  (r/with-let
-   [q (r/atom "")]
-   (when (and @(rf/subscribe [::open?]) @(rf/subscribe [::auth/user]))
-     (let [lang @(rf/subscribe [::i18n/lang])
-           cur @(rf/subscribe [::current])
-           cur-title @(rf/subscribe [::current-title])
-           results @(rf/subscribe [::results])
-           recent @(rf/subscribe [::recent])
-           qv (str/trim @q)
-           exact? (some #(= (str/lower-case (or (:title %) "")) (str/lower-case qv)) results)
-           others (remove #(= (:id %) cur) results)
-           ;; a blank query lists your 5 newest; while searching the box is the full list
-           recent-pubs (if (str/blank? qv) (take 5 others) others)]
-       [:div {:style {:flex "0 0 16em"
-                      :max-width "80vw"
-                      :align-self "stretch"
-                      :position "sticky"
-                      :top 0
-                      :max-height "100vh"
-                      :overflow-y "auto"
-                      :background "#faf6ee"
-                      :border-right "1px solid #e0d6c2"
-                      :padding "0.8em"
-                      :box-sizing "border-box"}}
-        [:div {:style {:display "flex"
-                       :align-items "center"
-                       :justify-content "space-between"
-                       :margin-bottom "0.7em"}}
-         [:strong {:style {:color "#8a5709"}}
-          (i18n/t lang :pub/panel)]
-         [:button {:on-click #(rf/dispatch [::toggle])
-                   :style {:border "none"
-                           :background "transparent"
-                           :cursor "pointer"
-                           :font-size "1.1em"}}
-          "✕"]]
-        ;; 1 — search or create
-        [ui/composed-field {:type "text"
-                            :placeholder (i18n/t lang :pub/search-ph)
-                            :value @q
-                            :on-text #(do (reset! q %) (rf/dispatch [::search %]))
-                            :style {:width "100%"
-                                    :box-sizing "border-box"
-                                    :padding "0.4em"
-                                    :font-size "0.85em"
-                                    :border "1px solid #ccc"
-                                    :border-radius "0.35em"}}]
-        (when (and (not (str/blank? qv)) (not exact?))
-          [:button {:on-click #(do (rf/dispatch [::create qv]) (reset! q ""))
-                    :style {:width "100%"
-                            :box-sizing "border-box"
-                            :margin-top "0.2em"
-                            :border "1px dashed #2b8a3e"
-                            :background "#fff"
-                            :color "#2b8a3e"
-                            :border-radius "0.35em"
-                            :padding "0.4em"
-                            :cursor "pointer"
-                            :font-size "0.85em"}}
-           (str "＋ " (i18n/t lang :pub/create-q) " « " qv " »")])
-        ;; 2 — the current context: the selected publication (✕ back to public) or the public view
-        (if cur
-          [:div {:style {:display "flex"
-                         :align-items "center"
-                         :gap "0.3em"
-                         :margin-top "0.6em"}}
-           [:a {:href (i18n/publication lang cur)
-                :style (merge (item true)
-                              {:flex "1"
-                               :margin-bottom 0
-                               :overflow "hidden"
-                               :text-overflow "ellipsis"
-                               :white-space "nowrap"})}
-            (str "📖 " (or cur-title "…"))]
-           [:button {:on-click #(rf/dispatch [::clear])
-                     :title (i18n/t lang :pub/public-view)
-                     :style {:border "none"
-                             :background "transparent"
-                             :cursor "pointer"
-                             :font-size "1em"
-                             :color "#8a5709"
-                             :padding "0.2em 0.3em"}}
-            "✕"]]
-          [:a {:href (i18n/discover lang)
-               :style (merge (item true) {:margin-top "0.6em"})}
-           (str "🌐 " (i18n/t lang :pub/public-view))])
-        ;; 3 — recent publications (excluding the selected one)
-        [:div {:style section-style}
-         [:div {:style section-label-style}
-          (i18n/t lang :pub/recent-pubs)]
-         (if (seq recent-pubs)
-           (into [:div]
-                 (for [p recent-pubs]
-                   ^{:key (:id p)}
-                   [:a {:href (i18n/publication lang (:id p))
-                        :on-click #(rf/dispatch [::select (:id p)])
-                        :style (item false)}
-                    (:title p)]))
-           [:div {:style empty-hint-style}
-            (i18n/t lang :pub/none)])]
-        ;; 4 — the current publication's recently-modified documents
-        (when cur
-          [:div {:style section-style}
-           [:div {:style section-label-style}
-            (i18n/t lang :pub/recent)]
-           (if (seq recent)
-             (into [:div] (for [d recent] ^{:key (:id d)} [doc-link lang d]))
-             [:div {:style empty-hint-style}
-              (i18n/t lang :pub/no-docs)])])]))))
+  (let [lang @(rf/subscribe [::i18n/lang])
+        pubs @(rf/subscribe [::results])]
+    [:div {:style {:max-width "56em"
+                   :margin "1.5em auto"
+                   :padding "0 0.8em"
+                   :font-family "system-ui, sans-serif"}}
+     [:h1 {:style {:font-size "1.4em"
+                   :margin "0 0 0.2em"}}
+      (i18n/t lang :nav/publications)]
+     [:p {:style {:color "#777"
+                  :margin "0 0 1em"}}
+      (i18n/t lang :pub/index-lead)]
+     [search-or-create lang pubs]
+     (if (seq pubs)
+       (into [:div]
+             (for [p pubs]
+               ^{:key (:id p)}
+               [:a {:href (i18n/publication lang (:id p))
+                    :style item-style}
+                (:title p)]))
+       [:p {:style {:color "#aaa"}}
+        (i18n/t lang :pub/none)])
+     [create-fab lang]]))
 
 (defn- status-pill
   [lang status]
@@ -435,8 +258,8 @@
       (status-pill lang (:status pub))])])
 
 (defn publication-page
-  "The publication's page: its title (owner-renamable inline), status and its documents laid out
-  as a discover-style card grid."
+  "A publication's page: its title (owner-renamable inline), status and its documents laid out as a
+  discover-style card grid."
   []
   (r/with-let [editing (r/atom nil)]
               (let [lang @(rf/subscribe [::i18n/lang])
