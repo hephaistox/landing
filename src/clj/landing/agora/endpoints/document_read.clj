@@ -4,6 +4,7 @@
   `document-read-routes`)."
   (:require
    [clojure.set                       :as set]
+   [landing.agora.db.document         :as db-doc]
    [landing.agora.document.engine     :as engine]
    [landing.agora.document.identity   :as di]
    [landing.language                  :as language]
@@ -98,4 +99,11 @@
                                   :id id}})))
            :operationId "agora-read-by-id"
            :parameters {:path [:map [:type :string] [:id :string]]}
-           :summary "A document by id"}}]])
+           :summary "A document by id"}}]
+   ["/:type/:id/versions"
+    {:get {:handler (fn [req]
+                      {:status 200
+                       :body (db-doc/versions-of-id (get-in req [:parameters :path :id]))})
+           :operationId "agora-document-versions"
+           :parameters {:path [:map [:type :string] [:id :string]]}
+           :summary "Every version of the lineage containing this id (admin version picker)"}}]])

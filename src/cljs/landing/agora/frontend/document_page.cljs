@@ -378,54 +378,58 @@
      true]))
 
 (defn version-picker
-  "Current version; clicking reveals an in-order strip of every version. `link-fn`
-  builds a version's href from its id (type-specific — KI or article)."
-  [{:keys [major minor versions]} link-fn]
+  "Current version; clicking reveals an in-order strip of every version. The version list is
+  admin-only and fetched lazily on open (keyed by the current version `id`), so a normal read never
+  loads it. `link-fn` builds a version's href from its id (type-specific — KI or article)."
+  [{:keys [type id major minor]} link-fn]
   (r/with-let
    [open? (r/atom false)]
    (let [lang @(rf/subscribe [::i18n/lang])]
      (when @(rf/subscribe [::auth/admin?])
-       [:span {:style {:display "inline-flex"
-                       :align-items "center"
-                       :gap "0.4em"
-                       :font-family "monospace"
-                       :font-size "0.8em"}}
-        [:button {:on-click #(swap! open? not)
-                  :title (i18n/t lang :ki/versions)
-                  :style {:font-family "inherit"
-                          :font-size "inherit"
-                          :color "#888"
-                          :background "transparent"
-                          :border "1px solid #ddd"
-                          :border-radius "0.3em"
-                          :padding "0.1em 0.5em"
-                          :cursor "pointer"}}
-         (str "v" major "." minor " " (if @open? "▴" "▾"))]
-        (when @open?
-          (into [:span {:style {:display "inline-flex"
-                                :gap "0.3em"
-                                :max-width "22em"
-                                :overflow-x "auto"
-                                :padding "0.1em"}}]
-                (for [v (sort-by :minor versions)
-                      :let [current? (= (:minor v) minor)
-                            draft? (:draft v)]]
-                  ^{:key (:id v)}
-                  ;; a draft version is shown but visually distinct — dashed border, italic, a ✎ mark
-                  [:a {:href (link-fn (:id v))
-                       :on-click #(reset! open? false)
-                       :title (when draft? (i18n/t lang :ki/draft))
-                       :style {:flex "0 0 auto"
-                               :text-decoration "none"
-                               :padding "0.1em 0.5em"
-                               :border-radius "0.3em"
-                               :border (str "1px "
-                                            (if draft? "dashed " "solid ")
-                                            (if current? "#b9770e" "#ddd"))
-                               :font-style (if draft? "italic" "normal")
-                               :background (if current? "#b9770e" "#fff")
-                               :color (if current? "#fff" (if draft? "#b98a3e" "#b9770e"))}}
-                   (str "v" major "." (:minor v) (when draft? " ✎"))])))]))))
+       (let [versions @(rf/subscribe [:agora/versions id])]
+         [:span {:style {:display "inline-flex"
+                         :align-items "center"
+                         :gap "0.4em"
+                         :font-family "monospace"
+                         :font-size "0.8em"}}
+          [:button {:on-click (fn [_]
+                                (swap! open? not)
+                                (when @open? (rf/dispatch [:agora/ensure-versions type id])))
+                    :title (i18n/t lang :ki/versions)
+                    :style {:font-family "inherit"
+                            :font-size "inherit"
+                            :color "#888"
+                            :background "transparent"
+                            :border "1px solid #ddd"
+                            :border-radius "0.3em"
+                            :padding "0.1em 0.5em"
+                            :cursor "pointer"}}
+           (str "v" major "." minor " " (if @open? "▴" "▾"))]
+          (when @open?
+            (into [:span {:style {:display "inline-flex"
+                                  :gap "0.3em"
+                                  :max-width "22em"
+                                  :overflow-x "auto"
+                                  :padding "0.1em"}}]
+                  (for [v (sort-by :minor versions)
+                        :let [current? (= (:minor v) minor)
+                              draft? (:draft v)]]
+                    ^{:key (:id v)}
+                    ;; a draft version is shown but visually distinct — dashed border, italic, a ✎ mark
+                    [:a {:href (link-fn (:id v))
+                         :on-click #(reset! open? false)
+                         :title (when draft? (i18n/t lang :ki/draft))
+                         :style {:flex "0 0 auto"
+                                 :text-decoration "none"
+                                 :padding "0.1em 0.5em"
+                                 :border-radius "0.3em"
+                                 :border (str "1px "
+                                              (if draft? "dashed " "solid ")
+                                              (if current? "#b9770e" "#ddd"))
+                                 :font-style (if draft? "italic" "normal")
+                                 :background (if current? "#b9770e" "#fff")
+                                 :color (if current? "#fff" (if draft? "#b98a3e" "#b9770e"))}}
+                     (str "v" major "." (:minor v) (when draft? " ✎"))])))])))))
 
 (defn- mini-card
   "A compact neighbour card linking to `link`. When `on-drop` is given, a ✕

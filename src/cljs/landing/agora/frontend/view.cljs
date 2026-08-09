@@ -46,7 +46,7 @@
   editable page) a login-gated pencil opens the in-place editor; the public page passes
   nil (read-only)."
   [{doc-type :type
-    :keys [title major minor published-at versions attributed-author attributed-author-id]
+    :keys [title major minor published-at attributed-author attributed-author-id]
     :as doc}
    cfg]
   (let [lang @(rf/subscribe [::i18n/lang])
@@ -76,9 +76,10 @@
                     :margin-bottom "0.5em"}}
       [doc-badge doc {:link? true}]
       [languages-control lang doc]
-      [version-picker {:major major
-                       :minor minor
-                       :versions versions}
+      [version-picker {:type doc-type
+                       :id (:id doc)
+                       :major major
+                       :minor minor}
        (fn [vid] (i18n/doc-url lang doc-type vid))]]
      [:h1 {:style {:font-size "1.3em"
                    :margin "0.2em 0 0.1em"}}

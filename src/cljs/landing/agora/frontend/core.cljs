@@ -494,6 +494,22 @@
 
 (rf/reg-sub :agora/node-doc-by-id (fn [db [_ _type id]] (doc-by-id db id)))
 
+;; Lazy version list for the admin version picker: fetched only when the picker opens, keyed by the
+;; current version's id, so a normal read never pays for admin-only version nav. Skips already-fetched.
+(rf/reg-event-fx :agora/ensure-versions
+                 (fn [{:keys [db]} [_ type id]]
+                   (when-not (get-in db [:versions id])
+                     {:fetch {:method :get
+                              :url (str "/agora/api/documents/" type "/" id "/versions")
+                              :headers {"Accept" "application/json"}
+                              :response-content-types {#"application/json" :json}
+                              :on-success [::versions-ok id]
+                              :on-failure [::fetch-failed]}})))
+
+(rf/reg-event-db ::versions-ok (fn [db [_ id resp]] (assoc-in db [:versions id] (:body resp))))
+
+(rf/reg-sub :agora/versions (fn [db [_ id]] (get-in db [:versions id])))
+
 ;; Called after any successful create/edit (both document types): ingest the new version
 ;; locally under its by-id cache key and navigate to its concrete-version app URL — no
 ;; refetch. Generic: the type comes off the returned document, so there is no per-type

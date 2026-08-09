@@ -184,6 +184,27 @@
      offset]
     kebab)))
 
+(defn versions-of-id
+  "Every version of the lineage that contains `id`, drafts included, oldest→newest, as
+  `{:id :minor :major :draft}` — for the admin version picker (fetched lazily). One query: the
+  self-join pins the lineage (type, name, lang, major) from `id`, then lists its minors."
+  [id]
+  (mapv
+   (fn [row]
+     {:id (:id row)
+      :minor (:minor row)
+      :major (:major row)
+      :draft (truthy? (:draft row))})
+   (q!
+    db/ds
+    ["SELECT v.id, v.minor, v.major, v.draft
+                FROM AGORA_DOCUMENT v
+                JOIN AGORA_DOCUMENT d ON d.id = ?
+               WHERE v.type = d.type AND v.name = d.name AND v.lang = d.lang AND v.major = d.major
+               ORDER BY v.minor"
+     id]
+    kebab)))
+
 (defn search-of-type
   "The latest published minor of every lineage of `type` in `lang` whose name or content matches `q`
   (substring, case-insensitive), as full documents, capped at `limit`. `content` is the EDN blob, so
