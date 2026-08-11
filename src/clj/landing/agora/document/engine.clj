@@ -128,6 +128,12 @@
   [doc-storage type lang q]
   (if (str/blank? q) [] (mapv #(card doc-storage %) (db-doc/search-of-type type lang q 50))))
 
+(defn publication-cards
+  "Browse cards for the documents a publication gathers — the drafts whose `publication_id` is
+  `pub-cid` — newest first."
+  [doc-storage pub-cid]
+  (mapv #(card doc-storage %) (db-doc/in-publication pub-cid)))
+
 (defn sitemap-rows
   "Every published lineage's permalink row for the sitemap: `{:type :name :major :lang :title
   :lastmod}`, projected from `doc-storage`'s published-latest set."

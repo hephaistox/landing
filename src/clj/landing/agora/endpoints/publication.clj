@@ -4,6 +4,7 @@
   drafts list arrive with the write path."
   (:require
    [landing.agora.auth                :as auth]
+   [landing.agora.document.engine     :as engine]
    [landing.agora.publication         :as publication]
    [muuntaja.core                     :as m]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
@@ -45,10 +46,10 @@
      :body {:error "not found"}}))
 
 (defn- documents
-  "The publication's modified documents (drafts). Empty until the write path tags drafts."
-  [_req]
+  "The documents a publication gathers (its drafts), as browse cards."
+  [doc-storage req]
   {:status 200
-   :body []})
+   :body (engine/publication-cards doc-storage (get-in req [:path-params :id]))})
 
 (defn- todo
   "Not wired yet (rename — arrives with the edit write path)."
@@ -57,7 +58,7 @@
    :body {:error "not implemented"}})
 
 (defn publication-routes
-  [prefix]
+  [doc-storage prefix]
   [prefix {:muuntaja m/instance
            :middleware mw}
    [""
@@ -75,6 +76,6 @@
            :operationId "agora-publication-rename"
            :summary "Rename a publication"}}]
    ["/:id/documents"
-    {:get {:handler documents
+    {:get {:handler (partial documents doc-storage)
            :operationId "agora-publication-documents"
            :summary "The publication's modified documents (drafts)"}}]])

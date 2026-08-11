@@ -1,35 +1,35 @@
 (ns landing.handler
   "Handler turns an http http-request into a response"
   (:require
-   [clojure.string                        :as str]
+   [clojure.string                      :as str]
    [env]
-   [landing.agora.document.cached-db      :as dcd]
-   [landing.agora.endpoints.admin         :refer [admin-routes]]
-   [landing.agora.endpoints.auth          :refer [auth-routes]]
-   [landing.agora.endpoints.author        :refer [author-routes]]
-   [landing.agora.endpoints.document-read :refer [document-read-routes]]
-   [landing.agora.endpoints.people        :refer [people-routes]]
-   [landing.agora.endpoints.publication   :refer [publication-routes]]
-   [landing.agora.endpoints.shell         :refer [app-shell-route
-                                                  article-page-route
-                                                  author-page-route
-                                                  home-shell-route
-                                                  ki-page-route
-                                                  public-shell-route
-                                                  sitemap-route]]
-   [landing.agora.endpoints.source        :refer [source-routes]]
-   [landing.endpoints.check-url           :refer [check-url-route]]
-   [landing.endpoints.contact             :refer [contact-route]]
-   [landing.endpoints.default-handler     :refer [default-handler not-found-for-lang]]
-   [landing.endpoints.html.admin-be       :refer [admin-route]]
-   [landing.endpoints.ping                :refer [ping-route]]
-   [landing.endpoints.resource            :refer [resource-handler]]
-   [landing.endpoints.swagger             :refer [api-swagger]]
-   [landing.endpoints.w3c-validation      :refer [w3c-validate-route]]
-   [landing.language                      :refer [languages pick-lang]]
-   [reitit.ring                           :as rring]
-   [ring.middleware.session               :refer [wrap-session]]
-   [ring.middleware.session.cookie        :refer [cookie-store]]))
+   [landing.agora.document.cached-db    :as dcd]
+   [landing.agora.endpoints.admin       :refer [admin-routes]]
+   [landing.agora.endpoints.auth        :refer [auth-routes]]
+   [landing.agora.endpoints.author      :refer [author-routes]]
+   [landing.agora.endpoints.document    :refer [document-routes]]
+   [landing.agora.endpoints.people      :refer [people-routes]]
+   [landing.agora.endpoints.publication :refer [publication-routes]]
+   [landing.agora.endpoints.shell       :refer [app-shell-route
+                                                article-page-route
+                                                author-page-route
+                                                home-shell-route
+                                                ki-page-route
+                                                public-shell-route
+                                                sitemap-route]]
+   [landing.agora.endpoints.source      :refer [source-routes]]
+   [landing.endpoints.check-url         :refer [check-url-route]]
+   [landing.endpoints.contact           :refer [contact-route]]
+   [landing.endpoints.default-handler   :refer [default-handler not-found-for-lang]]
+   [landing.endpoints.html.admin-be     :refer [admin-route]]
+   [landing.endpoints.ping              :refer [ping-route]]
+   [landing.endpoints.resource          :refer [resource-handler]]
+   [landing.endpoints.swagger           :refer [api-swagger]]
+   [landing.endpoints.w3c-validation    :refer [w3c-validate-route]]
+   [landing.language                    :refer [languages pick-lang]]
+   [reitit.ring                         :as rring]
+   [ring.middleware.session             :refer [wrap-session]]
+   [ring.middleware.session.cookie      :refer [cookie-store]]))
 
 (defn- session-key
   "16-byte AES key for the signed session cookie. In production SESSION_SECRET is
@@ -157,10 +157,10 @@
                        (auth-routes "/agora/api/auth")
                        (admin-routes "/agora/api/admin")
                        ;; The whole KI/article API surface — one generic route set per object type.
-                       (document-read-routes dcd/document-cached-db "/agora/api/documents")
+                       (document-routes dcd/document-cached-db "/agora/api/documents")
                        (author-routes dcd/document-cached-db "/agora/api/author")
                        (people-routes "/agora/api/people")
-                       (publication-routes "/agora/api/publication")
+                       (publication-routes dcd/document-cached-db "/agora/api/publication")
                        (source-routes "/agora/api/source")
                        (api-swagger "/api")
                        (w3c-validate-route "/w3c-validate")]

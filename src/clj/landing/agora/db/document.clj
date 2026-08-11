@@ -75,14 +75,12 @@
   (some-> (q1! db/ds [(str select-doc "WHERE id = ?") id] kebab)
           row->doc))
 
-(defn insert!
-  "Insert one document row (any type). `content`/`computed` are maps, EDN-encoded here; `draft` a
-  boolean; `published-at` an ISO string; `publication-id` the change that created it, or nil. The
-  generic write primitive — a leaf create (no inputs) is just this call; the input/pin/successor
-  machinery is layered on top for citing documents. Returns the row `id`."
-  [{:keys [id type name lang major minor draft content computed published-at publication-id]}]
-  (q1!
-   db/ds
+(defn- insert-on!
+  "Insert one document row on `conn` (a datasource or an open transaction). `content`/`computed` are
+  maps, EDN-encoded here; `draft` a boolean. Returns the row `id`."
+  [conn {:keys [id type name lang major minor draft content computed published-at publication-id]}]
+  (jdbc/execute-one!
+   conn
    ["INSERT INTO AGORA_DOCUMENT
        (id, type, name, lang, major, minor, draft, content, computed, published_at, publication_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -98,6 +96,71 @@
     published-at
     publication-id])
   id)
+
+(defn insert!
+  "Insert one document row (any type) — the generic write primitive for a version whose identity is
+  already fixed (e.g. a create with a fresh cid at major 1 / minor 0). For a *new version of an
+  existing lineage*, use `insert-next-minor!` / `insert-next-major!`, which pick the version number
+  atomically. Returns the row `id`."
+  [row]
+  (try (insert-on! db/ds row) (catch SQLException e (db-error! e))))
+
+(defn insert-next-minor!
+  "In one transaction: lock the lineage (`type`, `name`, `lang`, `major`), compute `minor = MAX+1`,
+  and insert `row` with it. The `SELECT … FOR UPDATE` serializes concurrent minor-creation on the
+  same lineage, so two simultaneous edits can't assign the same minor (no lost-update race). Returns
+  the row `id`."
+  [{:keys [type name lang major]
+    :as row}]
+  (try
+    (jdbc/with-transaction
+     [tx db/ds]
+     (let
+       [m
+        (:m
+         (jdbc/execute-one!
+          tx
+          ["SELECT MAX(minor) AS m FROM AGORA_DOCUMENT
+                       WHERE type = ? AND name = ? AND lang = ? AND major = ? FOR UPDATE"
+           (t->s type)
+           name
+           (t->s lang)
+           major]
+          kebab))]
+       (insert-on! tx (assoc row :minor (inc (or m -1))))))
+    (catch SQLException e (db-error! e))))
+
+(defn insert-next-major!
+  "In one transaction: lock the concept (`type`, `name`, `lang`), compute `major = MAX+1`, and insert
+  `row` at that major / minor 0 (a fork). The `SELECT … FOR UPDATE` serializes concurrent forks, so
+  two simultaneous forks can't assign the same major. Returns the row `id`."
+  [{:keys [type name lang]
+    :as row}]
+  (try
+    (jdbc/with-transaction
+     [tx db/ds]
+     (let
+       [m
+        (:m
+         (jdbc/execute-one!
+          tx
+          ["SELECT MAX(major) AS m FROM AGORA_DOCUMENT
+                       WHERE type = ? AND name = ? AND lang = ? FOR UPDATE"
+           (t->s type)
+           name
+           (t->s lang)]
+          kebab))]
+       (insert-on! tx (assoc row :major (inc (or m 0)) :minor 0))))
+    (catch SQLException e (db-error! e))))
+
+(defn in-publication
+  "Every document (any version) whose `publication_id` is `pub-cid` — the drafts the publication
+  gathers — newest first, as full documents."
+  [pub-cid]
+  (mapv row->doc
+        (q! db/ds
+            [(str select-doc "WHERE publication_id = ? ORDER BY published_at DESC") pub-cid]
+            kebab)))
 
 (defn translations-of
   "The language siblings of the concept `name` (translation-by-name): the latest published minor in
