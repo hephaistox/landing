@@ -43,7 +43,6 @@
     (let [type (keyword (get-in req [:path-params :type]))
           {:keys [kind title text lang publication-id]} (:body-params req)]
       (if-not (seq publication-id)
-
         ;; every create happens inside an open publication (no publish-directly path)
         {:status 400
          :body {:error "a publication must be selected"}}

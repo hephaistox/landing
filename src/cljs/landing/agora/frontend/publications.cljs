@@ -15,6 +15,79 @@
 (rf/reg-sub ::viewed (fn [db _] (:agora/viewed-publication db)))
 (rf/reg-sub ::viewed-cards (fn [db _] (:agora/viewed-publication-cards db)))
 
+;; --- active publication (the work-package you are authoring in) ------------
+;; Persisted in localStorage as `{:id :title}` — every document create/edit attaches to it. May be
+;; synced to the account asynchronously later; for now it is client-side only.
+
+(def ^:private active-key "agora-active-publication")
+
+(defn- read-active
+  []
+  (try (some-> js/localStorage
+               (.getItem active-key)
+               js/JSON.parse
+               (js->clj :keywordize-keys true))
+       (catch :default _ nil)))
+
+(defn- write-active!
+  [m]
+  (try (if m
+         (.setItem js/localStorage active-key (js/JSON.stringify (clj->js m)))
+         (.removeItem js/localStorage active-key))
+       (catch :default _ nil)))
+
+(rf/reg-sub ::active (fn [db _] (:agora/active-publication db)))
+
+;; adopt the stored active publication at boot
+(rf/reg-event-db ::adopt-active
+                 (fn [db _]
+                   (if-let [m (read-active)]
+                     (assoc db :agora/active-publication m)
+                     db)))
+
+(rf/reg-event-db ::set-active
+                 (fn [db [_ pub]]
+                   (let [m (select-keys pub [:id :title])]
+                     (write-active! m)
+                     (assoc db :agora/active-publication m))))
+
+(rf/reg-event-db ::clear-active
+                 (fn [db _] (write-active! nil) (dissoc db :agora/active-publication)))
+
+;; Ensure an active publication before an authoring action: if one is active, run `then-event`
+;; immediately; otherwise auto-create one (blank title → the server auto-names it `publication<N>`),
+;; set it active, and then run `then-event`. So create/edit never blocks on picking a publication.
+(rf/reg-event-fx ::ensure-active
+                 (fn [{:keys [db]} [_ then-event]]
+                   (cond
+                     ;; already in flight — ignore repeat clicks (double-click guard)
+                     (:agora/authoring-busy? db) {}
+                     ;; a publication is active — run the authoring action now
+                     (:agora/active-publication db) {:db (assoc db :agora/authoring-busy? true)
+                                                     :dispatch then-event}
+                     ;; none active — auto-create one (server auto-names), set active, then run
+                     :else {:db (assoc db :agora/authoring-busy? true)
+                            :fetch {:method :post
+                                    :url "/agora/api/publication"
+                                    :headers {"Content-Type" "application/json"
+                                              "Accept" "application/json"}
+                                    :body (js/JSON.stringify (clj->js {}))
+                                    :response-content-types {#"application/json" :json}
+                                    :on-success [::ensured then-event]
+                                    :on-failure [::ensure-failed]}})))
+(rf/reg-event-fx ::ensured
+                 (fn [{:keys [db]} [_ then-event resp]]
+                   (let [m (select-keys (:body resp) [:id :title])]
+                     (write-active! m)
+                     ;; stay busy — the authoring action (`then-event`) clears it on success/failure.
+                     ;; The index is not refreshed here; it reloads when the user next visits it.
+                     {:db (assoc db :agora/active-publication m)
+                      :dispatch then-event})))
+(rf/reg-event-db ::ensure-failed
+                 (fn [db _]
+                   (js/console.error "[agora] auto-create publication failed")
+                   (dissoc db :agora/authoring-busy?)))
+
 ;; --- events ----------------------------------------------------------------
 
 (defn- GET
@@ -182,6 +255,54 @@
         (i18n/t lang :pub/none)])
      [create-fab lang]]))
 
+(defn active-chip
+  "Header indicator of the active publication (the one create/edit attach to), with a ✕ to clear it.
+  Nothing when none is active. Rendered by the header."
+  []
+  (when-let [pub @(rf/subscribe [::active])]
+    (let [lang @(rf/subscribe [::i18n/lang])]
+      [:span {:style {:display "inline-flex"
+                      :align-items "center"
+                      :gap "0.3em"
+                      :max-width "14em"
+                      :background "#b9770e"
+                      :color "#fff"
+                      :border-radius "0.35em"
+                      :padding "0.2em 0.5em"
+                      :font-size "0.8em"}}
+       [:a {:href (i18n/publication lang (:id pub))
+            :title (:title pub)
+            :style {:color "#fff"
+                    :text-decoration "none"
+                    :overflow "hidden"
+                    :text-overflow "ellipsis"
+                    :white-space "nowrap"}}
+        (str "📖 " (:title pub))]
+       [:button {:on-click #(rf/dispatch [::clear-active])
+                 :title (i18n/t lang :pub/leave)
+                 :style {:border "none"
+                         :background "transparent"
+                         :color "#fff"
+                         :cursor "pointer"
+                         :line-height 1
+                         :padding 0}}
+        "✕"]])))
+
+(defn- work-here-button
+  "On a publication's page: toggle it as the active publication (the one create/edit attach to)."
+  [lang pub]
+  (let [active? (= (:id @(rf/subscribe [::active])) (:id pub))]
+    [:button {:on-click #(rf/dispatch (if active? [::clear-active] [::set-active pub]))
+              :style {:border (str "1px solid " (if active? "#1d6b2f" "#b9770e"))
+                      :background (if active? "#dff3e2" "#fff")
+                      :color (if active? "#1d6b2f" "#b9770e")
+                      :border-radius "0.4em"
+                      :padding "0.4em 0.9em"
+                      :font-size "0.85em"
+                      :font-weight 600
+                      :cursor "pointer"}}
+     (i18n/t lang (if active? :pub/working-here :pub/work-here))]))
+
 (defn- status-pill
   [lang status]
   (when status
@@ -276,6 +397,9 @@
                  [:p {:style {:color "#777"
                               :margin "0 0 1em"}}
                   (i18n/t lang :pub/page-lead)]
+                 (when (:id pub)
+                   [:div {:style {:margin "0 0 1em"}}
+                    [work-here-button lang pub]])
                  (cond
                    (nil? cards) nil
                    (empty? cards) [:p {:style {:color "#aaa"}}

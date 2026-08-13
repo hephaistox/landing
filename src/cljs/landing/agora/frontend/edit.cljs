@@ -24,6 +24,7 @@
                                                  lang-badge
                                                  language-selector]]
    [landing.agora.frontend.i18n          :as i18n]
+   [landing.agora.frontend.publications  :as publications]
    [landing.agora.frontend.source        :as source]
    [landing.agora.frontend.ui-commons    :as ui]
    [re-frame.core                        :as rf]
@@ -75,7 +76,10 @@
 (rf/reg-event-db ::op-failed
                  (fn [db [_ resp]]
                    (js/console.error "[agora] operation failed:" (clj->js resp))
-                   (update db ::edit assoc :saving? false :error resp)))
+                   (-> db
+                       (dissoc :agora/authoring-busy?)
+                       (assoc-in [::new :submitting?] false)
+                       (update ::edit assoc :saving? false :error resp))))
 
 (rf/reg-event-db ::edit-open
                  (fn [db [_ doc]]
@@ -102,19 +106,24 @@
 (rf/reg-event-fx ::edit-save
                  (fn [{:keys [db]} _]
                    (let [{:keys [type id title kind text source cites orig-cites]} (::edit db)
+                         pub-id (get-in db [:agora/active-publication :id])
                          removed? (seq (remove (cite/citations text) orig-cites))]
                      (if (and removed?
                               (not (js/confirm (i18n/t (i18n/current db) :cite/removed-warning))))
-                       {}
+                       ;; user cancelled — release the in-flight lock set by `ensure-active`
+                       {:db (-> db
+                                (dissoc :agora/authoring-busy?)
+                                (update ::edit assoc :saving? false))}
                        {:db (update db ::edit assoc :saving? true :error nil)
+                        ;; an edit produces a new version, gathered as a draft in the active
+                        ;; publication (`:publication-id`, required by the write path)
                         :fetch (json-req :post
-                                         (str "/agora/api/" type "/" id "/edit")
-                                         ;; every document now carries a kind (KI epistemic /
-                                         ;; article rhetorical); the guard is belt-and-braces
+                                         (str "/agora/api/documents/" type "/" id)
                                          (cond-> {:title title
                                                   :text text
                                                   :source (source/strip-source source)
-                                                  :cites (source/strip-cites cites)}
+                                                  :cites (source/strip-cites cites)
+                                                  :publication-id pub-id}
                                            kind (assoc :kind kind))
                                          [::saved-ok]
                                          [::op-failed])}))))
@@ -124,6 +133,9 @@
 ;; ===========================================================================
 
 (rf/reg-sub ::new (fn [db _] (::new db)))
+;; an authoring action (create/edit) is in flight — set when it starts (ensure-active), cleared on
+;; its terminal success/failure. Disables the submit buttons so a repeat click can't double-fire.
+(rf/reg-sub ::busy? (fn [db _] (:agora/authoring-busy? db)))
 (rf/reg-event-db ::new-reset
                  (fn [db [_ {:keys [type show-kind?]}]]
                    (assoc db
@@ -137,15 +149,19 @@
 
 (rf/reg-event-fx ::new-submit
                  (fn [{:keys [db]} _]
-                   (let [{:keys [type show-kind? title kind lang text source cites]} (::new db)]
+                   (let [{:keys [type show-kind? title kind lang text source cites]} (::new db)
+                         pub-id (get-in db [:agora/active-publication :id])]
                      {:db (assoc-in db [::new :submitting?] true)
+                      ;; a create is a draft gathered by the active publication (`:publication-id`,
+                      ;; required by the write path)
                       :fetch (json-req :post
-                                       (str "/agora/api/" type)
+                                       (str "/agora/api/documents/" type)
                                        (cond-> {:title title
                                                 :lang (or lang (i18n/current db))
                                                 :text text
                                                 :source (source/strip-source source)
-                                                :cites (source/strip-cites cites)}
+                                                :cites (source/strip-cites cites)
+                                                :publication-id pub-id}
                                          show-kind? (assoc :kind kind))
                                        [::saved-ok]
                                        [::op-failed])})))
@@ -157,9 +173,12 @@
                  (fn [{:keys [db]} [_ resp]]
                    (let [doc (:body resp)]
                      (if (:id doc)
-                       {:db (dissoc db ::new ::publish-error)
+                       {:db (dissoc db ::new ::publish-error :agora/authoring-busy?)
                         :dispatch [:agora/saved doc]}
-                       {:db (update db ::edit assoc :saving? false :error resp)}))))
+                       {:db (-> db
+                                (dissoc :agora/authoring-busy?)
+                                (assoc-in [::new :submitting?] false)
+                                (update ::edit assoc :saving? false :error resp))}))))
 
 ;; Publish a draft: promote this version, prune the lineage's intermediate drafts, then reuse
 ;; `::saved-ok` to navigate to the now-published document. A 422 means an input is still a draft
@@ -488,7 +507,8 @@
     object-type :type}]
   (let [{:keys [title kind text source cites saving? error]} @(rf/subscribe [::edit])
         lang @(rf/subscribe [::i18n/lang])
-        user @(rf/subscribe [::auth/user])]
+        user @(rf/subscribe [::auth/user])
+        busy? @(rf/subscribe [::busy?])]
     [:article {:style card-style}
      [:div {:style {:display "flex"
                     :align-items "center"
@@ -541,15 +561,17 @@
      [:div {:style {:display "flex"
                     :gap "0.5em"
                     :margin-top "0.7em"}}
-      [:button {:on-click #(rf/dispatch [::edit-save])
-                :disabled (boolean saving?)
+      ;; ensure an active publication (auto-create if none), then save → new version in it
+      [:button {:on-click (when-not busy?
+                            #(rf/dispatch [::publications/ensure-active [::edit-save]]))
+                :disabled (boolean busy?)
                 :style {:padding "0.4em 0.9em"
                         :border "none"
                         :background "#b9770e"
                         :color "#fff"
                         :border-radius "0.3em"
-                        :cursor (if saving? "default" "pointer")}}
-       (if saving? (lbl lang labels :saving) (lbl lang labels :save))]
+                        :cursor (if busy? "default" "pointer")}}
+       (if (or saving? busy?) (lbl lang labels :saving) (lbl lang labels :save))]
       [:button {:on-click #(rf/dispatch [::edit-close])
                 :style {:padding "0.4em 0.9em"
                         :border "1px solid #ccc"
@@ -574,6 +596,7 @@
          user @(rf/subscribe [::auth/user])
          lang @(rf/subscribe [::i18n/lang])
          cancel-url (cancel-route lang)
+         busy? @(rf/subscribe [::busy?])
          ;; the identity slug is derived from the title server-side, so it isn't asked
          blank? (or (str/blank? title) (str/blank? text))]
      [:div {:style (assoc card-style :margin "1.5em auto")}
@@ -623,19 +646,20 @@
                      :margin-top "0.9em"}}
        [:button {:on-click (cond
                              (not user) #(rf/dispatch [::auth/open :login])
-                             (or blank? submitting?) nil
-                             :else #(rf/dispatch [::new-submit]))
-                 :disabled (boolean (and user (or blank? submitting?)))
+                             (or blank? busy?) nil
+                             ;; ensure an active publication (auto-create if none), then create
+                             :else #(rf/dispatch [::publications/ensure-active [::new-submit]]))
+                 :disabled (boolean (and user (or blank? busy?)))
                  :style {:padding "0.4em 0.9em"
                          :border "none"
                          :background "#b9770e"
                          :color "#fff"
                          :border-radius "0.3em"
                          :opacity (if user 1 0.7)
-                         :cursor (if (and user (or blank? submitting?)) "default" "pointer")}}
+                         :cursor (if (and user (or blank? busy?)) "default" "pointer")}}
         (cond
           (not user) (lbl lang labels :login)
-          submitting? (lbl lang labels :creating)
+          (or submitting? busy?) (lbl lang labels :creating)
           :else (lbl lang labels :create))]
        [:a {:href cancel-url
             :style {:padding "0.4em 0.9em"

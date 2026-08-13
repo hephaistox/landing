@@ -7,6 +7,7 @@
    [landing.agora.frontend.document-page :as    dv
                                          :refer [kind-badge permalink version-tag]]
    [landing.agora.frontend.i18n          :as i18n]
+   [landing.agora.frontend.publications  :as publications]
    [re-frame.core                        :as rf]
    [superstructor.re-frame.fetch-fx]))
 
@@ -133,6 +134,7 @@
           (link (i18n/t lang :nav/publications) (i18n/publications lang)))])
      [:div {:class "agora-header__search"}
       [search-box]]
+     [publications/active-chip]
      [:div {:class "agora-header__auth"}
       [auth/auth-controls]]]))
 

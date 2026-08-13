@@ -753,6 +753,8 @@
   ;; the first paint; a logged-in user's account preference then overrides it when
   ;; /me returns (see auth ::me-ok → :agora/adopt-lang).
   (rf/dispatch-sync [:agora/adopt-lang (i18n/initial-pref)])
+  ;; adopt the active publication (the work-package create/edit attach to) from localStorage
+  (rf/dispatch [::publications/adopt-active])
   (rf/dispatch [::auth/check])
   (reset! history (pushy/pushy #(rf/dispatch [::route-changed %]) path->route))
   ;; `start!` replays the current URL through the processor, dispatching the initial

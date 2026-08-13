@@ -47,14 +47,21 @@
    :author-id owner-id
    :published-at published-at})
 
+(defn- count-owned
+  "How many publications `owner-id` has (any status) — used to auto-name a new one."
+  [owner-id]
+  (count (filter #(= owner-id (:owner-id %)) (db-doc/latest-any-of-type :publication))))
+
 (defn create!
-  "Open a new publication owned by `owner-id` (display name `author`), titled `title`. Mints a cid,
-  status `:open`, `draft` while open, created outside any publication. A publication has no content
-  language (`lang-na`). Reusable — an endpoint or any other authoring context can call it. Returns
-  the view."
+  "Open a new publication owned by `owner-id` (display name `author`), titled `title`. A **blank
+  `title` is auto-named** `publication<N>` (N = the owner's publication count + 1) — Word-style, so a
+  document can auto-provision one with no user interaction; it stays editable (rename). Mints a cid,
+  status `:open`, `draft` while open, created outside any publication (no content language,
+  `lang-na`). Reusable. Returns the view."
   [owner-id author title]
   (let [cid (gen-cid)
         now (now-iso)
+        title (if (str/blank? title) (str "publication" (inc (count-owned owner-id))) title)
         content {:title title
                  :status :open
                  :author author
