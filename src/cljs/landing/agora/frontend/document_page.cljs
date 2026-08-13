@@ -80,13 +80,54 @@
                     :border-radius "0.25em"}}
      lang]))
 
+(defn tooltip
+  "Show `text` in a small dark bubble above `child` after ~1s of hover — React-driven, so it is
+  consistent across browsers (the native `title` delay varies wildly)."
+  [text child]
+  (r/with-let [show? (r/atom false) timer (r/atom nil)]
+              [:span {:on-mouse-enter #(reset! timer (js/setTimeout (fn [] (reset! show? true))
+                                                                    1000))
+                      :on-mouse-leave #(do (some-> @timer
+                                                   js/clearTimeout)
+                                           (reset! show? false))
+                      :style {:position "relative"
+                              :display "inline-flex"}}
+               child
+               (when @show?
+                 [:span {:style {:position "absolute"
+                                 :bottom "calc(100% + 0.45em)"
+                                 :left "50%"
+                                 :transform "translateX(-50%)"
+                                 :background "#1b1a17"
+                                 :color "#fff"
+                                 :font-size "0.72em"
+                                 :font-weight 400
+                                 :text-transform "none"
+                                 :letter-spacing "normal"
+                                 :line-height 1.35
+                                 :padding "0.45em 0.65em"
+                                 :border-radius "0.35em"
+                                 :width "max-content"
+                                 :max-width "17em"
+                                 :text-align "center"
+                                 :box-shadow "0 3px 10px rgba(0,0,0,0.3)"
+                                 :z-index 60
+                                 :pointer-events "none"}}
+                  text])]
+              (finally (some-> @timer
+                               js/clearTimeout))))
+
 (defn byline
   "The document's authorship line: author on the left, date pushed to the right. The author
   (copper) links to their profile page when `author-id` (the owning account) is given —
-  seeded/unowned documents have no id and render as plain text."
-  ([author published-at] (byline author published-at nil))
-  ([author published-at author-id]
-   (let [lang @(rf/subscribe [::i18n/lang])]
+  seeded/unowned documents have no id and render as plain text. `date-hint`, when given, is a hover
+  tooltip on the date saying what it is."
+  ([author published-at] (byline author published-at nil nil))
+  ([author published-at author-id] (byline author published-at author-id nil))
+  ([author published-at author-id date-hint]
+   (let [lang @(rf/subscribe [::i18n/lang])
+         you? (and author-id (= author-id (:id @(rf/subscribe [::auth/user]))))
+         date (or (fmt/utc published-at) "—")]
      [:div {:style {:color "#888"
                     :font-size "0.8em"
                     :margin-bottom "0.7em"
@@ -103,10 +144,34 @@
             author]
            [:span {:style {:color "#b9770e"
                            :font-weight 600}}
-            author])])
+            author])
+         ;; mark the current user's own authorship
+         (when you?
+           [:span {:style {:color "#999"}}
+            (str " " (i18n/t lang :byline/you))])])
       [:span {:style {:margin-left "auto"
                       :white-space "nowrap"}}
-       (or (fmt/utc published-at) "—")]])))
+       (if date-hint
+         [tooltip
+          date-hint
+          [:span {:style {:cursor "help"}}
+           date]]
+         date)]])))
+
+(defn publication-ref
+  "A small clickable line pointing at the publication a document belongs to — its provenance
+  work-package, opened like any reference. Nothing when the document has no publication."
+  [lang publication]
+  (when-let [{:keys [id title]} publication]
+    [:div {:style {:font-size "0.78em"
+                   :color "#8a8578"
+                   :margin-bottom "0.7em"}}
+     (str (i18n/t lang :pub/belongs) " ")
+     [:a {:href (i18n/publication lang id)
+          :style {:color "#b9770e"
+                  :font-weight 600
+                  :text-decoration "none"}}
+      (str "📚 " title)]]))
 
 (defn language-mismatch-notice
   "When the shown KI is in a different language than the interface AND a version in
