@@ -11,7 +11,10 @@
    [landing.agora.db     :as db]
    [next.jdbc            :as jdbc]
    [next.jdbc.result-set :as rs])
-  (:import (java.sql SQLException)))
+  (:import (java.sql SQLException)
+           (java.time Instant)
+           (java.time.temporal ChronoUnit)
+           (java.util UUID)))
 
 ;; --- connection + failure handling. A DB error throws ::db-unavailable.
 
@@ -153,14 +156,119 @@
        (insert-on! tx (assoc row :major (inc (or m 0)) :minor 0))))
     (catch SQLException e (db-error! e))))
 
+;; --- document construction: shared identity/timestamp + a new-version row ---------------------
+
+(def ^:private cid-alphabet "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+(defn gen-cid
+  "A random 10-char base62 cid — the opaque, stable lineage name, never derived from the title so a
+  rename never dangles a reference."
+  []
+  (apply str (repeatedly 10 #(rand-nth cid-alphabet))))
+
+(defn now-iso
+  "The current UTC instant as a sortable second-resolution ISO-8601 string (matches `published_at`)."
+  []
+  (str (.truncatedTo (Instant/now) ChronoUnit/SECONDS)))
+
+(defn version-row
+  "A row for a **new version** of `doc`'s lineage — same (type, name, lang, major), a fresh id, the
+  given `content`, `draft` and `publication-id`, stamped `published-at`, empty pins. Feed to
+  `insert-next-minor!` / `insert-next-major!` / `publish-publication!`, which assign the version
+  number atomically. Any document is versioned the same way, so this is shared across types."
+  [doc {:keys [content draft publication-id published-at]}]
+  {:id (str (UUID/randomUUID))
+   :type (:type doc)
+   :name (:name doc)
+   :lang (:lang doc)
+   :major (:major doc)
+   :draft draft
+   :content content
+   :computed {:pins []}
+   :published-at published-at
+   :publication-id publication-id})
+
 (defn in-publication
-  "Every document (any version) whose `publication_id` is `pub-cid` — the drafts the publication
-  gathers — newest first, as full documents."
+  "The latest version per lineage that the publication `pub-cid` gathers (the draft the publication
+  holds for each document), newest first, as full documents."
   [pub-cid]
-  (mapv row->doc
-        (q! db/ds
-            [(str select-doc "WHERE publication_id = ? ORDER BY published_at DESC") pub-cid]
-            kebab)))
+  (mapv
+   row->doc
+   (q!
+    db/ds
+    ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
+                     d.content, d.computed
+                FROM AGORA_DOCUMENT d
+                JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
+                        FROM AGORA_DOCUMENT
+                       WHERE publication_id = ?
+                       GROUP BY type, name, lang, major) g
+                  ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
+                     AND d.major = g.major AND d.minor = g.latest
+               WHERE d.publication_id = ?
+               ORDER BY d.published_at DESC"
+     pub-cid
+     pub-cid]
+    kebab)))
+
+(defn delete-draft!
+  "Remove a lineage's draft versions that publication `pub-cid` gathers — (`type`, `name`, `lang`)
+  with `draft = 1` and this `publication_id`. Published versions of the lineage stay. Returns the
+  number of rows removed."
+  [type name lang pub-cid]
+  (:next.jdbc/update-count
+   (q1!
+    db/ds
+    ["DELETE FROM AGORA_DOCUMENT
+            WHERE type = ? AND name = ? AND lang = ? AND publication_id = ? AND draft = 1"
+     (t->s type)
+     name
+     (t->s lang)
+     pub-cid])))
+
+(defn delete-publication!
+  "Remove publication `pub-cid` and the drafts it gathers, in one transaction: the drafts
+  (`draft = 1`, this `publication_id`) then every minor of the publication lineage. Published
+  documents keep their `publication_id` as provenance."
+  [pub-cid]
+  (try
+    (jdbc/with-transaction
+     [tx db/ds]
+     (jdbc/execute! tx
+                    ["DELETE FROM AGORA_DOCUMENT WHERE publication_id = ? AND draft = 1" pub-cid])
+     (jdbc/execute! tx
+                    ["DELETE FROM AGORA_DOCUMENT WHERE type = 'publication' AND name = ?" pub-cid]))
+    (catch SQLException e (db-error! e))))
+
+(defn publish-publication!
+  "Publish publication `pub-cid` in one transaction: flip every draft it gathers to published
+  (`draft = 0`), keeping `publication_id` as permanent provenance, then close the publication itself
+  by inserting `close-row` as its next minor (status `:closed`). The publication lineage is locked
+  (`FOR UPDATE`) while its minor is computed, so a concurrent rename/publish can't collide. Returns
+  the closed row's `id`."
+  [pub-cid
+   {:keys [type name lang major]
+    :as close-row}]
+  (try
+    (jdbc/with-transaction
+     [tx db/ds]
+     (jdbc/execute! tx
+                    ["UPDATE AGORA_DOCUMENT SET draft = 0 WHERE publication_id = ? AND draft = 1"
+                     pub-cid])
+     (let
+       [m
+        (:m
+         (jdbc/execute-one!
+          tx
+          ["SELECT MAX(minor) AS m FROM AGORA_DOCUMENT
+                        WHERE type = ? AND name = ? AND lang = ? AND major = ? FOR UPDATE"
+           (t->s type)
+           name
+           (t->s lang)
+           major]
+          kebab))]
+       (insert-on! tx (assoc close-row :minor (inc (or m -1))))))
+    (catch SQLException e (db-error! e))))
 
 (defn translations-of
   "The language siblings of the concept `name` (translation-by-name): the latest published minor in

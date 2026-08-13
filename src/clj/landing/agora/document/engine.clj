@@ -17,6 +17,16 @@
   [_doc-storage ref]
   (source/resolve-ref ref))
 
+(defn- resolve-publication
+  "Resolve a document's `publication-id` (a cid) to `{:id :title :status}` — the work-package it
+  belongs to, so the reader can open it. nil when there is none."
+  [pub-cid]
+  (when pub-cid
+    (when-let [p (db-doc/fetch-latest-any :publication pub-cid)]
+      {:id pub-cid
+       :title (:title p)
+       :status (:status p)})))
+
 (defn- split-inputs
   "Split resolved input refs into `{:inputs :cites}`. A `kind=source` input is a cite — an
   edge-only citation of a source. It becomes `{:name :major :id :title :author-name :author-id
@@ -68,9 +78,10 @@
                :attributed-author (dk/attributed-author doc)
                :attributed-author-id (dk/attributed-author-id doc)
                :source (resolve-source doc-storage (:source doc))
+               :publication (resolve-publication (:publication-id doc))
                :successors (successor-refs doc)
                :translations (db-doc/translations-of (:name doc)))
-        (dissoc :author :owner-id :pins))))
+        (dissoc :author :owner-id :pins :publication-id))))
 
 ;; ********************************************************************************
 ;; Picking a document — both reads fetch a single document, then shape it. Same shape, different
@@ -116,17 +127,51 @@
              :source (resolve-source doc-storage (:source doc))
              :cite-titles (cite-titles doc-storage doc))))
 
+(defn- lineage-key
+  "The lineage a document belongs to — its identity minus minor. The overlay key: a publication draft
+  and the published version it supersedes share it."
+  [d]
+  [(:type d) (:name d) (:lang d) (:major d)])
+
+(defn- publication-drafts
+  "The drafts publication `pub-cid` gathers for `type` in `lang` (newest first) — the in-progress
+  overlay a scoped view lays over the published corpus. `type`/`lang` are the request's strings."
+  [pub-cid type lang]
+  (filterv (fn [d] (and (= type (name (:type d))) (= lang (name (:lang d)))))
+           (db-doc/in-publication pub-cid)))
+
+(defn- matches?
+  "True when `q` (case-insensitive) occurs in a document's name, title or text — the same reach as the
+  published search, applied to a publication's drafts."
+  [q d]
+  (str/includes? (str/lower-case (str (:name d) " " (:title d) " " (:text d))) (str/lower-case q)))
+
 (defn list-cards
   "One page of browse cards for `type` in `lang`, newest first (`limit`/`offset`). The page of
-  documents comes from `doc-storage` (cached); each is shaped into a card."
-  [doc-storage type lang limit offset]
-  (mapv #(card doc-storage %) (ds/documents doc-storage type lang limit offset)))
+  documents comes from `doc-storage` (cached); each is shaped into a card. When `pub-cid` is given
+  (the caller's active publication), its drafts of this type/lang lead the first page and replace the
+  published version of any lineage they supersede — the corpus as it will read once the publication
+  is published."
+  [doc-storage type lang limit offset pub-cid]
+  (let [drafts (when pub-cid (publication-drafts pub-cid type lang))
+        overridden (set (map lineage-key drafts))
+        published (remove #(overridden (lineage-key %))
+                          (ds/documents doc-storage type lang limit offset))
+        head (if (zero? offset) drafts [])]
+    (mapv #(card doc-storage %) (concat head published))))
 
 (defn search-cards
   "Browse cards for documents of `type` in `lang` matching `q` (name or content). A blank `q` returns
-  no results. Not cached — the query runs per keystroke against the DB."
-  [doc-storage type lang q]
-  (if (str/blank? q) [] (mapv #(card doc-storage %) (db-doc/search-of-type type lang q 50))))
+  no results. Not cached — the query runs per keystroke against the DB. When `pub-cid` is given (the
+  caller's active publication), its matching drafts lead and replace the published version of any
+  lineage they supersede."
+  [doc-storage type lang q pub-cid]
+  (if (str/blank? q)
+    []
+    (let [drafts (when pub-cid (filterv #(matches? q %) (publication-drafts pub-cid type lang)))
+          overridden (set (map lineage-key drafts))
+          published (remove #(overridden (lineage-key %)) (db-doc/search-of-type type lang q 50))]
+      (mapv #(card doc-storage %) (concat drafts published)))))
 
 (defn publication-cards
   "Browse cards for the documents a publication gathers — the drafts whose `publication_id` is

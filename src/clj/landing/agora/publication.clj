@@ -16,24 +16,12 @@
   (:require
    [clojure.string            :as str]
    [landing.agora.db.document :as db-doc])
-  (:import (java.time Instant)
-           (java.time.temporal ChronoUnit)
-           (java.util UUID)))
-
-(def ^:private cid-alphabet "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+  (:import (java.util UUID)))
 
 (def ^:private lang-na
   "Placeholder for the NOT-NULL `lang` identity column: a publication has no content language, so its
   lang is `:zz` (ISO 639 private range) — never a real code, never read for resolution or display."
   :zz)
-
-(defn- gen-cid
-  "A random 10-char base62 cid — the opaque, stable lineage name, never derived from the title so a
-  rename never dangles a reference."
-  []
-  (apply str (repeatedly 10 #(rand-nth cid-alphabet))))
-
-(defn- now-iso [] (str (.truncatedTo (Instant/now) ChronoUnit/SECONDS)))
 
 (defn- view
   "Endpoint view of a publication: its stable cid as `:id` (references survive a rename), the
@@ -59,8 +47,8 @@
   status `:open`, `draft` while open, created outside any publication (no content language,
   `lang-na`). Reusable. Returns the view."
   [owner-id author title]
-  (let [cid (gen-cid)
-        now (now-iso)
+  (let [cid (db-doc/gen-cid)
+        now (db-doc/now-iso)
         title (if (str/blank? title) (str "publication" (inc (count-owned owner-id))) title)
         content {:title title
                  :status :open
@@ -86,16 +74,65 @@
   (some-> (db-doc/fetch-latest-any :publication cid)
           view))
 
-(defn list-open
-  "The `owner`'s open publications, newest first, optionally filtered by `q` (title substring)."
-  [owner q]
+(defn- next-content
+  "The publication's next-version content: carry title/status/author/owner-id from `pub`, stamp `now`,
+  apply `overrides`. Draft state is derived from its `:status` (`:open` ⇒ draft) by `version-row`."
+  [pub overrides now]
+  (merge (select-keys pub [:title :status :author :owner-id]) {:published-at now} overrides))
+
+(defn rename!
+  "Rename publication `cid` to `title` (a new minor) on behalf of `owner-id`. Returns the view, or
+  nil when the publication is unknown or not owned by `owner-id`."
+  [owner-id cid title]
+  (when-let [pub (db-doc/fetch-latest-any :publication cid)]
+    (when (= owner-id (:owner-id pub))
+      (let [now (db-doc/now-iso)
+            content (next-content pub {:title title} now)]
+        (db-doc/insert-next-minor! (db-doc/version-row pub
+                                                       {:content content
+                                                        :draft (= :open (:status content))
+                                                        :publication-id nil
+                                                        :published-at now}))
+        (view (assoc content :name cid))))))
+
+(defn publish!
+  "Publish publication `cid` on behalf of `owner-id`: flip every draft it gathers to published and
+  close the publication (a new minor, status `:closed`), atomically. Returns the closed view, or nil
+  when the publication is unknown, not owned by `owner-id`, or already closed."
+  [owner-id cid]
+  (when-let [pub (db-doc/fetch-latest-any :publication cid)]
+    (when (and (= owner-id (:owner-id pub)) (= :open (:status pub)))
+      (let [now (db-doc/now-iso)
+            content (next-content pub {:status :closed} now)]
+        (db-doc/publish-publication! cid
+                                     (db-doc/version-row pub
+                                                         {:content content
+                                                          :draft (= :open (:status content))
+                                                          :publication-id nil
+                                                          :published-at now}))
+        (view (assoc content :name cid))))))
+
+(defn delete!
+  "Delete open publication `cid` and the drafts it gathers, on behalf of `owner-id`. Returns `true`
+  on success, or nil when the publication is unknown, not owned by `owner-id`, or already closed."
+  [owner-id cid]
+  (when-let [pub (db-doc/fetch-latest-any :publication cid)]
+    (when (and (= owner-id (:owner-id pub)) (= :open (:status pub)))
+      (db-doc/delete-publication! cid)
+      true)))
+
+(defn list-visible
+  "Publications for the index, newest first, optionally filtered by `q` (title substring). `scope`
+  picks the set: `:mine` — those owned by `viewer`; `:all` — every publication. Both statuses show
+  (open drafts and closed, published ones), each view carrying its `:author`/`:author-id` so the
+  index can mark the viewer's own and link to the others'."
+  [viewer scope q]
   (let [q (some-> q
                   str/trim
                   str/lower-case)]
     (into []
           (comp (filter (fn [p]
-                          (and (= owner (:owner-id p))
-                               (= :open (:status p))
+                          (and (or (= scope :all) (= viewer (:owner-id p)))
                                (or (str/blank? q)
                                    (str/includes? (str/lower-case (str (:title p))) q)))))
                 (map view))

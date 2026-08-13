@@ -34,6 +34,15 @@
 
 (defn- uid [req] (get-in req [:session :user-id]))
 
+(defn- owned-publication
+  "The publication cid to scope a browse/search to — `cid` only when the caller owns it, else nil. The
+  active publication comes from the client, so a scoped view may never surface another owner's private
+  drafts."
+  [req cid]
+  (when (seq cid)
+    (when-let [p (db-doc/fetch-latest-any :publication cid)]
+      (when (= (:owner-id p) (uid req)) cid))))
+
 (defn- create-handler
   "Create a new document of `:type` owned by the caller (text-only). Body:
   `{:kind :title :text :lang :publication-id}` — created as a draft in the publication (required; 400
@@ -87,6 +96,19 @@
     {:status 401
      :body {:error "login required"}}))
 
+(defn- delete-handler
+  "Delete draft document `:id` (the caller's own, in a publication). Returns the publication cid so
+  the client can refresh it."
+  [req]
+  (if-let [editor (uid req)]
+    (if-let [pub-id (write/delete! editor (get-in req [:path-params :id]))]
+      {:status 200
+       :body {:publication-id pub-id}}
+      {:status 404
+       :body {:error "not found"}})
+    {:status 401
+     :body {:error "login required"}}))
+
 (defn document-routes
   "Document routes under `<prefix>` (the type in the path). Reads: `GET /:type?lang=&q=` (browse or
   search), `GET /:type/:name/:lang/:major` (permalink — latest published minor; `*` lang = the
@@ -102,14 +124,16 @@
     {:get {:handler
            (fn [req]
              (let [{:keys [type]} (get-in req [:parameters :path])
-                   {:keys [lang limit offset q]} (get-in req [:parameters :query])
-                   lang (or lang "fr")]
+                   {:keys [lang limit offset q publication]} (get-in req [:parameters :query])
+                   lang (or lang "fr")
+                   pub (owned-publication req publication)]
                {:status 200
-                :body (mapv
-                       serve
-                       (if (some? q)
-                         (engine/search-cards doc-storage type lang q)
-                         (engine/list-cards doc-storage type lang (or limit 20) (or offset 0))))}))
+                :body
+                (mapv
+                 serve
+                 (if (some? q)
+                   (engine/search-cards doc-storage type lang q pub)
+                   (engine/list-cards doc-storage type lang (or limit 20) (or offset 0) pub)))}))
            :operationId "agora-list-documents"
            :parameters {:path [:map [:type :string]]
                         :query [:map
@@ -120,7 +144,9 @@
                                 [:limit {:optional true}
                                  [:maybe :int]]
                                 [:offset {:optional true}
-                                 [:maybe :int]]]}
+                                 [:maybe :int]]
+                                [:publication {:optional true}
+                                 [:maybe :string]]]}
            :summary "Browse documents of a type, or search them with `?q=`"}
      :post {:handler (fn [req] (create-handler doc-storage req))
             :operationId "agora-create-document"
@@ -161,7 +187,10 @@
            :summary "A document by id"}
      :post {:handler (fn [req] (edit-handler doc-storage req))
             :operationId "agora-edit-document"
-            :summary "Edit a document into a new version (session required)"}}]
+            :summary "Edit a document into a new version (session required)"}
+     :delete {:handler delete-handler
+              :operationId "agora-delete-document"
+              :summary "Delete a draft document (owner-only)"}}]
    ["/:type/:id/versions"
     {:get {:handler (fn [req]
                       {:status 200

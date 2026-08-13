@@ -1,9 +1,9 @@
 (ns landing.agora.endpoints.publication
-  "Publications: open one, list the caller's open ones, fetch by id, rename, and list a publication's
-  documents. Opening requires a session; the publication is owned by the caller. Rename and the
-  drafts list arrive with the write path."
+  "Publications: open one, list them (the caller's own or every one), fetch by id, rename, publish
+  (close), and list a publication's documents. All mutations require a session and are owner-only."
   (:require
    [landing.agora.auth                :as auth]
+   [landing.agora.document.cached-db  :as cached-db]
    [landing.agora.document.engine     :as engine]
    [landing.agora.publication         :as publication]
    [muuntaja.core                     :as m]
@@ -28,12 +28,14 @@
     {:status 401
      :body {:error "login required"}}))
 
-(defn- list-mine
-  "The caller's open publications, optionally filtered by `?q=`."
+(defn- list-visible
+  "Publications for the index, optionally filtered by `?q=`. `?scope=all` lists every publication;
+  any other value (default) lists the caller's own."
   [req]
   (if-let [id (uid req)]
-    {:status 200
-     :body (publication/list-open id (get-in req [:query-params "q"]))}
+    (let [scope (if (= "all" (get-in req [:query-params "scope"])) :all :mine)]
+      {:status 200
+       :body (publication/list-visible id scope (get-in req [:query-params "q"]))})
     {:status 401
      :body {:error "login required"}}))
 
@@ -51,20 +53,55 @@
   {:status 200
    :body (engine/publication-cards doc-storage (get-in req [:path-params :id]))})
 
-(defn- todo
-  "Not wired yet (rename — arrives with the edit write path)."
-  [_req]
-  {:status 501
-   :body {:error "not implemented"}})
+(defn- rename
+  "Rename a publication (owner-only). Body `{:title}`."
+  [req]
+  (if-let [id (uid req)]
+    (if-let [p (publication/rename! id
+                                    (get-in req [:path-params :id])
+                                    (get-in req [:body-params :title]))]
+      {:status 200
+       :body p}
+      {:status 404
+       :body {:error "not found"}})
+    {:status 401
+     :body {:error "login required"}}))
+
+(defn- publish
+  "Publish (close) a publication (owner-only): its gathered drafts go public, the publication closes.
+  Clears the read caches so the newly-published documents surface."
+  [req]
+  (if-let [id (uid req)]
+    (if-let [p (publication/publish! id (get-in req [:path-params :id]))]
+      (do (cached-db/clear!)
+          {:status 200
+           :body p})
+      {:status 404
+       :body {:error "not found or already closed"}})
+    {:status 401
+     :body {:error "login required"}}))
+
+(defn- delete
+  "Delete an open publication and the drafts it gathers (owner-only). Clears the read caches."
+  [req]
+  (if-let [id (uid req)]
+    (if (publication/delete! id (get-in req [:path-params :id]))
+      (do (cached-db/clear!)
+          {:status 200
+           :body {:ok true}})
+      {:status 404
+       :body {:error "not found or already closed"}})
+    {:status 401
+     :body {:error "login required"}}))
 
 (defn publication-routes
   [doc-storage prefix]
   [prefix {:muuntaja m/instance
            :middleware mw}
    [""
-    {:get {:handler list-mine
+    {:get {:handler list-visible
            :operationId "agora-publications-search"
-           :summary "List the caller's open publications"}
+           :summary "List publications (scope=all for every publication, else the caller's own)"}
      :post {:handler create
             :operationId "agora-publication-create"
             :summary "Open a publication"}}]
@@ -72,9 +109,16 @@
     {:get {:handler fetch
            :operationId "agora-publication"
            :summary "Fetch a publication by id"}
-     :put {:handler todo
+     :put {:handler rename
            :operationId "agora-publication-rename"
-           :summary "Rename a publication"}}]
+           :summary "Rename a publication (owner-only)"}
+     :delete {:handler delete
+              :operationId "agora-publication-delete"
+              :summary "Delete an open publication and its drafts (owner-only)"}}]
+   ["/:id/publish"
+    {:post {:handler publish
+            :operationId "agora-publication-publish"
+            :summary "Publish (close) a publication — its drafts go public (owner-only)"}}]
    ["/:id/documents"
     {:get {:handler (partial documents doc-storage)
            :operationId "agora-publication-documents"
