@@ -23,8 +23,11 @@
                                   :results []})}
                      {:db (assoc-in db [::search :q] q)
                       :fetch {:method :get
-                              :url (str "/agora/api/documents/ki?lang=" (i18n/current db)
-                                        "&q=" (js/encodeURIComponent q))
+                              :url (str "/agora/api/documents/ki?lang="
+                                        (i18n/current db)
+                                        "&q="
+                                        (js/encodeURIComponent q)
+                                        (publications/active-param db))
                               :headers {"Accept" "application/json"}
                               :response-content-types {#"application/json" :json}
                               :on-success [::search-ok]
@@ -132,9 +135,9 @@
         ;; Publications is authoring, so only for a logged-in user
         (when @(rf/subscribe [::auth/user])
           (link (i18n/t lang :nav/publications) (i18n/publications lang)))])
+     [publications/active-chip]
      [:div {:class "agora-header__search"}
       [search-box]]
-     [publications/active-chip]
      [:div {:class "agora-header__auth"}
       [auth/auth-controls]]]))
 

@@ -271,7 +271,7 @@
   [db lang view-kind]
   {:db (assoc db :loading? true :error nil)
    :fetch {:method :get
-           :url (str "/agora/api/documents/ki?lang=" lang)
+           :url (str "/agora/api/documents/ki?lang=" lang (publications/active-param db))
            :headers {"Accept" "application/json"}
            :response-content-types {#"application/json" :json}
            :on-success [::fetch-list-ok view-kind]
@@ -290,7 +290,7 @@
   [db lang]
   {:db (assoc db :loading? true :error nil)
    :fetch {:method :get
-           :url (str "/agora/api/documents/article?lang=" lang)
+           :url (str "/agora/api/documents/article?lang=" lang (publications/active-param db))
            :headers {"Accept" "application/json"}
            :response-content-types {#"application/json" :json}
            :on-success [::fetch-articles-ok]
@@ -407,6 +407,19 @@
        :article-public (route-changed-fetch-article-public db name major lang)
        :author (route-changed-fetch-author db id (i18n/current db))
        (route-changed-fetch db kind id)))))
+
+(rf/reg-event-fx ::refetch-scoped
+                 (fn [{:keys [db]} _]
+                   ;; the active publication changed — re-run whatever scoped list/search is showing so its draft
+                   ;; overlay updates without a navigation. Dispatched by `publications/set-active`+`clear-active`.
+                   (let [q (get-in db [::chrome/search :q])
+                         base (case (:kind (:view db))
+                                :home (route-changed-fetch-list db (i18n/current db) :home)
+                                :discover (route-changed-fetch-list db (i18n/current db) :discover)
+                                :articles (route-changed-fetch-article-list db (i18n/current db))
+                                nil)]
+                     (cond-> (or base {})
+                       (seq q) (assoc :dispatch [::chrome/search-input q])))))
 
 (rf/reg-event-db ::fetch-ok
                  (fn [db [_ kind _id response]]
