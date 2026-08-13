@@ -9,8 +9,10 @@
   `type-definitions.edn`); each language is a sibling KI sharing the `type-<kind>` name
   (translation-by-name), so a reader gets the definition in their own language.
 
-  Self-contained: a type-definition has no inputs, so it is written with one direct INSERT
-  (empty pins, no publication) rather than through the general write path.
+  The type definitions are gathered in one published publication, `vocabulaire-des-types`, so
+  the vocabulary carries the same provenance any authored document does — a closed work-package
+  the KIs point at. Each type KI is written with one direct INSERT (empty pins, this publication)
+  rather than through the general write path, since a type-definition has no inputs.
 
   Lives in the `env/seed` environment (not `src`), added to the classpath by the
   `:env-seed` alias. Dev points at the shared **production** MySQL, so run it from a
@@ -39,6 +41,14 @@
   (translation-by-name)."
   ["fr" "en"])
 
+(def ^:private pub-cid
+  "Stable cid of the publication gathering the type vocabulary — readable, like the type slugs."
+  "vocabulaire-des-types")
+
+(def ^:private pub-lang
+  "A publication has no content language; its NOT-NULL `lang` column holds the neutral placeholder."
+  "zz")
+
 (defn- now-iso
   "Current UTC instant as a sortable second-resolution ISO-8601 string (matches `published_at`)."
   []
@@ -56,15 +66,41 @@
      major
      lang])))
 
+(defn- ensure-publication!
+  "Insert the closed `vocabulaire-des-types` publication if it is absent, owned by the \"Agora\"
+  person. Idempotent: a re-run leaves an existing one untouched. The vocabulary is published, so the
+  publication is `:closed` (draft 0)."
+  [author owner-id published-at]
+  (when-not (jdbc/execute-one!
+             db/ds
+             ["SELECT 1 FROM AGORA_DOCUMENT WHERE type = 'publication' AND name = ? LIMIT 1"
+              pub-cid])
+    (jdbc/execute!
+     db/ds
+     ["INSERT INTO AGORA_DOCUMENT
+         (id, type, name, lang, major, minor, draft, content, computed, published_at)
+       VALUES (?, 'publication', ?, ?, 1, 0, 0, ?, ?, ?)"
+      (str (UUID/randomUUID))
+      pub-cid
+      pub-lang
+      (pr-str {:title "Vocabulaire des types"
+               :status :closed
+               :author author
+               :owner-id owner-id
+               :published-at published-at})
+      (pr-str {:pins []})
+      published-at])))
+
 (defn- insert!
-  "Insert one published `definition` KI directly: immutable `content`, empty `:pins`, no
-  publication. A type-definition has no inputs, so nothing to pin and no successor edge."
+  "Insert one published `definition` KI directly, gathered in the `vocabulaire-des-types` publication:
+  immutable `content`, empty `:pins`. A type-definition has no inputs, so nothing to pin and no
+  successor edge."
   [{:keys [slug lang major title statement author owner-id published-at]}]
   (jdbc/execute!
    db/ds
    ["INSERT INTO AGORA_DOCUMENT
-       (id, type, name, lang, major, minor, draft, content, computed, published_at)
-     VALUES (?, 'ki', ?, ?, ?, 0, 0, ?, ?, ?)"
+       (id, type, name, lang, major, minor, draft, content, computed, published_at, publication_id)
+     VALUES (?, 'ki', ?, ?, ?, 0, 0, ?, ?, ?, ?)"
     (str (UUID/randomUUID))
     slug
     lang
@@ -77,7 +113,8 @@
              :owner-id owner-id
              :published-at published-at})
     (pr-str {:pins {}})
-    published-at]))
+    published-at
+    pub-cid]))
 
 (defn seed!
   "Insert a `definition` KI for every epistemic kind that doesn't yet have one, owned by the
@@ -86,6 +123,7 @@
   []
   (let [agora (auth/find-or-create-external! "Agora")
         now (now-iso)
+        _ (ensure-publication! (:display-name agora) (:id agora) now)
         created (doall (for [{kw :id} dk/kinds
                              lang langs
                              :let [{slug :name
@@ -113,5 +151,7 @@
   (doseq [{kw :id} dk/kinds
           :let [{slug :name} (get dk/kind-def kw)]]
     (jdbc/execute! db/ds ["DELETE FROM AGORA_DOCUMENT WHERE type = 'ki' AND name = ?" slug]))
+  (jdbc/execute! db/ds
+                 ["DELETE FROM AGORA_DOCUMENT WHERE type = 'publication' AND name = ?" pub-cid])
   (dcd/clear!)
   (seed!))

@@ -85,6 +85,7 @@
                    :margin "0.2em 0 0.1em"}}
       title]
      [byline attributed-author published-at attributed-author-id]
+     [dv/publication-ref lang (:publication doc)]
      ;; a draft the owner is viewing gets a Publish banner, right above the body
      [edit/publish-action doc]
      [:div {:style {:font-size "1.05em"
