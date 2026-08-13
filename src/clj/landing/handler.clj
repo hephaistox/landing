@@ -119,6 +119,8 @@
    ;; one browse feed for every document type — the SPA reads `:type` (ki | article | source)
    ["/documents/:type" public-shell-route]
    ["/discover" public-shell-route]
+   ["/articles" public-shell-route]
+   ["/sources" public-shell-route]
    ["/preferences" public-shell-route]
    ["/authors" public-shell-route]
    ["/publications" app-shell-route]
