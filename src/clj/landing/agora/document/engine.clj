@@ -7,6 +7,7 @@
    [landing.agora.document.identity :as di]
    [landing.agora.document.kind     :as dk]
    [landing.agora.document.storage  :as ds]
+   [landing.agora.publication       :as publication]
    [landing.agora.source            :as source]))
 
 (defn- resolve-source
@@ -19,13 +20,12 @@
 
 (defn- resolve-publication
   "Resolve a document's `publication-id` (a cid) to `{:id :title :status}` — the work-package it
-  belongs to, so the reader can open it. nil when there is none."
+  belongs to, so the reader can open it. Reads through `publication/fetch` (cached). nil when there
+  is none."
   [pub-cid]
-  (when pub-cid
-    (when-let [p (db-doc/fetch-latest-any :publication pub-cid)]
-      {:id pub-cid
-       :title (:title p)
-       :status (:status p)})))
+  (some-> pub-cid
+          publication/fetch
+          (select-keys [:id :title :status])))
 
 (defn- split-inputs
   "Split resolved input refs into `{:inputs :cites}`. A `kind=source` input is a cite — an

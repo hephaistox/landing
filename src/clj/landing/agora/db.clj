@@ -51,5 +51,8 @@
                             :idleTimeout 30000       ; reap an idle connection after 30s → back to 0
                             :keepaliveTime 25000     ; ping a live connection every 25s so it stays valid
                             :maxLifetime 120000      ; recycle a connection after 2 min (< addon wait_timeout)
+                            ;; log the borrow-site stacktrace when a connection is held past 20s — well
+                            ;; above any real query, so it fires only on a genuine leak, never normal use
+                            :leakDetectionThreshold 20000
                             :initializationFailTimeout -1}) ; don't fail startup if the DB is momentarily down
  :stop (.close ^HikariDataSource ds))

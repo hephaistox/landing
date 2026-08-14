@@ -15,6 +15,7 @@
   objection) will open one automatically."
   (:require
    [clojure.string            :as str]
+   [landing.agora.cache       :as cache]
    [landing.agora.db.document :as db-doc])
   (:import (java.util UUID)))
 
@@ -68,11 +69,22 @@
                      :publication-id nil})
     (view (assoc content :name cid))))
 
-(defn fetch
-  "The publication lineage `cid` (its latest minor, drafts included) as a view, or nil."
+(defn- load-view
+  "Cache loader: publication `cid` → its view (latest minor, drafts included), or nil."
   [cid]
   (some-> (db-doc/fetch-latest-any :publication cid)
           view))
+
+(def ^:private view-cache
+  "cid → publication view. A publication is resolved on every document read (its provenance link), so
+  this fronts those lookups; `rename!`/`publish!`/`delete!` evict the mutated cid."
+  (cache/loading 10000 load-view))
+
+(defn fetch
+  "The publication `cid` as a view (its latest minor, drafts included), cached. nil for an unknown
+  cid."
+  [cid]
+  (when cid (cache/fetch view-cache cid)))
 
 (defn- next-content
   "The publication's next-version content: carry title/status/author/owner-id from `pub`, stamp `now`,
@@ -93,6 +105,7 @@
                                                         :draft (= :open (:status content))
                                                         :publication-id nil
                                                         :published-at now}))
+        (cache/evict! view-cache cid)
         (view (assoc content :name cid))))))
 
 (defn publish!
@@ -110,6 +123,7 @@
                                                           :draft (= :open (:status content))
                                                           :publication-id nil
                                                           :published-at now}))
+        (cache/evict! view-cache cid)
         (view (assoc content :name cid))))))
 
 (defn delete!
@@ -119,6 +133,7 @@
   (when-let [pub (db-doc/fetch-latest-any :publication cid)]
     (when (and (= owner-id (:owner-id pub)) (= :open (:status pub)))
       (db-doc/delete-publication! cid)
+      (cache/evict! view-cache cid)
       true)))
 
 (defn list-visible
