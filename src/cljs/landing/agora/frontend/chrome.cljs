@@ -45,8 +45,12 @@
         ;; Publications is authoring, so only for a logged-in user
         (when @(rf/subscribe [::auth/user])
           (link (i18n/t lang :nav/publications) (i18n/publications lang)))])
-     [publications/active-chip]
-     [:div {:class "agora-header__auth"}
+     ;; active-publication chip + profile, grouped to the right edge of the header
+     [:div {:style {:margin-left "auto"
+                    :display "flex"
+                    :align-items "center"
+                    :gap "0.6em"}}
+      [publications/active-chip]
       [auth/auth-controls]]]))
 
 (def ^:private footer-legal
