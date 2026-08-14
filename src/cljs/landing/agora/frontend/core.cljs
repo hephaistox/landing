@@ -265,13 +265,14 @@
                                 :loading? false)))))
 
 (defn- route-changed-fetch-list
-  "Fetch the KI list (GET /agora/api/documents/ki?lang=), scoped to the current content language,
-  for the given `view-kind` (`:home` landing or `:discover` grid). Not cached — each
-  visit re-fetches so the visit-weighted random order refreshes."
-  [db lang view-kind]
+  "Fetch the browse list for document `type` (`:ki` / `:article`), scoped to the content `lang` and
+  the active publication, and store it under `view-kind` (`:home` landing, `:discover` / `:articles`
+  grid). Not cached — each visit re-fetches so the visit-weighted random order refreshes."
+  [db lang type view-kind]
   {:db (assoc db :loading? true :error nil)
    :fetch {:method :get
-           :url (str "/agora/api/documents/ki?lang=" lang (publications/active-param db))
+           :url
+           (str "/agora/api/documents/" (name type) "?lang=" lang (publications/active-param db))
            :headers {"Accept" "application/json"}
            :response-content-types {#"application/json" :json}
            :on-success [::fetch-list-ok view-kind]
@@ -281,25 +282,6 @@
                  (fn [db [_ view-kind response]]
                    (assoc db
                           :view {:kind view-kind
-                                 :data (mapv kw-kind (:body response))}
-                          :loading? false)))
-
-(defn- route-changed-fetch-article-list
-  "Fetch the article discover list (GET /agora/api/documents/article?lang=). Not cached, like the
-  KI discover list."
-  [db lang]
-  {:db (assoc db :loading? true :error nil)
-   :fetch {:method :get
-           :url (str "/agora/api/documents/article?lang=" lang (publications/active-param db))
-           :headers {"Accept" "application/json"}
-           :response-content-types {#"application/json" :json}
-           :on-success [::fetch-articles-ok]
-           :on-failure [::fetch-failed]}})
-
-(rf/reg-event-db ::fetch-articles-ok
-                 (fn [db [_ response]]
-                   (assoc db
-                          :view {:kind :articles
                                  :data (mapv kw-kind (:body response))}
                           :loading? false)))
 
@@ -385,9 +367,9 @@
                                 :error nil)
                      :dispatch [::publications/load-page id]}
        :ki-public (route-changed-fetch-public db name major lang)
-       :home (route-changed-fetch-list db (i18n/current db) :home)
-       :discover (route-changed-fetch-list db (i18n/current db) :discover)
-       :articles (route-changed-fetch-article-list db (i18n/current db))
+       :home (route-changed-fetch-list db (i18n/current db) :ki :home)
+       :discover (route-changed-fetch-list db (i18n/current db) :ki :discover)
+       :articles (route-changed-fetch-list db (i18n/current db) :article :articles)
        ;; the browse-by-author / browse-by-source views self-fetch (local search state)
        :authors {:db (assoc db
                             :view {:kind :authors
@@ -408,18 +390,19 @@
        :author (route-changed-fetch-author db id (i18n/current db))
        (route-changed-fetch db kind id)))))
 
-(rf/reg-event-fx ::refetch-scoped
-                 (fn [{:keys [db]} _]
-                   ;; the active publication changed — re-run whatever scoped list/search is showing so its draft
-                   ;; overlay updates without a navigation. Dispatched by `publications/set-active`+`clear-active`.
-                   (let [q (get-in db [::chrome/search :q])
-                         base (case (:kind (:view db))
-                                :home (route-changed-fetch-list db (i18n/current db) :home)
-                                :discover (route-changed-fetch-list db (i18n/current db) :discover)
-                                :articles (route-changed-fetch-article-list db (i18n/current db))
-                                nil)]
-                     (cond-> (or base {})
-                       (seq q) (assoc :dispatch [::chrome/search-input q])))))
+(rf/reg-event-fx
+ ::refetch-scoped
+ (fn [{:keys [db]} _]
+   ;; the active publication changed — re-run whatever scoped list/search is showing so its draft
+   ;; overlay updates without a navigation. Dispatched by `publications/set-active`+`clear-active`.
+   (let [q (get-in db [::chrome/search :q])
+         base (case (:kind (:view db))
+                :home (route-changed-fetch-list db (i18n/current db) :ki :home)
+                :discover (route-changed-fetch-list db (i18n/current db) :ki :discover)
+                :articles (route-changed-fetch-list db (i18n/current db) :article :articles)
+                nil)]
+     (cond-> (or base {})
+       (seq q) (assoc :dispatch [::chrome/search-input q])))))
 
 (rf/reg-event-db ::fetch-ok
                  (fn [db [_ kind _id response]]

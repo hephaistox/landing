@@ -812,20 +812,72 @@
                      :border-radius "0.25em"}}
       (i18n/t @(rf/subscribe [::i18n/lang]) (keyword "type" type))])))
 
+(defn- card-href
+  "The link a discover card points at, from the node's own `:type`: a publication opens its page; a
+  draft document resolves only by its exact-version URL; anything else by its public permalink."
+  [lang node]
+  (cond
+    (= "publication" (name (:type node))) (i18n/publication lang (:id node))
+    (:draft node) (i18n/doc-url lang (:type node) (:id node))
+    :else (permalink lang node)))
+
+(defn card-status-badge
+  "A small labelled chip for a node that carries a `:status` (a publication — open / closed), the same
+  role a `kind`/`type` badge plays for a document. Renders nothing without a `:status`."
+  [lang status]
+  (when status
+    (let [closed? (= "closed" (name status))]
+      [:span {:title (i18n/t lang (if closed? :pub/status-closed-hint :pub/status-open-hint))
+              :style {:font-size "0.62em"
+                      :font-weight 700
+                      :letter-spacing "0.05em"
+                      :text-transform "uppercase"
+                      :padding "0.2em 0.6em"
+                      :border-radius "0.25em"
+                      :color (if closed? "#1d6b2f" "#8a5a00")
+                      :background (if closed? "#dff3e2" "#fff3d6")}}
+       (i18n/t lang (if closed? :pub/status-closed :pub/status-open))])))
+
+(defn card-author
+  "A card's byline person, copper: a source KI shows its cited author; otherwise the document's own
+  attributed author (or a publication's `:author`), with a `(You)` marker when it is the viewer's."
+  [lang node]
+  (let [src-author (:author-name (:source node))
+        author (or (:attributed-author node) (:author node))
+        author-id (or (:attributed-author-id node) (:author-id node))
+        you? (and author-id (= author-id (:id @(rf/subscribe [::auth/user]))))]
+    (cond
+      src-author [:span {:title (i18n/t lang :card/cites)}
+                  "📖 "
+                  [:span {:style {:color "#b9770e"
+                                  :font-weight 600}}
+                   src-author]]
+      author [:span
+              [:span {:style {:font-style "italic"}}
+               (str (i18n/t lang :card/by) " ")]
+              [:span {:style {:color "#b9770e"
+                              :font-weight 600}}
+               author]
+              (when you?
+                [:span {:style {:color "#999"}}
+                 (str " " (i18n/t lang :byline/you))])])))
+
 (defn discover-card
-  "A preview card for a document in a discover grid: its badge (a kind badge, or a neutral
-  type chip), version, title, an excerpt of its text (citations flattened, clamped so the
-  grid stays even), and the publication date."
+  "A preview card for a node in a discover grid: its badge (a kind badge, a status chip for a
+  publication, or a neutral type chip), version, title, an excerpt of its text (when it has any,
+  citations flattened and clamped so the grid stays even), the byline author, and the date. Field-
+  driven, so KIs, articles and publications all render through it."
   [lang node]
   ;; prepend the kind-guided opening (derived, not stored) so the card reads as the full
   ;; statement ("Sun Tzŭ holds that …") — nil for the free-form `inference` kind. Citations
   ;; are flattened to the cited KI's title (`:cite-titles`, since names are opaque cids).
   (let [titles (into {} (map (juxt :name :title)) (:cite-titles node))
+        text (cite/node-text node)
         ;; prefix in the card's CONTENT language (`:lang node`), not the reader's interface lang
-        excerpt (str (dk/statement-prefix-of node (keyword (:lang node)))
-                     (cite/plain-text (cite/node-text node) titles))]
-    [:a {;; a draft doesn't resolve by permalink — link it by its exact-version URL
-         :href (if (:draft node) (i18n/doc-url lang (:type node) (:id node)) (permalink lang node))
+        excerpt (when (seq text)
+                  (str (dk/statement-prefix-of node (keyword (:lang node)))
+                       (cite/plain-text text titles)))]
+    [:a {:href (card-href lang node)
          :style {:display "flex"
                  :flex-direction "column"
                  :gap "0.55em"
@@ -841,7 +893,8 @@
                     :align-items "center"
                     :gap "0.5em"}}
       [doc-badge node]
-      [version-tag (:major node) (:minor node)]
+      [card-status-badge lang (:status node)]
+      (when (:major node) [version-tag (:major node) (:minor node)])
       (when (:draft node)
         [:span {:style {:font-size "0.62em"
                         :font-weight 700
@@ -858,15 +911,16 @@
                     :line-height 1.25
                     :color "#2a2723"}}
       (:title node)]
-     [:div {:style {:font-size "0.9em"
-                    :line-height 1.4
-                    :color "#555"
-                    :white-space "pre-wrap"
-                    :display "-webkit-box"
-                    :-webkit-line-clamp 5
-                    :-webkit-box-orient "vertical"
-                    :overflow "hidden"}}
-      excerpt]
+     (when excerpt
+       [:div {:style {:font-size "0.9em"
+                      :line-height 1.4
+                      :color "#555"
+                      :white-space "pre-wrap"
+                      :display "-webkit-box"
+                      :-webkit-line-clamp 5
+                      :-webkit-box-orient "vertical"
+                      :overflow "hidden"}}
+        excerpt])
      ;; author and date on one line: author left, compact date pushed to the right
      [:div {:style {:margin-top "auto"
                     :color "#888"
@@ -874,22 +928,7 @@
                     :display "flex"
                     :align-items "baseline"
                     :gap "0.5em"}}
-      (let [src-author (:author-name (:source node))]
-        (if src-author
-          ;; a source KI → show its own cited author (never a citing KI's cited source)
-          [:span {:title (i18n/t lang :card/cites)}
-           "📖 "
-           [:span {:style {:color "#b9770e"
-                           :font-weight 600}}
-            src-author]]
-          ;; no source → the byline author is this document's own (original) author
-          (when-let [a (:attributed-author node)]
-            [:span
-             [:span {:style {:font-style "italic"}}
-              (str (i18n/t lang :card/by) " ")]
-             [:span {:style {:color "#b9770e"
-                             :font-weight 600}}
-              a]])))
+      [card-author lang node]
       ;; compact date (Today / Yesterday / DD/MM / DD/MM/YYYY)
       [:span {:style {:margin-left "auto"
                       :white-space "nowrap"}}
@@ -935,6 +974,16 @@
        :aria-label label}
    "+"])
 
+(defn card-grid
+  "The responsive grid of discover cards for `items`, with an optional trailing element `tail` (e.g.
+  an add-card). The shared browse layout — KIs, articles and publications lay out identically."
+  [lang items tail]
+  (into [:div {:style {:display "grid"
+                       :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
+                       :gap "0.9em"}}]
+        (cond-> (mapv (fn [it] ^{:key (:id it)} [discover-card lang it]) items)
+          tail (conj ^{:key "__tail__"} tail))))
+
 (defn discover-grid
   "A responsive discover grid of preview cards for `:items`, ending with a `+` add-card and
   a mobile FAB pointing at `(new-href-fn lang)`. `:heading-key` is optional (omitted when
@@ -978,11 +1027,7 @@
      [:p {:style {:color "#666"
                   :margin "0 0 0.6em"}}
       (i18n/t lang tagline-key)]
-     (into [:div {:style {:display "grid"
-                          :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
-                          :gap "0.9em"}}]
-           (conj (mapv (fn [it] ^{:key (:id it)} [discover-card lang it]) items)
-                 ^{:key "__add__"} [add-card new-href new-label]))
+     [card-grid lang items [add-card new-href new-label]]
      [fab new-href new-label]]))
 
 (defn language-selector

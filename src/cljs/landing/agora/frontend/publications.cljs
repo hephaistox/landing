@@ -259,19 +259,6 @@
 
 ;; --- components ------------------------------------------------------------
 
-(def ^:private item-style
-  {:display "block"
-   :width "100%"
-   :box-sizing "border-box"
-   :text-align "left"
-   :text-decoration "none"
-   :padding "0.55em 0.7em"
-   :border "1px solid #e0d6c2"
-   :border-radius "0.35em"
-   :background "#fff"
-   :color "#333"
-   :font-size "0.95em"})
-
 (def ^:private new-title-id "pub-new-title")
 
 (defn- search-or-create
@@ -339,62 +326,16 @@
      (btn :mine (i18n/t lang :pub/scope-mine))
      (btn :all (i18n/t lang :pub/scope-all))]))
 
-(defn- status-badge
-  "A small labelled chip saying whether a publication is published (closed) or still in progress
-  (open) — the same colours as the publication page's status pill, sized for a list row."
-  [lang closed?]
-  [:span {:title (i18n/t lang (if closed? :pub/status-closed-hint :pub/status-open-hint))
-          :style {:flex "none"
-                  :padding "0.1em 0.5em"
-                  :font-size "0.7em"
-                  :font-weight 700
-                  :letter-spacing "0.03em"
-                  :text-transform "uppercase"
-                  :border-radius "1em"
-                  :color (if closed? "#1d6b2f" "#8a5a00")
-                  :background (if closed? "#dff3e2" "#fff3d6")}}
-   (i18n/t lang (if closed? :pub/status-closed :pub/status-open))])
-
-(defn- pub-row
-  "One publication in the index: a published/in-progress status badge, the title, and the author with
-  a `(You)` marker for the viewer's own. Links to the publication's page."
-  [lang me p]
-  (let [closed? (= "closed"
-                   (some-> (:status p)
-                           name))
-        you? (and me (= me (:author-id p)))]
-    [:a {:href (i18n/publication lang (:id p))
-         :style item-style}
-     [:span {:style {:display "flex"
-                     :align-items "center"
-                     :gap "0.55em"}}
-      [status-badge lang closed?]
-      [:span {:style {:font-weight 600
-                      :color "#333"}}
-       (:title p)]
-      [:span {:style {:margin-left "auto"
-                      :font-size "0.82em"
-                      :white-space "nowrap"}}
-       [:span {:style {:font-style "italic"
-                       :color "#999"}}
-        (str (i18n/t lang :card/by) " ")]
-       [:span {:style {:color "#b9770e"
-                       :font-weight 600}}
-        (:author p)]
-       (when you?
-         [:span {:style {:color "#999"}}
-          (str " " (i18n/t lang :byline/you))])]]]))
-
 (defn publications-page
-  "The publications index: a scope filter (yours / all), a create-by-title control + a mobile FAB,
-  then the publications in scope — open and published — each linking to its page. Logged-in only (the
-  header entry that leads here is gated too)."
+  "The publications index: a scope filter (yours / all) and a create-by-title control, then the
+  publications in scope — open and published — as the shared discover grid of cards (each a
+  publication card, driven by its `:type`/`:status`), plus a mobile FAB. Logged-in only (the header
+  entry that leads here is gated too)."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
         pubs @(rf/subscribe [::results])
-        scope @(rf/subscribe [::scope])
-        me (:id @(rf/subscribe [::auth/user]))]
-    [:div {:style {:max-width "56em"
+        scope @(rf/subscribe [::scope])]
+    [:div {:style {:max-width "72em"
                    :margin "1.5em auto"
                    :padding "0 0.8em"
                    :font-family "system-ui, sans-serif"}}
@@ -407,10 +348,7 @@
      [scope-filter lang scope]
      [search-or-create lang pubs]
      (if (seq pubs)
-       (into [:div {:style {:display "grid"
-                            :grid-template-columns "repeat(auto-fill, minmax(22em, 1fr))"
-                            :gap "0.5em"}}]
-             (for [p pubs] ^{:key (:id p)} [pub-row lang me p]))
+       [dv/card-grid lang pubs nil]
        [:p {:style {:color "#aaa"}}
         (i18n/t lang :pub/none)])
      [create-fab lang]]))

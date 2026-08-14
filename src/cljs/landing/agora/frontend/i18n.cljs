@@ -80,6 +80,7 @@
     :articles/empty "Aucun article pour l'instant."
     :type/article "Article"
     :type/source "Source"
+    :type/publication "Publication"
     :landing/headline "Agora, la place publique du raisonnement"
     :landing/subtitle
     "Agora est un graphe public d'étapes de raisonnement contestables — chaque affirmation traçable jusqu'aux étapes qui la fondent, chaque terme jusqu'à sa définition."
@@ -398,6 +399,7 @@
     :articles/empty "No articles yet."
     :type/article "Article"
     :type/source "Source"
+    :type/publication "Publication"
     :landing/headline "Agora, the public square for reasoning"
     :landing/subtitle
     "Agora is a public graph of challengeable reasoning steps — every claim traceable to the steps it stands on, every term to its definition."
