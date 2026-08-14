@@ -81,6 +81,10 @@
     :type/article "Article"
     :type/source "Source"
     :type/publication "Publication"
+    :filter/mine "Les miennes"
+    :filter/all "Toutes"
+    :filter/author-ph "Auteur…"
+    :filter/search-ph "Rechercher…"
     :landing/headline "Agora, la place publique du raisonnement"
     :landing/subtitle
     "Agora est un graphe public d'étapes de raisonnement contestables — chaque affirmation traçable jusqu'aux étapes qui la fondent, chaque terme jusqu'à sa définition."
@@ -400,6 +404,10 @@
     :type/article "Article"
     :type/source "Source"
     :type/publication "Publication"
+    :filter/mine "Mine"
+    :filter/all "All"
+    :filter/author-ph "Author…"
+    :filter/search-ph "Search…"
     :landing/headline "Agora, the public square for reasoning"
     :landing/subtitle
     "Agora is a public graph of challengeable reasoning steps — every claim traceable to the steps it stands on, every term to its definition."

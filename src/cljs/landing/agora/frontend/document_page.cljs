@@ -937,6 +937,69 @@
                            (i18n/t lang :date/yesterday))
            "—")]]]))
 
+;; --- shared browse filter (scope / author / q) — narrows a grid client-side, like the author page.
+(rf/reg-sub ::browse-filter (fn [db _] (:agora/browse-filter db {:scope :all})))
+(rf/reg-event-db ::set-filter (fn [db [_ k v]] (assoc-in db [:agora/browse-filter k] v)))
+
+(defn- passes-filter?
+  "True when `node` clears the browse `filter` {:scope :author :q} for `viewer-id`: `:mine` keeps only
+  the viewer's own; `:author` a name substring on the byline; `:q` a substring of title/text/author."
+  [viewer-id {:keys [scope author q]} node]
+  (let [owner (or (:attributed-author-id node) (:author-id node))
+        ;; match what the card shows as the byline: a cited source's author first (card-author)
+        author-name (or (:author-name (:source node)) (:attributed-author node) (:author node) "")
+        hay (str/lower-case (str (:title node) " " (:text node) " " author-name))]
+    (and (or (not= scope :mine) (and viewer-id (= viewer-id owner)))
+         (or (str/blank? author)
+             (str/includes? (str/lower-case author-name) (str/lower-case author)))
+         (or (str/blank? q) (str/includes? hay (str/lower-case q))))))
+
+(defn filter-items
+  "Narrow `items` by the current browse filter for the signed-in viewer — the client-side counterpart
+  of the shared `filter-bar`."
+  [items]
+  (let [f @(rf/subscribe [::browse-filter])
+        viewer-id (:id @(rf/subscribe [::auth/user]))]
+    (filterv #(passes-filter? viewer-id f %) items)))
+
+(defn filter-bar
+  "The shared browse filter bar above a grid: a scope toggle (mine / all), an author-name field and a
+  text field. Drives the shared `:agora/browse-filter`; `filter-items` applies it. Used by every
+  browse surface so KIs, articles and publications filter identically."
+  [lang]
+  (let [{:keys [scope author q]} @(rf/subscribe [::browse-filter])
+        toggle (fn [v label] [:button {:on-click #(rf/dispatch [::set-filter :scope v])
+                                       :style {:border "1px solid #b9770e"
+                                               :background (if (= scope v) "#b9770e" "#fff")
+                                               :color (if (= scope v) "#fff" "#b9770e")
+                                               :border-radius "0.35em"
+                                               :padding "0.3em 0.75em"
+                                               :font-size "0.82em"
+                                               :font-weight 600
+                                               :cursor "pointer"}}
+                              label])
+        field (fn [k value ph] [:input {:type "text"
+                                        :value (or value "")
+                                        :placeholder (i18n/t lang ph)
+                                        :on-change #(rf/dispatch
+                                                     [::set-filter k (.. % -target -value)])
+                                        :style {:padding "0.35em 0.6em"
+                                                :border "1px solid #ccc"
+                                                :border-radius "0.35em"
+                                                :font-size "0.85em"
+                                                :min-width "9em"}}])]
+    [:div {:style {:display "flex"
+                   :flex-wrap "wrap"
+                   :gap "0.5em"
+                   :align-items "center"
+                   :margin "0 0 0.9em"}}
+     [:span {:style {:display "inline-flex"
+                     :gap "0.3em"}}
+      (toggle :mine (i18n/t lang :filter/mine))
+      (toggle :all (i18n/t lang :filter/all))]
+     (field :author author :filter/author-ph)
+     (field :q q :filter/search-ph)]))
+
 (defn add-card
   "A dashed 'create' tile for the end of a discover grid — a large + linking to `href`.
   Auth is handled by the destination form (it shows a log-in prompt when needed)."
@@ -1027,7 +1090,8 @@
      [:p {:style {:color "#666"
                   :margin "0 0 0.6em"}}
       (i18n/t lang tagline-key)]
-     [card-grid lang items [add-card new-href new-label]]
+     [filter-bar lang]
+     [card-grid lang (filter-items items) [add-card new-href new-label]]
      [fab new-href new-label]]))
 
 (defn language-selector

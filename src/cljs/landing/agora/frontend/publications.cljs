@@ -126,19 +126,10 @@
    :on-success ok
    :on-failure fail})
 
-;; the index list — publications in the current `::scope` (mine / all), optionally filtered by title
-(rf/reg-sub ::scope (fn [db _] (:agora/publication-scope db :mine)))
+;; the index list — every visible publication; the shared browse filter narrows it client-side
 (rf/reg-event-fx ::search
-                 (fn [{:keys [db]} [_ q]]
-                   {:fetch (GET (str "/agora/api/publication?scope="
-                                     (name (:agora/publication-scope db :mine))
-                                     "&q=" (js/encodeURIComponent (or q "")))
-                                [::search-ok]
-                                [::search-fail])}))
-(rf/reg-event-fx ::set-scope
-                 (fn [{:keys [db]} [_ scope]]
-                   {:db (assoc db :agora/publication-scope scope)
-                    :dispatch [::search]}))
+                 (fn [_ _]
+                   {:fetch (GET "/agora/api/publication?scope=all" [::search-ok] [::search-fail])}))
 (rf/reg-event-db ::search-ok (fn [db [_ resp]] (assoc db :agora/publication-results (:body resp))))
 (rf/reg-event-db ::search-fail (fn [db _] (assoc db :agora/publication-results [])))
 
@@ -259,82 +250,41 @@
 
 ;; --- components ------------------------------------------------------------
 
-(def ^:private new-title-id "pub-new-title")
-
-(defn- search-or-create
-  "One box: typing filters your publications live; when the typed title isn't an exact existing one, a
-  '＋ Create «title»' button opens a new publication. `results` is the current (filtered) list, used
-  to decide whether the title already exists."
-  [lang results]
-  (r/with-let [q (r/atom "")]
-              (let [qv (str/trim @q)
-                    exact? (some #(= (str/lower-case (or (:title %) "")) (str/lower-case qv))
-                                 results)]
-                [:div {:style {:margin "0 0 1.2em"}}
-                 [:input {:id new-title-id
-                          :type "text"
-                          :value @q
-                          :placeholder (i18n/t lang :pub/search-ph)
-                          :on-change #(let [v (.. % -target -value)]
-                                        (reset! q v)
-                                        (rf/dispatch [::search v]))
-                          :style {:width "100%"
-                                  :box-sizing "border-box"
-                                  :padding "0.55em 0.7em"
-                                  :font-size "0.95em"
-                                  :border "1px solid #ccc"
-                                  :border-radius "0.4em"}}]
-                 (when (and (not (str/blank? qv)) (not exact?))
-                   [:button {:on-click #(do (rf/dispatch [::create qv]) (reset! q ""))
-                             :style {:width "100%"
-                                     :box-sizing "border-box"
-                                     :margin-top "0.3em"
-                                     :border "1px dashed #2b8a3e"
-                                     :background "#fff"
-                                     :color "#2b8a3e"
-                                     :border-radius "0.4em"
-                                     :padding "0.5em"
-                                     :cursor "pointer"
-                                     :font-size "0.9em"}}
-                    (str "＋ " (i18n/t lang :pub/create-q) " « " qv " »")])])))
+(defn- create-from-filter
+  "When the shared browse filter's `q` names no existing publication, offer to create one titled `q` —
+  the create-by-typing affordance, reading the shared filter rather than a box of its own."
+  [lang pubs]
+  (let [q (str/trim (or (:q @(rf/subscribe [::dv/browse-filter])) ""))
+        exact? (some #(= (str/lower-case (or (:title %) "")) (str/lower-case q)) pubs)]
+    (when (and (seq q) (not exact?))
+      [:button {:on-click #(rf/dispatch [::create q])
+                :style {:margin "0 0 1em"
+                        :border "1px dashed #2b8a3e"
+                        :background "#fff"
+                        :color "#2b8a3e"
+                        :border-radius "0.4em"
+                        :padding "0.5em 0.9em"
+                        :cursor "pointer"
+                        :font-size "0.9em"}}
+       (str "＋ " (i18n/t lang :pub/create-q) " « " q " »")])))
 
 (defn- create-fab
-  "A mobile-only floating '+' that focuses the create-by-title input (hidden ≥640px by `.agora-fab`)."
+  "A mobile-only floating '+' opening a new, auto-named publication (hidden ≥640px by `.agora-fab`)."
   [lang]
   [:button {:class "agora-fab"
             :title (i18n/t lang :pub/new-ph)
-            :on-click #(some-> (js/document.getElementById new-title-id)
-                               (.focus))}
+            :on-click #(rf/dispatch [::create ""])}
    "+"])
 
-(defn- scope-filter
-  "Toggle the index between the viewer's own publications (`:mine`) and every publication (`:all`)."
-  [lang scope]
-  (let [btn (fn [value label] [:button {:on-click #(rf/dispatch [::set-scope value])
-                                        :style {:border "1px solid #b9770e"
-                                                :background (if (= scope value) "#b9770e" "#fff")
-                                                :color (if (= scope value) "#fff" "#b9770e")
-                                                :border-radius "0.35em"
-                                                :padding "0.25em 0.75em"
-                                                :font-size "0.82em"
-                                                :font-weight 600
-                                                :cursor "pointer"}}
-                               label])]
-    [:div {:style {:display "inline-flex"
-                   :gap "0.4em"
-                   :margin "0 0 0.9em"}}
-     (btn :mine (i18n/t lang :pub/scope-mine))
-     (btn :all (i18n/t lang :pub/scope-all))]))
-
 (defn publications-page
-  "The publications index: a scope filter (yours / all) and a create-by-title control, then the
-  publications in scope — open and published — as the shared discover grid of cards (each a
-  publication card, driven by its `:type`/`:status`), plus a mobile FAB. Logged-in only (the header
-  entry that leads here is gated too)."
+  "The publications index: the shared browse filter bar (scope / author / q), a create-by-typing
+  control, then the publications it keeps — open and published — as the shared discover grid of cards
+  (each a publication card, driven by its `:type`/`:status`), plus a mobile FAB. Logged-in only (the
+  header entry that leads here is gated too)."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
         pubs @(rf/subscribe [::results])
-        scope @(rf/subscribe [::scope])]
+        shown (dv/filter-items pubs)]
     [:div {:style {:max-width "72em"
                    :margin "1.5em auto"
                    :padding "0 0.8em"
@@ -345,10 +295,10 @@
      [:p {:style {:color "#777"
                   :margin "0 0 1em"}}
       (i18n/t lang :pub/index-lead)]
-     [scope-filter lang scope]
-     [search-or-create lang pubs]
-     (if (seq pubs)
-       [dv/card-grid lang pubs nil]
+     [dv/filter-bar lang]
+     [create-from-filter lang pubs]
+     (if (seq shown)
+       [dv/card-grid lang shown nil]
        [:p {:style {:color "#aaa"}}
         (i18n/t lang :pub/none)])
      [create-fab lang]]))
