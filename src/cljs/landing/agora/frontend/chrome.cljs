@@ -1,107 +1,17 @@
 (ns landing.agora.frontend.chrome
-  "Agora app chrome: the header (nav, search, auth) and the footer, plus the search box
-  and its `::search` events. Rendered by `core`'s root layout around the current page."
+  "Agora app chrome: the header (nav, active-publication chip, auth) and the footer. Rendered by
+  `core`'s root layout around the current page. Browse/search is per-view (the shared filter bar)."
   (:require
-   [clojure.string                       :as str]
-   [landing.agora.frontend.auth          :as auth]
-   [landing.agora.frontend.document-page :as    dv
-                                         :refer [kind-badge permalink version-tag]]
-   [landing.agora.frontend.i18n          :as i18n]
-   [landing.agora.frontend.publications  :as publications]
-   [re-frame.core                        :as rf]
-   [superstructor.re-frame.fetch-fx]))
-
-(rf/reg-sub ::search (fn [db _] (::search db)))
-(rf/reg-event-db ::search-clear (fn [db _] (dissoc db ::search)))
-
-(rf/reg-event-fx ::search-input
-                 (fn [{:keys [db]} [_ q]]
-                   (if (str/blank? q)
-                     {:db (assoc db
-                                 ::search
-                                 {:q q
-                                  :results []})}
-                     {:db (assoc-in db [::search :q] q)
-                      :fetch {:method :get
-                              :url (str "/agora/api/documents/ki?lang="
-                                        (i18n/current db)
-                                        "&q="
-                                        (js/encodeURIComponent q)
-                                        (publications/active-param db))
-                              :headers {"Accept" "application/json"}
-                              :response-content-types {#"application/json" :json}
-                              :on-success [::search-ok]
-                              :on-failure [::op-failed]}})))
-
-(rf/reg-event-db ::search-ok
-                 (fn [db [_ resp]]
-                   ;; keyword each result's `:kind` at the wire boundary (the badge keys on it)
-                   (assoc-in db [::search :results] (mapv #(update % :kind keyword) (:body resp)))))
-
-(defn search-box
-  "A search input that queries name + output statement and shows matches as a
-  dropdown of links to public KI pages."
-  []
-  (let [{:keys [q results]} @(rf/subscribe [::search])
-        lang @(rf/subscribe [::i18n/lang])]
-    [:div {:style {:position "relative"
-                   :width "100%"}}
-     [:input {:type "text"
-              :placeholder (i18n/t lang :search/placeholder)
-              :value (or q "")
-              :on-change #(rf/dispatch [::search-input (.. % -target -value)])
-              :style {:width "100%"
-                      :box-sizing "border-box"
-                      :padding "0.55em"
-                      :font-size "1em"
-                      :border "1px solid #ccc"
-                      :border-radius "0.4em"}}]
-     (when (and (not (str/blank? q)) (seq results))
-       (into [:div {:style {:position "absolute"
-                            :z-index 20
-                            :left 0
-                            :right 0
-                            :margin-top "0.2em"
-                            :background "#fff"
-                            :border "1px solid #ddd"
-                            :border-radius "0.4em"
-                            :box-shadow "0 4px 12px rgba(0,0,0,0.1)"
-                            :max-height "20em"
-                            :overflow-y "auto"}}]
-             (for [k results]
-               ^{:key (:id k)}
-               [:a {:href (permalink lang k)
-                    :on-click #(rf/dispatch [::search-clear])
-                    :style {:display "flex"
-                            :align-items "center"
-                            :gap "0.5em"
-                            :padding "0.5em 0.7em"
-                            :text-decoration "none"
-                            :color "inherit"
-                            :border-bottom "1px solid #f0f0f0"}}
-                [kind-badge (:kind k)]
-                [:span {:style {:font-weight 600}}
-                 (:name k)]
-                [version-tag (:major k) (:minor k)]])))
-     (when (and (not (str/blank? q)) (empty? results))
-       [:div {:style {:position "absolute"
-                      :z-index 20
-                      :left 0
-                      :right 0
-                      :margin-top "0.2em"
-                      :background "#fff"
-                      :border "1px solid #ddd"
-                      :border-radius "0.4em"
-                      :padding "0.5em 0.7em"
-                      :color "#aaa"
-                      :font-size "0.9em"}}
-        (i18n/t lang :search/no-matches)])]))
+   [landing.agora.frontend.auth         :as auth]
+   [landing.agora.frontend.i18n         :as i18n]
+   [landing.agora.frontend.publications :as publications]
+   [re-frame.core                       :as rf]))
 
 (defn header
-  "Shared Agora header (Hephaistox dark/copper theme): the two discover links, search
-  and auth controls. Creation is a `+` card at the end of each discover grid, not a
-  header link. The interface language is a preference, set on the Preferences page —
-  not here; a signed-in visitor gets the editable page automatically when viewing a KI."
+  "Shared Agora header (Hephaistox dark/copper theme): the discover links, the active-publication
+  chip and auth controls. Creation is a `+` card at the end of each discover grid, not a header
+  link. Browse/search is per-view (the shared filter bar). The interface language is a preference,
+  set on the Preferences page — not here; a signed-in visitor gets the editable page automatically."
   []
   (let [lang @(rf/subscribe [::i18n/lang])]
     [:header {:class "agora-header"
@@ -136,8 +46,6 @@
         (when @(rf/subscribe [::auth/user])
           (link (i18n/t lang :nav/publications) (i18n/publications lang)))])
      [publications/active-chip]
-     [:div {:class "agora-header__search"}
-      [search-box]]
      [:div {:class "agora-header__auth"}
       [auth/auth-controls]]]))
 

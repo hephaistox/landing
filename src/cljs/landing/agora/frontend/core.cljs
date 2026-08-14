@@ -390,19 +390,15 @@
        :author (route-changed-fetch-author db id (i18n/current db))
        (route-changed-fetch db kind id)))))
 
-(rf/reg-event-fx
- ::refetch-scoped
- (fn [{:keys [db]} _]
-   ;; the active publication changed — re-run whatever scoped list/search is showing so its draft
-   ;; overlay updates without a navigation. Dispatched by `publications/set-active`+`clear-active`.
-   (let [q (get-in db [::chrome/search :q])
-         base (case (:kind (:view db))
-                :home (route-changed-fetch-list db (i18n/current db) :ki :home)
-                :discover (route-changed-fetch-list db (i18n/current db) :ki :discover)
-                :articles (route-changed-fetch-list db (i18n/current db) :article :articles)
-                nil)]
-     (cond-> (or base {})
-       (seq q) (assoc :dispatch [::chrome/search-input q])))))
+(rf/reg-event-fx ::refetch-scoped
+                 (fn [{:keys [db]} _]
+                   ;; the active publication changed — re-fetch the current discover grid so its draft overlay
+                   ;; updates without a navigation. Dispatched by `publications/set-active`+`clear-active`.
+                   (case (:kind (:view db))
+                     :home (route-changed-fetch-list db (i18n/current db) :ki :home)
+                     :discover (route-changed-fetch-list db (i18n/current db) :ki :discover)
+                     :articles (route-changed-fetch-list db (i18n/current db) :article :articles)
+                     {})))
 
 (rf/reg-event-db ::fetch-ok
                  (fn [db [_ kind _id response]]
