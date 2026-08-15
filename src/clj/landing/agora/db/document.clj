@@ -102,9 +102,9 @@
 
 (defn insert!
   "Insert one document row (any type) — the generic write primitive for a version whose identity is
-  already fixed (e.g. a create with a fresh cid at major 1 / minor 0). For a *new version of an
-  existing lineage*, use `insert-next-minor!` / `insert-next-major!`, which pick the version number
-  atomically. Returns the row `id`."
+  already fixed (e.g. a create with a fresh cid at major 1, or a new draft of an existing lineage —
+  `minor` NULL while draft). For a fork (a new major), use `insert-next-major!`, which picks the
+  version number atomically. Returns the row `id`."
   [row]
   (try (insert-on! db/ds row) (catch SQLException e (db-error! e))))
 
@@ -135,8 +135,9 @@
 
 (defn insert-next-major!
   "In one transaction: lock the concept (`type`, `name`, `lang`), compute `major = MAX+1`, and insert
-  `row` at that major / minor 0 (a fork). The `SELECT … FOR UPDATE` serializes concurrent forks, so
-  two simultaneous forks can't assign the same major. Returns the row `id`."
+  `row` at that major (a fork). `row` keeps its own `minor` — a fork is a **draft**, so `minor` is
+  NULL until publish. The `SELECT … FOR UPDATE` serializes concurrent forks, so two simultaneous
+  forks can't assign the same major. Returns the row `id`."
   [{:keys [type name lang]
     :as row}]
   (try
@@ -153,7 +154,7 @@
            name
            (t->s lang)]
           kebab))]
-       (insert-on! tx (assoc row :major (inc (or m 0)) :minor 0))))
+       (insert-on! tx (assoc row :major (inc (or m 0))))))
     (catch SQLException e (db-error! e))))
 
 ;; --- document construction: shared identity/timestamp + a new-version row ---------------------
@@ -188,28 +189,47 @@
    :published-at published-at
    :publication-id publication-id})
 
-(defn in-publication
-  "The latest version per lineage that the publication `pub-cid` gathers (the draft the publication
-  holds for each document), newest first, as full documents."
-  [pub-cid]
-  (mapv
-   row->doc
-   (q!
+(defn update-draft!
+  "Overwrite a draft's mutable blobs in place — a draft is edited in place (same id, no new version),
+  not re-versioned. Sets `content`/`computed`/`published-at` on the row `id`, only while it is a
+  `draft` (a published version is immutable). Returns the `id`."
+  [{:keys [id content computed published-at]}]
+  (q1!
+   db/ds
+   ["UPDATE AGORA_DOCUMENT SET content = ?, computed = ?, published_at = ?
+           WHERE id = ? AND draft = 1"
+    (pr-str content)
+    (pr-str computed)
+    published-at
+    id])
+  id)
+
+(defn draft-of
+  "The `id` of the draft that publication `pub-cid` holds for lineage (`type`, `name`, `lang`,
+  `major`), or nil — a lineage has at most one draft per publication (edited in place)."
+  [type name lang major pub-cid]
+  (:id
+   (q1!
     db/ds
-    ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
-                     d.content, d.computed
-                FROM AGORA_DOCUMENT d
-                JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
-                        FROM AGORA_DOCUMENT
-                       WHERE publication_id = ?
-                       GROUP BY type, name, lang, major) g
-                  ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
-                     AND d.major = g.major AND d.minor = g.latest
-               WHERE d.publication_id = ?
-               ORDER BY d.published_at DESC"
-     pub-cid
+    ["SELECT id FROM AGORA_DOCUMENT
+            WHERE type = ? AND name = ? AND lang = ? AND major = ? AND publication_id = ? AND draft = 1
+            LIMIT 1"
+     (t->s type)
+     name
+     (t->s lang)
+     major
      pub-cid]
     kebab)))
+
+(defn in-publication
+  "The documents publication `pub-cid` gathers, newest first, as full documents. Each lineage has one
+  row per publication (its draft, edited in place; published in place on close), so this is a flat
+  select — no minor-collapse needed."
+  [pub-cid]
+  (mapv row->doc
+        (q! db/ds
+            [(str select-doc "WHERE publication_id = ? ORDER BY published_at DESC") pub-cid]
+            kebab)))
 
 (defn delete-draft!
   "Remove a lineage's draft versions that publication `pub-cid` gathers — (`type`, `name`, `lang`)
@@ -241,20 +261,42 @@
     (catch SQLException e (db-error! e))))
 
 (defn publish-publication!
-  "Publish publication `pub-cid` in one transaction: flip every draft it gathers to published
-  (`draft = 0`), keeping `publication_id` as permanent provenance, then close the publication itself
-  by inserting `close-row` as its next minor (status `:closed`). The publication lineage is locked
-  (`FOR UPDATE`) while its minor is computed, so a concurrent rename/publish can't collide. Returns
-  the closed row's `id`."
+  "Publish publication `pub-cid` in one transaction: give each draft it gathers its lineage's next
+  published minor (`MAX(minor where draft=0)+1`) and flip it to published **in place** — same `id`, so
+  references pinned by id survive — keeping `publication_id` as permanent provenance; then close the
+  publication itself by inserting `close-row` as its next minor (status `:closed`). Each lineage is
+  locked (`FOR UPDATE`) while its minor is computed, so concurrent writes can't collide. Returns the
+  closed row's `id`."
   [pub-cid
    {:keys [type name lang major]
     :as close-row}]
   (try
     (jdbc/with-transaction
      [tx db/ds]
-     (jdbc/execute! tx
-                    ["UPDATE AGORA_DOCUMENT SET draft = 0 WHERE publication_id = ? AND draft = 1"
-                     pub-cid])
+     (doseq
+       [d
+        (jdbc/execute!
+         tx
+         ["SELECT id, type, name, lang, major FROM AGORA_DOCUMENT
+                                  WHERE publication_id = ? AND draft = 1"
+          pub-cid]
+         kebab)]
+       (let
+         [m
+          (:m
+           (jdbc/execute-one!
+            tx
+            ["SELECT MAX(minor) AS m FROM AGORA_DOCUMENT
+                         WHERE type = ? AND name = ? AND lang = ? AND major = ? AND draft = 0
+                         FOR UPDATE"
+             (:type d)
+             (:name d)
+             (:lang d)
+             (:major d)]
+            kebab))]
+         (jdbc/execute-one!
+          tx
+          ["UPDATE AGORA_DOCUMENT SET minor = ?, draft = 0 WHERE id = ?" (inc (or m -1)) (:id d)])))
      (let
        [m
         (:m

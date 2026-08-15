@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS `AGORA_DOCUMENT` (
   `name`         VARCHAR(255) NOT NULL COMMENT 'Opaque stable cid — reference/grouping key',
   `lang`         CHAR(2)      NOT NULL DEFAULT 'fr' COMMENT 'Content language (ISO 639-1)',
   `major`        INT UNSIGNED NOT NULL COMMENT 'Major version; breaking changes bump this',
-  `minor`        INT UNSIGNED NOT NULL COMMENT 'Minor version; clarifications bump this',
+  `minor`        INT UNSIGNED NULL     COMMENT 'Minor version, assigned at publish; NULL while draft (a draft is mutable, edited in place, and carries no version number until it is published)',
   `draft`        TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Unpublished draft (1) vs published (0). Drafts are excluded from resolution/discovery/edges — reachable only by exact-version URL and on the author profile — until Publish clears the flag and prunes intermediate drafts',
   `content`      LONGTEXT     NOT NULL COMMENT 'Immutable authored EDN blob',
   `computed`     LONGTEXT     NULL     COMMENT 'Mutable derived EDN blob (:pins)',
