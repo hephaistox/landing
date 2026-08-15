@@ -260,13 +260,35 @@
                     ["DELETE FROM AGORA_DOCUMENT WHERE type = 'publication' AND name = ?" pub-cid]))
     (catch SQLException e (db-error! e))))
 
+(defn- rebuild-edges-on!
+  "On `tx`, make the now-published doc `sid` the sole successor-edge holder for its lineage (`type`,
+  `name`, `lang`, `major` — DB strings): delete every edge whose successor is any version of that
+  lineage, then insert one edge per declared input TNLR in `inputs` (input-TNLR → `sid`). So
+  AGORA_SUCCESSOR holds exactly the latest published minor's edges."
+  [tx type name lang major sid inputs]
+  (jdbc/execute!
+   tx
+   ["DELETE s FROM AGORA_SUCCESSOR s JOIN AGORA_DOCUMENT v ON v.id = s.successor_id
+                     WHERE v.type = ? AND v.name = ? AND v.lang = ? AND v.major = ?"
+    type
+    name
+    lang
+    major])
+  (when (seq inputs)
+    (jdbc/execute-batch!
+     tx
+     "INSERT IGNORE INTO AGORA_SUCCESSOR
+        (input_type, input_name, input_lang, input_major, successor_id) VALUES (?, ?, ?, ?, ?)"
+     (mapv (fn [inp] [(t->s (:type inp)) (:name inp) (t->s (:lang inp)) (:major inp) sid]) inputs)
+     {})))
+
 (defn publish-publication!
   "Publish publication `pub-cid` in one transaction: give each draft it gathers its lineage's next
-  published minor (`MAX(minor where draft=0)+1`) and flip it to published **in place** — same `id`, so
-  references pinned by id survive — keeping `publication_id` as permanent provenance; then close the
-  publication itself by inserting `close-row` as its next minor (status `:closed`). Each lineage is
-  locked (`FOR UPDATE`) while its minor is computed, so concurrent writes can't collide. Returns the
-  closed row's `id`."
+  published minor (`MAX(minor where draft=0)+1`), flip it to published **in place** — same `id`, so
+  references pinned by id survive — keeping `publication_id` as permanent provenance, and rebuild its
+  successor edges (it is now the latest published minor); then close the publication itself by
+  inserting `close-row` as its next minor (status `:closed`). Each lineage is locked (`FOR UPDATE`)
+  while its minor is computed, so concurrent writes can't collide. Returns the closed row's `id`."
   [pub-cid
    {:keys [type name lang major]
     :as close-row}]
@@ -277,7 +299,7 @@
        [d
         (jdbc/execute!
          tx
-         ["SELECT id, type, name, lang, major FROM AGORA_DOCUMENT
+         ["SELECT id, type, name, lang, major, content FROM AGORA_DOCUMENT
                                   WHERE publication_id = ? AND draft = 1"
           pub-cid]
          kebab)]
@@ -296,7 +318,14 @@
             kebab))]
          (jdbc/execute-one!
           tx
-          ["UPDATE AGORA_DOCUMENT SET minor = ?, draft = 0 WHERE id = ?" (inc (or m -1)) (:id d)])))
+          ["UPDATE AGORA_DOCUMENT SET minor = ?, draft = 0 WHERE id = ?" (inc (or m -1)) (:id d)])
+         (rebuild-edges-on! tx
+                            (:type d)
+                            (:name d)
+                            (:lang d)
+                            (:major d)
+                            (:id d)
+                            (:inputs (decode-content (:content d))))))
      (let
        [m
         (:m
