@@ -334,10 +334,16 @@
   removed from the search results so a document can never cite itself (a self-reference
   is a degenerate cycle; see the *Consistency rules* in agora/CLAUDE.md). `inputs?` (default
   true) toggles the **citation feature** (the cite/create search box); pass false for a kind
-  that may not have inputs (see `dk/kind-allows-inputs?`) — the prose textarea stays."
-  [_value _set-text! _placeholder _self-name _inputs?]
+  that may not have inputs (see `dk/kind-allows-inputs?`) — the prose textarea stays. `publication-id`
+  (the active publication) scopes the search so a **draft** predecessor in the same publication is
+  citable, and gathers an inline-created predecessor into it."
+  [_value _set-text! _placeholder _self-name _inputs? _on-cite _publication-id]
   (let [node (atom nil)
         setter (atom nil)
+        ;; the active publication, refreshed on each render (form-2): search is scoped to it (so a
+        ;; draft predecessor in the same publication is citable) and an inline-created predecessor is
+        ;; gathered by it
+        pub (atom nil)
         q (r/atom "")
         results (r/atom [])
         busy? (r/atom false)
@@ -379,8 +385,12 @@
                   (reset! q text)
                   (if (str/blank? text)
                     (reset! results [])
-                    (-> (js/fetch (str "/agora/api/documents/ki?lang=" lang
-                                       "&q=" (js/encodeURIComponent text))
+                    (-> (js/fetch (str "/agora/api/documents/ki?lang="
+                                       lang
+                                       "&q="
+                                       (js/encodeURIComponent text)
+                                       (when @pub
+                                         (str "&publication=" (js/encodeURIComponent @pub))))
                                   #js {:headers #js {"Accept" "application/json"}})
                         (.then #(.json %))
                         (.then #(reset! results (js->clj % :keywordize-keys true)))
@@ -392,7 +402,7 @@
         submit! (fn [lang]
                   (when-not (or @busy? (str/blank? @nt))
                     (reset! busy? true)
-                    (-> (js/fetch "/agora/api/ki"
+                    (-> (js/fetch "/agora/api/documents/ki"
                                   #js {:method "POST"
                                        :headers #js {"Content-Type" "application/json"
                                                      "Accept" "application/json"}
@@ -400,6 +410,7 @@
                                               (clj->js {:title @nt
                                                         :kind @nk
                                                         :lang lang
+                                                        :publication-id @pub
                                                         :text (let [t (str/trim @nx)]
                                                                 (if (str/blank? t) @nt t))}))})
                         (.then #(.json %))
@@ -408,8 +419,9 @@
                                  (reset! form? false)
                                  (insert! (js->clj ki :keywordize-keys true))))
                         (.catch (fn [_] (reset! busy? false))))))]
-    (fn [value set-text! placeholder self-name inputs? on-cite]
+    (fn [value set-text! placeholder self-name inputs? on-cite publication-id]
       (reset! setter set-text!)
+      (reset! pub publication-id)
       (let [lang @(rf/subscribe [::i18n/lang])
             ;; classical citing: an in-text kind is spliced into the prose; a source (edge-only
             ;; kind) is handed to `on-cite` as an input, never written into the text

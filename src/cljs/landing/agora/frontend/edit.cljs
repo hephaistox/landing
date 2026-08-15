@@ -325,12 +325,14 @@
        {:db (assoc-in db [::consequence :creating?] true)
         :fetch (json-req
                 :post
-                "/agora/api/ki"
+                "/agora/api/documents/ki"
                 ;; seed the new KI's text with a citation of the parent → parent becomes
-                ;; its input. Same content language as the parent so the edge resolves.
+                ;; its input. Same content language as the parent so the edge resolves. A draft
+                ;; gathered by the active publication (`:publication-id`, required by the write path).
                 {:title title
                  :kind :inference
                  :lang (:lang parent)
+                 :publication-id (get-in db [:agora/active-publication :id])
                  :text
                  (str "[[" (or (:type parent) "ki") ":" (:name parent) "@" (:major parent) "]]")}
                 [::consequence-created]
@@ -546,7 +548,8 @@
       (lbl lang labels :text-ph)
       doc-name
       (dk/kind-allows-inputs? kind)
-      #(rf/dispatch [::edit-set :cites (source/add-cite cites %)])]
+      #(rf/dispatch [::edit-set :cites (source/add-cite cites %)])
+      (:id @(rf/subscribe [::publications/active]))]
      [source/cites-list cites #(rf/dispatch [::edit-set :cites %])]
      ;; only a source-KI carries a `:source` (a reference to its shared work) — offer the
      ;; source picker just for that kind; other KIs relate to sources by *citing* them (above)
@@ -636,7 +639,8 @@
        (lbl lang labels :text-ph)
        nil
        (dk/kind-allows-inputs? (or kind :inference))
-       #(rf/dispatch [::new-set :cites (source/add-cite cites %)])]
+       #(rf/dispatch [::new-set :cites (source/add-cite cites %)])
+       (:id @(rf/subscribe [::publications/active]))]
       [source/cites-list cites #(rf/dispatch [::new-set :cites %])]
       (when (= kind :source)
         [:div {:style {:margin "0.9em 0 0.2em"}}
