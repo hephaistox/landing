@@ -20,24 +20,24 @@
     (is (= :explainer (first (sut/kind-ids-of "article"))) "explainer is the article default")
     (is (every? #(= :ki (:object-type %)) (sut/kinds-of "ki")) "object-type is the :ki keyword")
     (is (= (sut/kinds-of :ki) (sut/kinds-of "ki")) "kinds-of coerces string ↔ keyword type"))
-  (testing
-    "kind-allows-inputs?: only a source is inputless; an absent kind (article) defaults to yes"
+  (testing "kind-allows-inputs?: only a work is inputless; an absent kind (article) defaults to yes"
     (is (sut/kind-allows-inputs? :inference))
     (is (sut/kind-allows-inputs? :definition))
-    (is (not (sut/kind-allows-inputs? :source)) "a source is a leaf")
+    (is (sut/kind-allows-inputs? :extract) "an extract cites the work it draws from")
+    (is (not (sut/kind-allows-inputs? :work)) "a work is a leaf")
     (is (sut/kind-allows-inputs? nil) "an article has no kind → may take inputs"))
-  (testing "kind-citations-in-text?: citing a source is an edge only; every other kind is in-text"
+  (testing "kind-citations-in-text?: every kind is cited in-text"
     (is (sut/kind-citations-in-text? :definition))
-    (is (not (sut/kind-citations-in-text? :source))))
+    (is (sut/kind-citations-in-text? :extract)))
   (testing "kind-def points each kind at its self-hosting definition KI"
     (is (= {:type :ki
             :name "type-inference"
             :major 1}
            (get sut/kind-def :inference)))
     (is (= {:type :ki
-            :name "type-source"
+            :name "type-extract"
             :major 1}
-           (get sut/kind-def :source))))
+           (get sut/kind-def :extract))))
   (testing "every kind carries an accent colour" (is (every? sut/kind-color sut/kind-ids))))
 
 (deftest statement-scaffold
@@ -51,24 +51,20 @@
     (is (nil? (sut/statement-subject-kind :inference))))
   (testing "an unknown language falls back to English"
     (is (= "X believes that " (sut/statement-prefix :belief :de "x"))))
-  (testing "attributed-author: a source KI's own cited author, else the document's own author"
+  (testing "attributed-author: an extract's cited work author, else the document's own author"
     (is (= "David Fricke"
-           (sut/attributed-author {:source {:author-name "David Fricke"}
+           (sut/attributed-author {:work {:author-name "David Fricke"}
                                    :author "Poster"}))
-        "a kind=source KI is attributed to its cited work's author")
+        "an extract is attributed to the author of the work it draws from")
     (is (= "Poster" (sut/attributed-author {:author "Poster"}))
-        "a KI that only cites a source is attributed to its own author, not the cited one")
-    (is (= "Poster"
-           (sut/attributed-author {:cites [{:author-name "David Fricke"}]
-                                   :author "Poster"}))
-        "the cited author lives on :cites for display — it never becomes the citing KI's subject"))
+        "a KI that merely cites a work is attributed to its own author, not the cited one"))
   (testing "attributed-author-id mirrors attributed-author, so byline name and link agree"
     (is (= "fricke-id"
-           (sut/attributed-author-id {:source {:author-id "fricke-id"}
+           (sut/attributed-author-id {:work {:author-id "fricke-id"}
                                       :owner-id "typer-id"}))
-        "a source KI links to its cited author's hub, not the typer's account")
+        "an extract links to its cited work author's hub, not the typer's account")
     (is (= "owner-id" (sut/attributed-author-id {:owner-id "owner-id"}))
-        "a non-source KI links to its owner"))
+        "a non-extract KI links to its owner"))
   (testing "compose-statement assembles prefix + body for a document"
     (is (= "Anthony believes that reasoning is fuzzy."
            (sut/compose-statement {:kind :belief

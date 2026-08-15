@@ -53,6 +53,15 @@
   {:statement
    "un article qui expose et relie les énoncés du graphe en une prose lisible — une porte d'entrée qui rend le raisonnement intelligible pour un nouveau venu, informant et expliquant plutôt qu'exhortant ou appelant à agir.\n\nOn ne la conteste pas comme une étape de raisonnement isolée : une explication repose sur les énoncés qu'elle cite, et c'est à ceux-ci qu'on adresse un désaccord ; l'article lui-même peut néanmoins être discuté pour sa clarté, son équilibre ou ses omissions."
    :title "Explication"}}
+ :extract
+ {"en"
+  {:statement
+   "a passage drawn verbatim from a work at a precise location (page, chapter, verse): it cites the one work it comes from and pins the locator, so the appropriations built on it can point back to exactly what was said.\n\nIt is contested on fidelity: whether the passage is transcribed accurately, at the stated location, in the edition cited."
+   :title "Extract"}
+  "fr"
+  {:statement
+   "un passage tiré mot pour mot d'une œuvre à un endroit précis (page, chapitre, verset) : il cite l'unique œuvre dont il provient et fixe le locator, afin que les appropriations qui s'appuient dessus renvoient exactement à ce qui a été dit.\n\nOn le conteste sur la fidélité : le passage est-il transcrit fidèlement, à l'endroit indiqué, dans l'édition citée."
+   :title "Extrait"}}
  :illustration
  {"en"
   {:statement
@@ -80,12 +89,12 @@
   {:statement
    "un savoir vérifiable dont la vérité sera tranchée par un événement observable, éventuellement futur.\n\nAvant résolution, les objections portent sur la solidité du raisonnement ; à la résolution, la réalité tranche et le débat se clôt — confirmé ou réfuté, quelle que soit la confiance de la communauté."
    :title "Prédiction"}}
- :source
+ :work
  {"en"
   {:statement
-   "an external cited work — book, article, page… — serving as bibliographic provenance: not a reasoning step but a shared document (title, author, year, editor, URL) that one work reuses across several citations, each giving its own location (page, chapter, verse).\n\nIt is not contested like a piece of reasoning: you can discuss its accuracy, the edition chosen, or the attribution, but the work itself remains a shared provenance."
-   :title "Source"}
+   "an external document cited as bibliographic provenance — a book, article, dictionary, page… — shared (title, author, year, editor, URL) and reused by every passage drawn from it.\n\nIt is not contested like a piece of reasoning: you can discuss its accuracy, the edition chosen, or the attribution, but the work itself remains a shared provenance."
+   :title "Work"}
   "fr"
   {:statement
-   "une œuvre externe citée — livre, article, page… — servant de provenance bibliographique : non pas une étape de raisonnement, mais un document partagé (titre, auteur, année, éditeur, URL) qu'un même ouvrage réutilise à travers plusieurs citations, chacune précisant sa localisation (page, chapitre, verset).\n\nOn ne la conteste pas comme un raisonnement : on peut en discuter l'exactitude, l'édition retenue ou l'attribution, mais l'œuvre elle-même reste une provenance partagée."
-   :title "Source"}}}
+   "un document externe cité comme provenance bibliographique — livre, article, dictionnaire, page… — partagé (titre, auteur, année, éditeur, URL) et réutilisé par chaque passage qui en est tiré.\n\nOn ne la conteste pas comme un raisonnement : on peut en discuter l'exactitude, l'édition retenue ou l'attribution, mais l'œuvre elle-même reste une provenance partagée."
+   :title "Œuvre"}}}

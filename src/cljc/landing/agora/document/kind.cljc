@@ -5,7 +5,7 @@
    [clojure.string :as str]))
 
 (def kinds
-  "For a ki, the document `kind`s is inference / prediction / definition / belief / assumption, plus `source`);
+  "For a ki, the document `kind`s is inference / prediction / definition / belief / assumption, plus the bibliographic `work` and `extract`);
   For an *article*, kind sit on a rhetorical axis (*what is this prose doing?* — `explainer` `evangelism`).
 
   Each kind declares its **capabilities and presentation as data**, so
@@ -15,8 +15,9 @@
      (`kind-ids-of`).
    - `:color`  — accent colour.
    - `:inputs?` — **may a document of this kind take inputs** (in-text `[[ki:…]]` citations)? A
-     a `source` is a leaf and takes none; everything else does. This one flag drives both
-     the backend (input derivation) and the UI (whether the citation feature is shown).
+     `work` is a leaf and takes none; everything else does (an `extract` cites the one `work` it
+     draws from). This one flag drives both the backend (input derivation) and the UI (whether the
+     citation feature is shown).
    - `:def-name` + `:def-major` — a pointer to the KI that *defines* the kind. The rest of that
      identity is implied — `type` is `ki`, `minor` resolves to the latest, `lang` is the
      reader's — so only name + major are declared here (see `kind-def`).
@@ -78,12 +79,17 @@
     :object-type :ki
     :def-name "type-counter-example"
     :def-major 1}
-   {:id :source
+   {:id :extract
     :color "#495057"
-    :inputs? false
-    :in-text? false
+    :inputs? true
     :object-type :ki
-    :def-name "type-source"
+    :def-name "type-extract"
+    :def-major 1}
+   {:id :work
+    :color "#846358"
+    :inputs? false
+    :object-type :ki
+    :def-name "type-work"
     :def-major 1}
    {:id :explainer
     :color "#6741d9"
@@ -200,21 +206,21 @@
 
 (defn attributed-author
   "The person a statement is attributed to, in priority order:
-   1. `:source`'s author — for a `kind=source` KI itself (its `:source` resolves to the source);
+   1. the cited **work**'s author — for an `extract`, whose `:work` resolves to the work it draws
+      from;
    2. else the document's own author.
-  A KI that merely **cites** a source is *not* attributed to that source's author: the cited
-  author is shown on the source input itself (`:cites`), never migrated into the citing KI's
-  sentence. Attribution belongs to whoever authored the document."
+  A KI that merely **cites** a work is *not* attributed to that work's author. Attribution belongs
+  to whoever authored the document."
   [doc]
-  (or (:author-name (:source doc)) (:author doc)))
+  (or (:author-name (:work doc)) (:author doc)))
 
 (defn attributed-author-id
   "The id of the person `attributed-author` names — for linking the byline to their profile hub.
-  Mirrors `attributed-author`: a `kind=source` KI's cited author (`:source`'s `:author-id`) →
-  else the document's `:owner-id`. So the byline's name and its link always point at the same
-  person. `:owner-id` stays the accountability/permissions concept; this is display only."
+  Mirrors `attributed-author`: an `extract`'s cited work author (`:work`'s `:author-id`) → else the
+  document's `:owner-id`. So the byline's name and its link always point at the same person.
+  `:owner-id` stays the accountability/permissions concept; this is display only."
   [doc]
-  (or (:author-id (:source doc)) (:owner-id doc)))
+  (or (:author-id (:work doc)) (:owner-id doc)))
 
 (defn statement-prefix-of
   "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil
