@@ -7,6 +7,7 @@
    [landing.agora.document.engine     :as engine]
    [landing.agora.publication         :as publication]
    [muuntaja.core                     :as m]
+   [reitit.ring.middleware.exception  :as exception]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
    [reitit.ring.middleware.parameters :as parameters]))
 
@@ -14,6 +15,9 @@
   [parameters/parameters-middleware
    muuntaja/format-negotiate-middleware
    muuntaja/format-response-middleware
+   ;; catch exceptions here so an API error returns a negotiated (JSON) response, not the branded
+   ;; HTML 500 the outer web handler would serve
+   exception/exception-middleware
    muuntaja/format-request-middleware])
 
 (defn- uid [req] (get-in req [:session :user-id]))

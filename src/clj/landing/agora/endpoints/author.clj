@@ -5,13 +5,16 @@
    [landing.agora.auth                :as auth]
    [landing.agora.document.engine     :as engine]
    [muuntaja.core                     :as m]
+   [reitit.ring.middleware.exception  :as exception]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
    [reitit.ring.middleware.parameters :as parameters]))
 
 (def ^:private mw
   [parameters/parameters-middleware
    muuntaja/format-negotiate-middleware
-   muuntaja/format-response-middleware])
+   muuntaja/format-response-middleware
+   ;; an API error returns a negotiated (JSON) response, not the branded HTML 500
+   exception/exception-middleware])
 
 (defn- last-activity
   "The most recent publication time across the author's documents, or nil."

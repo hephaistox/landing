@@ -16,6 +16,7 @@
    [landing.agora.document.kind       :as dk]
    [landing.agora.frontend.fmt        :as fmt]
    [landing.agora.frontend.i18n       :as i18n]
+   [landing.agora.frontend.source     :as source]
    [landing.agora.frontend.ui-commons :as ui]
    [re-frame.core                     :as rf]
    [reagent.core                      :as r]))
@@ -284,6 +285,13 @@
        (map #(select-keys % [:name :major]))
        set))
 
+(defn without-citations
+  "`text` with its `[[…]]` citation tokens removed, leaving the surrounding prose (trimmed). For an
+  extract — whose one citation, its work, is shown as the statement prefix — this yields the verbatim
+  quote alone, so the work is not rendered twice."
+  [text]
+  (str/trim (apply str (filter string? (parse-segments (or text ""))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Editing: the text area + a search box that cites (existing) / creates (new) a KI
 ;; ---------------------------------------------------------------------------
@@ -303,15 +311,15 @@
 
 (defn- kind-picker
   "The KI kinds as clickable badges (selected highlighted, rest dimmed) — for the inline
-  new-KI form. Local to cite so the low-level editor stays free of the `edit` layer. Only
-  *in-text* kinds are offered: this form always splices a `[[ki:…]]` citation, so an edge-only
-  kind (`source`) — which is never written into prose — is excluded (it has its own cite flow)."
+  new-KI form. Local to cite so the low-level editor stays free of the `edit` layer. The
+  bibliographic kinds (`work`/`extract`) are excluded — they are authored through their own
+  surfaces, not quick-created as a reasoning predecessor here."
   [selected on-select]
   (into [:div {:style {:display "flex"
                        :flex-wrap "wrap"
                        :gap "0.3em"}}]
         (for [k (->> (dk/kind-ids-of "ki")
-                     (filter dk/kind-citations-in-text?))]
+                     (remove dk/kind-bibliographic?))]
           ^{:key k}
           [:button {:on-click #(on-select k)
                     :title (name k)
@@ -336,14 +344,18 @@
   true) toggles the **citation feature** (the cite/create search box); pass false for a kind
   that may not have inputs (see `dk/kind-allows-inputs?`) — the prose textarea stays. `publication-id`
   (the active publication) scopes the search so a **draft** predecessor in the same publication is
-  citable, and gathers an inline-created predecessor into it."
-  [_value _set-text! _placeholder _self-name _inputs? _on-cite _publication-id]
+  citable, and gathers an inline-created predecessor into it. `work-mode?` (for an `extract`) swaps the
+  KI cite/create search for the **work modal** (`source/work-modal`) — the pick splices the cited
+  work's citation just the same."
+  [_value _set-text! _placeholder _self-name _inputs? _publication-id _work-mode?]
   (let [node (atom nil)
         setter (atom nil)
         ;; the active publication, refreshed on each render (form-2): search is scoped to it (so a
         ;; draft predecessor in the same publication is citable) and an inline-created predecessor is
         ;; gathered by it
         pub (atom nil)
+        ;; work-mode: the 'cite a work' modal open state
+        work-open? (r/atom false)
         q (r/atom "")
         results (r/atom [])
         busy? (r/atom false)
@@ -419,16 +431,12 @@
                                  (reset! form? false)
                                  (insert! (js->clj ki :keywordize-keys true))))
                         (.catch (fn [_] (reset! busy? false))))))]
-    (fn [value set-text! placeholder self-name inputs? on-cite publication-id]
+    (fn [value set-text! placeholder self-name inputs? publication-id work-mode?]
       (reset! setter set-text!)
       (reset! pub publication-id)
       (let [lang @(rf/subscribe [::i18n/lang])
-            ;; classical citing: an in-text kind is spliced into the prose; a source (edge-only
-            ;; kind) is handed to `on-cite` as an input, never written into the text
-            pick! (fn [k]
-                    (if (dk/kind-citations-in-text? (:kind k))
-                      (insert! k)
-                      (do (when on-cite (on-cite k)) (reset! q "") (reset! results []))))]
+            ;; every citation is written into the prose as a `[[ki:…]]` token
+            pick! (fn [k] (insert! k))]
         [:div
          [ui/composed-field {:element :textarea
                              :ref (fn [el] (reset! node el) (when el (js/setTimeout fit! 0)))
@@ -446,8 +454,33 @@
                                      :line-height "1.55"
                                      :border "1px solid #ccc"
                                      :border-radius "0.3em"}}]
-         ;; the citation feature — hidden for kinds that may not have inputs (e.g. source)
-         (when-not (false? inputs?)
+         ;; work-mode (an extract): a button opening the work modal; the pick splices the cited
+         ;; work's `[[ki:…]]` citation just like any other
+         (when work-mode?
+           [:div {:style {:margin "0.4em 0 0"}}
+            [:button {:on-click #(reset! work-open? true)
+                      :style {:border "1px dashed #b9770e"
+                              :background "transparent"
+                              :color "#b9770e"
+                              :border-radius "0.3em"
+                              :padding "0.35em 0.8em"
+                              :cursor "pointer"
+                              :font-size "0.88em"}}
+             (str "🔎 " (i18n/t lang :extract/cite-work))]
+            (when @work-open?
+              [source/work-modal
+               (fn [w]
+                 (insert! {:type "ki"
+                           :name (:name w)
+                           :major (:major w)
+                           :lang (:lang w)})
+                 (reset! work-open? false))
+               #(reset! work-open? false)
+               lang
+               @pub])])
+         ;; the KI cite/create search — hidden for inputless kinds, and swapped for the work modal
+         ;; in work-mode
+         (when (and (not work-mode?) (not (false? inputs?)))
            [:div {:style {:position "relative"
                           :margin "0.4em 0 0"}}
             [ui/composed-field {:type "text"

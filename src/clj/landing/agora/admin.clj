@@ -160,14 +160,23 @@
                                    m))))
                            {}
                            versions)
-        latest-of (fn [{:keys [type name lang major]}]
-                    (:id (get latest-pub [type name lang major])))
         latest-ids (into #{} (map (comp :id val)) latest-pub)
         edge-tuple (fn [sid {:keys [type name lang major]}]
                      [(clojure.core/name type) name (clojure.core/name lang) major sid])
+        ;; each publication's own drafts, so a pin resolves publication-aware — its publication's draft
+        ;; of the cited lineage, else the latest published — exactly as the write path does. A
+        ;; published-only `latest-of` would wrongly null a draft-citing-draft pin.
+        draft-idx (reduce (fn [m {:keys [id publication-id type name lang major draft]}]
+                            (if draft (assoc m [publication-id type name lang major] id) m))
+                          {}
+                          versions)
+        pin-latest-of (fn [publication-id]
+                        (fn [{:keys [type name lang major]}]
+                          (or (get draft-idx [publication-id type name lang major])
+                              (:id (get latest-pub [type name lang major])))))
         pin-fixes (into []
-                        (keep (fn [{:keys [id inputs computed]}]
-                                (let [expected (di/pin-all inputs latest-of)]
+                        (keep (fn [{:keys [id inputs computed publication-id]}]
+                                (let [expected (di/pin-all inputs (pin-latest-of publication-id))]
                                   (when (not= expected (:pins computed))
                                     {:id id
                                      :computed (assoc computed :pins expected)}))))

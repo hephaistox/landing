@@ -6,6 +6,7 @@
    [clojure.string                    :as str]
    [landing.agora.auth                :as auth]
    [muuntaja.core                     :as m]
+   [reitit.ring.middleware.exception  :as exception]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
    [reitit.ring.middleware.parameters :as parameters]))
 
@@ -13,6 +14,8 @@
   [parameters/parameters-middleware
    muuntaja/format-negotiate-middleware
    muuntaja/format-response-middleware
+   ;; an API error returns a negotiated (JSON) response, not the branded HTML 500
+   exception/exception-middleware
    muuntaja/format-request-middleware])
 
 (defn- search

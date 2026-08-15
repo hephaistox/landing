@@ -224,8 +224,9 @@
                   :error nil)}
       ;; Miss/stale — fetch, but keep the current :view on screen until it lands.
       {:db (assoc db :loading? true :error nil)
+       ;; scope to the active publication so its draft successors overlay the authoring view
        :fetch {:method :get
-               :url (str (api-path kind) id)
+               :url (str (api-path kind) id (publications/active-query db))
                :headers {"Accept" "application/json"}
                :response-content-types {#"application/json" :json}
                :on-success [::fetch-ok kind id]
@@ -265,14 +266,16 @@
                                 :loading? false)))))
 
 (defn- route-changed-fetch-list
-  "Fetch the browse list for document `type` (`:ki` / `:article`), scoped to the content `lang` and
-  the active publication, and store it under `view-kind` (`:home` landing, `:discover` / `:articles`
-  grid). Not cached — each visit re-fetches so the visit-weighted random order refreshes."
-  [db lang type view-kind]
+  "Fetch the browse list for document `type` (`:ki` / `:article`), across **all** content languages
+  (the client filters by language) and scoped to the active publication, stored under `view-kind`
+  (`:home` landing, `:discover` / `:articles` grid). Not cached — each visit re-fetches so the
+  visit-weighted random order refreshes."
+  [db type view-kind]
   {:db (assoc db :loading? true :error nil)
    :fetch {:method :get
-           :url
-           (str "/agora/api/documents/" (name type) "?lang=" lang (publications/active-param db))
+           :url (str "/agora/api/documents/" (name type)
+                     "?lang=" (name (i18n/current db))
+                     "&limit=50" (publications/active-param db))
            :headers {"Accept" "application/json"}
            :response-content-types {#"application/json" :json}
            :on-success [::fetch-list-ok view-kind]
@@ -367,9 +370,9 @@
                                 :error nil)
                      :dispatch [::publications/load-page id]}
        :ki-public (route-changed-fetch-public db name major lang)
-       :home (route-changed-fetch-list db (i18n/current db) :ki :home)
-       :discover (route-changed-fetch-list db (i18n/current db) :ki :discover)
-       :articles (route-changed-fetch-list db (i18n/current db) :article :articles)
+       :home (route-changed-fetch-list db :ki :home)
+       :discover (route-changed-fetch-list db :ki :discover)
+       :articles (route-changed-fetch-list db :article :articles)
        ;; the browse-by-author / browse-by-source views self-fetch (local search state)
        :authors {:db (assoc db
                             :view {:kind :authors
@@ -395,9 +398,24 @@
                    ;; the active publication changed — re-fetch the current discover grid so its draft overlay
                    ;; updates without a navigation. Dispatched by `publications/set-active`+`clear-active`.
                    (case (:kind (:view db))
-                     :home (route-changed-fetch-list db (i18n/current db) :ki :home)
-                     :discover (route-changed-fetch-list db (i18n/current db) :ki :discover)
-                     :articles (route-changed-fetch-list db (i18n/current db) :article :articles)
+                     :home (route-changed-fetch-list db :ki :home)
+                     :discover (route-changed-fetch-list db :ki :discover)
+                     :articles (route-changed-fetch-list db :article :articles)
+                     ;; a single-doc view: re-fetch it by id (forced, bypassing the cache) so its
+                     ;; publication-scoped successors/inputs overlay reflects the current publication —
+                     ;; e.g. after a consequence is created on this page
+                     (:ki :article) (let [vk (:kind (:view db))
+                                          id (:id (:data (:view db)))]
+                                      (if id
+                                        {:db (assoc db :loading? true)
+                                         :fetch
+                                         {:method :get
+                                          :url (str (api-path vk) id (publications/active-query db))
+                                          :headers {"Accept" "application/json"}
+                                          :response-content-types {#"application/json" :json}
+                                          :on-success [::fetch-ok vk id]
+                                          :on-failure [::fetch-failed]}}
+                                        {}))
                      {})))
 
 (rf/reg-event-db ::fetch-ok

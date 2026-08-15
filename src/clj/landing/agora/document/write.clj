@@ -75,7 +75,11 @@
   Carries `:kind` and the bibliographic/`:locator` extras forward (a new value in `fields` overrides),
   takes the new `:title`/`:text`, and **re-derives** the inputs/pins from the new text. Returns the
   draft's id (stable across in-place edits)."
-  [id editor-id editor-name {:keys [title text author-id locator year editor url]} publication-id]
+  [id
+   editor-id
+   editor-name
+   {:keys [title text kind author-id locator year editor url]}
+   publication-id]
   (when-let [doc (db-doc/fetch-id id)]
     (let [owner? (= editor-id (:owner-id doc))
           now (db-doc/now-iso)
@@ -84,7 +88,8 @@
           content (-> (select-keys doc [:kind :author-id :locator :year :editor :url])
                       (merge (into {}
                                    (remove (comp nil? val))
-                                   {:author-id author-id
+                                   {:kind kind
+                                    :author-id author-id
                                     :locator locator
                                     :year year
                                     :editor editor

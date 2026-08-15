@@ -38,26 +38,44 @@
   (i18n/t lang (get labels k)))
 
 (defn kind-selector
-  "Every kind of `object-type` (KI kinds vs article kinds are disjoint sets) as a clickable
-  badge; the selected one highlighted, the others dimmed. Calls `on-select` with the chosen
-  kind keyword."
+  "A collapsible kind picker. Collapsed, it shows only the selected kind (with a ▾ hint); clicking it
+  reveals every kind of `object-type` (KI kinds vs article kinds are disjoint) as clickable badges,
+  the selected one highlighted. Picking one calls `on-select` with that kind and collapses again."
   [object-type selected on-select]
-  (into [:div {:style {:display "flex"
-                       :flex-wrap "wrap"
-                       :gap "0.4em"}}]
-        (for [t (dk/kind-ids-of object-type)
-              :let [current? (= t selected)]]
-          ^{:key t}
-          [:button {:on-click #(on-select t)
-                    :title (name t)
-                    :style {:border "none"
-                            :background "transparent"
-                            :padding "0.1em"
-                            :cursor "pointer"
-                            :border-radius "0.3em"
-                            :opacity (if current? 1 0.35)
-                            :box-shadow (if current? "0 0 0 2px #333" "none")}}
-           [kind-badge t]])))
+  (r/with-let
+   [open? (r/atom false)]
+   (if @open?
+     (into [:div {:style {:display "flex"
+                          :flex-wrap "wrap"
+                          :gap "0.4em"}}]
+           (for [t (dk/kind-ids-of object-type)
+                 :let [current? (= t selected)]]
+             ^{:key t}
+             [:button {:on-click #(do (on-select t) (reset! open? false))
+                       :title (name t)
+                       :style {:border "none"
+                               :background "transparent"
+                               :padding "0.1em"
+                               :cursor "pointer"
+                               :border-radius "0.3em"
+                               :opacity (if current? 1 0.4)
+                               :box-shadow (if current? "0 0 0 2px #333" "none")}}
+              [kind-badge t]]))
+     [:button {:on-click #(reset! open? true)
+               :title (some-> selected
+                              name)
+               :style {:border "none"
+                       :background "transparent"
+                       :padding "0.1em"
+                       :cursor "pointer"
+                       :border-radius "0.3em"
+                       :display "inline-flex"
+                       :align-items "center"
+                       :gap "0.25em"}}
+      [kind-badge selected]
+      [:span {:style {:font-size "0.6em"
+                      :color "#888"}}
+       "▾"]])))
 
 ;; ===========================================================================
 ;; Edit an existing document → a new minor version (a fork)
@@ -89,11 +107,19 @@
                            :type (:type doc)
                            :id (:id doc)
                            :title (:title doc)
-                           :kind (:kind doc)
+                           ;; the doc comes from JSON, so its kind is a string; the form works in
+                           ;; keywords (kind-selector match, doc-body dispatch) like the create flow
+                           :kind (some-> (:kind doc)
+                                         keyword)
                            :text (cite/node-text doc)
-                           :source (:source doc)
-                           ;; the cited source-KIs (edge-only inputs) — resubmitted on save
-                           :cites (vec (:cites doc))
+                           ;; a work's cited author + bibliographic fields, an extract's locator —
+                           ;; seeded so an edit can change them (nil for other kinds)
+                           :author-id (:attributed-author-id doc)
+                           :author-name (:attributed-author doc)
+                           :year (:year doc)
+                           :editor (:editor doc)
+                           :url (:url doc)
+                           :locator (:locator doc)
                            ;; citations present when editing began — to warn if an input
                            ;; reference gets removed before saving.
                            :orig-cites (cite/citations (cite/node-text doc))
@@ -103,30 +129,35 @@
 (rf/reg-event-db ::edit-close (fn [db _] (update db ::edit assoc :open? false)))
 (rf/reg-event-db ::edit-set (fn [db [_ k v]] (update db ::edit assoc k v)))
 
-(rf/reg-event-fx ::edit-save
-                 (fn [{:keys [db]} _]
-                   (let [{:keys [type id title kind text source cites orig-cites]} (::edit db)
-                         pub-id (get-in db [:agora/active-publication :id])
-                         removed? (seq (remove (cite/citations text) orig-cites))]
-                     (if (and removed?
-                              (not (js/confirm (i18n/t (i18n/current db) :cite/removed-warning))))
-                       ;; user cancelled — release the in-flight lock set by `ensure-active`
-                       {:db (-> db
-                                (dissoc :agora/authoring-busy?)
-                                (update ::edit assoc :saving? false))}
-                       {:db (update db ::edit assoc :saving? true :error nil)
-                        ;; an edit produces a new version, gathered as a draft in the active
-                        ;; publication (`:publication-id`, required by the write path)
-                        :fetch (json-req :post
-                                         (str "/agora/api/documents/" type "/" id)
-                                         (cond-> {:title title
-                                                  :text text
-                                                  :source (source/strip-source source)
-                                                  :cites (source/strip-cites cites)
-                                                  :publication-id pub-id}
-                                           kind (assoc :kind kind))
-                                         [::saved-ok]
-                                         [::op-failed])}))))
+(rf/reg-event-fx
+ ::edit-save
+ (fn [{:keys [db]} _]
+   (let [{:keys [type id title kind text author-id author-name year editor url locator orig-cites]}
+         (::edit db)
+         pub-id (get-in db [:agora/active-publication :id])
+         removed? (seq (remove (cite/citations text) orig-cites))]
+     (if (and removed? (not (js/confirm (i18n/t (i18n/current db) :cite/removed-warning))))
+       ;; user cancelled — release the in-flight lock set by `ensure-active`
+       {:db (-> db
+                (dissoc :agora/authoring-busy?)
+                (update ::edit assoc :saving? false))}
+       {:db (update db ::edit assoc :saving? true :error nil)
+        ;; an edit produces a new version, gathered as a draft in the active
+        ;; publication (`:publication-id`, required by the write path)
+        :fetch (json-req :post
+                         (str "/agora/api/documents/" type "/" id)
+                         (cond-> {:title title
+                                  :text text
+                                  :author-id author-id
+                                  :author-name author-name
+                                  :year year
+                                  :editor editor
+                                  :url url
+                                  :locator locator
+                                  :publication-id pub-id}
+                           kind (assoc :kind kind))
+                         [::saved-ok]
+                         [::op-failed])}))))
 
 ;; ===========================================================================
 ;; Create a new document (standalone form)
@@ -147,24 +178,31 @@
                            :kind (first (dk/kind-ids-of type))})))
 (rf/reg-event-db ::new-set (fn [db [_ k v]] (assoc-in db [::new k] v)))
 
-(rf/reg-event-fx ::new-submit
-                 (fn [{:keys [db]} _]
-                   (let [{:keys [type show-kind? title kind lang text source cites]} (::new db)
-                         pub-id (get-in db [:agora/active-publication :id])]
-                     {:db (assoc-in db [::new :submitting?] true)
-                      ;; a create is a draft gathered by the active publication (`:publication-id`,
-                      ;; required by the write path)
-                      :fetch (json-req :post
-                                       (str "/agora/api/documents/" type)
-                                       (cond-> {:title title
-                                                :lang (or lang (i18n/current db))
-                                                :text text
-                                                :source (source/strip-source source)
-                                                :cites (source/strip-cites cites)
-                                                :publication-id pub-id}
-                                         show-kind? (assoc :kind kind))
-                                       [::saved-ok]
-                                       [::op-failed])})))
+(rf/reg-event-fx
+ ::new-submit
+ (fn [{:keys [db]} _]
+   (let [{:keys
+          [type show-kind? title kind lang text author-id author-name year editor url locator]}
+         (::new db)
+         pub-id (get-in db [:agora/active-publication :id])]
+     {:db (assoc-in db [::new :submitting?] true)
+      ;; a create is a draft gathered by the active publication (`:publication-id`,
+      ;; required by the write path)
+      :fetch (json-req :post
+                       (str "/agora/api/documents/" type)
+                       (cond-> {:title title
+                                :lang (or lang (i18n/current db))
+                                :text text
+                                :author-id author-id
+                                :author-name author-name
+                                :year year
+                                :editor editor
+                                :url url
+                                :locator locator
+                                :publication-id pub-id}
+                         show-kind? (assoc :kind kind))
+                       [::saved-ok]
+                       [::op-failed])})))
 
 ;; Shared success path for both create and edit: ingest + navigate to the saved version.
 ;; `:agora/saved` is generic — it reads the type off the returned document, so there is no
@@ -330,7 +368,9 @@
                 ;; its input. Same content language as the parent so the edge resolves. A draft
                 ;; gathered by the active publication (`:publication-id`, required by the write path).
                 {:title title
-                 :kind :inference
+                 ;; the consequence's kind depends on the parent's — a work yields an extract, an
+                 ;; extract an appropriation, else an inference (see `dk/kind-consequence`)
+                 :kind (dk/kind-consequence (:kind parent))
                  :lang (:lang parent)
                  :publication-id (get-in db [:agora/active-publication :id])
                  :text
@@ -338,11 +378,15 @@
                 [::consequence-created]
                 [::consequence-failed])}))))
 
-(rf/reg-event-db ::consequence-created
-                 (fn [db [_ resp]]
-                   (-> db
-                       (update ::consequence assoc :creating? false :title "" :error nil)
-                       (update-in [::consequence :created] (fnil conj []) (:body resp)))))
+;; `core/refetch-scoped` by a fully-qualified keyword — `edit` can't require `core` (it would cycle)
+(def ^:private refetch-scoped :landing.agora.frontend.core/refetch-scoped)
+
+(rf/reg-event-fx ::consequence-created
+                 (fn [{:keys [db]} _]
+                   ;; the consequence is a draft citing this KI; re-fetch the page so it shows in the
+                   ;; publication-scoped successors row like any other successor, not a separate list
+                   {:db (update db ::consequence assoc :creating? false :title "" :error nil)
+                    :dispatch [refetch-scoped]}))
 
 (rf/reg-event-db ::consequence-failed
                  (fn [db [_ resp]]
@@ -413,24 +457,7 @@
          (when (:error st)
            [:div {:style {:color "#8a1f1f"
                           :font-size "0.82em"}}
-            (i18n/t lang :ki/consequence-failed)])
-         ;; drafts just created — hidden from the successors row until published, so surfaced here
-         (when (seq (:created st))
-           [:div {:style {:display "flex"
-                          :flex-wrap "wrap"
-                          :gap "0.4em"
-                          :justify-content "center"
-                          :font-size "0.82em"}}
-            (for [y (:created st)]
-              ^{:key (:id y)}
-              [:a {:href (i18n/doc-url lang "ki" (:id y))
-                   :style {:padding "0.2em 0.6em"
-                           :background "#fdf6ec"
-                           :border "1px dashed #b98a3e"
-                           :border-radius "1em"
-                           :color "#8a5709"
-                           :text-decoration "none"}}
-               (str "✎ " (or (:title y) (i18n/t lang :ki/draft)))])])]))))
+            (i18n/t lang :ki/consequence-failed)])]))))
 
 (defn admin-actions
   "Owner-only maintenance for a document, shown on the **read view** so an admin acts without
@@ -482,13 +509,11 @@
 
 (defn- prefix-label
   "Read-only preview of the kind-guided opening the stored body will follow, derived live
-  from the form's `kind`/`title`/`source` and the authoring user (the source's author when a
-  source is set, else the user). Nothing for the free-form `inference` kind — so the author
-  writes only the body, and the grammar is enforced without being stored."
-  [{:keys [kind title source]} author-name lang]
+  from the form's `kind`/`title` and the authoring user. Nothing for the free-form `inference`
+  kind — so the author writes only the body, and the grammar is enforced without being stored."
+  [{:keys [kind title]} author-name lang]
   (when-let [p (dk/statement-prefix-of {:kind kind
                                         :title title
-                                        :source source
                                         :author author-name}
                                        (keyword lang))]
     [:div {:style {:font-size "0.9em"
@@ -496,6 +521,52 @@
                    :font-style "italic"
                    :margin-bottom "0.3em"}}
      p]))
+
+(defn- locator-field
+  "The extract's locator (page / chapter / verse) — a scalar shown under the quote."
+  [value on-text]
+  (let [lang @(rf/subscribe [::i18n/lang])]
+    [ui/composed-field {:type "text"
+                        :value (or value "")
+                        :placeholder (i18n/t lang :extract/locator-ph)
+                        :style {:width "100%"
+                                :box-sizing "border-box"
+                                :margin-top "0.4em"
+                                :padding "0.45em"
+                                :font-size "0.9em"
+                                :border "1px solid #ccc"
+                                :border-radius "0.3em"}
+                        :on-text on-text}]))
+
+(defn- doc-body
+  "The kind-appropriate authoring body: a `work`'s bibliographic fields; an `extract`'s quote (the
+  citation editor in work-mode, so a pick cites the work) plus its locator; or the standard citation
+  editor over the prose. `set-fn` is `(set-fn key value)` on the form state; `text-ph`/`self-name`/`pub-id`
+  drive the citation editor."
+  [{:keys [kind text author-id author-name year editor url locator]}
+   set-fn
+   text-ph
+   self-name
+   pub-id]
+  (cond
+    (= kind :work) [source/work-fields {:author-id author-id
+                                        :author-name author-name
+                                        :year year
+                                        :editor editor
+                                        :url url}
+                    set-fn]
+    (= kind :extract)
+    [:<>
+     [cite/citation-editor text #(set-fn :text %) text-ph self-name true pub-id true]
+     [locator-field locator #(set-fn :locator %)]]
+    :else [cite/citation-editor
+           text
+           #(set-fn :text %)
+           text-ph
+           self-name
+           (dk/kind-allows-inputs? (or kind :inference))
+           pub-id
+           false]))
 
 (defn edit-form
   "The central card in edit mode (a new minor): metadata row (kind selector when
@@ -507,7 +578,8 @@
     :keys [major minor published-at author]}
    {:keys [show-kind? labels]
     object-type :type}]
-  (let [{:keys [title kind text source cites saving? error]} @(rf/subscribe [::edit])
+  (let [{:keys [title kind text author-id author-name year editor url locator saving? error]}
+        @(rf/subscribe [::edit])
         lang @(rf/subscribe [::i18n/lang])
         user @(rf/subscribe [::auth/user])
         busy? @(rf/subscribe [::busy?])]
@@ -536,26 +608,22 @@
                                  :border-radius "0.3em"}}]
      [byline author published-at]
      [prefix-label {:kind kind
-                    :title title
-                    :source source
-                    :cites cites}
+                    :title title}
       (:display-name user)
       ;; the doc's content language (not the interface lang) — the prefix is part of the text
       doc-lang]
-     [cite/citation-editor
-      text
-      #(rf/dispatch [::edit-set :text %])
+     [doc-body {:kind kind
+                :text text
+                :author-id author-id
+                :author-name author-name
+                :year year
+                :editor editor
+                :url url
+                :locator locator}
+      (fn [k v] (rf/dispatch [::edit-set k v]))
       (lbl lang labels :text-ph)
       doc-name
-      (dk/kind-allows-inputs? kind)
-      #(rf/dispatch [::edit-set :cites (source/add-cite cites %)])
       (:id @(rf/subscribe [::publications/active]))]
-     [source/cites-list cites #(rf/dispatch [::edit-set :cites %])]
-     ;; only a source-KI carries a `:source` (a reference to its shared work) — offer the
-     ;; source picker just for that kind; other KIs relate to sources by *citing* them (above)
-     (when (= kind :source)
-       [:div {:style {:margin-top "0.8em"}}
-        [source/source-editor source #(rf/dispatch [::edit-set :source %])]])
      (when error
        [:div {:style {:color "#c92a2a"
                       :font-size "0.85em"
@@ -593,15 +661,18 @@
     :as cfg}]
   (r/with-let
    [_ (rf/dispatch-sync [::new-reset cfg])]
-   (let [{:keys [title kind text source cites submitting?]
+   (let [{:keys [title kind text author-id author-name year editor url locator submitting?]
           form-lang :lang}
          @(rf/subscribe [::new])
          user @(rf/subscribe [::auth/user])
          lang @(rf/subscribe [::i18n/lang])
          cancel-url (cancel-route lang)
          busy? @(rf/subscribe [::busy?])
-         ;; the identity slug is derived from the title server-side, so it isn't asked
-         blank? (or (str/blank? title) (str/blank? text))]
+         ;; the identity slug is derived from the title server-side, so it isn't asked. A work has
+         ;; no prose — it is valid on title + cited author; every other kind needs its text.
+         blank? (if (= kind :work)
+                  (or (str/blank? title) (nil? author-id))
+                  (or (str/blank? title) (str/blank? text)))]
      [:div {:style (assoc card-style :margin "1.5em auto")}
       [ui/on-escape #(rf/dispatch [:agora/cancel-new cancel-url])]
       [:h1 {:style {:font-size "1.3em"
@@ -624,27 +695,26 @@
        (i18n/t lang :form/language)]
       [:div {:style {:margin-bottom "0.8em"}}
        [language-selector (or form-lang lang) #(rf/dispatch [::new-set :lang %])]]
-      [:div {:style label-style}
-       (lbl lang labels :text)]
+      (when-not (= kind :work)
+        [:div {:style label-style}
+         (lbl lang labels :text)])
       [prefix-label {:kind kind
-                     :title title
-                     :source source
-                     :cites cites}
+                     :title title}
        (:display-name user)
        ;; the content language being authored (the selected form language), not the interface
        (or form-lang lang)]
-      [cite/citation-editor
-       text
-       #(rf/dispatch [::new-set :text %])
+      [doc-body {:kind kind
+                 :text text
+                 :author-id author-id
+                 :author-name author-name
+                 :year year
+                 :editor editor
+                 :url url
+                 :locator locator}
+       (fn [k v] (rf/dispatch [::new-set k v]))
        (lbl lang labels :text-ph)
        nil
-       (dk/kind-allows-inputs? (or kind :inference))
-       #(rf/dispatch [::new-set :cites (source/add-cite cites %)])
        (:id @(rf/subscribe [::publications/active]))]
-      [source/cites-list cites #(rf/dispatch [::new-set :cites %])]
-      (when (= kind :source)
-        [:div {:style {:margin "0.9em 0 0.2em"}}
-         [source/source-editor source #(rf/dispatch [::new-set :source %])]])
       [:div {:style {:display "flex"
                      :gap "0.5em"
                      :margin-top "0.9em"}}

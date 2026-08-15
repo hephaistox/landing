@@ -10,8 +10,7 @@
    [landing.agora.document.kind          :as dk]
    [landing.agora.frontend.cite          :as cite]
    [landing.agora.frontend.document-page :as    dv
-                                         :refer [byline
-                                                 card-style
+                                         :refer [card-style
                                                  doc-badge
                                                  gated
                                                  input-drop-fn
@@ -21,32 +20,54 @@
                                                  version-picker]]
    [landing.agora.frontend.edit          :as edit]
    [landing.agora.frontend.i18n          :as i18n]
-   [landing.agora.frontend.source        :as source]
    [re-frame.core                        :as rf]))
+
+(def ^:private pill-style
+  "Inline rounded-box style for a statement-opening pill; `box-decoration-break: clone` keeps the box
+  intact when it wraps across lines."
+  {:display "inline"
+   :background "#f4efe4"
+   :border "1px solid #d9c9a8"
+   :border-radius "0.4em"
+   :padding "0 0.4em"
+   :margin-right "0.35em"
+   :color "#8a7a55"
+   :font-weight 500
+   :box-decoration-break "clone"
+   :-webkit-box-decoration-break "clone"})
 
 (defn- prefix-pill
   "The kind-guided statement opening, shown as an inline rounded box — flagging it as
   hard-coded scaffold (not authored prose) while still flowing on the same line as the body."
   [prefix]
-  [:span {:style {:display "inline-block"
-                  :background "#f4efe4"
-                  :border "1px solid #d9c9a8"
-                  :border-radius "0.4em"
-                  :padding "0 0.4em"
-                  :margin-right "0.35em"
-                  :color "#8a7a55"
-                  :font-weight 500
-                  :white-space "nowrap"
-                  :vertical-align "baseline"}}
+  [:span {:style pill-style}
    (str/trim prefix)])
 
+(defn- extract-prefix-pill
+  "An extract's opening sentence as a pill, with the cited author rendered as a profile link (title
+  and locator stay plain, from `kind/extract-prefix-parts`) — so the author link lives in the opening
+  and no separate source block is needed. nil when the work isn't resolved."
+  [work lang]
+  (when-let [{:keys [before author-name author-id after]} (dk/extract-prefix-parts work
+                                                                                   (keyword lang))]
+    [:span {:style pill-style}
+     before
+     (if author-id
+       [:a {:href (i18n/author lang author-id)
+            :style {:color "#8a7a55"
+                    :font-weight 700
+                    :text-decoration "underline"}}
+        author-name]
+       author-name)
+     after]))
+
 (defn- read-card
-  "The central card in read mode: kind badge, language switcher, version picker, title,
-  byline, the prose (with living citations) and the cited source. When `cfg` is given (an
-  editable page) a login-gated pencil opens the in-place editor; the public page passes
-  nil (read-only)."
+  "The central card in read mode: kind badge, language switcher, version picker, title, byline, and
+  the prose (with living citations) — an extract opening with its cited work as a linked pill. When
+  `cfg` is given (an editable page) a login-gated pencil opens the in-place editor; the public page
+  passes nil (read-only)."
   [{doc-type :type
-    :keys [title major minor published-at attributed-author attributed-author-id]
+    :keys [title major minor]
     :as doc}
    cfg]
   (let [lang @(rf/subscribe [::i18n/lang])
@@ -82,10 +103,8 @@
                        :minor minor}
        (fn [vid] (i18n/doc-url lang doc-type vid))]]
      [:h1 {:style {:font-size "1.3em"
-                   :margin "0.2em 0 0.1em"}}
+                   :margin "0.2em 0 0.5em"}}
       title]
-     [byline attributed-author published-at attributed-author-id]
-     [dv/publication-ref lang (:publication doc)]
      ;; a draft the owner is viewing gets a Publish banner, right above the body
      [edit/publish-action doc]
      [:div {:style {:font-size "1.05em"
@@ -96,10 +115,23 @@
       ;; Derived from the doc's CONTENT language (`:lang doc`), not the reader's interface
       ;; language, so prefix and body always agree (e.g. a French doc reads French even for an
       ;; English reader viewing a cross-language fallback).
-      [cite/render-text
-       (cite/node-text doc)
-       (when-let [prefix (dk/statement-prefix-of doc (keyword (:lang doc)))] [prefix-pill prefix])]]
-     [source/source-view (:source doc)]
+      ;; an extract opens with its cited work (author as a profile link in the pill) and drops that
+      ;; work citation from the body, leaving the verbatim quote alone (no inline duplicate, no
+      ;; separate source block)
+      (let [extract? (= :extract
+                        (some-> (:kind doc)
+                                keyword))]
+        [cite/render-text
+         (if extract? (cite/without-citations (cite/node-text doc)) (cite/node-text doc))
+         (if extract?
+           [extract-prefix-pill (:work doc) (:lang doc)]
+           (when-let [prefix (dk/statement-prefix-of doc (keyword (:lang doc)))]
+             [prefix-pill prefix]))])]
+     ;; compact provenance footer — the same phrase as the discover card, pinned at the bottom
+     [:div {:style {:margin-top "1.1em"
+                    :padding-top "0.7em"
+                    :border-top "1px solid #eee"}}
+      [dv/provenance-line lang doc]]
      ;; owner-only maintenance, right on the read view (no need to enter edit mode)
      [edit/admin-actions doc]]))
 

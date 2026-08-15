@@ -24,6 +24,8 @@
    - `:say` — the statement scaffold `{:subject :author|:term, :phrase {lang → connector}}` that
      opens the kind's sentence (\"<author> believes that …\", \"<term> designates …\"). Absent for
      free-form kinds (`inference`); drives `statement-prefix` (see `statement-say`).
+   - `:consequence` — the default kind of a new consequence built on this one (`add consequence`);
+     absent means `inference` (see `kind-consequence`).
   The set is NOT enforced by the DB; the API validates against it and the UI renders it."
   [{:id :inference
     :color "#2c5aa0"
@@ -82,12 +84,16 @@
    {:id :extract
     :color "#495057"
     :inputs? true
+    :bibliographic? true
+    :consequence :definition
     :object-type :ki
     :def-name "type-extract"
     :def-major 1}
    {:id :work
     :color "#846358"
     :inputs? false
+    :bibliographic? true
+    :consequence :extract
     :object-type :ki
     :def-name "type-work"
     :def-major 1}
@@ -140,18 +146,34 @@
                     (some-> kind
                             keyword)))))
 
-(def ^:private kind-in-text?
-  "kind (keyword) → whether *citing* a KI of that kind writes the citation into the prose."
-  (into {} (map (juxt :id :in-text?)) kinds))
+(def ^:private kind-bibliographic?-map
+  "kind (keyword) → whether it is a bibliographic kind (`work` / `extract`)."
+  (into {} (map (juxt :id :bibliographic?)) kinds))
 
-(defn kind-citations-in-text?
-  "When a KI cites a document of `kind` (a keyword), is the
-  citation written **into the prose** (an inline `[[ki:…]]` token, the default) or recorded as an
-  **input edge only**?"
+(defn kind-bibliographic?
+  "Is `kind` (a keyword) a bibliographic kind — a `work` or an `extract`? These are authored through
+  their own bibliographic surfaces (a work form, an extract's work-picker + locator), so the generic
+  quick-create-a-predecessor form excludes them."
   [kind]
-  (not (false? (get kind-in-text?
-                    (some-> kind
-                            keyword)))))
+  (boolean (get kind-bibliographic?-map
+                (some-> kind
+                        keyword))))
+
+(def ^:private kind-consequence-map
+  "kind (keyword) → the default kind of a consequence built on it, for kinds that declare one."
+  (into {} (keep (fn [{:keys [id consequence]}] (when consequence [id consequence]))) kinds))
+
+(defn kind-consequence
+  "The default kind for a **consequence** (a new successor citing this one) of a document of `kind` —
+  what `add consequence` creates. A `work` yields an `extract` (a verbatim passage of it), an `extract`
+  an appropriation (`definition`), everything else an `inference` (the default reasoning step). It is a
+  default, not a rule: the author may pick another kind — e.g. a whole-work claim citing a work
+  directly (\"the Bible is not set in the 21st century\")."
+  [kind]
+  (get kind-consequence-map
+       (some-> kind
+               keyword)
+       :inference))
 
 (def kind-def
   "kind (keyword) → the identity of the KI that defines it: `{:type :name :major}`.
@@ -220,17 +242,48 @@
   [doc]
   (or (:author-id doc) (:owner-id doc)))
 
+(defn extract-prefix-parts
+  "The pieces of an `extract`'s opening sentence in `lang`, from its resolved `work`
+  (`{:title :author-name :author-id :locator}`): `{:before :author-name :author-id :after}`, where
+  `before`/`after` bracket the cited author. A renderer joins them for plain text (`extract-prefix`)
+  or renders the author as a profile link between them (read page). nil when there is no work (e.g.
+  the live editor, which holds no resolved work)."
+  [{:keys [title author-name author-id locator]} lang]
+  (when-not (str/blank? title)
+    (let [loc (when-not (str/blank? locator) (str " (" locator ")"))]
+      (if (= lang :en)
+        {:before (str "In “" title "”, ")
+         :author-name author-name
+         :author-id author-id
+         :after (str " writes" loc ": ")}
+        {:before (str "Dans « " title " », ")
+         :author-name author-name
+         :author-id author-id
+         :after (str " écrit" loc " : ")}))))
+
+(defn- extract-prefix
+  "The plain-text opening of an `extract` in `lang` (author as text) — cards and SSR. The read page
+  uses `extract-prefix-parts` to make the author a link."
+  [work lang]
+  (when-let [{:keys [before author-name after]} (extract-prefix-parts work lang)]
+    (str before author-name after)))
+
 (defn statement-prefix-of
-  "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil
-  for a free-form kind. Rendered *separately* from the body so the citation-parsed prose can
-  follow a plain-text prefix (read page, editor label)."
+  "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil for a
+  free-form kind. An `extract` opens with its cited work + locator (`extract-prefix`, from the
+  resolved `:work`). Rendered *separately* from the body so the citation-parsed prose can follow a
+  plain-text prefix (read page, editor label)."
   [doc lang]
-  (let [kind (:kind doc)
-        subject (case (statement-subject-kind kind)
-                  :author (attributed-author doc)
-                  :term (:title doc)
-                  nil)]
-    (statement-prefix kind lang subject)))
+  (if (= :extract
+         (some-> (:kind doc)
+                 keyword))
+    (extract-prefix (:work doc) lang)
+    (let [kind (:kind doc)
+          subject (case (statement-subject-kind kind)
+                    :author (attributed-author doc)
+                    :term (:title doc)
+                    nil)]
+      (statement-prefix kind lang subject))))
 
 (defn compose-statement
   "The full statement sentence for `doc` in `lang`: the kind-guided prefix + the authored

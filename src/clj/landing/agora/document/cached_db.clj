@@ -48,13 +48,17 @@
 
 (defrecord DocumentCachedDB []
   ds/DocumentStorage
-    (fetch-id [_this id] (caffeine/fetch by-id id))
+    ;; nil id (an unresolved/dangling pin) → no document; guard it, since a nil key would blow up the
+    ;; underlying cache
+    (fetch-id [_this id] (when id (caffeine/fetch by-id id)))
     ;; resolve the lineage's latest published id (cached), then its document (cached)
     (fetch-latest-revision [_this ref]
       (some->> (caffeine/fetch by-tnlr (di/tnlr ref))
                (caffeine/fetch by-id)))
     (documents [_this type lang limit offset] (caffeine/fetch by-page [type lang limit offset]))
     (published-latest [_this] (caffeine/fetch latest-set :all))
+    ;; evict one cached row by id — a draft is edited in place (same id), so its write-once entry is
+    ;; stale after the write
     (publish-change! [_this change-id] (evict! change-id))
     (probe-tnr-languages [_this _tnr] nil)
     ;; a new minor changes which id is latest for this lineage — drop the stale tnlr→id entry

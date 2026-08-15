@@ -4,11 +4,11 @@
   create a new document, or edit one into a new version (text-only for now — see
   `landing.agora.document.write`). One mount, the type in the path."
   (:require
-   [clojure.set                       :as set]
    [landing.agora.auth                :as auth]
    [landing.agora.db.document         :as db-doc]
    [landing.agora.document.engine     :as engine]
    [landing.agora.document.identity   :as di]
+   [landing.agora.document.storage    :as ds]
    [landing.agora.document.write      :as write]
    [landing.language                  :as language]
    [muuntaja.core                     :as m]
@@ -26,12 +26,6 @@
    muuntaja/format-request-middleware
    rcoercion/coerce-request-middleware])
 
-(defn- serve
-  "Rename a document's `:source` `:source-id` to `:id` for the wire (the client reads `:id`)."
-  [doc]
-  (cond-> doc
-    (:source doc) (update :source set/rename-keys {:source-id :id})))
-
 (defn- uid [req] (get-in req [:session :user-id]))
 
 (defn- owned-publication
@@ -45,39 +39,55 @@
 
 (defn- create-handler
   "Create a new document of `:type` owned by the caller (text-only). Body:
-  `{:kind :title :text :lang :publication-id}` — created as a draft in the publication (required; 400
-  when absent). Returns the created version's endpoint view."
+  `{:kind :title :text :lang :publication-id}`, plus for a `work` its cited author (`:author-id` +
+  `:author-name`) and bibliographic `:year`/`:editor`/`:url`, and for an `extract` its `:locator`.
+  Created as a draft in the publication (required; 400 when absent). The byline `author` is the cited
+  author's name for a work, else the contributor's display name. Returns the created version's
+  endpoint view."
   [doc-storage req]
   (if-let [uid (uid req)]
     (let [type (keyword (get-in req [:path-params :type]))
-          {:keys [kind title text lang publication-id]} (:body-params req)]
+          {:keys
+           [kind title text lang publication-id author-id author-name year editor url locator]}
+          (:body-params req)
+          kind (some-> kind
+                       keyword)]
       (if-not (seq publication-id)
         ;; every create happens inside an open publication (no publish-directly path)
         {:status 400
          :body {:error "a publication must be selected"}}
         ;; JSON delivers kind/lang as strings; the write domain works in keywords
-        (let [new-id (write/create! type
+        (let [author (if (= kind :work) author-name (:display-name (auth/get-user uid)))
+              new-id (write/create! type
                                     uid
-                                    (:display-name (auth/get-user uid))
-                                    {:kind (some-> kind
-                                                   keyword)
+                                    author
+                                    {:kind kind
                                      :title title
                                      :text text
                                      :lang (some-> lang
-                                                   keyword)}
+                                                   keyword)
+                                     :author-id author-id
+                                     :year year
+                                     :editor editor
+                                     :url url
+                                     :locator locator}
                                     publication-id)]
           {:status 200
-           :body (serve (engine/read-by-id doc-storage new-id))})))
+           :body (engine/read-by-id doc-storage new-id)})))
     {:status 401
      :body {:error "login required"}}))
 
 (defn- edit-handler
-  "Edit document `:id` into a new version (text-only). Body: `{:title :text :publication-id}`. A new
-  minor when the caller owns it, else a fork (new major). Returns the new version's endpoint view."
+  "Edit document `:id` into a new version (text-only). Body: `{:title :text :kind :publication-id}`,
+  plus the bibliographic (`:author-id`/`:year`/`:editor`/`:url`) or `:locator` extras a new value
+  overrides. A new minor when the caller owns it, else a fork (new major). Returns the new version's
+  endpoint view."
   [doc-storage req]
   (if-let [editor (uid req)]
     (let [id (get-in req [:path-params :id])
-          {:keys [title text publication-id]} (:body-params req)]
+          {:keys [title text kind publication-id author-id year url locator]
+           biblio-editor :editor}
+          (:body-params req)]
       (if-not (seq publication-id)
         ;; every edit happens inside an open publication (the new version is a draft in it)
         {:status 400
@@ -86,10 +96,20 @@
                                      editor
                                      (:display-name (auth/get-user editor))
                                      {:title title
-                                      :text text}
+                                      :text text
+                                      :kind (some-> kind
+                                                    keyword)
+                                      :author-id author-id
+                                      :year year
+                                      :editor biblio-editor
+                                      :url url
+                                      :locator locator}
                                      publication-id)]
-          {:status 200
-           :body (serve (engine/read-by-id doc-storage new-id))}
+          ;; an edit may rewrite a draft **in place** (same id); drop its stale cache entry so the
+          ;; read-back returns the new content
+          (do (ds/publish-change! doc-storage new-id)
+              {:status 200
+               :body (engine/read-by-id doc-storage new-id)})
           {:status 404
            :body {:error "not found"
                   :id id}})))
@@ -125,15 +145,14 @@
            (fn [req]
              (let [{:keys [type]} (get-in req [:parameters :path])
                    {:keys [lang limit offset q publication]} (get-in req [:parameters :query])
-                   lang (or lang "fr")
+                   ;; `all` (or absent) → every language (the client filters by content language)
+                   lang (when-not (contains? #{nil "all"} lang) lang)
                    pub (owned-publication req publication)]
                {:status 200
                 :body
-                (mapv
-                 serve
-                 (if (some? q)
-                   (engine/search-cards doc-storage type lang q pub)
-                   (engine/list-cards doc-storage type lang (or limit 20) (or offset 0) pub)))}))
+                (if (some? q)
+                  (engine/search-cards doc-storage type lang q pub)
+                  (engine/list-cards doc-storage type lang (or limit 20) (or offset 0) pub))}))
            :operationId "agora-list-documents"
            :parameters {:path [:map [:type :string]]
                         :query [:map
@@ -163,27 +182,36 @@
                        ref {:type (keyword type)
                             :name (di/cid-of name)
                             :lang (keyword lang)
-                            :major major}]
-                   (if-let [d (engine/read-by-major doc-storage ref)]
+                            :major major}
+                       pub (owned-publication req (get-in req [:parameters :query :publication]))]
+                   (if-let [d (engine/read-by-major doc-storage ref pub)]
                      {:status 200
-                      :body (serve d)}
+                      :body d}
                      {:status 404
                       :body {:error "not found"}})))
       :operationId "agora-read-by-tnlr"
-      :parameters {:path [:map [:type :string] [:name :string] [:lang :string] [:major :int]]}
+      :parameters {:path [:map [:type :string] [:name :string] [:lang :string] [:major :int]]
+                   :query [:map
+                           [:publication {:optional true}
+                            [:maybe :string]]]}
       :summary
       "A document by its identity — latest published minor; a `*` lang uses the request's language"}}]
    ["/:type/:id"
     {:get {:handler (fn [req]
-                      (let [id (get-in req [:parameters :path :id])]
-                        (if-let [d (engine/read-by-id doc-storage id)]
+                      (let [id (get-in req [:parameters :path :id])
+                            pub (owned-publication req
+                                                   (get-in req [:parameters :query :publication]))]
+                        (if-let [d (engine/read-by-id doc-storage id pub)]
                           {:status 200
-                           :body (serve d)}
+                           :body d}
                           {:status 404
                            :body {:error "not found"
                                   :id id}})))
            :operationId "agora-read-by-id"
-           :parameters {:path [:map [:type :string] [:id :string]]}
+           :parameters {:path [:map [:type :string] [:id :string]]
+                        :query [:map
+                                [:publication {:optional true}
+                                 [:maybe :string]]]}
            :summary "A document by id"}
      :post {:handler (fn [req] (edit-handler doc-storage req))
             :operationId "agora-edit-document"

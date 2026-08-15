@@ -401,29 +401,31 @@
     kebab)))
 
 (defn published-of-type
-  "One page of the browse feed: the latest published minor of every lineage of `type` in `lang`,
-  newest first (`published_at`), as full documents. `limit`/`offset` page it."
+  "One page of the browse feed: the latest published minor of every lineage of `type`, newest first
+  (`published_at`), as full documents. When `lang` is given the feed is that content language; a nil
+  `lang` returns every language (the client then filters). `limit`/`offset` page it."
   [type lang limit offset]
   (mapv
    row->doc
    (q!
     db/ds
-    ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
+    (into
+     [(str
+       "SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
                      d.content, d.computed
                 FROM AGORA_DOCUMENT d
                 JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
                         FROM AGORA_DOCUMENT
-                       WHERE type = ? AND lang = ? AND draft = 0
+                       WHERE type = ? "
+       (when lang "AND lang = ? ")
+       "AND draft = 0
                        GROUP BY type, name, lang, major) g
                   ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
                      AND d.major = g.major AND d.minor = g.latest
                WHERE d.draft = 0
                ORDER BY d.published_at DESC
-               LIMIT ? OFFSET ?"
-     (t->s type)
-     (t->s lang)
-     limit
-     offset]
+               LIMIT ? OFFSET ?")]
+     (concat [(t->s type)] (when lang [(t->s lang)]) [limit offset]))
     kebab)))
 
 (defn versions-of-id
@@ -448,32 +450,33 @@
     kebab)))
 
 (defn search-of-type
-  "The latest published minor of every lineage of `type` in `lang` whose name or content matches `q`
-  (substring, case-insensitive), as full documents, capped at `limit`. `content` is the EDN blob, so
-  this matches title and body text; a blank `q` is the caller's concern."
+  "The latest published minor of every lineage of `type` whose name or content matches `q` (substring,
+  case-insensitive), as full documents, capped at `limit`. When `lang` is given the search is that
+  content language; a nil `lang` searches every language. `content` is the EDN blob, so this matches
+  title and body text; a blank `q` is the caller's concern."
   [type lang q limit]
   (let [like (str "%" q "%")]
     (mapv
      row->doc
      (q!
       db/ds
-      ["SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
+      (into
+       [(str
+         "SELECT d.id, d.type, d.name, d.lang, d.major, d.minor, d.draft, d.publication_id,
                      d.content, d.computed
                 FROM AGORA_DOCUMENT d
                 JOIN (SELECT type, name, lang, major, MAX(minor) AS latest
                         FROM AGORA_DOCUMENT
-                       WHERE type = ? AND lang = ? AND draft = 0
+                       WHERE type = ? "
+         (when lang "AND lang = ? ")
+         "AND draft = 0
                        GROUP BY type, name, lang, major) g
                   ON d.type = g.type AND d.name = g.name AND d.lang = g.lang
                      AND d.major = g.major AND d.minor = g.latest
                WHERE d.draft = 0 AND (d.name LIKE ? OR d.content LIKE ?)
                ORDER BY d.name, d.major
-               LIMIT ?"
-       (t->s type)
-       (t->s lang)
-       like
-       like
-       limit]
+               LIMIT ?")]
+       (concat [(t->s type)] (when lang [(t->s lang)]) [like like limit]))
       kebab))))
 
 (defn- published-latest-rows
@@ -574,13 +577,14 @@
             :major (:major row)
             :minor (:minor row)
             :draft (truthy? (:draft row))
+            :publication-id (:publication-id row)
             :inputs (:inputs content)
             :computed (or (some-> (:computed row)
                                   edn/read-string)
                           {})}))
        (jdbc/execute!
         tx
-        ["SELECT id, type, name, lang, major, minor, draft, content, computed
+        ["SELECT id, type, name, lang, major, minor, draft, publication_id, content, computed
                             FROM AGORA_DOCUMENT"]
         kebab))
       :edges

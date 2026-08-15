@@ -26,9 +26,16 @@
     (is (sut/kind-allows-inputs? :extract) "an extract cites the work it draws from")
     (is (not (sut/kind-allows-inputs? :work)) "a work is a leaf")
     (is (sut/kind-allows-inputs? nil) "an article has no kind → may take inputs"))
-  (testing "kind-citations-in-text?: every kind is cited in-text"
-    (is (sut/kind-citations-in-text? :definition))
-    (is (sut/kind-citations-in-text? :extract)))
+  (testing "kind-bibliographic?: only work and extract are bibliographic"
+    (is (sut/kind-bibliographic? :work))
+    (is (sut/kind-bibliographic? :extract))
+    (is (not (sut/kind-bibliographic? :definition)))
+    (is (not (sut/kind-bibliographic? :inference))))
+  (testing "kind-consequence: work→extract, extract→definition, everything else→inference"
+    (is (= :extract (sut/kind-consequence :work)))
+    (is (= :definition (sut/kind-consequence :extract)))
+    (is (= :inference (sut/kind-consequence :belief)))
+    (is (= :inference (sut/kind-consequence nil)) "an absent kind defaults to inference"))
   (testing "kind-def points each kind at its self-hosting definition KI"
     (is (= {:type :ki
             :name "type-inference"

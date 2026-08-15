@@ -2,6 +2,7 @@
   "Publications — the work-packages you author in."
   (:require
    [clojure.string                       :as str]
+   [landing.agora.document.kind          :as dk]
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.document-page :as dv]
    [landing.agora.frontend.i18n          :as i18n]
@@ -45,6 +46,14 @@
   [db]
   (if-let [id (:id (:agora/active-publication db))]
     (str "&publication=" (js/encodeURIComponent id))
+    ""))
+
+(defn active-query
+  "A `?publication=<cid>` query string for the active publication — for a URL with no other query (the
+  by-id/by-major page reads), so its draft successors overlay. Empty when none is active."
+  [db]
+  (if-let [id (:id (:agora/active-publication db))]
+    (str "?publication=" (js/encodeURIComponent id))
     ""))
 
 ;; adopt the stored active publication at boot
@@ -132,6 +141,11 @@
                    {:fetch (GET "/agora/api/publication?scope=all" [::search-ok] [::search-fail])}))
 (rf/reg-event-db ::search-ok (fn [db [_ resp]] (assoc db :agora/publication-results (:body resp))))
 (rf/reg-event-db ::search-fail (fn [db _] (assoc db :agora/publication-results [])))
+
+;; the index status filter — publications have no content language, so instead of the language filter
+;; they get a lifecycle toggle: all / published (closed) / open
+(rf/reg-sub ::status-filter (fn [db _] (:agora/pub-status-filter db :all)))
+(rf/reg-event-db ::set-status-filter (fn [db [_ v]] (assoc db :agora/pub-status-filter v)))
 
 (rf/reg-event-fx ::create
                  (fn [{:keys [db]} [_ title]]
@@ -276,15 +290,49 @@
             :on-click #(rf/dispatch [::create ""])}
    "+"])
 
+(defn- status-toggle
+  "The publications index lifecycle filter — all / published (closed) / open (a publication has no
+  content language, so it gets this instead of the language filter)."
+  [lang status]
+  (let [btn (fn [v label] [:button {:on-click #(rf/dispatch [::set-status-filter v])
+                                    :style {:border "1px solid #b9770e"
+                                            :background (if (= status v) "#b9770e" "#fff")
+                                            :color (if (= status v) "#fff" "#b9770e")
+                                            :border-radius "0.35em"
+                                            :padding "0.28em 0.7em"
+                                            :font-size "0.82em"
+                                            :font-weight 600
+                                            :cursor "pointer"}}
+                           label])]
+    [:div {:style {:display "flex"
+                   :gap "0.25em"
+                   :align-items "center"
+                   :margin "0 0 0.6em"}}
+     [:span {:style {:color "#8a7a55"
+                     :font-size "0.72em"
+                     :font-weight 700
+                     :text-transform "uppercase"
+                     :letter-spacing "0.04em"
+                     :margin-right "0.3em"}}
+      (i18n/t lang :pub/filter-status)]
+     (btn :all (i18n/t lang :filter/all))
+     (btn :closed (i18n/t lang :pub/status-closed))
+     (btn :open (i18n/t lang :pub/status-open))]))
+
 (defn publications-page
-  "The publications index: the shared browse filter bar (scope / author / q), a create-by-typing
-  control, then the publications it keeps — open and published — as the shared discover grid of cards
-  (each a publication card, driven by its `:type`/`:status`), plus a mobile FAB. Logged-in only (the
-  header entry that leads here is gated too)."
+  "The publications index: a lifecycle status toggle + the shared browse filter (author / q), a
+  create-by-typing control, then the publications it keeps as the shared discover grid of cards (each a
+  publication card, driven by its `:type`/`:status`), plus a mobile FAB. Logged-in only (the header
+  entry that leads here is gated too)."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
+        status @(rf/subscribe [::status-filter])
         pubs @(rf/subscribe [::results])
-        shown (dv/filter-items pubs)]
+        by-status (case status
+                    :open (filterv #(= "open" (:status %)) pubs)
+                    :closed (filterv #(= "closed" (:status %)) pubs)
+                    pubs)
+        shown (dv/filter-items by-status)]
     [:div {:style {:max-width "72em"
                    :margin "1.5em auto"
                    :padding "0 0.8em"
@@ -295,7 +343,8 @@
      [:p {:style {:color "#777"
                   :margin "0 0 1em"}}
       (i18n/t lang :pub/index-lead)]
-     [dv/filter-bar lang]
+     [status-toggle lang status]
+     [dv/filter-bar lang nil]
      [create-from-filter lang pubs]
      (if (seq shown)
        [dv/card-grid lang shown nil]
@@ -675,9 +724,17 @@
                              [create-here lang pub]]
                             [:p {:style {:color "#aaa"}}
                              (i18n/t lang :pub/no-docs)])
-           :else (into [:div {:style {:display "grid"
-                                      :grid-template-columns
-                                      "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
-                                      :gap "0.9em"}}]
-                       (for [c cards]
-                         ^{:key (:id c)} [doc-card lang (:id pub) deletable? c])))])])))
+           :else [:<>
+                  [dv/filter-bar
+                   lang
+                   (filterv (into #{}
+                                  (keep #(some-> (:kind %)
+                                                 keyword))
+                                  cards)
+                            dk/kind-ids)]
+                  (into [:div {:style {:display "grid"
+                                       :grid-template-columns
+                                       "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
+                                       :gap "0.9em"}}]
+                        (for [c (dv/filter-items cards)]
+                          ^{:key (:id c)} [doc-card lang (:id pub) deletable? c]))])])])))

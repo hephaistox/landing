@@ -59,8 +59,13 @@
                  label]]
        (if-let [def-ref (when link? (get dk/kind-def kind))]
          ;; the kind ↔ definition-KI link is domain data (name + major); type is `ki`,
-         ;; minor resolves to latest via by-major, lang is the reader's.
-         [cite/node-link (assoc def-ref :lang lang) pill]
+         ;; minor resolves to latest via by-major, lang is the reader's. `kind-def` carries the
+         ;; keyword `:ki` (domain form); node identities on the client use the string type, so coerce.
+         [cite/node-link
+          (-> def-ref
+              (assoc :lang lang)
+              (update :type name))
+          pill]
          pill)))))
 
 (defn lang-badge
@@ -775,15 +780,13 @@
   fn of an input-doc → its ✕ on-click (see `input-drop-fn`); passed only for editable
   pages, and only to the inputs row."
   ([doc central link-fn] (node-frame doc central link-fn nil))
-  ([{:keys [inputs cites successors]
+  ([{:keys [inputs successors]
      :as doc}
     central
     link-fn
     input-drop?]
-   ;; sources (`:cites`) are inputs too — an edge-only citation — so they render in the same
-   ;; top row as the KI inputs rather than in a separate list below the prose
    (let [lang @(rf/subscribe [::i18n/lang])
-         ins (concat inputs cites)]
+         ins inputs]
      [:div {:style {:display "flex"
                     :flex-direction "column"
                     :align-items "center"
@@ -838,34 +841,43 @@
                       :background (if closed? "#dff3e2" "#fff3d6")}}
        (i18n/t lang (if closed? :pub/status-closed :pub/status-open))])))
 
-(defn card-author
-  "A card's byline person, copper: a source KI shows its cited author; otherwise the document's own
-  attributed author (or a publication's `:author`), with a `(You)` marker when it is the viewer's."
+(defn provenance-line
+  "The compact provenance line — 'Écrit par <author> dans <publication>, le <date>', author and
+  publication as links. Shared by the discover card and the read page so both read identically."
   [lang node]
-  (let [src-author (:author-name (:source node))
-        author (or (:attributed-author node) (:author node))
+  (let [author (or (:attributed-author node) (:author node))
         author-id (or (:attributed-author-id node) (:author-id node))
-        you? (and author-id (= author-id (:id @(rf/subscribe [::auth/user]))))]
-    (cond
-      src-author [:span {:title (i18n/t lang :card/cites)}
-                  "📖 "
-                  [:span {:style {:color "#b9770e"
-                                  :font-weight 600}}
-                   src-author]]
-      author [:span
-              [:span {:style {:font-style "italic"}}
-               (str (i18n/t lang :card/by) " ")]
-              [:span {:style {:color "#b9770e"
-                              :font-weight 600}}
-               author]
-              (when you?
-                [:span {:style {:color "#999"}}
-                 (str " " (i18n/t lang :byline/you))])])))
+        pub (:publication node)
+        date (fmt/short-date (:published-at node)
+                             (i18n/t lang :date/today)
+                             (i18n/t lang :date/yesterday))]
+    [:div {:style {:color "#888"
+                   :font-size "0.8em"
+                   :line-height 1.5}}
+     (when author
+       [:<>
+        (str (i18n/t lang :card/by) " ")
+        (if author-id
+          [:a {:href (i18n/author lang author-id)
+               :style {:color "#b9770e"
+                       :font-weight 600
+                       :text-decoration "none"}}
+           author]
+          [:span {:style {:font-weight 600}}
+           author])])
+     (when pub
+       [:<>
+        (str " " (i18n/t lang :card/in-pub) " ")
+        [:a {:href (i18n/publication lang (:id pub))
+             :style {:color "#b9770e"
+                     :text-decoration "none"}}
+         (:title pub)]])
+     (when date (str ", " (i18n/t lang :card/on-date) " " date))]))
 
 (defn discover-card
   "A preview card for a node in a discover grid: its badge (a kind badge, a status chip for a
   publication, or a neutral type chip), version, title, an excerpt of its text (when it has any,
-  citations flattened and clamped so the grid stays even), the byline author, and the date. Field-
+  citations flattened and clamped so the grid stays even), and the compact provenance footer. Field-
   driven, so KIs, articles and publications all render through it."
   [lang node]
   ;; prepend the kind-guided opening (derived, not stored) so the card reads as the full
@@ -921,21 +933,9 @@
                       :-webkit-box-orient "vertical"
                       :overflow "hidden"}}
         excerpt])
-     ;; author and date on one line: author left, compact date pushed to the right
-     [:div {:style {:margin-top "auto"
-                    :color "#888"
-                    :font-size "0.8em"
-                    :display "flex"
-                    :align-items "baseline"
-                    :gap "0.5em"}}
-      [card-author lang node]
-      ;; compact date (Today / Yesterday / DD/MM / DD/MM/YYYY)
-      [:span {:style {:margin-left "auto"
-                      :white-space "nowrap"}}
-       (or (fmt/short-date (:published-at node)
-                           (i18n/t lang :date/today)
-                           (i18n/t lang :date/yesterday))
-           "—")]]]))
+     ;; compact provenance, pinned to the card's bottom
+     [:div {:style {:margin-top "auto"}}
+      [provenance-line lang node]]]))
 
 ;; --- shared browse filter (scope / author / q) — narrows a grid client-side, like the author page.
 ;; `:scope` is global (a browsing preference); the text filters (`:author`/`:q`) are kept **per view**
@@ -952,17 +952,22 @@
                      (assoc-in db [:agora/browse-filter :text (:kind (:view db)) k] v))))
 
 (defn- passes-filter?
-  "True when `node` clears the browse `filter` {:scope :author :q} for `viewer-id`: `:mine` keeps only
-  the viewer's own; `:author` a name substring on the byline; `:q` a substring of title/text/author."
-  [viewer-id {:keys [scope author q]} node]
+  "True when `node` clears the browse `filter` {:scope :author :q :kinds} for `viewer-id`: `:mine` keeps
+  only the viewer's own; `:author` a name substring on the byline; `:q` a substring of title/text/author;
+  `:kinds` (a set, empty = any) the node's kind must be in."
+  [viewer-id {:keys [scope author q kinds]} node]
   (let [owner (or (:attributed-author-id node) (:author-id node))
-        ;; match what the card shows as the byline: a cited source's author first (card-author)
-        author-name (or (:author-name (:source node)) (:attributed-author node) (:author node) "")
+        ;; match what the card shows as the byline
+        author-name (or (:attributed-author node) (:author node) "")
         hay (str/lower-case (str (:title node) " " (:text node) " " author-name))]
     (and (or (not= scope :mine) (and viewer-id (= viewer-id owner)))
          (or (str/blank? author)
              (str/includes? (str/lower-case author-name) (str/lower-case author)))
-         (or (str/blank? q) (str/includes? hay (str/lower-case q))))))
+         (or (str/blank? q) (str/includes? hay (str/lower-case q)))
+         (or (empty? kinds)
+             (contains? kinds
+                        (some-> (:kind node)
+                                keyword))))))
 
 (defn filter-items
   "Narrow `items` by the current browse filter for the signed-in viewer — the client-side counterpart
@@ -973,21 +978,24 @@
     (filterv #(passes-filter? viewer-id f %) items)))
 
 (defn filter-bar
-  "The shared browse filter bar above a grid: a scope toggle (mine / all), an author-name field and a
-  text field. Drives the shared `:agora/browse-filter`; `filter-items` applies it. Used by every
-  browse surface so KIs, articles and publications filter identically."
-  [lang]
-  (let [{:keys [scope author q]} @(rf/subscribe [::browse-filter])
-        toggle (fn [v label] [:button {:on-click #(rf/dispatch [::set-filter :scope v])
-                                       :style {:border "1px solid #b9770e"
-                                               :background (if (= scope v) "#b9770e" "#fff")
-                                               :color (if (= scope v) "#fff" "#b9770e")
-                                               :border-radius "0.35em"
-                                               :padding "0.3em 0.75em"
-                                               :font-size "0.82em"
-                                               :font-weight 600
-                                               :cursor "pointer"}}
-                              label])
+  "The shared browse filter bar: an **Author** group (a mine/all scope toggle + a name field), an
+  optional **Type** multi-select (`kind-ids` — the kinds offered as checkboxes; nil/empty = none) and a
+  text search. Drives `:agora/browse-filter`; `filter-items` applies it. Used by every browse surface."
+  [lang kind-ids]
+  (let [{:keys [scope author q kinds]} @(rf/subscribe [::browse-filter])
+        kinds (or kinds #{})
+        seg (fn [on?]
+              {:border "1px solid #b9770e"
+               :background (if on? "#b9770e" "#fff")
+               :color (if on? "#fff" "#b9770e")
+               :border-radius "0.35em"
+               :padding "0.28em 0.7em"
+               :font-size "0.82em"
+               :font-weight 600
+               :cursor "pointer"})
+        scope-btn (fn [v label] [:button {:on-click #(rf/dispatch [::set-filter :scope v])
+                                          :style (seg (= scope v))}
+                                 label])
         field (fn [k value ph] [:input {:type "text"
                                         :value (or value "")
                                         :placeholder (i18n/t lang ph)
@@ -997,17 +1005,37 @@
                                                 :border "1px solid #ccc"
                                                 :border-radius "0.35em"
                                                 :font-size "0.85em"
-                                                :min-width "9em"}}])]
+                                                :min-width "9em"}}])
+        label (fn [t] [:span {:style {:color "#8a7a55"
+                                      :font-size "0.72em"
+                                      :font-weight 700
+                                      :text-transform "uppercase"
+                                      :letter-spacing "0.04em"}}
+                       t])]
     [:div {:style {:display "flex"
                    :flex-wrap "wrap"
-                   :gap "0.5em"
+                   :gap "0.45em"
                    :align-items "center"
                    :margin "0 0 0.9em"}}
+     (label (i18n/t lang :filter/author))
      [:span {:style {:display "inline-flex"
-                     :gap "0.3em"}}
-      (toggle :mine (i18n/t lang :filter/mine))
-      (toggle :all (i18n/t lang :filter/all))]
+                     :gap "0.25em"}}
+      (scope-btn :mine (i18n/t lang :filter/mine))
+      (scope-btn :all (i18n/t lang :filter/all))]
      (field :author author :filter/author-ph)
+     (when (seq kind-ids)
+       [:<>
+        (label (i18n/t lang :filter/type))
+        (into [:span {:style {:display "inline-flex"
+                              :flex-wrap "wrap"
+                              :gap "0.25em"}}]
+              (for [k kind-ids
+                    :let [on? (contains? kinds k)]]
+                ^{:key k}
+                [:button {:on-click #(rf/dispatch
+                                      [::set-filter :kinds (if on? (disj kinds k) (conj kinds k))])
+                          :style (assoc (seg on?) :font-size "0.78em" :padding "0.2em 0.55em")}
+                 (str (if on? "☑ " "☐ ") (i18n/t lang (keyword "kind" (name k))))]))])
      (field :q q :filter/search-ph)]))
 
 (defn add-card
@@ -1065,7 +1093,13 @@
   [{:keys [heading-key tagline-key items new-href-fn new-label-key]}]
   (let [lang @(rf/subscribe [::i18n/lang])
         new-href (new-href-fn lang)
-        new-label (i18n/t lang new-label-key)]
+        new-label (i18n/t lang new-label-key)
+        ;; the kinds actually present in the feed, in canonical order — the Type filter's checkboxes
+        kind-ids (filterv (into #{}
+                                (keep #(some-> (:kind %)
+                                               keyword))
+                                items)
+                          dk/kind-ids)]
     [:div {:style {:max-width "72em"
                    :margin "1.5em auto"
                    :padding "0 0.8em"
@@ -1100,7 +1134,7 @@
      [:p {:style {:color "#666"
                   :margin "0 0 0.6em"}}
       (i18n/t lang tagline-key)]
-     [filter-bar lang]
+     [filter-bar lang kind-ids]
      [card-grid lang (filter-items items) [add-card new-href new-label]]
      [fab new-href new-label]]))
 

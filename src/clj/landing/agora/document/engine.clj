@@ -71,9 +71,21 @@
   [ref]
   (mapv (fn [id] {:id id}) (db-doc/successor-latest-ids ref)))
 
+(defn- publication-successor-refs
+  "The drafts publication `pub-cid` gathers that pin `doc`'s lineage, as `{:id}` refs — the in-progress
+  successors. Public successor edges (`AGORA_SUCCESSOR`) are published-only, so this overlay is how a
+  draft graph shows successors while authoring, mirroring how inputs are publication-scoped."
+  [pub-cid doc]
+  (let [k (di/tnlr doc)]
+    (into []
+          (comp (filter (fn [d] (some #(= (di/tnlr %) k) (:pins d)))) (map (fn [d] {:id (:id d)})))
+          (db-doc/in-publication pub-cid))))
+
 (defn- expand-document
   "Shape `doc` into the endpoint view — the document plus its resolved environment: inputs,
-  successors, and (for an extract) the underlying `:work`.
+  successors, and (for an extract) the underlying `:work`. When `pub-cid` is given (the caller's active
+  publication), its drafts that cite `doc` are folded into `:successors`, so authoring shows the draft
+  graph both ways.
 
   Drops `:pins` and the internal `:author`/`:owner-id`/`:author-id`, exposing the byline person as the
   derived `:attributed-author` (name) + `:attributed-author-id` (id) — via `kind/attributed-author
@@ -81,35 +93,36 @@
 
   `:translations` (the concept's language siblings) is included so the language switcher can offer
   the other languages."
-  [doc-storage doc]
+  [doc-storage doc pub-cid]
   (-> doc
       (assoc :inputs (resolve-inputs doc-storage doc)
              :attributed-author (dk/attributed-author doc)
              :attributed-author-id (dk/attributed-author-id doc)
              :work (resolve-work doc-storage doc)
              :publication (resolve-publication (:publication-id doc))
-             :successors (successor-refs doc)
+             :successors (cond-> (successor-refs doc)
+                           pub-cid (into (publication-successor-refs pub-cid doc)))
              :translations (db-doc/translations-of (:name doc)))
       (dissoc :author :owner-id :author-id :pins :publication-id)))
 
 ;; ********************************************************************************
 ;; Picking a document — both reads fetch a single document, then shape it. Same shape, different
-;; selector: by exact id, or by the latest published minor of a lineage (DB-resolved).
+;; selector: by exact id, or by the latest published minor of a lineage (DB-resolved). `pub-cid` (the
+;; caller's active publication, optional) folds that publication's draft successors into the view.
 
 (defn read-by-id
   "Document `id` as the endpoint view, or nil. One fetch, by exact id."
-  [doc-storage id]
-  (some->> id
-           (ds/fetch-id doc-storage)
-           (expand-document doc-storage)))
+  ([doc-storage id] (read-by-id doc-storage id nil))
+  ([doc-storage id pub-cid]
+   (when-let [doc (ds/fetch-id doc-storage id)] (expand-document doc-storage doc pub-cid))))
 
 (defn read-by-major
   "The latest published minor of `ref` (a TNLR) as the endpoint view, or nil when the lineage has no
   published minor in that language. One fetch, DB-resolved."
-  [doc-storage ref]
-  (some->> ref
-           (ds/fetch-latest-revision doc-storage)
-           (expand-document doc-storage)))
+  ([doc-storage ref] (read-by-major doc-storage ref nil))
+  ([doc-storage ref pub-cid]
+   (when-let [doc (ds/fetch-latest-revision doc-storage ref)]
+     (expand-document doc-storage doc pub-cid))))
 
 (defn- cite-titles
   "Each KI cited inline in `doc`'s text, as `{:name cid :title current-title}`, resolved through
@@ -148,6 +161,7 @@
       (assoc :attributed-author (dk/attributed-author doc)
              :attributed-author-id (dk/attributed-author-id doc)
              :work (resolve-work doc-storage doc)
+             :publication (resolve-publication (:publication-id doc))
              :cite-titles (cite-titles doc-storage doc))))
 
 (defn- lineage-key
@@ -157,10 +171,11 @@
   [(:type d) (:name d) (:lang d) (:major d)])
 
 (defn- publication-drafts
-  "The drafts publication `pub-cid` gathers for `type` in `lang` (newest first) — the in-progress
-  overlay a scoped view lays over the published corpus. `type`/`lang` are the request's strings."
+  "The drafts publication `pub-cid` gathers for `type` (newest first), in `lang` when given (a nil
+  `lang` keeps every language) — the in-progress overlay a scoped view lays over the published corpus.
+  `type`/`lang` are the request's strings."
   [pub-cid type lang]
-  (filterv (fn [d] (and (= type (name (:type d))) (= lang (name (:lang d)))))
+  (filterv (fn [d] (and (= type (name (:type d))) (or (nil? lang) (= lang (name (:lang d))))))
            (db-doc/in-publication pub-cid)))
 
 (defn- matches?
