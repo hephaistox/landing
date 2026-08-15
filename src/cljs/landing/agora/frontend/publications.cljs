@@ -580,6 +580,21 @@
   [lang cid deletable? c]
   [:div {:style {:position "relative"}}
    [dv/discover-card lang c]
+   (when (seq (:stale-inputs c))
+     [dv/tooltip
+      (i18n/t lang :pub/stale-hint)
+      [:span {:style {:position "absolute"
+                      :bottom "0.5em"
+                      :left "0.6em"
+                      :background "#fff3d6"
+                      :color "#8a5a00"
+                      :border "1px solid #e6c88a"
+                      :border-radius "0.3em"
+                      :padding "0.1em 0.45em"
+                      :font-size "0.7em"
+                      :font-weight 700
+                      :cursor "help"}}
+       (str "⚠ " (count (:stale-inputs c)) " " (i18n/t lang :pub/stale-badge))]])
    (when deletable?
      [:button {:on-click #(when (js/confirm (i18n/t lang :pub/delete-doc-confirm))
                             (rf/dispatch [::delete-doc cid (:type c) (:id c)]))

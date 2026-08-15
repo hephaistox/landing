@@ -39,6 +39,9 @@
     :pub/scope-mine "Les miennes"
     :pub/scope-all "Toutes"
     :pub/belongs "Dans la publication"
+    :pub/stale-badge "réf. dépassée(s)"
+    :pub/stale-hint
+    "Une référence de ce document pointe une version dépassée (une plus récente existe). Ré-éditez le document pour re-pinner sur la dernière."
     :pub/none "Aucune publication."
     :pub/no-docs "Aucun document."
     :pub/new-ph "Nouvelle publication…"
@@ -364,6 +367,9 @@
     :pub/scope-mine "Mine"
     :pub/scope-all "All"
     :pub/belongs "In publication"
+    :pub/stale-badge "outdated ref(s)"
+    :pub/stale-hint
+    "A reference in this document points at an outdated version (a newer one exists). Re-edit the document to re-pin to the latest."
     :pub/none "No publications yet."
     :pub/no-docs "No documents."
     :pub/new-ph "New publication…"

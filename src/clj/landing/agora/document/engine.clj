@@ -173,11 +173,25 @@
           published (remove #(overridden (lineage-key %)) (db-doc/search-of-type type lang q 50))]
       (mapv #(card doc-storage %) (concat drafts published)))))
 
+(defn- stale-inputs
+  "The inputs of `doc` whose pin no longer points at the lineage's current publication-aware
+  resolution — the pinned version is behind (a newer minor exists, published or as this publication's
+  own draft). Each is the input TNLR + the `:current` id it should re-pin to. Empty when up to date."
+  [doc pub-cid]
+  (into []
+        (keep (fn [pin]
+                (let [current (db-doc/latest-of pin pub-cid)]
+                  (when (and current (not= (:id pin) current))
+                    (assoc (di/tnlr pin) :current current)))))
+        (:pins doc)))
+
 (defn publication-cards
-  "Browse cards for the documents a publication gathers — the drafts whose `publication_id` is
-  `pub-cid` — newest first."
+  "Browse cards for the documents a publication gathers — newest first. Each card also carries
+  `:stale-inputs`: references whose pin is behind the lineage's current version, so the publication
+  can flag them (re-editing the document re-pins)."
   [doc-storage pub-cid]
-  (mapv #(card doc-storage %) (db-doc/in-publication pub-cid)))
+  (mapv (fn [doc] (assoc (card doc-storage doc) :stale-inputs (stale-inputs doc pub-cid)))
+        (db-doc/in-publication pub-cid)))
 
 (defn sitemap-rows
   "Every published lineage's permalink row for the sitemap: `{:type :name :major :lang :title

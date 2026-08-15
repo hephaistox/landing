@@ -19,13 +19,9 @@
   the cited lineage if it has one, else the **latest published** minor — so a draft cites the exact
   in-progress predecessor while inside a publication, and the published corpus otherwise."
   [text doc-lang publication-id]
-  (let [inputs (mapv (fn [r] (update r :lang #(or % doc-lang))) (di/cite-refs text))
-        latest-of (fn [{:keys [type name lang major]
-                        :as tnlr}]
-                    (or (db-doc/draft-of type name lang major publication-id)
-                        (db-doc/latest-published-id tnlr)))]
+  (let [inputs (mapv (fn [r] (update r :lang #(or % doc-lang))) (di/cite-refs text))]
     {:inputs inputs
-     :pins (di/pin-all inputs latest-of)}))
+     :pins (di/pin-all inputs #(db-doc/latest-of % publication-id))}))
 
 (defn create!
   "Create a new document (text-only), major 1. `type` is `:ki`/`:article`; `fields` is

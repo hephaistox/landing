@@ -533,6 +533,16 @@
      major]
     kebab)))
 
+(defn latest-of
+  "The current id a TNLR resolves to, **publication-aware**: publication `pub-cid`'s own draft of the
+  lineage if it has one (so authoring in a publication points at its in-progress version), else the
+  latest published minor. nil when neither exists. Shared by pin computation (write) and pin-staleness
+  detection (read)."
+  [{:keys [type name lang major]
+    :as tnlr}
+   pub-cid]
+  (or (draft-of type name lang major pub-cid) (latest-published-id tnlr)))
+
 ;; --- reconcile: snapshot + targeted repair of the derived caches -----------------------------
 ;; The derived caches (`computed.:pins`, `AGORA_SUCCESSOR`) are reconciled against the immutable
 ;; `content` by *diffing*, not rewriting: read a consistent snapshot, let the caller compute the
