@@ -6,6 +6,7 @@
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.document-page :as dv]
    [landing.agora.frontend.i18n          :as i18n]
+   [landing.language                     :as language]
    [re-frame.core                        :as rf]
    [reagent.core                         :as r]
    [superstructor.re-frame.fetch-fx]))
@@ -344,7 +345,7 @@
                   :margin "0 0 1em"}}
       (i18n/t lang :pub/index-lead)]
      [status-toggle lang status]
-     [dv/filter-bar lang nil]
+     [dv/filter-bar lang nil nil]
      [create-from-filter lang pubs]
      (if (seq shown)
        [dv/card-grid lang shown nil]
@@ -731,7 +732,12 @@
                                   (keep #(some-> (:kind %)
                                                  keyword))
                                   cards)
-                            dk/kind-ids)]
+                            dk/kind-ids)
+                   (filterv (into #{}
+                                  (keep #(some-> (:lang %)
+                                                 name))
+                                  cards)
+                            language/languages)]
                   (into [:div {:style {:display "grid"
                                        :grid-template-columns
                                        "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"

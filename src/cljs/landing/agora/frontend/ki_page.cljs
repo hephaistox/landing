@@ -38,7 +38,6 @@
   [kis]
   [dv/discover-grid {:type "ki"
                      :heading-key :discover/heading
-                     :tagline-key :discover/tagline
                      :items kis
                      :new-href-fn i18n/new-ki
                      :new-label-key :nav/new-ki}])

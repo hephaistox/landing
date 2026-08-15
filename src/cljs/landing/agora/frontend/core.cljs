@@ -272,14 +272,14 @@
   visit-weighted random order refreshes."
   [db type view-kind]
   {:db (assoc db :loading? true :error nil)
-   :fetch {:method :get
-           :url (str "/agora/api/documents/" (name type)
-                     "?lang=" (name (i18n/current db))
-                     "&limit=50" (publications/active-param db))
-           :headers {"Accept" "application/json"}
-           :response-content-types {#"application/json" :json}
-           :on-success [::fetch-list-ok view-kind]
-           :on-failure [::fetch-failed]}})
+   :fetch
+   {:method :get
+    :url
+    (str "/agora/api/documents/" (name type) "?lang=all" "&limit=50" (publications/active-param db))
+    :headers {"Accept" "application/json"}
+    :response-content-types {#"application/json" :json}
+    :on-success [::fetch-list-ok view-kind]
+    :on-failure [::fetch-failed]}})
 
 (rf/reg-event-db ::fetch-list-ok
                  (fn [db [_ view-kind response]]

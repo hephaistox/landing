@@ -937,30 +937,43 @@
      [:div {:style {:margin-top "auto"}}
       [provenance-line lang node]]]))
 
-;; --- shared browse filter (scope / author / q) — narrows a grid client-side, like the author page.
-;; `:scope` is global (a browsing preference); the text filters (`:author`/`:q`) are kept **per view**
-;; (`:text {view-kind {…}}`), so switching KI ↔ article ↔ publication and back restores each view's
-;; own search rather than clearing it.
+;; --- shared browse filter (scope / lang / author / q) — narrows a grid client-side, like the author
+;; page. `:scope` and `:lang` are global (browsing preferences); the text filters (`:author`/`:q`) are
+;; kept **per view** (`:text {view-kind {…}}`), so switching KI ↔ article ↔ publication and back
+;; restores each view's own search rather than clearing it. `:lang` nil = the interface language (the
+;; default), `:all` = every language, else a concrete content language.
 (rf/reg-sub ::browse-filter
             (fn [db _]
               (let [f (:agora/browse-filter db)]
-                (merge {:scope (:scope f :all)} (get-in f [:text (:kind (:view db))])))))
+                (merge {:scope (:scope f :all)
+                        :lang (:lang f)}
+                       (get-in f [:text (:kind (:view db))])))))
 (rf/reg-event-db ::set-filter
                  (fn [db [_ k v]]
-                   (if (= k :scope)
-                     (assoc-in db [:agora/browse-filter :scope] v)
+                   (if (contains? #{:scope :lang} k)
+                     (assoc-in db [:agora/browse-filter k] v)
                      (assoc-in db [:agora/browse-filter :text (:kind (:view db)) k] v))))
 
 (defn- passes-filter?
-  "True when `node` clears the browse `filter` {:scope :author :q :kinds} for `viewer-id`: `:mine` keeps
-  only the viewer's own; `:author` a name substring on the byline; `:q` a substring of title/text/author;
-  `:kinds` (a set, empty = any) the node's kind must be in."
-  [viewer-id {:keys [scope author q kinds]} node]
+  "True when `node` clears the browse `filter` {:scope :lang :author :q :kinds} for `viewer-id`: `:mine`
+  keeps only the viewer's own; `:lang` (a concrete language, nil = any) the node's content language;
+  `:author` a name substring on the byline; `:q` a substring of title/text/author; `:kinds` (a set,
+  empty = any) the node's kind must be in. `:lang` is already resolved (see `filter-items`)."
+  [viewer-id {:keys [scope lang author q kinds]} node]
   (let [owner (or (:attributed-author-id node) (:author-id node))
         ;; match what the card shows as the byline
         author-name (or (:attributed-author node) (:author node) "")
         hay (str/lower-case (str (:title node) " " (:text node) " " author-name))]
     (and (or (not= scope :mine) (and viewer-id (= viewer-id owner)))
+         (or (nil? lang)
+             ;; a language-neutral container (a publication, lang `zz`) is exempt from a content-
+             ;; language filter — it has no real language to match
+             (contains? #{nil "zz"}
+                        (some-> (:lang node)
+                                name))
+             (= (name lang)
+                (some-> (:lang node)
+                        name)))
          (or (str/blank? author)
              (str/includes? (str/lower-case author-name) (str/lower-case author)))
          (or (str/blank? q) (str/includes? hay (str/lower-case q)))
@@ -969,74 +982,189 @@
                         (some-> (:kind node)
                                 keyword))))))
 
+(defn- effective-lang
+  "Resolve the browse filter's `:lang` to the concrete content language to keep, or nil for every
+  language: nil (unset) falls back to the interface language `ui-lang`, `:all` means no language
+  restriction, anything else is that language verbatim."
+  [filter-lang ui-lang]
+  (case filter-lang
+    nil ui-lang
+    :all nil
+    filter-lang))
+
 (defn filter-items
   "Narrow `items` by the current browse filter for the signed-in viewer — the client-side counterpart
-  of the shared `filter-bar`."
+  of the shared `filter-bar`. The `:lang` preference is resolved against the interface language here."
   [items]
   (let [f @(rf/subscribe [::browse-filter])
-        viewer-id (:id @(rf/subscribe [::auth/user]))]
+        viewer-id (:id @(rf/subscribe [::auth/user]))
+        f (assoc f :lang (effective-lang (:lang f) @(rf/subscribe [::i18n/lang])))]
     (filterv #(passes-filter? viewer-id f %) items)))
 
+(defn- seg-style
+  "The shared pill-button style for a filter control — copper outline, filled when `on?`."
+  [on?]
+  {:border "1px solid #b9770e"
+   :background (if on? "#b9770e" "#fff")
+   :color (if on? "#fff" "#b9770e")
+   :border-radius "0.35em"
+   :padding "0.28em 0.7em"
+   :font-size "0.82em"
+   :font-weight 600
+   :cursor "pointer"})
+
+(defn filter-dropdown
+  "An Excel-style filter combobox: a labelled button (highlighted when `active?`, with an optional
+  `summary` of the current choice) that opens an anchored panel of `body`. Closes on an outside click
+  (a transparent full-screen backdrop) or by re-clicking the button. Local open state."
+  [{:keys [label summary active?]} body]
+  (r/with-let
+   [open? (r/atom false)]
+   [:div {:style {:position "relative"
+                  :display "inline-block"}}
+    [:button {:on-click #(swap! open? not)
+              :style (merge (seg-style active?)
+                            {:display "inline-flex"
+                             :align-items "center"
+                             :gap "0.4em"})}
+     [:span
+      label
+      (when summary
+        [:span {:style {:font-weight 400
+                        :opacity 0.85}}
+         (str " · " summary)])]
+     [:span {:style {:font-size "0.72em"}}
+      "▾"]]
+    (when @open?
+      [:<>
+       [:div {:on-click #(reset! open? false)
+              :style {:position "fixed"
+                      :inset 0
+                      :z-index 40}}]
+       [:div {:style {:position "absolute"
+                      :top "calc(100% + 0.3em)"
+                      :left 0
+                      :z-index 41
+                      :min-width "13em"
+                      :background "#fff"
+                      :border "1px solid #d9c9a3"
+                      :border-radius "0.45em"
+                      :box-shadow "0 6px 18px rgba(0,0,0,0.14)"
+                      :padding "0.6em"
+                      :max-height "18em"
+                      :overflow-y "auto"}}
+        body]])]))
+
+(defn- check-row
+  "A checkbox/radio option row inside a filter panel: a full-width clickable line, marked when `on?`."
+  [on? label on-click]
+  [:button {:on-click on-click
+            :style {:display "flex"
+                    :align-items "center"
+                    :gap "0.5em"
+                    :width "100%"
+                    :text-align "left"
+                    :border "none"
+                    :background (if on? "#faf3e2" "transparent")
+                    :color "#5a4a2a"
+                    :border-radius "0.3em"
+                    :padding "0.32em 0.5em"
+                    :font-size "0.85em"
+                    :cursor "pointer"}}
+   [:span {:style {:color "#b9770e"}}
+    (if on? "☑" "☐")]
+   label])
+
 (defn filter-bar
-  "The shared browse filter bar: an **Author** group (a mine/all scope toggle + a name field), an
-  optional **Type** multi-select (`kind-ids` — the kinds offered as checkboxes; nil/empty = none) and a
-  text search. Drives `:agora/browse-filter`; `filter-items` applies it. Used by every browse surface."
-  [lang kind-ids]
-  (let [{:keys [scope author q kinds]} @(rf/subscribe [::browse-filter])
+  "The shared browse filter bar as Excel-style comboboxes: an **Author** dropdown (a mine/all scope
+  toggle + a name field), an optional **Type** dropdown (`kind-ids` — the kinds offered as checkboxes;
+  nil/empty = hidden), an optional **Language** dropdown (`lang-ids` — the content languages present;
+  nil/empty = hidden), and an always-visible text search. Drives `:agora/browse-filter`; `filter-items`
+  applies it. Used by every browse surface."
+  [lang kind-ids lang-ids]
+  (let [{:keys [scope author q kinds]
+         filter-lang :lang}
+        @(rf/subscribe [::browse-filter])
         kinds (or kinds #{})
-        seg (fn [on?]
-              {:border "1px solid #b9770e"
-               :background (if on? "#b9770e" "#fff")
-               :color (if on? "#fff" "#b9770e")
-               :border-radius "0.35em"
-               :padding "0.28em 0.7em"
-               :font-size "0.82em"
-               :font-weight 600
-               :cursor "pointer"})
-        scope-btn (fn [v label] [:button {:on-click #(rf/dispatch [::set-filter :scope v])
-                                          :style (seg (= scope v))}
-                                 label])
-        field (fn [k value ph] [:input {:type "text"
-                                        :value (or value "")
-                                        :placeholder (i18n/t lang ph)
-                                        :on-change #(rf/dispatch
-                                                     [::set-filter k (.. % -target -value)])
-                                        :style {:padding "0.35em 0.6em"
-                                                :border "1px solid #ccc"
-                                                :border-radius "0.35em"
-                                                :font-size "0.85em"
-                                                :min-width "9em"}}])
-        label (fn [t] [:span {:style {:color "#8a7a55"
-                                      :font-size "0.72em"
-                                      :font-weight 700
-                                      :text-transform "uppercase"
-                                      :letter-spacing "0.04em"}}
-                       t])]
+        ;; the "mine" scope reads as the signed-in user's own name; falls back to a generic label when
+        ;; logged out (nothing is "mine" then anyway)
+        mine-label (or (not-empty (:display-name @(rf/subscribe [::auth/user])))
+                       (i18n/t lang :filter/mine))
+        author? (or (= scope :mine) (not (str/blank? author)))
+        lang-summary (cond
+                       (nil? filter-lang) (str/upper-case lang)
+                       (= filter-lang :all) (i18n/t lang :filter/lang-all)
+                       :else (str/upper-case (name filter-lang)))
+        field (fn [k value ph extra] [:input {:type "text"
+                                              :value (or value "")
+                                              :placeholder (i18n/t lang ph)
+                                              :on-change #(rf/dispatch
+                                                           [::set-filter k (.. % -target -value)])
+                                              :style (merge {:padding "0.35em 0.6em"
+                                                             :border "1px solid #ccc"
+                                                             :border-radius "0.35em"
+                                                             :font-size "0.85em"
+                                                             :min-width "9em"}
+                                                            extra)}])]
     [:div {:style {:display "flex"
                    :flex-wrap "wrap"
                    :gap "0.45em"
                    :align-items "center"
                    :margin "0 0 0.9em"}}
-     (label (i18n/t lang :filter/author))
-     [:span {:style {:display "inline-flex"
-                     :gap "0.25em"}}
-      (scope-btn :mine (i18n/t lang :filter/mine))
-      (scope-btn :all (i18n/t lang :filter/all))]
-     (field :author author :filter/author-ph)
+     [filter-dropdown {:label (i18n/t lang :filter/author)
+                       :active? author?
+                       :summary (cond
+                                  (= scope :mine) mine-label
+                                  (not (str/blank? author)) author)}
+      [:div {:style {:display "flex"
+                     :flex-direction "column"
+                     :gap "0.4em"
+                     :min-width "12em"}}
+       ;; scope options as a vertical list, the user's own name and "all" at the same level; picking
+       ;; "all" also clears any typed author name, so the two author controls never contradict
+       [:div {:style {:display "flex"
+                      :flex-direction "column"}}
+        [check-row (= scope :mine) mine-label #(rf/dispatch [::set-filter :scope :mine])]
+        [check-row
+         (= scope :all)
+         (i18n/t lang :filter/all)
+         #(do (rf/dispatch [::set-filter :scope :all]) (rf/dispatch [::set-filter :author ""]))]]
+       (field :author author :filter/author-ph nil)]]
      (when (seq kind-ids)
-       [:<>
-        (label (i18n/t lang :filter/type))
-        (into [:span {:style {:display "inline-flex"
-                              :flex-wrap "wrap"
-                              :gap "0.25em"}}]
+       [filter-dropdown {:label (i18n/t lang :filter/type)
+                         :active? (seq kinds)
+                         :summary (when (seq kinds) (count kinds))}
+        (into [:div {:style {:display "flex"
+                             :flex-direction "column"}}]
               (for [k kind-ids
                     :let [on? (contains? kinds k)]]
                 ^{:key k}
-                [:button {:on-click #(rf/dispatch
-                                      [::set-filter :kinds (if on? (disj kinds k) (conj kinds k))])
-                          :style (assoc (seg on?) :font-size "0.78em" :padding "0.2em 0.55em")}
-                 (str (if on? "☑ " "☐ ") (i18n/t lang (keyword "kind" (name k))))]))])
-     (field :q q :filter/search-ph)]))
+                [check-row
+                 on?
+                 (i18n/t lang (keyword "kind" (name k)))
+                 #(rf/dispatch [::set-filter :kinds (if on? (disj kinds k) (conj kinds k))])]))])
+     (when (seq lang-ids)
+       [filter-dropdown {:label (i18n/t lang :filter/lang)
+                         :active? (some? filter-lang)
+                         :summary lang-summary}
+        (into [:div {:style {:display "flex"
+                             :flex-direction "column"}}
+               [check-row
+                (= filter-lang :all)
+                (i18n/t lang :filter/lang-all)
+                #(rf/dispatch [::set-filter :lang :all])]]
+              (for [l lang-ids
+                    :let [lk (keyword l)
+                          ;; the interface language is the default (unset), so selecting it clears the
+                          ;; explicit filter rather than pinning it
+                          on? (or (= filter-lang lk) (and (nil? filter-lang) (= (name lk) lang)))]]
+                ^{:key l}
+                [check-row
+                 on?
+                 (str/upper-case (name l))
+                 #(rf/dispatch [::set-filter :lang (if (= (name lk) lang) nil lk)])]))])
+     ;; the search field grows to fill whatever the combos leave on the row
+     (field :q q :filter/search-ph {:flex 1})]))
 
 (defn add-card
   "A dashed 'create' tile for the end of a discover grid — a large + linking to `href`.
@@ -1088,9 +1216,9 @@
 (defn discover-grid
   "A responsive discover grid of preview cards for `:items`, ending with a `+` add-card and
   a mobile FAB pointing at `(new-href-fn lang)`. `:heading-key` is optional (omitted when
-  nil); `:tagline-key` sits above the grid; `:new-label-key` labels the add-card/FAB. Generic
-  over document type — each per-type facade supplies the i18n keys + create route."
-  [{:keys [heading-key tagline-key items new-href-fn new-label-key]}]
+  nil); `:new-label-key` labels the add-card/FAB. Generic over document type — each per-type
+  facade supplies the i18n keys + create route."
+  [{:keys [heading-key items new-href-fn new-label-key]}]
   (let [lang @(rf/subscribe [::i18n/lang])
         new-href (new-href-fn lang)
         new-label (i18n/t lang new-label-key)
@@ -1099,7 +1227,13 @@
                                 (keep #(some-> (:kind %)
                                                keyword))
                                 items)
-                          dk/kind-ids)]
+                          dk/kind-ids)
+        ;; the content languages present in the feed, in canonical order — the Language filter's options
+        lang-ids (filterv (into #{}
+                                (keep #(some-> (:lang %)
+                                               name))
+                                items)
+                          language/languages)]
     [:div {:style {:max-width "72em"
                    :margin "1.5em auto"
                    :padding "0 0.8em"
@@ -1131,10 +1265,7 @@
                    :white-space "nowrap"
                    :text-decoration "none"}}
        (str "＋ " new-label)]]
-     [:p {:style {:color "#666"
-                  :margin "0 0 0.6em"}}
-      (i18n/t lang tagline-key)]
-     [filter-bar lang kind-ids]
+     [filter-bar lang kind-ids lang-ids]
      [card-grid lang (filter-items items) [add-card new-href new-label]]
      [fab new-href new-label]]))
 

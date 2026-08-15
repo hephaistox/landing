@@ -33,11 +33,10 @@
 (defn page "The editable article page." [doc] [view/document-page doc cfg])
 (defn create-form "The standalone article authoring form." [] [edit/create-form cfg])
 (defn discover
-  "The article discover grid (`/agora/<lang>/articles`) — no heading, just the tagline."
+  "The article discover grid (`/agora/<lang>/articles`)."
   [articles]
   [dv/discover-grid {:type "article"
                      :heading-key :articles/heading
-                     :tagline-key :articles/tagline
                      :items articles
                      :new-href-fn i18n/new-article
                      :new-label-key :nav/new-article}])
