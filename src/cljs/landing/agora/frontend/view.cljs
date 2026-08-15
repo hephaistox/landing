@@ -150,13 +150,15 @@
   [doc cfg]
   (let [lang @(rf/subscribe [::i18n/lang])]
     [:<>
+     ;; a logged-in viewer can spawn a predecessor (an upstream input) or a consequence (a downstream
+     ;; KI citing this one) without leaving the page — each sits by its own row (inputs above,
+     ;; successors below); nothing for articles/anonymous
+     [edit/add-predecessor doc]
      [node-frame
       doc
       [central doc cfg]
       (fn [d] (i18n/doc-url lang (:type d) (:id d)))
       (input-drop-fn (:type doc) (:id doc))]
-     ;; a logged-in viewer can spawn a consequence (new draft KI citing this one) without
-     ;; leaving the page; renders nothing for articles or anonymous viewers
      [edit/add-consequence doc]]))
 
 (defn public-page

@@ -84,12 +84,12 @@
 (rf/reg-sub ::edit (fn [db _] (::edit db)))
 
 (defn close-panels
-  "Collapse the edit form and the add-consequence widget. Used by core on route changes (and
-  after a save) so nothing lingers from a previous document."
+  "Collapse the edit form and the add-consequence/add-predecessor widgets. Used by core on route
+  changes (and after a save) so nothing lingers from a previous document."
   [db]
   (-> db
       (update ::edit assoc :open? false)
-      (dissoc ::consequence)))
+      (dissoc ::consequence ::predecessor)))
 
 (rf/reg-event-db ::op-failed
                  (fn [db [_ resp]]
@@ -454,6 +454,143 @@
                              :cursor "pointer"
                              :font-size "0.9em"}}
             (str "↳ " (i18n/t lang :ki/add-consequence))])
+         (when (:error st)
+           [:div {:style {:color "#8a1f1f"
+                          :font-size "0.82em"}}
+            (i18n/t lang :ki/consequence-failed)])]))))
+
+;; --- inline predecessor: spawn an upstream input without leaving the page ---
+;; A *predecessor* of KI X is a new KI that X cites as its input. Unlike a consequence (which only
+;; creates the downstream KI and leaves X untouched), wiring a predecessor **edits X** — the new KI
+;; is created empty upstream, then X gets a new minor whose text cites it, so it shows in X's inputs.
+;; Two chained writes, both in the active publication.
+
+(rf/reg-sub ::predecessor (fn [db _] (::predecessor db)))
+
+(rf/reg-event-db ::predecessor-toggle
+                 (fn [db [_ open?]]
+                   (update db
+                           ::predecessor
+                           merge
+                           {:open? open?
+                            :title ""
+                            :error nil})))
+
+(rf/reg-event-db ::predecessor-set-title (fn [db [_ v]] (assoc-in db [::predecessor :title] v)))
+
+(rf/reg-event-fx ::predecessor-create
+                 (fn [{:keys [db]} [_ this]]
+                   (let [title (get-in db [::predecessor :title])]
+                     (when-not (str/blank? title)
+                       {:db (-> db
+                                (assoc-in [::predecessor :creating?] true)
+                                ;; stash the doc to wire once the upstream KI exists
+                                (assoc-in [::predecessor :parent] this))
+                        :fetch (json-req :post
+                                         "/agora/api/documents/ki"
+                                         ;; the upstream KI is created empty (fleshed out later); THIS doc will cite it. Same
+                                         ;; content language + publication so the edge resolves.
+                                         {:title title
+                                          :kind :inference
+                                          :lang (:lang this)
+                                          :publication-id (get-in db
+                                                                  [:agora/active-publication :id])
+                                          :text ""}
+                                         [::predecessor-created]
+                                         [::predecessor-failed])}))))
+
+(rf/reg-event-fx ::predecessor-created
+                 (fn [{:keys [db]} [_ resp]]
+                   ;; the upstream KI now exists — wire it in by editing THIS doc to cite it (a new minor), so the new
+                   ;; KI shows in this doc's inputs like any other predecessor
+                   (let [this (get-in db [::predecessor :parent])
+                         pred (:body resp)
+                         cite (str "[[ki:" (:name pred) "@" (:major pred) "]]")
+                         t (or (:text this) "")
+                         text (if (str/blank? t) cite (str t "\n\n" cite))]
+                     {:fetch (json-req :post
+                                       (str "/agora/api/documents/ki/" (:id this))
+                                       {:title (:title this)
+                                        :text text
+                                        :kind (:kind this)
+                                        :publication-id (get-in db [:agora/active-publication :id])}
+                                       [::predecessor-wired]
+                                       [::predecessor-failed])})))
+
+(rf/reg-event-fx
+ ::predecessor-wired
+ (fn [{:keys [db]} [_ resp]]
+   ;; wiring created a new minor of this doc — navigate to it (like a normal edit) so the reader
+   ;; lands on the version that shows the new input
+   {:db (update db ::predecessor assoc :creating? false :title "" :error nil :parent nil)
+    :dispatch [:agora/saved (:body resp)]}))
+
+(rf/reg-event-db ::predecessor-failed
+                 (fn [db [_ resp]]
+                   (js/console.error "[agora] predecessor create failed:" (clj->js resp))
+                   (update db ::predecessor assoc :creating? false :error true)))
+
+(defn add-predecessor
+  "On a KI read view, a logged-in user spawns a **predecessor** — a new upstream KI that this KI
+  takes as an input — without leaving the page. Mirrors `add-consequence`, but wiring it edits this
+  KI (a new minor citing the upstream one). Renders nothing on articles or for anonymous viewers."
+  [{doc-type :type
+    :as doc}]
+  (let [user @(rf/subscribe [::auth/user])]
+    (when (and (= doc-type "ki") (:id user))
+      (let [lang @(rf/subscribe [::i18n/lang])
+            st @(rf/subscribe [::predecessor])]
+        [:div {:style {:display "flex"
+                       :flex-direction "column"
+                       :align-items "center"
+                       :gap "0.5em"
+                       :margin-top "0.4em"}}
+         (if (:open? st)
+           [:div {:style {:display "flex"
+                          :gap "0.4em"
+                          :flex-wrap "wrap"
+                          :justify-content "center"
+                          :max-width "30em"}}
+            [ui/composed-field {:type "text"
+                                :placeholder (i18n/t lang :ki/predecessor-ph)
+                                :value (:title st)
+                                :auto-focus true
+                                :on-text #(rf/dispatch [::predecessor-set-title %])
+                                :on-key-down #(when (= "Enter" (.-key %))
+                                                (rf/dispatch [::predecessor-create doc]))
+                                :style {:padding "0.45em 0.6em"
+                                        :border "1px solid #ccc"
+                                        :border-radius "0.3em"
+                                        :min-width "18em"
+                                        :font-size "0.9em"}}]
+            [:button {:on-click #(rf/dispatch [::predecessor-create doc])
+                      :disabled (or (:creating? st) (str/blank? (:title st)))
+                      :style {:padding "0.45em 1em"
+                              :border "none"
+                              :background "#2b8a3e"
+                              :color "#fff"
+                              :border-radius "0.3em"
+                              :cursor "pointer"
+                              :font-weight 600
+                              :font-size "0.9em"}}
+             (i18n/t lang :ki/consequence-create)]
+            [:button {:on-click #(rf/dispatch [::predecessor-toggle false])
+                      :style {:padding "0.45em 0.7em"
+                              :border "1px solid #ccc"
+                              :background "#fff"
+                              :border-radius "0.3em"
+                              :cursor "pointer"
+                              :font-size "0.9em"}}
+             "✕"]]
+           [:button {:on-click #(rf/dispatch [::predecessor-toggle true])
+                     :style {:padding "0.4em 0.9em"
+                             :border "1px dashed #b98a3e"
+                             :background "#fff"
+                             :color "#8a5709"
+                             :border-radius "0.3em"
+                             :cursor "pointer"
+                             :font-size "0.9em"}}
+            (str "↰ " (i18n/t lang :ki/add-predecessor))])
          (when (:error st)
            [:div {:style {:color "#8a1f1f"
                           :font-size "0.82em"}}
