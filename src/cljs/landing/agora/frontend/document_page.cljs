@@ -1055,7 +1055,7 @@
                       :overflow-y "auto"}}
         body]])]))
 
-(defn- check-row
+(defn check-row
   "A checkbox/radio option row inside a filter panel: a full-width clickable line, marked when `on?`."
   [on? label on-click]
   [:button {:on-click on-click

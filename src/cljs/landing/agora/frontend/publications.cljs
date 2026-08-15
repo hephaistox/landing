@@ -144,8 +144,9 @@
 (rf/reg-event-db ::search-fail (fn [db _] (assoc db :agora/publication-results [])))
 
 ;; the index status filter — publications have no content language, so instead of the language filter
-;; they get a lifecycle toggle: all / published (closed) / open
-(rf/reg-sub ::status-filter (fn [db _] (:agora/pub-status-filter db :all)))
+;; they get a lifecycle toggle: all / published (closed) / open. Defaults to the open ones — the
+;; work in progress is what you come here to act on.
+(rf/reg-sub ::status-filter (fn [db _] (:agora/pub-status-filter db :open)))
 (rf/reg-event-db ::set-status-filter (fn [db [_ v]] (assoc db :agora/pub-status-filter v)))
 
 (rf/reg-event-fx ::create
@@ -292,33 +293,20 @@
    "+"])
 
 (defn- status-toggle
-  "The publications index lifecycle filter — all / published (closed) / open (a publication has no
-  content language, so it gets this instead of the language filter)."
+  "The publications index lifecycle filter, as an Excel-style combobox — open / published (closed) /
+  all (a publication has no content language, so it gets this instead of the language filter)."
   [lang status]
-  (let [btn (fn [v label] [:button {:on-click #(rf/dispatch [::set-status-filter v])
-                                    :style {:border "1px solid #b9770e"
-                                            :background (if (= status v) "#b9770e" "#fff")
-                                            :color (if (= status v) "#fff" "#b9770e")
-                                            :border-radius "0.35em"
-                                            :padding "0.28em 0.7em"
-                                            :font-size "0.82em"
-                                            :font-weight 600
-                                            :cursor "pointer"}}
-                           label])]
-    [:div {:style {:display "flex"
-                   :gap "0.25em"
-                   :align-items "center"
-                   :margin "0 0 0.6em"}}
-     [:span {:style {:color "#8a7a55"
-                     :font-size "0.72em"
-                     :font-weight 700
-                     :text-transform "uppercase"
-                     :letter-spacing "0.04em"
-                     :margin-right "0.3em"}}
-      (i18n/t lang :pub/filter-status)]
-     (btn :all (i18n/t lang :filter/all))
-     (btn :closed (i18n/t lang :pub/status-closed))
-     (btn :open (i18n/t lang :pub/status-open))]))
+  (let [opts [[:open (i18n/t lang :pub/status-open)]
+              [:closed (i18n/t lang :pub/status-closed)]
+              [:all (i18n/t lang :filter/all)]]
+        current (some (fn [[v l]] (when (= v status) l)) opts)]
+    [dv/filter-dropdown {:label (i18n/t lang :pub/filter-status)
+                         :active? (not= status :all)
+                         :summary current}
+     (into [:div {:style {:display "flex"
+                          :flex-direction "column"}}]
+           (for [[v l] opts]
+             ^{:key v} [dv/check-row (= status v) l #(rf/dispatch [::set-status-filter v])]))]))
 
 (defn publications-page
   "The publications index: a lifecycle status toggle + the shared browse filter (author / q), a
