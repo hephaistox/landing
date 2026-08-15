@@ -73,15 +73,23 @@
 
 (defn- publish
   "Publish (close) a publication (owner-only): its gathered drafts go public, the publication closes.
-  Clears the read caches so the newly-published documents surface."
-  [req]
+  A document must be error-free to be published, so this **refuses (422)** when any gathered draft
+  still has `:errors`, returning the offending documents (cards, with their errors) for the client to
+  list. Clears the read caches on success."
+  [doc-storage req]
   (if-let [id (uid req)]
-    (if-let [p (publication/publish! id (get-in req [:path-params :id]))]
-      (do (cached-db/clear!)
-          {:status 200
-           :body p})
-      {:status 404
-       :body {:error "not found or already closed"}})
+    (let [cid (get-in req [:path-params :id])
+          in-error (filterv (comp seq :errors) (engine/publication-cards doc-storage cid))]
+      (if (seq in-error)
+        {:status 422
+         :body {:error "documents in error"
+                :documents in-error}}
+        (if-let [p (publication/publish! id cid)]
+          (do (cached-db/clear!)
+              {:status 200
+               :body p})
+          {:status 404
+           :body {:error "not found or already closed"}})))
     {:status 401
      :body {:error "login required"}}))
 
@@ -120,7 +128,7 @@
               :operationId "agora-publication-delete"
               :summary "Delete an open publication and its drafts (owner-only)"}}]
    ["/:id/publish"
-    {:post {:handler publish
+    {:post {:handler (partial publish doc-storage)
             :operationId "agora-publication-publish"
             :summary "Publish (close) a publication — its drafts go public (owner-only)"}}]
    ["/:id/documents"

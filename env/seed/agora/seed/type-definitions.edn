@@ -80,6 +80,15 @@
   {:statement
    "un savoir dérivé : à partir d'entrées tenues pour vraies, une conséquence logique s'ensuit.\n\nOn la conteste par contre-exemple — un cas où l'implication échoue — ou par une objection d'ambiguïté sur l'un de ses termes ; sa confiance reflète la résistance de sa chaîne de raisonnement à l'examen."
    :title "Inférence"}}
+ :measurable-fact
+ {"en"
+  {:statement
+   "an empirical foundation: a statement settled by a reproducible measurement or observation, holding independently of who asserts it.\n\nIt is not contested by reasoning but on the measurement itself — the protocol, the instrument, its reproducibility — or by producing a measurement that contradicts it."
+   :title "Measurable fact"}
+  "fr"
+  {:statement
+   "un fondement empirique : un énoncé tranché par une mesure ou une observation reproductible, valable indépendamment de qui l'affirme.\n\nOn ne le conteste pas par le raisonnement mais sur la mesure elle-même — le protocole, l'instrument, sa reproductibilité — ou en produisant une mesure qui le contredit."
+   :title "Fait mesurable"}}
  :prediction
  {"en"
   {:statement

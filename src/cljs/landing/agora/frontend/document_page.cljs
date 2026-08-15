@@ -25,6 +25,10 @@
    [reagent.core                      :as r]
    [superstructor.re-frame.fetch-fx]))
 
+;; `error-flag` (the error bell, defined lower with the other error components) is used by the
+;; neighbour `mini-card` above it — forward-declared to avoid a use-before-def warning.
+(declare error-flag)
+
 ;; ===========================================================================
 ;; Types
 ;; ===========================================================================
@@ -506,7 +510,7 @@
   removes the link (used for input links when editing)."
   [{c-title :title
     c-type :kind
-    :keys [major minor]}
+    :keys [major minor errors]}
    link
    on-drop
    locator]
@@ -527,7 +531,10 @@
                    :gap "0.5em"
                    :margin-bottom "0.3em"}}
      [kind-badge c-type]
-     [version-tag major minor]]
+     [version-tag major minor]
+     ;; the error bell, pushed to the row's end (the neighbour's own errors, loaded with it)
+     [:span {:style {:margin-left "auto"}}
+      [error-flag (count errors)]]]
     [:div {:style {:font-weight 600
                    :font-size "0.9em"}}
      c-title]
@@ -841,6 +848,79 @@
                       :background (if closed? "#dff3e2" "#fff3d6")}}
        (i18n/t lang (if closed? :pub/status-closed :pub/status-open))])))
 
+;; --- document errors (see engine/document-errors): a bell flags them on every card; the specific,
+;; clickable list lives on the flagged document's own read view.
+
+(defn error-flag
+  "A small bell flagging a document with `n` problems (nothing when 0/nil). A non-interactive
+  indicator — cards and mini-cards are links, so the detail lives on the flagged document's own page
+  (`error-panel` there), one click away."
+  [n]
+  (when (pos? (or n 0))
+    (let [lang @(rf/subscribe [::i18n/lang])]
+      [:span {:title (i18n/t lang :error/flag-title)
+              :style {:display "inline-flex"
+                      :align-items "center"
+                      :gap "0.1em"
+                      :color "#c92a2a"
+                      :font-size "0.9em"}}
+       "🔔"
+       (when (> n 1)
+         [:span {:style {:font-size "0.72em"
+                         :font-weight 700}}
+          n])])))
+
+(defn- error-message
+  "One document error as a specific, clickable line — never a generic sentence. `:stale-ref` names the
+  referenced document and links to its up-to-date version; `:missing-inputs` names the kind that must
+  have a predecessor. `err` comes from JSON, so `:error`/`:doc-kind` are coerced to keywords."
+  [lang err]
+  (case (some-> (:error err)
+                keyword)
+    :stale-ref (let [{:keys [ref current]} err]
+                 [:span
+                  "« "
+                  [:strong (:title ref)]
+                  " » "
+                  (i18n/t lang :error/stale-ref)
+                  " — "
+                  [:a {:href (i18n/doc-url lang (name (or (:type ref) "ki")) current)
+                       :style {:color "#b9770e"
+                               :font-weight 600}}
+                   (i18n/t lang :error/stale-ref-link)]])
+    :missing-inputs [:span
+                     [:strong (i18n/t lang (keyword "kind" (name (:doc-kind err))))]
+                     " — "
+                     (i18n/t lang :error/missing-inputs)]
+    [:span (str (:error err))]))
+
+(defn error-panel
+  "The specific, clickable list of a document's `errors`, shown on its own read view (where they get
+  fixed). Nothing when the document is sound."
+  [errors]
+  (when (seq errors)
+    (let [lang @(rf/subscribe [::i18n/lang])]
+      [:div {:style {:border "1px solid #f0c0c0"
+                     :background "#fff6f6"
+                     :border-radius "0.4em"
+                     :padding "0.6em 0.8em"
+                     :margin "0.6em 0"}}
+       [:div {:style {:display "flex"
+                      :align-items "center"
+                      :gap "0.35em"
+                      :color "#c92a2a"
+                      :font-weight 700
+                      :font-size "0.82em"
+                      :margin-bottom "0.35em"}}
+        (str "🔔 " (i18n/t lang :error/panel-title))]
+       (into [:ul {:style {:margin 0
+                           :padding-left "1.2em"
+                           :font-size "0.85em"
+                           :color "#5a2a2a"
+                           :line-height 1.6}}]
+             (for [[i err] (map-indexed vector errors)]
+               ^{:key i} [:li [error-message lang err]]))])))
+
 (defn provenance-line
   "The compact provenance line — 'Écrit par <author> dans <publication>, le <date>', author and
   publication as links. Shared by the discover card and the read page so both read identically."
@@ -917,7 +997,10 @@
                         :border "1px dashed #b98a3e"
                         :padding "0.1em 0.45em"
                         :border-radius "0.25em"}}
-         (str "✎ " (i18n/t lang :ki/draft-badge))])]
+         (str "✎ " (i18n/t lang :ki/draft-badge))])
+      ;; the error bell, pushed to the row's end
+      [:span {:style {:margin-left "auto"}}
+       [error-flag (count (:errors node))]]]
      [:div {:style {:font-weight 700
                     :font-size "1.02em"
                     :line-height 1.25

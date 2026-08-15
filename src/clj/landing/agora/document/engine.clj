@@ -9,6 +9,10 @@
    [landing.agora.document.storage  :as ds]
    [landing.agora.publication       :as publication]))
 
+;; `document-errors` (defined below with the error helpers) is used by `expand-document` above it —
+;; forward-declared so the view can carry its `:errors`.
+(declare document-errors)
+
 (defn- work-view
   "The bibliographic work `work-doc` shaped for display, plus this citation's `locator`:
   `{:id :name :major :lang :title :author-name :author-id :year :editor :url :locator}`. The work's
@@ -102,6 +106,7 @@
              :publication (resolve-publication (:publication-id doc))
              :successors (cond-> (successor-refs doc)
                            pub-cid (into (publication-successor-refs pub-cid doc)))
+             :errors (document-errors doc-storage doc pub-cid)
              :translations (db-doc/translations-of (:name doc)))
       (dissoc :author :owner-id :author-id :pins :publication-id)))
 
@@ -137,12 +142,48 @@
                      :title (:title d)}))))
         (di/cite-refs (:text doc))))
 
+;; --- document errors ---------------------------------------------------------------------------
+;; A document must be error-free to be published. Errors are **derived** on read (never stored), so
+;; they stay fresh as neighbours change, and re-derived by construction at each create/edit. Each is a
+;; structured map — enough for a specific, clickable message, never a generic sentence.
+
+(defn- stale-inputs
+  "The inputs of `doc` whose pin no longer points at the lineage's current publication-aware
+  resolution — the pinned version is behind (a newer minor exists, published or as this publication's
+  own draft). Each is the input TNLR + the `:current` id it should re-pin to. Empty when up to date."
+  [doc pub-cid]
+  (into []
+        (keep (fn [pin]
+                (let [current (db-doc/latest-of pin pub-cid)]
+                  (when (and current (not= (:id pin) current))
+                    (assoc (di/tnlr pin) :current current)))))
+        (:pins doc)))
+
+(defn document-errors
+  "The structured problems that make `doc` invalid, publication-aware via `pub-cid`. Empty when the
+  document is sound. Two kinds today, each carrying what a specific clickable message needs:
+   - `:stale-ref` — an input pins a version behind its lineage's current one; `:ref` is the referenced
+     identity + its title, `:current` the up-to-date id to link/re-pin to.
+   - `:missing-inputs` — a reasoning kind (`kind-requires-inputs?`) that declares no predecessor;
+     `:doc-kind` is the kind, so the reader is told which kind demands an input."
+  [doc-storage doc pub-cid]
+  (cond-> (mapv (fn [{:keys [current]
+                      :as s}]
+                  {:error :stale-ref
+                   :ref (-> (select-keys s [:type :name :lang :major])
+                            (assoc :title (:title (ds/fetch-id doc-storage current))))
+                   :current current})
+                (stale-inputs doc pub-cid))
+    (and (dk/kind-requires-inputs? (:kind doc)) (empty? (:inputs doc))) (conj
+                                                                         {:error :missing-inputs
+                                                                          :doc-kind (:kind doc)})))
+
 (defn- card
   "A browse card for `doc`: identity and kind, title, prose, the byline, the underlying `:work` (for
-  an extract) or its own bibliographic fields (for a work), and the titles of the KIs it cites
-  (`:cite-titles`) — enough to render a preview with a readable excerpt, without the full
-  input/successor environment."
-  [doc-storage doc]
+  an extract) or its own bibliographic fields (for a work), the titles of the KIs it cites
+  (`:cite-titles`), and its `:errors` (publication-aware via `pub-cid`) — enough to render a preview
+  with a readable excerpt and an error bell, without the full input/successor environment."
+  [doc-storage doc pub-cid]
   (-> doc
       (select-keys [:id
                     :type
@@ -162,7 +203,8 @@
              :attributed-author-id (dk/attributed-author-id doc)
              :work (resolve-work doc-storage doc)
              :publication (resolve-publication (:publication-id doc))
-             :cite-titles (cite-titles doc-storage doc))))
+             :cite-titles (cite-titles doc-storage doc)
+             :errors (document-errors doc-storage doc pub-cid))))
 
 (defn- lineage-key
   "The lineage a document belongs to — its identity minus minor. The overlay key: a publication draft
@@ -196,7 +238,7 @@
         published (remove #(overridden (lineage-key %))
                           (ds/documents doc-storage type lang limit offset))
         head (if (zero? offset) drafts [])]
-    (mapv #(card doc-storage %) (concat head published))))
+    (mapv #(card doc-storage % pub-cid) (concat head published))))
 
 (defn search-cards
   "Browse cards for documents of `type` in `lang` matching `q` (name or content). A blank `q` returns
@@ -209,27 +251,13 @@
     (let [drafts (when pub-cid (filterv #(matches? q %) (publication-drafts pub-cid type lang)))
           overridden (set (map lineage-key drafts))
           published (remove #(overridden (lineage-key %)) (db-doc/search-of-type type lang q 50))]
-      (mapv #(card doc-storage %) (concat drafts published)))))
-
-(defn- stale-inputs
-  "The inputs of `doc` whose pin no longer points at the lineage's current publication-aware
-  resolution — the pinned version is behind (a newer minor exists, published or as this publication's
-  own draft). Each is the input TNLR + the `:current` id it should re-pin to. Empty when up to date."
-  [doc pub-cid]
-  (into []
-        (keep (fn [pin]
-                (let [current (db-doc/latest-of pin pub-cid)]
-                  (when (and current (not= (:id pin) current))
-                    (assoc (di/tnlr pin) :current current)))))
-        (:pins doc)))
+      (mapv #(card doc-storage % pub-cid) (concat drafts published)))))
 
 (defn publication-cards
-  "Browse cards for the documents a publication gathers — newest first. Each card also carries
-  `:stale-inputs`: references whose pin is behind the lineage's current version, so the publication
-  can flag them (re-editing the document re-pins)."
+  "Browse cards for the documents a publication gathers — newest first. Each card carries `:errors`
+  (via `card`), so the publication view flags each document (re-editing a stale one re-pins it)."
   [doc-storage pub-cid]
-  (mapv (fn [doc] (assoc (card doc-storage doc) :stale-inputs (stale-inputs doc pub-cid)))
-        (db-doc/in-publication pub-cid)))
+  (mapv (fn [doc] (card doc-storage doc pub-cid)) (db-doc/in-publication pub-cid)))
 
 (defn sitemap-rows
   "Every published lineage's permalink row for the sitemap: `{:type :name :major :lang :title
@@ -268,7 +296,8 @@
                                           {:type (keyword (:type d))
                                            :name (:name d)
                                            :lang (keyword (:lang d))
-                                           :major (:major d)})))
+                                           :major (:major d)})
+                nil))
         (author-refs doc-storage author-id)))
 
 (defn- link-of

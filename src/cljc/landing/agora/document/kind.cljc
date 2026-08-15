@@ -18,6 +18,10 @@
      `work` is a leaf and takes none; everything else does (an `extract` cites the one `work` it
      draws from). This one flag drives both the backend (input derivation) and the UI (whether the
      citation feature is shown).
+   - `:requires-inputs?` — **must** a document of this kind derive from at least one input? True for
+     the reasoning kinds (inference / prediction / counter-example / illustration) whose claim stands
+     on another claim; a foundation (belief / assumption / measurable-fact), a definition or a
+     bibliographic leaf (`work`) has none required. Drives the `missing-inputs` document error.
    - `:def-name` + `:def-major` — a pointer to the KI that *defines* the kind. The rest of that
      identity is implied — `type` is `ki`, `minor` resolves to the latest, `lang` is the
      reader's — so only name + major are declared here (see `kind-def`).
@@ -30,18 +34,26 @@
   [{:id :inference
     :color "#2c5aa0"
     :inputs? true
+    :requires-inputs? true
     :object-type :ki
     :def-name "type-inference"
     :def-major 1}
    {:id :prediction
     :color "#0b7285"
     :inputs? true
+    :requires-inputs? true
     :object-type :ki
     :def-name "type-prediction"
     :def-major 1
     :say {:subject :author
           :phrase {:en "predicts that"
                    :fr "prédit que"}}}
+   {:id :measurable-fact
+    :color "#087f5b"
+    :inputs? true
+    :object-type :ki
+    :def-name "type-measurable-fact"
+    :def-major 1}
    {:id :definition
     :color "#a61e8c"
     :inputs? true
@@ -72,12 +84,14 @@
    {:id :illustration
     :color "#1098ad"
     :inputs? true
+    :requires-inputs? true
     :object-type :ki
     :def-name "type-illustration"
     :def-major 1}
    {:id :counter-example
     :color "#e03131"
     :inputs? true
+    :requires-inputs? true
     :object-type :ki
     :def-name "type-counter-example"
     :def-major 1}
@@ -145,6 +159,19 @@
   (not (false? (get kind-inputs?
                     (some-> kind
                             keyword)))))
+
+(def ^:private kind-requires-inputs?-map
+  "kind (keyword) → whether a document of that kind must derive from at least one input."
+  (into {} (map (juxt :id :requires-inputs?)) kinds))
+
+(defn kind-requires-inputs?
+  "Must a document of `kind` (a keyword) derive from at least one input (predecessor)? True for the
+  reasoning kinds; false for foundations, definitions and bibliographic leaves. A `kind` with this
+  requirement and no input is a `missing-inputs` document error."
+  [kind]
+  (boolean (get kind-requires-inputs?-map
+                (some-> kind
+                        keyword))))
 
 (def ^:private kind-bibliographic?-map
   "kind (keyword) → whether it is a bibliographic kind (`work` / `extract`)."

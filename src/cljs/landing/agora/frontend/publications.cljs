@@ -207,9 +207,13 @@
 ;; publish (close) a publication → its drafts go public; the publication closes (owner-only, checked
 ;; server-side). Refresh the page (now closed) and its cards (now published), drop it from the open
 ;; index, and clear it as the active publication if it was.
+(rf/reg-sub ::publish-error (fn [db _] (:agora/publish-error db)))
+
 (rf/reg-event-fx ::publish
                  (fn [{:keys [db]} [_ cid]]
-                   {:db (assoc db :agora/publishing? true)
+                   {:db (-> db
+                            (assoc :agora/publishing? true)
+                            (dissoc :agora/publish-error))
                     :fetch {:method :post
                             :url (str "/agora/api/publication/" cid "/publish")
                             :headers {"Content-Type" "application/json"
@@ -226,7 +230,14 @@
                           (= cid (get-in db [:agora/active-publication :id]))
                           (dissoc :agora/active-publication))
                     :dispatch-n [[::search] [::load-page-cards cid]]}))
-(rf/reg-event-db ::publish-fail (fn [db _] (dissoc db :agora/publishing?)))
+;; a 422 means some gathered drafts still have errors — flag it so the button area says so (the cards
+;; below carry the bells, each document's own page the specific fixes)
+(rf/reg-event-db ::publish-fail
+                 (fn [db [_ resp]]
+                   (let [docs (get-in resp [:body :documents])]
+                     (-> db
+                         (dissoc :agora/publishing?)
+                         (assoc :agora/publish-error {:count (when (coll? docs) (count docs))})))))
 
 ;; delete a draft document of publication `cid`; refresh the publication's cards
 (rf/reg-event-fx ::delete-doc
@@ -461,28 +472,42 @@
       (i18n/t lang (if open? :pub/status-open :pub/status-closed))]]))
 
 (defn- publish-button
-  "Publish (close) the publication — its drafts go public, confirmed. A hover tooltip explains it."
+  "Publish (close) the publication — its drafts go public, confirmed. A hover tooltip explains it. When
+  a publish is refused because a gathered document is in error, a red line points at the bells below."
   [lang pub]
-  (let [publishing? @(rf/subscribe [::publishing?])]
-    [dv/tooltip
-     (i18n/t lang :pub/publish-hint)
-     [:button {:on-click #(when (and (not publishing?)
-                                     (js/confirm (i18n/t lang :pub/publish-confirm)))
-                            (rf/dispatch [::publish (:id pub)]))
-               :disabled (boolean publishing?)
-               :style {:display "inline-flex"
-                       :align-items "center"
-                       :gap "0.4em"
-                       :border "none"
-                       :background "#1d6b2f"
-                       :color "#fff"
-                       :border-radius "1em"
-                       :padding "0.35em 1em"
-                       :font-size "0.85em"
-                       :font-weight 700
-                       :cursor (if publishing? "default" "pointer")}}
-      [export-icon]
-      (i18n/t lang (if publishing? :pub/publishing :pub/publish))]]))
+  (let [publishing? @(rf/subscribe [::publishing?])
+        err @(rf/subscribe [::publish-error])]
+    [:div {:style {:display "flex"
+                   :flex-direction "column"
+                   :align-items "flex-end"
+                   :gap "0.35em"}}
+     [dv/tooltip
+      (i18n/t lang :pub/publish-hint)
+      [:button {:on-click #(when (and (not publishing?)
+                                      (js/confirm (i18n/t lang :pub/publish-confirm)))
+                             (rf/dispatch [::publish (:id pub)]))
+                :disabled (boolean publishing?)
+                :style {:display "inline-flex"
+                        :align-items "center"
+                        :gap "0.4em"
+                        :border "none"
+                        :background "#1d6b2f"
+                        :color "#fff"
+                        :border-radius "1em"
+                        :padding "0.35em 1em"
+                        :font-size "0.85em"
+                        :font-weight 700
+                        :cursor (if publishing? "default" "pointer")}}
+       [export-icon]
+       (i18n/t lang (if publishing? :pub/publishing :pub/publish))]]
+     (when err
+       [:div {:style {:color "#c92a2a"
+                      :font-size "0.8em"
+                      :max-width "24em"
+                      :text-align "right"}}
+        (str "🔔 "
+             (i18n/t lang :pub/publish-blocked)
+             (when-let [n (:count err)] (str " (" n ")")))])]))
 
 (defn- active-toggle
   "A select-state toggle for making this (open) publication the one new documents are created/edited
@@ -616,23 +641,10 @@
   "A document card on the publication page, with a delete ✕ when `deletable?` (owner of an open
   publication) — removing the draft from the publication."
   [lang cid deletable? c]
+  ;; `discover-card` already shows the error bell (from the card's `:errors`); the specific list is on
+  ;; the document's own page, one click away
   [:div {:style {:position "relative"}}
    [dv/discover-card lang c]
-   (when (seq (:stale-inputs c))
-     [dv/tooltip
-      (i18n/t lang :pub/stale-hint)
-      [:span {:style {:position "absolute"
-                      :bottom "0.5em"
-                      :left "0.6em"
-                      :background "#fff3d6"
-                      :color "#8a5a00"
-                      :border "1px solid #e6c88a"
-                      :border-radius "0.3em"
-                      :padding "0.1em 0.45em"
-                      :font-size "0.7em"
-                      :font-weight 700
-                      :cursor "help"}}
-       (str "⚠ " (count (:stale-inputs c)) " " (i18n/t lang :pub/stale-badge))]])
    (when deletable?
      [:button {:on-click #(when (js/confirm (i18n/t lang :pub/delete-doc-confirm))
                             (rf/dispatch [::delete-doc cid (:type c) (:id c)]))

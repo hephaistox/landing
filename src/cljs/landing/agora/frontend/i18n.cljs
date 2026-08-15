@@ -37,9 +37,11 @@
     :nav/admin "Admin"
     :byline/you "(Vous)"
     :pub/belongs "Dans la publication"
-    :pub/stale-badge "réf. dépassée(s)"
-    :pub/stale-hint
-    "Une référence de ce document pointe une version dépassée (une plus récente existe). Ré-éditez le document pour re-pinner sur la dernière."
+    :error/flag-title "Ce document a des problèmes"
+    :error/panel-title "À corriger avant publication"
+    :error/stale-ref "pointe vers une version dépassée"
+    :error/stale-ref-link "voir la version à jour"
+    :error/missing-inputs "doit dériver d'au moins un prédécesseur"
     :pub/none "Aucune publication."
     :pub/no-docs "Aucun document."
     :pub/new-ph "Nouvelle publication…"
@@ -60,6 +62,8 @@
     :pub/publish-hint "Figer cette version et la rendre disponible pour le grand public"
     :pub/publish-confirm
     "Publier cette publication ? Ses documents deviennent publics et elle sera clôturée."
+    :pub/publish-blocked
+    "Publication impossible : des documents ont des problèmes à corriger (voir les cloches ci-dessous)"
     :pub/delete "Supprimer la publication"
     :pub/delete-confirm
     "Supprimer cette publication et TOUS ses documents ? Ce contenu sera définitivement perdu."
@@ -244,6 +248,7 @@
     :ki/predecessor-ph "Titre du prédécesseur…"
     :kind/inference "Inférence"
     :kind/prediction "Prédiction"
+    :kind/measurable-fact "Fait mesurable"
     :kind/definition "Définition"
     :kind/belief "Croyance"
     :kind/assumption "Supposition"
@@ -312,9 +317,11 @@
     :nav/admin "Admin"
     :byline/you "(You)"
     :pub/belongs "In publication"
-    :pub/stale-badge "outdated ref(s)"
-    :pub/stale-hint
-    "A reference in this document points at an outdated version (a newer one exists). Re-edit the document to re-pin to the latest."
+    :error/flag-title "This document has problems"
+    :error/panel-title "To fix before publishing"
+    :error/stale-ref "points to an outdated version"
+    :error/stale-ref-link "see the up-to-date version"
+    :error/missing-inputs "must derive from at least one predecessor"
     :pub/none "No publications yet."
     :pub/no-docs "No documents."
     :pub/new-ph "New publication…"
@@ -333,6 +340,7 @@
     :pub/publish-hint "Freeze this version and make it available to the public"
     :pub/publish-confirm
     "Publish this publication? Its documents become public and it will be closed."
+    :pub/publish-blocked "Cannot publish: some documents have problems to fix (see the bells below)"
     :pub/delete "Delete publication"
     :pub/delete-confirm
     "Delete this publication and ALL its documents? This content will be permanently lost."
@@ -513,6 +521,7 @@
     :ki/predecessor-ph "Predecessor title…"
     :kind/inference "Inference"
     :kind/prediction "Prediction"
+    :kind/measurable-fact "Measurable fact"
     :kind/definition "Definition"
     :kind/belief "Belief"
     :kind/assumption "Assumption"
