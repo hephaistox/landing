@@ -205,22 +205,20 @@
       (when-not (str/blank? subject) (str (cap-first subject) " " connector " ")))))
 
 (defn attributed-author
-  "The person a statement is attributed to, in priority order:
-   1. the cited **work**'s author — for an `extract`, whose `:work` resolves to the work it draws
-      from;
-   2. else the document's own author.
-  A KI that merely **cites** a work is *not* attributed to that work's author. Attribution belongs
-  to whoever authored the document."
+  "The person a statement is attributed to: the document's own author (`:author`). For most documents
+  this is the contributor who wrote it — an `extract` included, it belongs to its writer. A `work` is
+  the one exception: its `:author` is the cited author (Sun Tzŭ), not the contributor who added the
+  record. The work an extract draws from is shown alongside it, never as the extract's byline."
   [doc]
-  (or (:author-name (:work doc)) (:author doc)))
+  (:author doc))
 
 (defn attributed-author-id
-  "The id of the person `attributed-author` names — for linking the byline to their profile hub.
-  Mirrors `attributed-author`: an `extract`'s cited work author (`:work`'s `:author-id`) → else the
-  document's `:owner-id`. So the byline's name and its link always point at the same person.
-  `:owner-id` stays the accountability/permissions concept; this is display only."
+  "The id of the person `attributed-author` names — for linking the byline to their profile hub. A
+  `work` carries its cited author as `:author-id`, distinct from `:owner-id` (the contributor who
+  maintains the record); every other document has no `:author-id`, so the byline links to its
+  `:owner-id`. `:owner-id` stays the accountability/permissions concept; this is display only."
   [doc]
-  (or (:author-id (:work doc)) (:owner-id doc)))
+  (or (:author-id doc) (:owner-id doc)))
 
 (defn statement-prefix-of
   "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil

@@ -7,16 +7,37 @@
    [landing.agora.document.identity :as di]
    [landing.agora.document.kind     :as dk]
    [landing.agora.document.storage  :as ds]
-   [landing.agora.publication       :as publication]
-   [landing.agora.source            :as source]))
+   [landing.agora.publication       :as publication]))
 
-(defn- resolve-source
-  "Resolve a `:source` ref `{:source-id :locator}` to the cited work's display fields + locator.
-  Sources live in the dedicated `AGORA_SOURCE` table (see `landing.agora.source`), not the document
-  table — so this delegates there rather than fetching a document. Carries both the work's author and
-  the Agora contributor. nil for a blank/absent ref or an unknown source."
-  [_doc-storage ref]
-  (source/resolve-ref ref))
+(defn- work-view
+  "The bibliographic work `work-doc` shaped for display, plus this citation's `locator`:
+  `{:id :name :major :lang :title :author-name :author-id :year :editor :url :locator}`. The work's
+  cited author is its own byline (`kind/attributed-author[-id]`)."
+  [locator work-doc]
+  (when work-doc
+    {:id (:id work-doc)
+     :name (:name work-doc)
+     :major (:major work-doc)
+     :lang (:lang work-doc)
+     :title (:title work-doc)
+     :author-name (dk/attributed-author work-doc)
+     :author-id (dk/attributed-author-id work-doc)
+     :year (:year work-doc)
+     :editor (:editor work-doc)
+     :url (:url work-doc)
+     :locator locator}))
+
+(defn- resolve-work
+  "The work an `extract` draws from, for display: its `kind=work` input resolved through `doc-storage`
+  (cached) and shaped by `work-view`, carrying the extract's own `:locator`. nil for a non-extract, or
+  an extract whose work input is missing. Never the byline — an extract belongs to its writer; this is
+  the underlying work shown alongside."
+  [doc-storage doc]
+  (when (= :extract (:kind doc))
+    (->> (:pins doc)
+         (some (fn [{:keys [id]}]
+                 (let [d (ds/fetch-id doc-storage id)] (when (= :work (:kind d)) d))))
+         (work-view (:locator doc)))))
 
 (defn- resolve-publication
   "Resolve a document's `publication-id` (a cid) to `{:id :title :status}` — the work-package it
@@ -27,32 +48,22 @@
           publication/fetch
           (select-keys [:id :title :status])))
 
-(defn- split-inputs
-  "Split resolved input refs into `{:inputs :cites}`. A `kind=source` input is a cite — an
-  edge-only citation of a source. It becomes `{:name :major :id :title :author-name :author-id
-  :locator}`. Others stay `:inputs`."
-  [doc-storage inputs]
-  (reduce (fn [acc
-               {:keys [id]
-                :as inp}]
-            (when id
-              (let [d (ds/fetch-id doc-storage id)]
-                (if (= :source (:kind d))
-                  (let [src (resolve-source doc-storage (:source d))]
-                    (update acc
-                            :cites
-                            conj
-                            {:name (:name inp)
-                             :major (:major inp)
-                             :id (:id inp)
-                             :title (:title d)
-                             :author-name (:author-name src)
-                             :author-id (:author-id src)
-                             :locator (:locator src)}))
-                  (update acc :inputs conj inp)))))
-          {:inputs []
-           :cites []}
-          inputs))
+(defn- resolve-input
+  "A pinned input ref shaped for display. An `extract` input carries the work it draws from (`:work`)
+  and its title, so a document citing an extract can show the underlying work; every other input is
+  its pin unchanged."
+  [doc-storage
+   {:keys [id]
+    :as pin}]
+  (let [d (ds/fetch-id doc-storage id)]
+    (cond-> pin
+      (= :extract (:kind d)) (assoc :title (:title d) :work (resolve-work doc-storage d)))))
+
+(defn- resolve-inputs
+  "Each pinned input of `doc` resolved for display (`resolve-input`); a pin with no id (a dangling
+  reference) is dropped."
+  [doc-storage doc]
+  (into [] (comp (filter :id) (map #(resolve-input doc-storage %))) (:pins doc)))
 
 (defn- successor-refs
   "Each successor lineage of `ref`, as `{:id latest-published-minor}`. Resolved in SQL: one id per
@@ -61,27 +72,25 @@
   (mapv (fn [id] {:id id}) (db-doc/successor-latest-ids ref)))
 
 (defn- expand-document
-  "Shape `doc` into the endpoint view
-  — the document plus its resolved environment: inputs, `:cites`, successors and source.
+  "Shape `doc` into the endpoint view — the document plus its resolved environment: inputs,
+  successors, and (for an extract) the underlying `:work`.
 
-  Drops `:pins` and the internal `:author`/`:owner-id`, exposing the byline person as the derived
-  `:attributed-author` (name) + `:attributed-author-id` (id) — via `kind/attributed-author[-id]`: a
-  source KI's cited author, else the document's owner. Name and profile link always agree.
+  Drops `:pins` and the internal `:author`/`:owner-id`/`:author-id`, exposing the byline person as the
+  derived `:attributed-author` (name) + `:attributed-author-id` (id) — via `kind/attributed-author
+  [-id]`: a work's cited author, else the document's owner. Name and profile link always agree.
 
   `:translations` (the concept's language siblings) is included so the language switcher can offer
   the other languages."
   [doc-storage doc]
-  (let [{:keys [inputs cites]} (split-inputs doc-storage (:pins doc))]
-    (-> doc
-        (assoc :inputs inputs
-               :cites cites
-               :attributed-author (dk/attributed-author doc)
-               :attributed-author-id (dk/attributed-author-id doc)
-               :source (resolve-source doc-storage (:source doc))
-               :publication (resolve-publication (:publication-id doc))
-               :successors (successor-refs doc)
-               :translations (db-doc/translations-of (:name doc)))
-        (dissoc :author :owner-id :pins :publication-id))))
+  (-> doc
+      (assoc :inputs (resolve-inputs doc-storage doc)
+             :attributed-author (dk/attributed-author doc)
+             :attributed-author-id (dk/attributed-author-id doc)
+             :work (resolve-work doc-storage doc)
+             :publication (resolve-publication (:publication-id doc))
+             :successors (successor-refs doc)
+             :translations (db-doc/translations-of (:name doc)))
+      (dissoc :author :owner-id :author-id :pins :publication-id)))
 
 ;; ********************************************************************************
 ;; Picking a document — both reads fetch a single document, then shape it. Same shape, different
@@ -116,15 +125,29 @@
         (di/cite-refs (:text doc))))
 
 (defn- card
-  "A browse card for `doc`: identity and kind, title, prose, the byline, the resolved source, and the
-  titles of the KIs it cites (`:cite-titles`) — enough to render a preview with a readable excerpt,
-  without the full input/successor environment."
+  "A browse card for `doc`: identity and kind, title, prose, the byline, the underlying `:work` (for
+  an extract) or its own bibliographic fields (for a work), and the titles of the KIs it cites
+  (`:cite-titles`) — enough to render a preview with a readable excerpt, without the full
+  input/successor environment."
   [doc-storage doc]
   (-> doc
-      (select-keys [:id :type :name :lang :major :minor :draft :kind :title :text :published-at])
+      (select-keys [:id
+                    :type
+                    :name
+                    :lang
+                    :major
+                    :minor
+                    :draft
+                    :kind
+                    :title
+                    :text
+                    :published-at
+                    :year
+                    :editor
+                    :url])
       (assoc :attributed-author (dk/attributed-author doc)
              :attributed-author-id (dk/attributed-author-id doc)
-             :source (resolve-source doc-storage (:source doc))
+             :work (resolve-work doc-storage doc)
              :cite-titles (cite-titles doc-storage doc))))
 
 (defn- lineage-key
@@ -206,15 +229,11 @@
   50)
 
 (defn- author-refs
-  "The published-latest entries whose derived byline person (`kind/attributed-author-id` — a source's
-  cited author, else the owner) is `author-id`, newest first, capped at `author-docs-limit`. The
-  source is resolved per document so a `kind=source` citation matches its cited author, consistent
-  with its byline."
+  "The published-latest entries whose derived byline person (`kind/attributed-author-id` — a work's
+  cited author, else the owner) is `author-id`, newest first, capped at `author-docs-limit`."
   [doc-storage author-id]
   (into []
-        (comp (map (fn [d] (assoc d :source (resolve-source doc-storage (:source d)))))
-              (filter (fn [d] (= author-id (dk/attributed-author-id d))))
-              (take author-docs-limit))
+        (comp (filter (fn [d] (= author-id (dk/attributed-author-id d)))) (take author-docs-limit))
         (ds/published-latest doc-storage)))
 
 (defn author-documents

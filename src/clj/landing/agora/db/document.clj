@@ -497,9 +497,9 @@
 (defn published-latest-docs
   "Every published lineage's latest minor, all types and languages, as decoded maps — the identity
   columns (`:type`/`:lang` kept as DB strings, the form URLs are built from), plus `:title`, `:kind`,
-  the raw `:source` ref, `:owner-id` and `:lastmod`. Newest first. One scan feeding both the sitemap
-  and the author hubs; each caller projects or filters (attribution is derived in the domain, so the
-  raw `:source`/`:owner-id` ride along here rather than being resolved in SQL)."
+  `:author-id`, `:owner-id` and `:lastmod`. Newest first. One scan feeding both the sitemap and the
+  author hubs; each caller projects or filters (attribution is derived in the domain, so the raw
+  `:author-id`/`:owner-id` ride along here rather than being resolved in SQL)."
   []
   (mapv (fn [row]
           (let [c (decode-content (:content row))]
@@ -509,7 +509,7 @@
              :major (:major row)
              :title (:title c)
              :kind (:kind c)
-             :source (:source c)
+             :author-id (:author-id c)
              :owner-id (:owner-id c)
              :lastmod (:published-at row)}))
         (published-latest-rows)))

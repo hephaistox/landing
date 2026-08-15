@@ -51,20 +51,18 @@
     (is (nil? (sut/statement-subject-kind :inference))))
   (testing "an unknown language falls back to English"
     (is (= "X believes that " (sut/statement-prefix :belief :de "x"))))
-  (testing "attributed-author: an extract's cited work author, else the document's own author"
-    (is (= "David Fricke"
-           (sut/attributed-author {:work {:author-name "David Fricke"}
-                                   :author "Poster"}))
-        "an extract is attributed to the author of the work it draws from")
+  (testing "attributed-author is the document's own author — a work's is its cited author"
+    (is (= "Sun Tzŭ" (sut/attributed-author {:author "Sun Tzŭ"}))
+        "a work is attributed to its cited author (stored as its own :author)")
     (is (= "Poster" (sut/attributed-author {:author "Poster"}))
-        "a KI that merely cites a work is attributed to its own author, not the cited one"))
-  (testing "attributed-author-id mirrors attributed-author, so byline name and link agree"
-    (is (= "fricke-id"
-           (sut/attributed-author-id {:work {:author-id "fricke-id"}
-                                      :owner-id "typer-id"}))
-        "an extract links to its cited work author's hub, not the typer's account")
+        "an extract belongs to whoever wrote it, like any document"))
+  (testing "attributed-author-id: a work links via its cited-author :author-id, else via :owner-id"
+    (is (= "suntzu-id"
+           (sut/attributed-author-id {:author-id "suntzu-id"
+                                      :owner-id "creator-id"}))
+        "a work links to its cited author, not the contributor who added the record")
     (is (= "owner-id" (sut/attributed-author-id {:owner-id "owner-id"}))
-        "a non-extract KI links to its owner"))
+        "a document with no :author-id links to its owner"))
   (testing "compose-statement assembles prefix + body for a document"
     (is (= "Anthony believes that reasoning is fuzzy."
            (sut/compose-statement {:kind :belief
