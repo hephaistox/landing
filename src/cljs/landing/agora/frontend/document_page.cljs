@@ -938,8 +938,18 @@
            "—")]]]))
 
 ;; --- shared browse filter (scope / author / q) — narrows a grid client-side, like the author page.
-(rf/reg-sub ::browse-filter (fn [db _] (:agora/browse-filter db {:scope :all})))
-(rf/reg-event-db ::set-filter (fn [db [_ k v]] (assoc-in db [:agora/browse-filter k] v)))
+;; `:scope` is global (a browsing preference); the text filters (`:author`/`:q`) are kept **per view**
+;; (`:text {view-kind {…}}`), so switching KI ↔ article ↔ publication and back restores each view's
+;; own search rather than clearing it.
+(rf/reg-sub ::browse-filter
+            (fn [db _]
+              (let [f (:agora/browse-filter db)]
+                (merge {:scope (:scope f :all)} (get-in f [:text (:kind (:view db))])))))
+(rf/reg-event-db ::set-filter
+                 (fn [db [_ k v]]
+                   (if (= k :scope)
+                     (assoc-in db [:agora/browse-filter :scope] v)
+                     (assoc-in db [:agora/browse-filter :text (:kind (:view db)) k] v))))
 
 (defn- passes-filter?
   "True when `node` clears the browse `filter` {:scope :author :q} for `viewer-id`: `:mine` keeps only
