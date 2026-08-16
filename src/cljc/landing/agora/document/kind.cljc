@@ -316,17 +316,38 @@
           (str who "in this context, “" term "” " connector " ")
           (str who "dans ce contexte, « " term " » " connector " "))))))
 
+(defn- instance-prefix
+  "The opening of an example (`:illustrate`) or a counter-example (`:refute`) in `lang`: the author
+  brings the instance (`title`) to bear on the claim it references (`target`, resolved with a `:title`)
+  — « D'après <author>, « <title> > <verbe> « <target> » : ». The author clause is dropped when unknown;
+  nil without a resolved target."
+  [author title target lang relation]
+  (when-let [tgt (:title target)]
+    (let [who (cond
+                (str/blank? author) ""
+                (= lang :en) (str "According to " author ", ")
+                :else (str "D'après " author ", "))
+          verb (case [relation lang]
+                 [:illustrate :en] "illustrates"
+                 [:illustrate :fr] "illustre"
+                 [:refute :en] "refutes"
+                 [:refute :fr] "réfute")]
+      (str who "« " title " » " verb " « " tgt " » : "))))
+
 (defn statement-prefix-of
   "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil for a
   free-form kind. An `extract` opens with its cited work + locator (`extract-prefix`, from the resolved
-  `:work`); a `definition` opens with its author appropriating the term (`definition-prefix`). Rendered
-  *separately* from the body so the citation-parsed prose can follow a plain-text prefix (read page,
-  editor label)."
+  `:work`); a `definition` with its author appropriating the term (`definition-prefix`); an
+  `illustration` / `counter-example` with the instance brought to bear on the claim it references
+  (`instance-prefix`, from the resolved `:target`). Rendered *separately* from the body so the
+  citation-parsed prose can follow a plain-text prefix (read page, editor label)."
   [doc lang]
   (case (some-> (:kind doc)
                 keyword)
     :extract (extract-prefix (:work doc) lang)
     :definition (definition-prefix (doc-author doc) (:title doc) lang)
+    :illustration (instance-prefix (doc-author doc) (:title doc) (:target doc) lang :illustrate)
+    :counter-example (instance-prefix (doc-author doc) (:title doc) (:target doc) lang :refute)
     (let [kind (:kind doc)
           subject (case (statement-subject-kind kind)
                     :author (doc-author doc)

@@ -43,6 +43,18 @@
                  (let [d (ds/fetch-id doc-storage id)] (when (= :work (:kind d)) d))))
          (work-view (:locator doc)))))
 
+(defn- resolve-target
+  "The single node an `:illustration` / `:counter-example` is about — the claim it exemplifies or
+  refutes — resolved for its opening phrase: `{:id :type :name :lang :major :title}`. These kinds cite
+  nothing but that one target, so it is their single input. nil for other kinds or when absent."
+  [doc-storage doc]
+  (when (contains? #{:illustration :counter-example} (:kind doc))
+    (when-let [d (some->> (:pins doc)
+                          first
+                          :id
+                          (ds/fetch-id doc-storage))]
+      (select-keys d [:id :type :name :lang :major :title]))))
+
 (defn- resolve-publication
   "Resolve a document's `publication-id` (a cid) to `{:id :title :status}` — the work-package it
   belongs to, so the reader can open it. Reads through `publication/fetch` (cached). nil when there
@@ -103,6 +115,7 @@
              :attributed-author (dk/attributed-author doc)
              :attributed-author-id (dk/attributed-author-id doc)
              :work (resolve-work doc-storage doc)
+             :target (resolve-target doc-storage doc)
              :publication (resolve-publication (:publication-id doc))
              :successors (cond-> (successor-refs doc)
                            pub-cid (into (publication-successor-refs pub-cid doc)))
@@ -202,6 +215,7 @@
       (assoc :attributed-author (dk/attributed-author doc)
              :attributed-author-id (dk/attributed-author-id doc)
              :work (resolve-work doc-storage doc)
+             :target (resolve-target doc-storage doc)
              :publication (resolve-publication (:publication-id doc))
              :cite-titles (cite-titles doc-storage doc)
              :errors (document-errors doc-storage doc pub-cid))))

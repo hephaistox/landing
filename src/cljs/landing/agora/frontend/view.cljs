@@ -118,15 +118,16 @@
       ;; Derived from the doc's CONTENT language (`:lang doc`), not the reader's interface
       ;; language, so prefix and body always agree (e.g. a French doc reads French even for an
       ;; English reader viewing a cross-language fallback).
-      ;; an extract opens with its cited work (author as a profile link in the pill) and drops that
-      ;; work citation from the body, leaving the verbatim quote alone (no inline duplicate, no
-      ;; separate source block)
-      (let [extract? (= :extract
-                        (some-> (:kind doc)
-                                keyword))]
+      ;; an extract opens with its cited work (author as a profile link in the pill); an example /
+      ;; counter-example opens with the claim it references. All three lift that one referenced
+      ;; citation into the pill and drop it from the body, leaving just the authored prose (no inline
+      ;; duplicate) — kinds whose single referenced input belongs in the opening, not the text.
+      (let [kw (some-> (:kind doc)
+                       keyword)
+            lifts-input? (contains? #{:extract :illustration :counter-example} kw)]
         [cite/render-text
-         (if extract? (cite/without-citations (cite/node-text doc)) (cite/node-text doc))
-         (if extract?
+         (if lifts-input? (cite/without-citations (cite/node-text doc)) (cite/node-text doc))
+         (if (= :extract kw)
            [extract-prefix-pill (:work doc) (:lang doc)]
            (when-let [prefix (dk/statement-prefix-of doc (keyword (:lang doc)))]
              [prefix-pill prefix]))])]
