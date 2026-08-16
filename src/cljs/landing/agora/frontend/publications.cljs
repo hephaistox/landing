@@ -92,6 +92,14 @@
                    {:db (dissoc db :agora/active-publication)
                     :dispatch [refetch-scoped]}))
 
+;; deselecting the active publication from the header = "look at all publications": clear it and land
+;; on the index
+(rf/reg-event-fx ::leave-to-index
+                 (fn [{:keys [db]} _]
+                   (write-active! nil)
+                   {:db (dissoc db :agora/active-publication)
+                    :agora/navigate (i18n/publications (i18n/current db))}))
+
 ;; Ensure an active publication before an authoring action: if one is active, run `then-event`
 ;; immediately; otherwise auto-create one (blank title → the server auto-names it `publication<N>`),
 ;; set it active, and then run `then-event`. So create/edit never blocks on picking a publication.
@@ -251,19 +259,12 @@
                             :on-failure [::delete-doc-fail]}}))
 (rf/reg-event-db ::delete-doc-fail (fn [db _] db))
 
-;; delete-publication confirmation is a blocking modal (`delete-modal`); `::ask-delete` opens it,
-;; `::cancel-delete` closes it, `::delete-pub` performs the deletion.
-(rf/reg-sub ::delete-pending (fn [db _] (:agora/pub-delete-pending db)))
-(rf/reg-event-db ::ask-delete
-                 (fn [db [_ pub]]
-                   (assoc db :agora/pub-delete-pending (select-keys pub [:id :title]))))
-(rf/reg-event-db ::cancel-delete (fn [db _] (dissoc db :agora/pub-delete-pending)))
-
-;; delete an open publication and its drafts; leave for the index, drop it as the active publication
+;; delete an open publication and its drafts (confirmed by the shared `modal/confirm`); leave for the
+;; index, drop it as the active publication
 (rf/reg-event-fx ::delete-pub
                  (fn [{:keys [db]} [_ cid]]
                    (when (= cid (get-in db [:agora/active-publication :id])) (write-active! nil))
-                   {:db (cond-> (dissoc db :agora/pub-delete-pending)
+                   {:db (cond-> db
                           (= cid (get-in db [:agora/active-publication :id]))
                           (dissoc :agora/active-publication))
                     :fetch {:method :delete
@@ -354,37 +355,46 @@
      [create-fab lang]]))
 
 (defn active-chip
-  "Header indicator of the active publication (the one create/edit attach to), with a ✕ to clear it.
-  Nothing when none is active. Rendered by the header."
+  "The header's publications entry (logged-in only), replacing a plain Publications link: when a
+  publication is **active** (the one create/edit attach to) it shows as a chip with a ✕ that
+  deselects it — deselecting means 'look at all publications', so it lands on the index. With none
+  active it is just a link to that index."
   []
-  (when-let [pub @(rf/subscribe [::active])]
+  (when @(rf/subscribe [::auth/user])
     (let [lang @(rf/subscribe [::i18n/lang])]
-      [:span {:style {:display "inline-flex"
-                      :align-items "center"
-                      :gap "0.3em"
-                      :max-width "14em"
-                      :background "#b9770e"
-                      :color "#fff"
-                      :border-radius "0.35em"
-                      :padding "0.2em 0.5em"
-                      :font-size "0.8em"}}
-       [:a {:href (i18n/publication lang (:id pub))
-            :title (:title pub)
-            :style {:color "#fff"
-                    :text-decoration "none"
-                    :overflow "hidden"
-                    :text-overflow "ellipsis"
-                    :white-space "nowrap"}}
-        (str "📖 " (:title pub))]
-       [:button {:on-click #(rf/dispatch [::clear-active])
-                 :title (i18n/t lang :pub/leave)
-                 :style {:border "none"
-                         :background "transparent"
-                         :color "#fff"
-                         :cursor "pointer"
-                         :line-height 1
-                         :padding 0}}
-        "✕"]])))
+      (if-let [pub @(rf/subscribe [::active])]
+        [:span {:style {:display "inline-flex"
+                        :align-items "center"
+                        :gap "0.3em"
+                        :max-width "14em"
+                        :background "#b9770e"
+                        :color "#fff"
+                        :border-radius "0.35em"
+                        :padding "0.2em 0.5em"
+                        :font-size "0.8em"}}
+         [:a {:href (i18n/publication lang (:id pub))
+              :title (:title pub)
+              :style {:color "#fff"
+                      :text-decoration "none"
+                      :overflow "hidden"
+                      :text-overflow "ellipsis"
+                      :white-space "nowrap"}}
+          (str "📖 " (:title pub))]
+         [:button {:on-click #(rf/dispatch [::leave-to-index])
+                   :title (i18n/t lang :pub/leave)
+                   :style {:border "none"
+                           :background "transparent"
+                           :color "#fff"
+                           :cursor "pointer"
+                           :line-height 1
+                           :padding 0}}
+          "✕"]]
+        [:a {:href (i18n/publications lang)
+             :style {:color "#e8e2d6"
+                     :text-decoration "none"
+                     :opacity 0.85
+                     :font-size "0.9em"}}
+         (i18n/t lang :nav/publications)]))))
 
 (defn- title-bar
   "The publication page heading: 📖 title. The owner renames by **double-clicking** the title (or the
@@ -432,7 +442,24 @@
                              :color "#b98a3e"
                              :padding 0
                              :line-height 1}}
-            "✎"]])])]))
+            "✎"]])
+        ;; delete sits right beside edit — a ✕ opening a warning modal (loses the publication and all
+        ;; its drafts); owner of an open publication only
+        (when (and owner? (= "open" (:status pub)))
+          [dv/tooltip
+           (i18n/t lang :pub/delete)
+           [:button {:on-click #(rf/dispatch [::modal/confirm
+                                              {:message (i18n/t lang :pub/delete-confirm)
+                                               :danger? true
+                                               :on-confirm [::delete-pub (:id pub)]}])
+                     :style {:border "none"
+                             :background "transparent"
+                             :cursor "pointer"
+                             :font-size "0.55em"
+                             :color "#c92a2a"
+                             :padding 0
+                             :line-height 1}}
+            "✕"]])])]))
 
 (defn- export-icon
   "A Lucide upload glyph — a tray with an up arrow, for the publish action."
@@ -454,11 +481,12 @@
            :y2 15}]])
 
 (defn- status-pill
-  "The publication's status as a rounded chip (a hover tooltip explains it)."
+  "The publication's status as a rounded chip (a hover tooltip explains it). Only for a **closed**
+  publication — an open one already shows the Publish button, which conveys the same thing."
   [lang pub]
-  (let [open? (= "open" (:status pub))]
+  (when-not (= "open" (:status pub))
     [dv/tooltip
-     (i18n/t lang (if open? :pub/status-open-hint :pub/status-closed-hint))
+     (i18n/t lang :pub/status-closed-hint)
      [:span {:style {:display "inline-flex"
                      :align-items "center"
                      :padding "0.35em 0.9em"
@@ -468,9 +496,9 @@
                      :text-transform "uppercase"
                      :border-radius "1em"
                      :cursor "help"
-                     :color (if open? "#8a5a00" "#1d6b2f")
-                     :background (if open? "#fff3d6" "#dff3e2")}}
-      (i18n/t lang (if open? :pub/status-open :pub/status-closed))]]))
+                     :color "#1d6b2f"
+                     :background "#dff3e2"}}
+      (i18n/t lang :pub/status-closed)]]))
 
 (defn- publish-button
   "Publish (close) the publication — its drafts go public, confirmed. A hover tooltip explains it. When
@@ -513,132 +541,118 @@
              (when-let [n (:count err)] (str " (" n ")")))])]))
 
 (defn- active-toggle
-  "A select-state toggle for making this (open) publication the one new documents are created/edited
-  in — a circle that gains a check when active. A hover tooltip explains it; the header chip shows and
-  holds the active publication."
+  "Whether you are **working in** this publication — the one every document create/edit (from anywhere)
+  attaches to. A labelled switch: a sliding knob (on = copper) beside « Travailler ici », so it reads
+  as an on/off toggle rather than a bare checkbox. The header chip shows and holds the active one."
   [lang pub]
   (let [active? (= (:id @(rf/subscribe [::active])) (:id pub))]
     [dv/tooltip
      (i18n/t lang :pub/create-here)
      [:button {:on-click #(rf/dispatch (if active? [::clear-active] [::set-active pub]))
-               :style {:border "none"
+               :style {:display "inline-flex"
+                       :align-items "center"
+                       :gap "0.5em"
+                       :border "none"
                        :background "transparent"
                        :cursor "pointer"
-                       :padding "0.15em"
-                       :line-height 0
-                       :color (if active? "#b9770e" "#ccc")}}
-      [:svg {:width "1.4em"
-             :height "1.4em"
-             :viewBox "0 0 24 24"
-             :fill "none"
-             :stroke "currentColor"
-             :stroke-width 2
-             :stroke-linecap "round"
-             :stroke-linejoin "round"}
-       [:circle {:cx 12
-                 :cy 12
-                 :r 10}]
-       (when active?
-         [:path {:d "m9 12 2 2 4-4"}])]]]))
+                       :font-size "0.82em"
+                       :font-weight 600
+                       :color (if active? "#b9770e" "#8a7a55")
+                       :padding "0.1em"}}
+      ;; the switch: a track with a knob that slides right + turns copper when active
+      [:span {:style {:position "relative"
+                      :display "inline-block"
+                      :width "2em"
+                      :height "1.1em"
+                      :border-radius "1em"
+                      :background (if active? "#b9770e" "#ccc")
+                      :transition "background 0.15s"}}
+       [:span {:style {:position "absolute"
+                       :top "0.15em"
+                       :left (if active? "1.05em" "0.15em")
+                       :width "0.8em"
+                       :height "0.8em"
+                       :border-radius "50%"
+                       :background "#fff"
+                       :transition "left 0.15s"}}]]
+      (i18n/t lang :pub/work-here)]]))
 
-(defn- create-here
-  "Buttons to create a new KI or article in this publication — each sets it active, then opens the
-  authoring form so the new document lands here. A hover tooltip says the document is created here."
-  [lang pub]
-  (let [btn (fn [label url hint] [dv/tooltip
-                                  hint
-                                  [:button {:on-click #(rf/dispatch [::create-here pub url])
-                                            :style {:border "1px solid #b9770e"
-                                                    :background "#fff"
-                                                    :color "#b9770e"
-                                                    :border-radius "0.4em"
-                                                    :padding "0.35em 0.8em"
+(defn- create-doc-fab
+  "A floating create control (`position: fixed`, bottom-right) so it stays visible however long the grid
+  grows or however small the viewport — a '＋' that toggles open the two document types. A scroll/resize
+  listener measures how far the footer rises into the viewport and lifts the button by that much, so it
+  never overlaps the footer at the bottom of the page."
+  [_lang _pub]
+  (let [open? (r/atom false)
+        ;; px the footer pushes into the viewport from the bottom — the button rises by this much
+        lift (r/atom 0)
+        recalc (fn []
+                 (let [f (.querySelector js/document "footer")
+                       vh (.-innerHeight js/window)]
+                   (reset! lift (if f (max 0 (- vh (.-top (.getBoundingClientRect f)))) 0))))]
+    (r/create-class
+     {:display-name "create-doc-fab"
+      :component-did-mount (fn [_]
+                             (recalc)
+                             (.addEventListener js/window "scroll" recalc #js {:passive true})
+                             (.addEventListener js/window "resize" recalc))
+      :component-will-unmount (fn [_]
+                                (.removeEventListener js/window "scroll" recalc)
+                                (.removeEventListener js/window "resize" recalc))
+      :reagent-render
+      (fn [lang pub]
+        (let [opt (fn [label url] [:button {:on-click #(rf/dispatch [::create-here pub url])
+                                            :style {:border "none"
+                                                    :background "#b9770e"
+                                                    :color "#fff"
+                                                    :border-radius "1.2em"
+                                                    :padding "0.5em 0.9em"
                                                     :font-size "0.85em"
                                                     :font-weight 600
-                                                    :cursor "pointer"}}
-                                   (str "＋ " label)]])]
-    [:span {:style {:display "inline-flex"
-                    :gap "0.5em"}}
-     (btn (i18n/t lang :nav/new-ki) (i18n/new-ki lang) (i18n/t lang :pub/new-ki-hint))
-     (btn (i18n/t lang :nav/new-article)
-          (i18n/new-article lang)
-          (i18n/t lang :pub/new-article-hint))]))
+                                                    :cursor "pointer"
+                                                    :box-shadow "0 2px 8px rgba(0,0,0,0.25)"
+                                                    :white-space "nowrap"}}
+                                   (str "＋ " label)])]
+          [:div {:style {:position "fixed"
+                         :bottom (str "calc(1.4em + " @lift "px)")
+                         :right "1.4em"
+                         :z-index 50
+                         :display "flex"
+                         :flex-direction "column"
+                         :align-items "flex-end"
+                         :gap "0.5em"}}
+           (when @open?
+             [:<>
+              (opt (i18n/t lang :nav/new-ki) (i18n/new-ki lang))
+              (opt (i18n/t lang :nav/new-article) (i18n/new-article lang))])
+           [:button {:on-click #(swap! open? not)
+                     :title (i18n/t lang :pub/new-ki-hint)
+                     :style {:width "3em"
+                             :height "3em"
+                             :border-radius "50%"
+                             :border "none"
+                             :background "#b9770e"
+                             :color "#fff"
+                             :font-size "1.6em"
+                             :cursor "pointer"
+                             :box-shadow "0 3px 10px rgba(0,0,0,0.3)"
+                             :line-height 1}}
+            (if @open? "×" "＋")]]))})))
 
 (defn- page-actions
-  "The publication page's action row, grouped on the left: the status chip, and — for the owner of an
-  open publication — the Publish button, the make-active toggle, and a delete link."
+  "The publication page's meta row: the status chip and, for the owner of an open publication, the
+  'work here' toggle. (Publish sits top-right by the title; rename / delete beside it; creation is the
+  floating create button.)"
   [lang pub owner?]
   (when pub
     (let [editable? (and owner? (= "open" (:status pub)))]
       [:div {:style {:display "flex"
                      :flex-wrap "wrap"
                      :align-items "center"
-                     :gap "0.7em"
+                     :gap "0.9em"
                      :margin "0.3em 0 1.2em"}}
        [status-pill lang pub]
-       (when editable? [publish-button lang pub])
-       (when editable? [active-toggle lang pub])
-       (when editable?
-         [:span {:style {:margin-left "0.4em"}}
-          [dv/tooltip
-           (i18n/t lang :pub/delete-confirm)
-           [:button {:on-click #(rf/dispatch [::ask-delete pub])
-                     :style {:border "none"
-                             :background "transparent"
-                             :color "#c92a2a"
-                             :cursor "pointer"
-                             :font-size "0.8em"
-                             :text-decoration "underline"}}
-            (i18n/t lang :pub/delete)]]])])))
-
-(defn- delete-modal
-  "A blocking confirmation before deleting a publication: a centred dialog over a dark backdrop that
-  the backdrop click does not dismiss — the choice is explicit (Cancel / Delete)."
-  [lang]
-  (when-let [pub @(rf/subscribe [::delete-pending])]
-    [:div {:style {:position "fixed"
-                   :inset 0
-                   :z-index 200
-                   :background "rgba(0,0,0,0.6)"
-                   :display "flex"
-                   :align-items "center"
-                   :justify-content "center"
-                   :padding "1em"}}
-     [:div {:style {:background "#fff"
-                    :border-radius "0.6em"
-                    :max-width "26em"
-                    :width "100%"
-                    :padding "1.4em 1.5em"
-                    :box-shadow "0 12px 48px rgba(0,0,0,0.4)"
-                    :font-family "system-ui, sans-serif"}}
-      [:h2 {:style {:margin "0 0 0.5em"
-                    :font-size "1.1em"
-                    :color "#c92a2a"}}
-       (str "⚠ " (:title pub))]
-      [:p {:style {:margin "0 0 1.3em"
-                   :color "#333"
-                   :line-height 1.5}}
-       (i18n/t lang :pub/delete-confirm)]
-      [:div {:style {:display "flex"
-                     :justify-content "flex-end"
-                     :gap "0.6em"}}
-       [:button {:on-click #(rf/dispatch [::cancel-delete])
-                 :style {:border "1px solid #ccc"
-                         :background "#fff"
-                         :color "#444"
-                         :border-radius "0.4em"
-                         :padding "0.5em 1.1em"
-                         :cursor "pointer"}}
-        (i18n/t lang :form/cancel)]
-       [:button {:on-click #(rf/dispatch [::delete-pub (:id pub)])
-                 :style {:border "none"
-                         :background "#c92a2a"
-                         :color "#fff"
-                         :border-radius "0.4em"
-                         :padding "0.5em 1.1em"
-                         :font-weight 700
-                         :cursor "pointer"}}
-        (i18n/t lang :pub/delete)]]]]))
+       (when editable? [active-toggle lang pub])])))
 
 (defn- doc-card
   "A document card on the publication page, with a delete ✕ when `deletable?` (owner of an open
@@ -708,44 +722,47 @@
                     :margin "1.5em auto"
                     :padding "0 0.8em"
                     :font-family "system-ui, sans-serif"}}
-      [delete-modal lang]
       (if-not loaded?
         [header-skeleton]
         [:<>
-         [title-bar lang pub owner? editing]
+         ;; title on the left, Publish as the primary action top-right
+         [:div {:style {:display "flex"
+                        :justify-content "space-between"
+                        :align-items "flex-start"
+                        :gap "1em"
+                        :flex-wrap "wrap"}}
+          [title-bar lang pub owner? editing]
+          (when deletable? [publish-button lang pub])]
          [dv/byline
           (:author pub)
           (:published-at pub)
           (:author-id pub)
           (i18n/t lang (if (= "open" (:status pub)) :pub/date-open-hint :pub/date-closed-hint))]
          [page-actions lang pub owner?]
+         ;; filters only earn their room once there are several documents — a small draft cluster
+         ;; needs no filtering
+         (when (>= (count cards) 5)
+           [dv/filter-bar
+            lang
+            (filterv (into #{}
+                           (keep #(some-> (:kind %)
+                                          keyword))
+                           cards)
+                     dk/kind-ids)
+            (filterv (into #{}
+                           (keep #(some-> (:lang %)
+                                          name))
+                           cards)
+                     language/languages)])
          (cond
            (nil? cards) nil
-           ;; an empty publication is where authoring starts — offer the create buttons here
-           (empty? cards) (if deletable?
-                            [:div {:style {:margin "0.5em 0"}}
-                             [:p {:style {:color "#888"
-                                          :margin "0 0 0.7em"}}
-                              (i18n/t lang :pub/no-docs)]
-                             [create-here lang pub]]
-                            [:p {:style {:color "#aaa"}}
-                             (i18n/t lang :pub/no-docs)])
-           :else [:<>
-                  [dv/filter-bar
-                   lang
-                   (filterv (into #{}
-                                  (keep #(some-> (:kind %)
-                                                 keyword))
-                                  cards)
-                            dk/kind-ids)
-                   (filterv (into #{}
-                                  (keep #(some-> (:lang %)
-                                                 name))
-                                  cards)
-                            language/languages)]
-                  (into [:div {:style {:display "grid"
-                                       :grid-template-columns
-                                       "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
-                                       :gap "0.9em"}}]
-                        (for [c (dv/filter-items cards)]
-                          ^{:key (:id c)} [doc-card lang (:id pub) deletable? c]))])])])))
+           ;; the floating '＋' is the one create affordance — no in-grid tiles needed
+           (empty? cards) [:p {:style {:color "#aaa"}}
+                           (i18n/t lang :pub/no-docs)]
+           :else (into [:div {:style {:display "grid"
+                                      :grid-template-columns
+                                      "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
+                                      :gap "0.9em"}}]
+                       (for [c (dv/filter-items cards)]
+                         ^{:key (:id c)} [doc-card lang (:id pub) deletable? c])))
+         (when deletable? [create-doc-fab lang pub])])])))

@@ -14,6 +14,7 @@
   search, loading skeletons)."
   (:require
    [clojure.string                    :as str]
+   [landing.agora.date                :as adate]
    [landing.agora.document.kind       :as dk]
    [landing.agora.frontend.auth       :as auth]
    [landing.agora.frontend.cite       :as cite]
@@ -167,20 +168,19 @@
            date]]
          date)]])))
 
-(defn publication-ref
-  "A small clickable line pointing at the publication a document belongs to — its provenance
-  work-package, opened like any reference. Nothing when the document has no publication."
+(defn publication-icon
+  "A 📖 book icon (the publication glyph) linking to the publication a document belongs to — its
+  provenance work-package. Hovering shows the publication title (native `title`); clicking opens it.
+  Nothing when the document has no publication."
   [lang publication]
   (when-let [{:keys [id title]} publication]
-    [:div {:style {:font-size "0.78em"
-                   :color "#8a8578"
-                   :margin-bottom "0.7em"}}
-     (str (i18n/t lang :pub/belongs) " ")
-     [:a {:href (i18n/publication lang id)
-          :style {:color "#b9770e"
-                  :font-weight 600
-                  :text-decoration "none"}}
-      (str "📚 " title)]]))
+    [:a {:href (i18n/publication lang id)
+         :title title
+         :style {:text-decoration "none"
+                 :font-size "1.15em"
+                 :line-height 1
+                 :cursor "pointer"}}
+     "📖"]))
 
 (defn language-mismatch-notice
   "When the shown KI is in a different language than the interface AND a version in
@@ -928,9 +928,12 @@
   (let [author (or (:attributed-author node) (:author node))
         author-id (or (:attributed-author-id node) (:author-id node))
         pub (:publication node)
-        date (fmt/short-date (:published-at node)
-                             (i18n/t lang :date/today)
-                             (i18n/t lang :date/yesterday))]
+        ;; reads « le 03/08 » for an absolute date but « Aujourd'hui » (no connector) for a relative
+        ;; one — the connector is added only where it fits
+        date (adate/labelled-date (:published-at node)
+                                  {:today (i18n/t lang :date/today)
+                                   :yesterday (i18n/t lang :date/yesterday)
+                                   :on (i18n/t lang :card/on-date)})]
     [:div {:style {:color "#888"
                    :font-size "0.8em"
                    :line-height 1.5}}
@@ -952,7 +955,7 @@
              :style {:color "#b9770e"
                      :text-decoration "none"}}
          (:title pub)]])
-     (when date (str ", " (i18n/t lang :card/on-date) " " date))]))
+     (when date (str ", " date))]))
 
 (defn discover-card
   "A preview card for a node in a discover grid: its badge (a kind badge, a status chip for a
@@ -987,17 +990,7 @@
       [doc-badge node]
       [card-status-badge lang (:status node)]
       (when (:major node) [version-tag (:major node) (:minor node)])
-      (when (:draft node)
-        [:span {:style {:font-size "0.62em"
-                        :font-weight 700
-                        :text-transform "uppercase"
-                        :letter-spacing "0.05em"
-                        :color "#8a5709"
-                        :background "#fdf6ec"
-                        :border "1px dashed #b98a3e"
-                        :padding "0.1em 0.45em"
-                        :border-radius "0.25em"}}
-         (str "✎ " (i18n/t lang :ki/draft-badge))])
+      ;; draft is already shown by the card's dashed border — no separate badge
       ;; the error bell, pushed to the row's end
       [:span {:style {:margin-left "auto"}}
        [error-flag (count (:errors node))]]]

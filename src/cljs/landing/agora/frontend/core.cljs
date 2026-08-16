@@ -371,7 +371,10 @@
                                 :error nil)
                      :dispatch [::publications/load-page id]}
        :ki-public (route-changed-fetch-public db name major lang)
-       :home (route-changed-fetch-list db :ki :home)
+       ;; a signed-in author with an active publication lands on it, not the generic home
+       :home (if-let [pub-id (:id (:agora/active-publication db))]
+               {:agora/navigate (i18n/publication (i18n/current db) pub-id)}
+               (route-changed-fetch-list db :ki :home))
        :discover (route-changed-fetch-list db :ki :discover)
        :articles (route-changed-fetch-list db :article :articles)
        ;; the browse-by-author / browse-by-source views self-fetch (local search state)

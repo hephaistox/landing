@@ -101,7 +101,9 @@
                        :id (:id doc)
                        :major major
                        :minor minor}
-       (fn [vid] (i18n/doc-url lang doc-type vid))]]
+       (fn [vid] (i18n/doc-url lang doc-type vid))]
+      ;; 📖 link to the document's publication (its provenance work-package) — hover shows its title
+      [dv/publication-icon lang (:publication doc)]]
      [:h1 {:style {:font-size "1.3em"
                    :margin "0.2em 0 0.5em"}}
       title]
