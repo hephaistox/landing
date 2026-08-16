@@ -68,9 +68,6 @@
     (re-find #"^/agora/([a-z]{2})/authors/?(?:[?#].*)?$" path)
     {:kind :authors
      :lang (second (re-find #"^/agora/([a-z]{2})/authors" path))}
-    (re-find #"^/agora/([a-z]{2})/sources/?(?:[?#].*)?$" path)
-    {:kind :sources
-     :lang (second (re-find #"^/agora/([a-z]{2})/sources" path))}
     (re-find #"^/agora/([a-z]{2})/article/new/?(?:[?#].*)?$" path)
     {:kind :article-new
      :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
@@ -389,14 +386,9 @@
                (route-changed-fetch-list db :ki :home))
        :discover (route-changed-fetch-list db :ki :discover)
        :articles (route-changed-fetch-list db :article :articles)
-       ;; the browse-by-author / browse-by-source views self-fetch (local search state)
+       ;; the browse-by-author view self-fetches (local search state)
        :authors {:db (assoc db
                             :view {:kind :authors
-                                   :data nil}
-                            :loading? false
-                            :error nil)}
-       :sources {:db (assoc db
-                            :view {:kind :sources
                                    :data nil}
                             :loading? false
                             :error nil)}
@@ -726,7 +718,6 @@
       (= kind :article-new) [article-page/create-form]
       (= kind :preferences) [preferences-page/preferences-page]
       (= kind :authors) [find-page/authors-page]
-      (= kind :sources) [find-page/sources-page]
       (= kind :admin) [admin/admin-page]
       (= kind :publications) [publications/publications-page]
       (= kind :publication) [publications/publication-page]

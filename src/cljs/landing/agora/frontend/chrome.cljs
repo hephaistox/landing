@@ -40,8 +40,7 @@
                       :flex-wrap "wrap"}}
         (link (i18n/t lang :nav/discover-ki) (i18n/discover lang))
         (link (i18n/t lang :nav/discover-articles) (i18n/articles lang))
-        (link (i18n/t lang :nav/authors) (i18n/authors lang))
-        (link (i18n/t lang :nav/sources) (i18n/sources lang))])
+        (link (i18n/t lang :nav/authors) (i18n/authors lang))])
      ;; Publications lives to the right as the active-publication chip (see `active-chip`)
      ;; active-publication chip + profile, grouped to the right edge of the header
      [:div {:style {:margin-left "auto"

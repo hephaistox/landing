@@ -120,7 +120,6 @@
    ["/documents/:type" public-shell-route]
    ["/discover" public-shell-route]
    ["/articles" public-shell-route]
-   ["/sources" public-shell-route]
    ["/preferences" public-shell-route]
    ["/authors" public-shell-route]
    ["/publications" app-shell-route]
@@ -129,7 +128,8 @@
    ["/article/:id" app-shell-route]
    ["/author/:id" (partial author-page-route doc-storage)]
    ["/admin" app-shell-route]
-   ["/publication/:id" app-shell-route]])
+   ["/publication/:id" app-shell-route]
+   ["/publication/:id/graph" app-shell-route]])
 
 (defn- agora-lang-routes
   "Every public shell, enumerated once per supported language, with the literal language

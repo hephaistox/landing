@@ -30,7 +30,6 @@
     :nav/new-ki "Nouvelle connaissance"
     :nav/discover-articles "Articles"
     :nav/authors "Auteurs"
-    :nav/sources "Sources"
     :nav/publications "Publications"
     :nav/new-article "Nouvel article"
     :nav/preferences "Préférences"
@@ -80,10 +79,6 @@
     :authors/lead "Recherchez une personne pour parcourir ses contributions et ce qui la cite."
     :authors/search-ph "Rechercher un auteur…"
     :authors/none "Aucun auteur trouvé."
-    :sources/browse-title "Sources"
-    :sources/browse-lead "Recherchez une œuvre citée par auteur, titre ou année."
-    :sources/search-ph "Rechercher une œuvre…"
-    :sources/browse-none "Aucune source trouvée."
     :type/article "Article"
     :type/publication "Publication"
     :filter/mine "Les miennes"
@@ -94,6 +89,7 @@
     :filter/lang-all "Toutes les langues"
     :graph/link "Voir le graphe"
     :graph/back "Retour à la publication"
+    :graph/recenter "Recentrer"
     :graph/drag-hint
     "Glissez le fond pour déplacer, la molette pour zoomer, un nœud pour le repositionner"
     :filter/author-ph "Nom…"
@@ -320,7 +316,6 @@
     :nav/new-ki "New Knowledge"
     :nav/discover-articles "Articles"
     :nav/authors "Authors"
-    :nav/sources "Sources"
     :nav/publications "Publications"
     :nav/new-article "New article"
     :nav/preferences "Preferences"
@@ -367,10 +362,6 @@
     :authors/lead "Search a person to browse their contributions and what cites them."
     :authors/search-ph "Search an author…"
     :authors/none "No author found."
-    :sources/browse-title "Sources"
-    :sources/browse-lead "Search a cited work by author, title or year."
-    :sources/search-ph "Search a work…"
-    :sources/browse-none "No source found."
     :type/article "Article"
     :type/publication "Publication"
     :filter/mine "Mine"
@@ -381,6 +372,7 @@
     :filter/lang-all "All languages"
     :graph/link "View the graph"
     :graph/back "Back to the publication"
+    :graph/recenter "Recenter"
     :graph/drag-hint "Drag the background to pan, wheel to zoom, a node to reposition it"
     :filter/author-ph "Name…"
     :filter/search-ph "Search…"
@@ -628,7 +620,6 @@
 (defn article [lang id] (str (base lang) "/article/" id))
 (defn articles "The article discover page." [lang] (str (base lang) "/articles"))
 (defn authors "The browse-by-author page." [lang] (str (base lang) "/authors"))
-(defn sources "The browse-by-source page." [lang] (str (base lang) "/sources"))
 (defn publications "Your publications index." [lang] (str (base lang) "/publications"))
 (defn new-article "The article authoring page." [lang] (str (base lang) "/article/new"))
 (defn article-permalink

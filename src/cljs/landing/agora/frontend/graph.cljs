@@ -169,16 +169,31 @@
             :marker-end "url(#agora-arrow)"}]))
 
 (defn graph-canvas
-  "The pan/zoom/drag surface. Local state: node positions (drag mutates them), pan offset, zoom. Window
-  mouse listeners handle the drag while the button is held; they are attached on mount, removed on
-  unmount."
+  "The pan / zoom / drag surface. Local state: node positions (drag mutates them), pan offset, zoom,
+  and the fit-zoom (a floor so the graph can never be zoomed out smaller than the whole thing). Window
+  mouse listeners handle the drag while the button is held; a container ref lets us measure the
+  viewport to fit and to zoom toward the pointer. A node press-and-release (no move) opens its
+  document; a press-and-drag repositions it."
   [_lang _nodes _edges]
   (let [positions (r/atom nil) ; id → {:x :y}
-        pan (r/atom {:x 40
-                     :y 30})
+        pan (r/atom {:x 0
+                     :y 0})
         zoom (r/atom 1)
+        min-zoom (r/atom 0.2) ; the fit-zoom — no dezoom past the whole graph
+        container (r/atom nil)
         ;; drag: {:kind :node/:pan, :id, :x0 :y0 (mouse), :ox :oy (start pos/pan), :moved?}
         drag (r/atom nil)
+        fit! (fn []
+               (when-let [el @container]
+                 (let [[w h] (bounds @positions)
+                       vw (.-clientWidth el)
+                       vh (.-clientHeight el)
+                       pad 48
+                       z (min 1 (/ (- vw pad) (max 1 w)) (/ (- vh pad) (max 1 h)))]
+                   (reset! min-zoom z)
+                   (reset! zoom z)
+                   (reset! pan {:x (/ (- vw (* w z)) 2)
+                                :y (/ (- vh (* h z)) 2)}))))
         on-move (fn [e]
                   (when-let [{:keys [kind id x0 y0 ox oy]} @drag]
                     (let [dx (- (.-clientX e) x0)
@@ -197,7 +212,7 @@
                 (let [{:keys [kind moved? node]} @drag]
                   (when (and (= kind :node) (not moved?) node)
                     (rf/dispatch
-                     [:agora/navigate
+                     [:agora/goto
                       (i18n/doc-url (name (:lang node)) (name (:type node)) (:id node))])))
                 (reset! drag nil))
         start-node (fn [node e]
@@ -219,24 +234,38 @@
                                   :oy (:y @pan)}))
         on-wheel (fn [e]
                    (.preventDefault e)
-                   (swap! zoom #(-> (* % (if (pos? (.-deltaY e)) 0.9 1.1))
-                                    (max 0.3)
-                                    (min 2.5))))]
+                   (when-let [el @container]
+                     (let [rect (.getBoundingClientRect el)
+                           mx (- (.-clientX e) (.-left rect))
+                           my (- (.-clientY e) (.-top rect))
+                           oz @zoom
+                           nz (-> (* oz (if (pos? (.-deltaY e)) 0.9 1.1))
+                                  (max @min-zoom)
+                                  (min 2.5))
+                           ;; keep the graph point under the cursor fixed while zooming
+                           gx (/ (- mx (:x @pan)) oz)
+                           gy (/ (- my (:y @pan)) oz)]
+                       (reset! zoom nz)
+                       (reset! pan {:x (- mx (* gx nz))
+                                    :y (- my (* gy nz))}))))]
     (r/create-class
      {:display-name "graph-canvas"
       :component-did-mount (fn [_]
                              (.addEventListener js/window "mousemove" on-move)
-                             (.addEventListener js/window "mouseup" on-up))
+                             (.addEventListener js/window "mouseup" on-up)
+                             ;; fit once the container has real dimensions
+                             (js/setTimeout fit! 0))
       :component-will-unmount (fn [_]
                                 (.removeEventListener js/window "mousemove" on-move)
                                 (.removeEventListener js/window "mouseup" on-up))
       :reagent-render
-      (fn [_lang nodes edges]
+      (fn [lang nodes edges]
         ;; seed positions once from the layout; drags keep them afterwards
         (when (nil? @positions) (reset! positions (layout nodes edges)))
         (let [pos @positions
               [w h] (bounds pos)]
-          [:div {:on-mouse-down start-pan
+          [:div {:ref (fn [el] (reset! container el))
+                 :on-mouse-down start-pan
                  :on-wheel on-wheel
                  :style {:position "relative"
                          :height "72vh"
@@ -245,6 +274,22 @@
                          :border-radius "0.6em"
                          :background "#faf8f3"
                          :cursor "grab"}}
+           ;; recenter — outside the transform layer, so it stays put
+           [:button {:on-mouse-down #(.stopPropagation %)
+                     :on-click (fn [e] (.stopPropagation e) (fit!))
+                     :style {:position "absolute"
+                             :top "0.6em"
+                             :right "0.6em"
+                             :z-index 5
+                             :border "1px solid #b9770e"
+                             :background "#fff"
+                             :color "#b9770e"
+                             :border-radius "0.3em"
+                             :padding "0.3em 0.7em"
+                             :font-size "0.8em"
+                             :font-weight 600
+                             :cursor "pointer"}}
+            (str "⤢ " (i18n/t lang :graph/recenter))]
            [:div {:style {:position "absolute"
                           :transform-origin "0 0"
                           :transform
