@@ -304,9 +304,7 @@
         {:keys [edges neighbours]}
         (reduce (fn [acc d]
                   (let [d-id (:id d)
-                        ;; predecessors = this draft's declared inputs resolved publication-aware
-                        ;; (robust to pin format / unresolved pins)
-                        preds (into #{} (keep #(db-doc/latest-of % pub-cid)) (:inputs d))
+                        preds (into #{} (keep :id) (:pins d))
                         succs (into #{}
                                     (map :id)
                                     (concat (successor-refs (di/tnlr d))
