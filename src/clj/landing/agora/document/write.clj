@@ -13,13 +13,21 @@
   (:import (java.util UUID)))
 
 (defn- inputs+pins
-  "Derive a draft's `content.:inputs` and publication-aware `computed.:pins` from its `text`. Inputs
-  are the `[[…]]` citations in the text (`cite-refs`), each with `:lang` defaulted to `doc-lang` when
-  the token omits it. Each is then resolved to an `:id` (`pin-all`): **the publication's own draft** of
-  the cited lineage if it has one, else the **latest published** minor — so a draft cites the exact
-  in-progress predecessor while inside a publication, and the published corpus otherwise."
-  [text doc-lang publication-id]
-  (let [inputs (mapv (fn [r] (update r :lang #(or % doc-lang))) (di/cite-refs text))]
+  "Derive a draft's `content.:inputs` and publication-aware `computed.:pins`. Inputs are the `[[…]]`
+  citations in the `text` (`cite-refs`), **plus** the structural `target` when the kind has one (an
+  example/counter-example's referenced claim) — folded in so it is pinned and successor-indexed like
+  any edge, though it lives out of the prose. Each is language-defaulted to `doc-lang`, then resolved to
+  an `:id` (`pin-all`): the publication's own draft of the cited lineage if it has one, else the latest
+  published minor."
+  [text doc-lang publication-id target]
+  (let [default-lang (fn [r] (update r :lang #(or % doc-lang)))
+        text-inputs (mapv default-lang (di/cite-refs text))
+        target (some-> target
+                       (select-keys [:type :name :lang :major])
+                       (update :type #(or % :ki))
+                       default-lang)
+        inputs (vec (distinct (cond-> text-inputs
+                                target (conj target))))]
     {:inputs inputs
      :pins (di/pin-all inputs #(db-doc/latest-of % publication-id))}))
 
@@ -35,11 +43,11 @@
   [type
    owner-id
    author
-   {:keys [kind title text lang author-id locator year editor url]}
+   {:keys [kind title text lang author-id locator year editor url target]}
    publication-id]
   (let [now (db-doc/now-iso)
         lang (or lang :fr)
-        {:keys [inputs pins]} (inputs+pins text lang publication-id)]
+        {:keys [inputs pins]} (inputs+pins text lang publication-id target)]
     (db-doc/insert!
      {:id (str (UUID/randomUUID))
       :type type
@@ -78,13 +86,13 @@
   [id
    editor-id
    editor-name
-   {:keys [title text kind author-id locator year editor url]}
+   {:keys [title text kind author-id locator year editor url target]}
    publication-id]
   (when-let [doc (db-doc/fetch-id id)]
     (let [owner? (= editor-id (:owner-id doc))
           now (db-doc/now-iso)
           [owner-id author] (if owner? [(:owner-id doc) (:author doc)] [editor-id editor-name])
-          {:keys [inputs pins]} (inputs+pins text (:lang doc) publication-id)
+          {:keys [inputs pins]} (inputs+pins text (:lang doc) publication-id target)
           content (-> (select-keys doc [:kind :author-id :locator :year :editor :url])
                       (merge (into {}
                                    (remove (comp nil? val))

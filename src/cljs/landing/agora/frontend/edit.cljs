@@ -100,32 +100,47 @@
                        (assoc-in [::new :submitting?] false)
                        (update ::edit assoc :saving? false :error resp))))
 
-(rf/reg-event-db ::edit-open
-                 (fn [db [_ doc]]
-                   (assoc db
-                          ::edit
-                          {:open? true
-                           :type (:type doc)
-                           :id (:id doc)
-                           :title (:title doc)
-                           ;; the doc comes from JSON, so its kind is a string; the form works in
-                           ;; keywords (kind-selector match, doc-body dispatch) like the create flow
-                           :kind (some-> (:kind doc)
-                                         keyword)
-                           :text (cite/node-text doc)
-                           ;; a work's cited author + bibliographic fields, an extract's locator —
-                           ;; seeded so an edit can change them (nil for other kinds)
-                           :author-id (:attributed-author-id doc)
-                           :author-name (:attributed-author doc)
-                           :year (:year doc)
-                           :editor (:editor doc)
-                           :url (:url doc)
-                           :locator (:locator doc)
-                           ;; citations present when editing began — to warn if an input
-                           ;; reference gets removed before saving.
-                           :orig-cites (cite/citations (cite/node-text doc))
-                           :saving? false
-                           :error nil})))
+(rf/reg-event-db
+ ::edit-open
+ (fn [db [_ doc]]
+   ;; the doc comes from JSON, so its kind is a string; the form works in keywords
+   ;; (kind-selector match, doc-body dispatch) like the create flow
+   (let [kind (some-> (:kind doc)
+                      keyword)
+         ;; kinds whose single structural input lives out of the prose (rendered in the opening): an
+         ;; example/counter-example's claim, an extract's work
+         target-kind? (contains? #{:illustration :counter-example :extract} kind)
+         raw (cite/node-text doc)
+         ;; strip that citation from the seeded body so editing never touches it and the
+         ;; removed-citation warning can't fire on it — a legacy doc (input in text) migrates on save
+         text (if target-kind? (cite/without-citations raw) raw)]
+     (assoc db
+            ::edit
+            {:open? true
+             :type (:type doc)
+             :id (:id doc)
+             :title (:title doc)
+             :kind kind
+             :text text
+             ;; the structural input, seeded so its picker shows the current one — the resolved work
+             ;; for an extract, the resolved claim for an example/counter-example
+             :target (case kind
+                       :extract (:work doc)
+                       (:illustration :counter-example) (:target doc)
+                       nil)
+             ;; a work's cited author + bibliographic fields, an extract's locator —
+             ;; seeded so an edit can change them (nil for other kinds)
+             :author-id (:attributed-author-id doc)
+             :author-name (:attributed-author doc)
+             :year (:year doc)
+             :editor (:editor doc)
+             :url (:url doc)
+             :locator (:locator doc)
+             ;; citations present when editing began — to warn if an input
+             ;; reference gets removed before saving.
+             :orig-cites (cite/citations text)
+             :saving? false
+             :error nil}))))
 
 (rf/reg-event-db ::edit-close (fn [db _] (update db ::edit assoc :open? false)))
 (rf/reg-event-db ::edit-set (fn [db [_ k v]] (update db ::edit assoc k v)))
@@ -153,7 +168,8 @@
 (rf/reg-event-fx
  ::edit-save!
  (fn [{:keys [db]} _]
-   (let [{:keys [type id title kind text author-id author-name year editor url locator]} (::edit db)
+   (let [{:keys [type id title kind text author-id author-name year editor url locator target]}
+         (::edit db)
          pub-id (get-in db [:agora/active-publication :id])]
      {:db (update db ::edit assoc :saving? true :error nil)
       ;; an edit produces a new version, gathered as a draft in the active
@@ -168,6 +184,7 @@
                                 :editor editor
                                 :url url
                                 :locator locator
+                                :target target
                                 :publication-id pub-id}
                          kind (assoc :kind kind))
                        [::saved-ok]
@@ -195,8 +212,19 @@
 (rf/reg-event-fx
  ::new-submit
  (fn [{:keys [db]} _]
-   (let [{:keys
-          [type show-kind? title kind lang text author-id author-name year editor url locator]}
+   (let [{:keys [type
+                 show-kind?
+                 title
+                 kind
+                 lang
+                 text
+                 author-id
+                 author-name
+                 year
+                 editor
+                 url
+                 locator
+                 target]}
          (::new db)
          pub-id (get-in db [:agora/active-publication :id])]
      {:db (assoc-in db [::new :submitting?] true)
@@ -213,6 +241,7 @@
                                 :editor editor
                                 :url url
                                 :locator locator
+                                :target target
                                 :publication-id pub-id}
                          show-kind? (assoc :kind kind))
                        [::saved-ok]
@@ -692,12 +721,146 @@
                                 :border-radius "0.3em"}
                         :on-text on-text}]))
 
+(defn- target-picker
+  "Pick the single node an example / counter-example references (any KI). Sets `:target` on the form —
+  kept out of the prose, so editing the body never touches it. Shows the current target with a clear ✕,
+  else a search over the published + in-publication KIs."
+  [value set-target! pub-id]
+  (r/with-let
+   [q (r/atom "") results (r/atom [])]
+   (let [lang @(rf/subscribe [::i18n/lang])
+         run! (fn [v]
+                (reset! q v)
+                (if (str/blank? v)
+                  (reset! results [])
+                  (-> (js/fetch (str "/agora/api/documents/ki?lang="
+                                     (name lang)
+                                     "&q="
+                                     (js/encodeURIComponent v)
+                                     (when pub-id
+                                       (str "&publication=" (js/encodeURIComponent pub-id))))
+                                #js {:headers #js {"Accept" "application/json"}})
+                      (.then #(.json %))
+                      (.then #(reset! results (js->clj % :keywordize-keys true)))
+                      (.catch (fn [_] (reset! results []))))))]
+     [:div {:style {:margin "0.5em 0"}}
+      [:div {:style {:font-size "0.8em"
+                     :color "#8a7a55"
+                     :font-weight 700
+                     :margin-bottom "0.3em"}}
+       (i18n/t lang :target/label)]
+      (if value
+        [:div {:style {:display "inline-flex"
+                       :align-items "center"
+                       :gap "0.5em"
+                       :border "1px solid #b9770e"
+                       :border-radius "0.3em"
+                       :padding "0.3em 0.6em"}}
+         [:span {:style {:font-weight 600}}
+          (:title value)]
+         [:button {:on-click #(set-target! nil)
+                   :title (i18n/t lang :target/change)
+                   :style {:border "none"
+                           :background "transparent"
+                           :color "#c92a2a"
+                           :cursor "pointer"
+                           :font-size "0.9em"}}
+          "✕"]]
+        [:<>
+         [ui/composed-field {:type "text"
+                             :value @q
+                             :placeholder (i18n/t lang :target/search-ph)
+                             :on-text run!
+                             :style {:width "100%"
+                                     :box-sizing "border-box"
+                                     :padding "0.5em 0.6em"
+                                     :border "1px solid #ccc"
+                                     :border-radius "0.3em"}}]
+         (when (seq @results)
+           (into [:ul {:style {:list-style "none"
+                               :margin "0.3em 0 0"
+                               :padding 0
+                               :border "1px solid #eee"
+                               :border-radius "0.3em"
+                               :max-height "12em"
+                               :overflow-y "auto"}}]
+                 (for [k @results]
+                   ^{:key (:id k)}
+                   [:li
+                    [:button {:on-click #(do (set-target!
+                                              (select-keys k [:type :name :lang :major :title]))
+                                             (reset! q "")
+                                             (reset! results []))
+                              :style {:display "block"
+                                      :width "100%"
+                                      :text-align "left"
+                                      :border "none"
+                                      :background "transparent"
+                                      :cursor "pointer"
+                                      :padding "0.4em 0.6em"
+                                      :font-size "0.9em"}}
+                     (:title k)]])))])])))
+
+(defn- work-target-picker
+  "Pick the single bibliographic work an extract draws from, via the work modal (pick or create a
+  work). Sets `:target` on the form — kept out of the prose, exactly like the example/counter-example
+  target. Shows the current work with a clear ✕."
+  [value set-target! pub-id]
+  (r/with-let
+   [open? (r/atom false)]
+   (let [lang @(rf/subscribe [::i18n/lang])]
+     [:div {:style {:margin "0.5em 0"}}
+      [:div {:style {:font-size "0.8em"
+                     :color "#8a7a55"
+                     :font-weight 700
+                     :margin-bottom "0.3em"}}
+       (i18n/t lang :extract/work-label)]
+      (if value
+        [:div {:style {:display "inline-flex"
+                       :align-items "center"
+                       :gap "0.5em"
+                       :border "1px solid #b9770e"
+                       :border-radius "0.3em"
+                       :padding "0.3em 0.6em"}}
+         [:span {:style {:font-weight 600}}
+          (:title value)]
+         [:button {:on-click #(set-target! nil)
+                   :title (i18n/t lang :target/change)
+                   :style {:border "none"
+                           :background "transparent"
+                           :color "#c92a2a"
+                           :cursor "pointer"
+                           :font-size "0.9em"}}
+          "✕"]]
+        [:button {:on-click #(reset! open? true)
+                  :style {:border "1px dashed #b9770e"
+                          :background "transparent"
+                          :color "#b9770e"
+                          :border-radius "0.3em"
+                          :padding "0.35em 0.8em"
+                          :cursor "pointer"
+                          :font-size "0.88em"}}
+         (str "🔎 " (i18n/t lang :extract/cite-work))])
+      (when @open?
+        [source/work-modal
+         (fn [w]
+           (set-target! {:type "ki"
+                         :name (:name w)
+                         :lang (:lang w)
+                         :major (:major w)
+                         :title (:title w)})
+           (reset! open? false))
+         #(reset! open? false)
+         lang
+         pub-id])])))
+
 (defn- doc-body
-  "The kind-appropriate authoring body: a `work`'s bibliographic fields; an `extract`'s quote (the
-  citation editor in work-mode, so a pick cites the work) plus its locator; or the standard citation
-  editor over the prose. `set-fn` is `(set-fn key value)` on the form state; `text-ph`/`self-name`/`pub-id`
-  drive the citation editor."
-  [{:keys [kind text author-id author-name year editor url locator]}
+  "The kind-appropriate authoring body: a `work`'s bibliographic fields; an `extract`'s work-picker +
+  verbatim quote + locator; an example / counter-example's target-picker + plain prose. In every one of
+  the last three the single structural input is a field (a picker), not a body citation, so the prose
+  is a plain textarea. Otherwise the standard citation editor over the prose. `set-fn` is
+  `(set-fn key value)` on the form state; `text-ph`/`self-name`/`pub-id` drive the editors."
+  [{:keys [kind text target author-id author-name year editor url locator]}
    set-fn
    text-ph
    self-name
@@ -709,18 +872,23 @@
                                         :editor editor
                                         :url url}
                     set-fn]
-    (= kind :extract)
+    (= kind :extract) [:<>
+                       [work-target-picker target #(set-fn :target %) pub-id]
+                       ;; the quote cites nothing but the work (a field), so a plain textarea — no citation box
+                       [cite/citation-editor text #(set-fn :text %) text-ph self-name false pub-id]
+                       [locator-field locator #(set-fn :locator %)]]
+    (contains? #{:illustration :counter-example} kind)
     [:<>
-     [cite/citation-editor text #(set-fn :text %) text-ph self-name true pub-id true]
-     [locator-field locator #(set-fn :locator %)]]
+     [target-picker target #(set-fn :target %) pub-id]
+     ;; the prose cites nothing but the target, so no citation box — a plain textarea
+     [cite/citation-editor text #(set-fn :text %) text-ph self-name false pub-id]]
     :else [cite/citation-editor
            text
            #(set-fn :text %)
            text-ph
            self-name
            (dk/kind-allows-inputs? (or kind :inference))
-           pub-id
-           false]))
+           pub-id]))
 
 (defn edit-form
   "The central card in edit mode (a new minor): metadata row (kind selector when
@@ -732,7 +900,7 @@
     :keys [major minor published-at author]}
    {:keys [show-kind? labels]
     object-type :type}]
-  (let [{:keys [title kind text author-id author-name year editor url locator saving? error]}
+  (let [{:keys [title kind text target author-id author-name year editor url locator saving? error]}
         @(rf/subscribe [::edit])
         lang @(rf/subscribe [::i18n/lang])
         user @(rf/subscribe [::auth/user])
@@ -768,6 +936,7 @@
       doc-lang]
      [doc-body {:kind kind
                 :text text
+                :target target
                 :author-id author-id
                 :author-name author-name
                 :year year
@@ -815,7 +984,7 @@
     :as cfg}]
   (r/with-let
    [_ (rf/dispatch-sync [::new-reset cfg])]
-   (let [{:keys [title kind text author-id author-name year editor url locator submitting?]
+   (let [{:keys [title kind text target author-id author-name year editor url locator submitting?]
           form-lang :lang}
          @(rf/subscribe [::new])
          user @(rf/subscribe [::auth/user])
@@ -859,6 +1028,7 @@
        (or form-lang lang)]
       [doc-body {:kind kind
                  :text text
+                 :target target
                  :author-id author-id
                  :author-name author-name
                  :year year

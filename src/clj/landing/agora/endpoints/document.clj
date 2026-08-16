@@ -37,6 +37,18 @@
     (when-let [p (db-doc/fetch-latest-any :publication cid)]
       (when (= (:owner-id p) (uid req)) cid))))
 
+(defn- coerce-target
+  "The structural target TNLR from the request body (an example / counter-example's referenced claim),
+  keys coerced to the domain's keywords — JSON sends `:type`/`:lang` as strings. nil when absent."
+  [req]
+  (when-let [t (get-in req [:body-params :target])]
+    (when (seq (:name t))
+      (-> (select-keys t [:type :name :lang :major])
+          (update :type #(keyword (or % "ki")))
+          (update :lang
+                  #(some-> %
+                           keyword))))))
+
 (defn- create-handler
   "Create a new document of `:type` owned by the caller (text-only). Body:
   `{:kind :title :text :lang :publication-id}`, plus for a `work` its cited author (`:author-id` +
@@ -70,7 +82,8 @@
                                      :year year
                                      :editor editor
                                      :url url
-                                     :locator locator}
+                                     :locator locator
+                                     :target (coerce-target req)}
                                     publication-id)]
           {:status 200
            :body (engine/read-by-id doc-storage new-id)})))
@@ -103,7 +116,8 @@
                                       :year year
                                       :editor biblio-editor
                                       :url url
-                                      :locator locator}
+                                      :locator locator
+                                      :target (coerce-target req)}
                                      publication-id)]
           ;; an edit may rewrite a draft **in place** (same id); drop its stale cache entry so the
           ;; read-back returns the new content

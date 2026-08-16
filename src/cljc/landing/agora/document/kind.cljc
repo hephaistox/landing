@@ -311,7 +311,7 @@
     (when-let [connector (or (get-in statement-say [:definition :phrase lang])
                              (get-in statement-say [:definition :phrase :en]))]
       (let [who (when-not (str/blank? author)
-                  (if (= lang :en) (str "for " author ", ") (str "pour " author ", ")))]
+                  (if (= lang :en) (str "For " author ", ") (str "Pour " author ", ")))]
         (if (= lang :en)
           (str who "in this context, “" term "” " connector " ")
           (str who "dans ce contexte, « " term " » " connector " "))))))

@@ -32,21 +32,22 @@
      :locator locator}))
 
 (defn- resolve-work
-  "The work an `extract` draws from, for display: its `kind=work` input resolved through `doc-storage`
-  (cached) and shaped by `work-view`, carrying the extract's own `:locator`. nil for a non-extract, or
-  an extract whose work input is missing. Never the byline — an extract belongs to its writer; this is
-  the underlying work shown alongside."
+  "The work an `extract` draws from, for display: an extract cites nothing but that one work, so it is
+  simply its single input — resolved through `doc-storage` (cached), shaped by `work-view`, carrying the
+  extract's own `:locator`. nil for a non-extract or a missing work. Never the byline — an extract
+  belongs to its writer; this is the underlying work shown alongside."
   [doc-storage doc]
   (when (= :extract (:kind doc))
-    (->> (:pins doc)
-         (some (fn [{:keys [id]}]
-                 (let [d (ds/fetch-id doc-storage id)] (when (= :work (:kind d)) d))))
-         (work-view (:locator doc)))))
+    (work-view (:locator doc)
+               (some->> (:pins doc)
+                        first
+                        :id
+                        (ds/fetch-id doc-storage)))))
 
 (defn- resolve-target
   "The single node an `:illustration` / `:counter-example` is about — the claim it exemplifies or
   refutes — resolved for its opening phrase: `{:id :type :name :lang :major :title}`. These kinds cite
-  nothing but that one target, so it is their single input. nil for other kinds or when absent."
+  nothing but that one claim, so it is simply their single input. nil for other kinds or when absent."
   [doc-storage doc]
   (when (contains? #{:illustration :counter-example} (:kind doc))
     (when-let [d (some->> (:pins doc)
