@@ -254,36 +254,12 @@
                  (fn [{:keys [db]} [_ resp]]
                    (let [doc (:body resp)]
                      (if (:id doc)
-                       {:db (dissoc db ::new ::publish-error :agora/authoring-busy?)
+                       {:db (dissoc db ::new :agora/authoring-busy?)
                         :dispatch [:agora/saved doc]}
                        {:db (-> db
                                 (dissoc :agora/authoring-busy?)
                                 (assoc-in [::new :submitting?] false)
                                 (update ::edit assoc :saving? false :error resp))}))))
-
-;; Publish a draft: promote this version, prune the lineage's intermediate drafts, then reuse
-;; `::saved-ok` to navigate to the now-published document. A 422 means an input is still a draft
-;; (the publish invariant) — `::publish-failed` stashes the offending inputs so the banner can
-;; list them with links.
-(rf/reg-event-fx ::publish
-                 (fn [{:keys [db]} [_ type id]]
-                   {:db (dissoc db ::publish-error)
-                    :fetch (json-req :post
-                                     (str "/agora/api/" type "/" id "/publish")
-                                     {}
-                                     [::saved-ok]
-                                     [::publish-failed id])}))
-
-(rf/reg-event-db ::publish-failed
-                 (fn [db [_ id resp]]
-                   (js/console.error "[agora] publish failed:" (clj->js resp))
-                   (assoc db
-                          ::publish-error
-                          {:id id
-                           :inputs (get-in resp [:body :unpublished-inputs])
-                           :message (get-in resp [:body :error])})))
-
-(rf/reg-sub ::publish-error (fn [db _] (::publish-error db)))
 
 ;; --- admin maintenance from the edit card ----------------------------------
 ;; Owner-only: delete the whole lineage, or keep only its latest version (compact). Both
@@ -321,62 +297,6 @@
                                                           type
                                                           {:name doc-name
                                                            :major major}))}))
-
-(defn publish-action
-  "For a **draft** the current user owns, a Publish banner on the read view. Publishing clears
-  the draft flag, prunes the lineage's intermediate drafts, re-pins successors, and makes the
-  document resolve. Renders nothing for a published document or a viewer who isn't its owner."
-  [{:keys [id draft author-id]
-    doc-type :type}]
-  (let [user @(rf/subscribe [::auth/user])]
-    (when (and draft (= (:id user) author-id))
-      (let [lang @(rf/subscribe [::i18n/lang])
-            err @(rf/subscribe [::publish-error])
-            blocked (when (= (:id err) id) (:inputs err))]
-        [:div {:style {:margin-bottom "0.9em"}}
-         [:div {:style {:display "flex"
-                        :align-items "center"
-                        :justify-content "space-between"
-                        :gap "0.7em"
-                        :flex-wrap "wrap"
-                        :padding "0.5em 0.8em"
-                        :background "#fdf6ec"
-                        :border "1px dashed #b98a3e"
-                        :border-radius "0.4em"}}
-          [:span {:style {:font-size "0.88em"
-                          :color "#8a5709"}}
-           (str "✎ " (i18n/t lang :ki/draft-notice))]
-          [:button {:on-click #(rf/dispatch [::publish doc-type id])
-                    :style {:padding "0.4em 1em"
-                            :border "none"
-                            :background "#2b8a3e"
-                            :color "#fff"
-                            :border-radius "0.3em"
-                            :cursor "pointer"
-                            :font-weight 600}}
-           (i18n/t lang :ki/publish)]]
-         ;; publish invariant: a public node may not depend on a draft input
-         (when (seq blocked)
-           [:div {:style {:margin-top "0.5em"
-                          :padding "0.5em 0.8em"
-                          :background "#fdecec"
-                          :border "1px solid #d9534f"
-                          :border-radius "0.4em"
-                          :font-size "0.85em"
-                          :color "#8a1f1f"}}
-            [:div {:style {:margin-bottom "0.3em"
-                           :font-weight 600}}
-             (i18n/t lang :ki/publish-blocked)]
-            (into [:ul {:style {:margin 0
-                                :padding-left "1.2em"}}]
-                  (map (fn [{:keys [type id title]
-                             nm :name}]
-                         [:li
-                          [:a {:href (i18n/doc-url lang type id)
-                               :style {:color "#8a1f1f"
-                                       :text-decoration "underline"}}
-                           (or title nm)]]))
-                  blocked)])]))))
 
 ;; --- inline successor: spawn a consequence without leaving the page --------
 ;; A *consequence* of KI X is a new KI that cites X as its input — the `[[ki:X]]` edge lives in

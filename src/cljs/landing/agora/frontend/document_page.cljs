@@ -8,8 +8,7 @@
 
   Holds: the graph layout (`node-frame` with input/successor mini-cards and connectors),
   the badges (`kind-badge`/`lang-badge`/`doc-badge`), `byline`, `version-picker`, the
-  language switcher `languages-control` and the whole translate flow (`translation-editor`
-  + `::translate-*` events), `discover-card`/`add-card`/`fab`, `input-drop-fn`, the JSON
+  language switcher `languages-control`, `discover-card`/`add-card`/`fab`, `input-drop-fn`, the JSON
   request helper `json-req`, the auth `gated` helper, and the app chrome (header, footer,
   search, loading skeletons)."
   (:require
@@ -216,31 +215,23 @@
 (defn languages-control
   "The KI's language, as one control: the badge shows the selected language; a
   caret opens a Wikipedia-style modal listing every language. Existing versions
-  are the current one (marked) and the others (links); missing ones appear with a
-  `+` for a logged-in user to create that version (duplicating the KI and its
-  inputs). With nothing to switch to or create, it is just the badge. `ui-lang` is
-  the interface language; `ki` supplies this KI's id/lang/name/major and its
-  `:translations`."
+  are the current one (marked) and the others (links). With nothing to switch to,
+  it is just the badge. `ui-lang` is the interface language; `ki` supplies this
+  KI's lang/name/major and its `:translations`."
   [ui-lang
    {ki-lang :lang
     ki-name :name
-    ki-title :title
-    :keys [id type major translations]
-    :as node}]
+    :keys [type major translations]}]
   (r/with-let
    [open? (r/atom false)]
-   (let [user @(rf/subscribe [::auth/user])
-         ;; the node's text (unified) seeds the translation; the sibling permalink is built
-         ;; generically from this node's own `:type` (no type branching here)
-         source-text (cite/node-text node)
+   (let [;; the sibling permalink is built generically from this node's own `:type`
          lang-href (fn [l entry] (i18n/doc-permalink l type entry))
          present (into {ki-lang {:lang ki-lang
                                  :name ki-name
                                  :major major
                                  :current? true}}
                        (map (juxt :lang identity) translations))
-         missing (remove present language/languages)
-         openable? (or (seq translations) (and user (seq missing)))]
+         openable? (seq translations)]
      [:span
       [:button {:on-click (when openable? #(reset! open? true))
                 :disabled (not openable?)
@@ -283,54 +274,32 @@
           [:h3 {:style {:margin "0 0 0.7em"
                         :font-size "1.05em"}}
            (str "🌐 " (i18n/t ui-lang :ki/other-languages))]
-          (into
-           [:div {:style {:display "flex"
-                          :flex-direction "column"
-                          :gap "0.15em"}}]
-           (for [l language/languages
-                 :let [entry (present l)]
-                 ;; hide missing languages from anonymous users (they cannot
-                 ;; create), so they only see the switchable ones.
-                 :when (or entry user)]
-             ^{:key l}
-             (cond
-               (:current? entry) [:div {:style {:padding "0.4em 0.5em"
-                                                :border-radius "0.3em"
-                                                :background "#f4efe4"
-                                                :font-weight 700
-                                                :color "#7a5209"}}
-                                  (get language/language-name l l)]
-               entry [:a {:href (lang-href l entry)
-                          :on-click #(reset! open? false)
-                          :style {:padding "0.4em 0.5em"
-                                  :border-radius "0.3em"
-                                  :text-decoration "none"
-                                  :color "#b9770e"}}
-                      (get language/language-name l l)]
-               :else [:button {:on-click (fn []
-                                           (reset! open? false)
-                                           (rf/dispatch [::translate-open {:doc-id id
-                                                                           :type type
-                                                                           :source-lang ki-lang
-                                                                           :target-lang l
-                                                                           :source-text source-text
-                                                                           :source-title
-                                                                           ki-title}]))
-                               :title (i18n/t ui-lang :ki/create-translation)
-                               :style {:text-align "left"
-                                       :padding "0.4em 0.5em"
-                                       :border "1px dashed #b9770e"
-                                       :border-radius "0.3em"
-                                       :background "transparent"
-                                       :color "#b9770e"
-                                       :cursor "pointer"
-                                       :font-size "0.95em"}}
-                      (str "+ " (get language/language-name l l))])))]])])))
+          (into [:div {:style {:display "flex"
+                               :flex-direction "column"
+                               :gap "0.15em"}}]
+                (for [l language/languages
+                      :let [entry (present l)]
+                      ;; only existing versions are listed — switching is a link
+                      :when entry]
+                  ^{:key l}
+                  (if (:current? entry)
+                    [:div {:style {:padding "0.4em 0.5em"
+                                   :border-radius "0.3em"
+                                   :background "#f4efe4"
+                                   :font-weight 700
+                                   :color "#7a5209"}}
+                     (get language/language-name l l)]
+                    [:a {:href (lang-href l entry)
+                         :on-click #(reset! open? false)
+                         :style {:padding "0.4em 0.5em"
+                                 :border-radius "0.3em"
+                                 :text-decoration "none"
+                                 :color "#b9770e"}}
+                     (get language/language-name l l)])))]])])))
 
 (defn json-req
   "A JSON `:fetch` request map. `on-failure` is explicit so the helper is decoupled
-  from any one screen's error handler (the edit/create flows pass `[::op-failed]`, the
-  translate flow its own)."
+  from any one screen's error handler (the edit/create flows pass `[::op-failed]`)."
   [method url body on-success on-failure]
   {:method method
    :url url
@@ -340,81 +309,6 @@
    :response-content-types {#"application/json" :json}
    :on-success on-success
    :on-failure on-failure})
-
-(rf/reg-sub ::translate-form (fn [db _] (::translate-form db)))
-
-(rf/reg-event-fx
- ::translate-open
- (fn [{:keys [db]} [_ {:keys [doc-id type source-lang target-lang source-text source-title]}]]
-   {:db (assoc db
-               ::translate-form
-               {:doc-id doc-id
-                :type type
-                :source-lang source-lang
-                :target-lang target-lang
-                :source-text source-text
-                :translation source-text
-                :source-title source-title
-                :title source-title
-                :suggesting? true
-                :title-suggesting? true
-                :saving? false})
-    ;; suggest a translation for both the title and the statement
-    :dispatch-n [[::translate-suggest :title source-title source-lang target-lang]
-                 [::translate-suggest :translation source-text source-lang target-lang]]}))
-
-(rf/reg-event-fx ::translate-suggest
-                 (fn [_ [_ field text source target]]
-                   {:fetch {:method :post
-                            :url "/agora/api/translate"
-                            :headers {"Content-Type" "application/json"
-                                      "Accept" "application/json"}
-                            :body (js/JSON.stringify (clj->js {:text text
-                                                               :source source
-                                                               :target target}))
-                            :response-content-types {#"application/json" :json}
-                            :on-success [::translate-suggest-ok field]
-                            :on-failure [::translate-suggest-ok field]}}))
-
-(rf/reg-event-db
- ::translate-suggest-ok
- (fn [db [_ field resp]]
-   (if (::translate-form db)
-     (update db
-             ::translate-form
-             (fn [f]
-               (let [fallback (if (= field :title) (:source-title f) (:source-text f))
-                     flag (if (= field :title) :title-suggesting? :suggesting?)]
-                 (assoc f flag false field (or (get-in resp [:body :translation]) fallback)))))
-     db)))
-
-(rf/reg-event-db ::translate-set (fn [db [_ k v]] (assoc-in db [::translate-form k] v)))
-(rf/reg-event-db ::translate-cancel (fn [db _] (dissoc db ::translate-form)))
-
-(rf/reg-event-fx ::translate-save
-                 (fn [{:keys [db]} _]
-                   (let [{:keys [doc-id type target-lang title translation]} (::translate-form db)]
-                     {:db (assoc-in db [::translate-form :saving?] true)
-                      :fetch (json-req :post
-                                       (str "/agora/api/" type "/" doc-id "/translate")
-                                       {:lang target-lang
-                                        :title title
-                                        :text translation}
-                                       [::translate-saved target-lang]
-                                       [::translate-failed])})))
-
-(rf/reg-event-db ::translate-failed
-                 (fn [db [_ resp]]
-                   (js/console.error "[agora] translate failed:" (clj->js resp))
-                   (assoc-in db [::translate-form :saving?] false)))
-
-(rf/reg-event-fx ::translate-saved
-                 (fn [{:keys [db]} [_ target-lang resp]]
-                   (let [{:keys [id type]} (:body resp)]
-                     (if id
-                       {:db (dissoc db ::translate-form)
-                        :dispatch [:agora/goto (i18n/doc-url target-lang type id)]}
-                       {:db (assoc-in db [::translate-form :saving?] false)}))))
 
 ;; ---- Create a new KI (standalone form, #34) ----
 
@@ -594,40 +488,6 @@
                   :line-height "1"}}
     "▼"]])
 
-(defn auto-textarea
-  "A textarea that grows to fit its content — never too small, and never taller/wider
-  than needed. Width is 100% of its card and manual resize is disabled, so it can't
-  spill outside. `attrs` (`:value`/`:on-change`/`:placeholder`/`:disabled`/`:style`…)
-  is merged onto the element; the caller's `:style` overrides the defaults."
-  [_attrs]
-  (let [node (atom nil)
-        fit! (fn []
-               (when-let [el @node]
-                 (set! (.. el -style -height) "auto")
-                 (set! (.. el -style -height) (str (.-scrollHeight el) "px"))))]
-    (r/create-class
-     {:display-name "auto-textarea"
-      :component-did-mount fit!
-      :component-did-update fit!
-      :reagent-render (fn [{:keys [on-change style]
-                            :as attrs}]
-                        [:textarea
-                         (merge {:ref #(reset! node %)}
-                                (dissoc attrs :on-change :style)
-                                {:on-change (fn [e] (when on-change (on-change e)) (fit!))
-                                 :style (merge {:width "100%"
-                                                :box-sizing "border-box"
-                                                :resize "none"
-                                                :overflow "hidden"
-                                                :min-height "4.5em"
-                                                :padding "0.5em"
-                                                :font-family "inherit"
-                                                :font-size "1.02em"
-                                                :line-height "1.5"
-                                                :border "1px solid #ccc"
-                                                :border-radius "0.3em"}
-                                               style)})])})))
-
 (def card-style
   {:position "relative"
    :width "40em"
@@ -639,112 +499,6 @@
    :background "#fff"
    :box-shadow "0 1px 3px rgba(0,0,0,0.06)"
    :font-family "system-ui, sans-serif"})
-
-(defn translation-editor
-  "Modal to create a language version of a document (KI or article): the source text
-  (read-only, for reference) above an editable field pre-filled with a
-  machine-translation suggestion the author validates and edits before saving.
-  Rendered at the app root; shown only while a translate-form is open."
-  []
-  (when-let [{:keys [source-lang
-                     target-lang
-                     source-text
-                     source-title
-                     translation
-                     title
-                     suggesting?
-                     title-suggesting?
-                     saving?]}
-             @(rf/subscribe [::translate-form])]
-    (let [lang @(rf/subscribe [::i18n/lang])
-          label-style {:font-size "0.8em"
-                       :color "#555"
-                       :margin "0.6em 0 0.3em"}]
-      [:div {:on-click #(rf/dispatch [::translate-cancel])
-             :style {:position "fixed"
-                     :inset 0
-                     :z-index 100
-                     :background "rgba(0,0,0,0.45)"
-                     :display "flex"
-                     :align-items "flex-start"
-                     :justify-content "center"
-                     :padding-top "8vh"}}
-       [ui/on-escape #(rf/dispatch [::translate-cancel])]
-       [:div {:on-click #(.stopPropagation %)
-              :style {:width "34em"
-                      :max-width "92%"
-                      :background "#fff"
-                      :border-radius "0.6em"
-                      :padding "1.4em"
-                      :font-family "system-ui, sans-serif"}}
-        [:h2 {:style {:margin "0 0 0.3em"
-                      :font-size "1.3em"}}
-         (str (i18n/t lang :translate/to) " " (get language/language-name target-lang target-lang))]
-        [:div {:style label-style}
-         (str (i18n/t lang :translate/source)
-              " · "
-              (get language/language-name source-lang source-lang))]
-        ;; source title (read-only) + editable translated title
-        [:div {:style {:padding "0.4em 0.7em"
-                       :background "#f7f4ec"
-                       :border "1px solid #e2ddd2"
-                       :border-radius "0.3em"
-                       :color "#555"
-                       :font-weight 700}}
-         source-title]
-        [:input {:type "text"
-                 :value (if title-suggesting? "" (or title ""))
-                 :disabled title-suggesting?
-                 :placeholder (when title-suggesting? (i18n/t lang :translate/suggesting))
-                 :on-change #(rf/dispatch [::translate-set :title (.. % -target -value)])
-                 :style {:width "100%"
-                         :box-sizing "border-box"
-                         :margin-top "0.3em"
-                         :padding "0.4em"
-                         :font-family "inherit"
-                         :font-size "1.05em"
-                         :font-weight 700
-                         :border "1px solid #ccc"
-                         :border-radius "0.3em"}}]
-        ;; source text (read-only) + editable translation
-        [:div {:style {:padding "0.6em 0.7em"
-                       :margin-top "0.6em"
-                       :background "#f7f4ec"
-                       :border "1px solid #e2ddd2"
-                       :border-radius "0.3em"
-                       :color "#555"
-                       :font-size "1em"
-                       :line-height "1.5"
-                       :white-space "pre-wrap"}}
-         source-text]
-        [:div {:style label-style}
-         (i18n/t lang :translate/your)]
-        [auto-textarea {:value (if suggesting? "" translation)
-                        :disabled suggesting?
-                        :placeholder (when suggesting? (i18n/t lang :translate/suggesting))
-                        :on-change #(rf/dispatch
-                                     [::translate-set :translation (.. % -target -value)])}]
-        [:div {:style {:display "flex"
-                       :gap "0.5em"
-                       :margin-top "0.9em"}}
-         [:button {:on-click #(rf/dispatch [::translate-save])
-                   :disabled (boolean
-                              (or suggesting? title-suggesting? saving? (str/blank? translation)))
-                   :style {:padding "0.45em 1em"
-                           :border "none"
-                           :background "#b9770e"
-                           :color "#fff"
-                           :border-radius "0.3em"
-                           :cursor
-                           (if (or suggesting? title-suggesting? saving?) "default" "pointer")}}
-          (if saving? (i18n/t lang :translate/creating) (i18n/t lang :translate/create))]
-         [:button {:on-click #(rf/dispatch [::translate-cancel])
-                   :style {:padding "0.45em 1em"
-                           :border "1px solid #ccc"
-                           :background "#fff"
-                           :border-radius "0.3em"
-                           :cursor "pointer"}}
-          (i18n/t lang :form/cancel)]]]])))
 
 (defn- neighbours-row
   "A centered wrap-row of neighbour cards (a node's input or successor KIs). `drop-fn`
@@ -764,8 +518,8 @@
 
 (defn input-drop-fn
   "For an editable node page: a fn of an input's loaded doc → the ✕ on-click that drops
-  that input link (a new minor of `node-id`, type `type`). Removal lives in the input
-  field, not in the text. nil when the viewer isn't logged in — removal is an authoring
+  that input link (a new minor of `node-id`, type `type`) by stripping its `[[…]]`
+  citation from the text. nil when the viewer isn't logged in — removal is an authoring
   action, so anonymous readers see no ✕."
   [type node-id]
   (when @(rf/subscribe [::auth/user])
@@ -776,7 +530,11 @@
         (rf/dispatch [:agora/drop-input
                       type
                       node-id
-                      {:name (:name input-doc)
+                      ;; the input's full TNLR — `strip-cite` matches the `[[…]]` token
+                      ;; on type/name/lang/major
+                      {:type (:type input-doc)
+                       :name (:name input-doc)
+                       :lang (:lang input-doc)
                        :major (:major input-doc)}])))))
 
 (defn node-frame

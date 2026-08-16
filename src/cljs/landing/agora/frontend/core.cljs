@@ -559,21 +559,41 @@
                                      :loading? false))
                       :agora/navigate (i18n/doc-url (i18n/current db) type id)})))
 
-;; Remove an input edge via the input field (the ✕ on an input card) — DELETE the edge
-;; on the server, which forks a new minor (also stripping the inline citation from the
-;; text). Then ingest the returned version and navigate to it, exactly like an edit, so
-;; removal is a first-class input-field action rather than hand-editing the text.
+;; Remove an input edge from the ✕ on an input card. Inputs are the text's `[[…]]`
+;; citations, so dropping one strips that input's citation (`input`, a TNLR) from the
+;; text and re-saves — an edit → new minor. The type's structural target and its
+;; bibliographic fields ride along unchanged so only the one edge is removed.
 (rf/reg-event-fx :agora/drop-input
                  (fn [{:keys [db]} [_ type id input]]
-                   {:db (assoc db :loading? true :error nil)
-                    :fetch {:method :delete
-                            :url (str "/agora/api/" type "/" id "/inputs")
-                            :headers {"Content-Type" "application/json"
-                                      "Accept" "application/json"}
-                            :body (js/JSON.stringify (clj->js input))
-                            :response-content-types {#"application/json" :json}
-                            :on-success [::input-dropped type]
-                            :on-failure [::fetch-failed]}}))
+                   (let [doc (doc-by-id db id)
+                         kind (some-> (:kind doc)
+                                      keyword)
+                         ;; strip both the language-tagged token and the bare one — same
+                         ;; name+major is the same lineage, so no other input can match
+                         text (-> (:text doc)
+                                  (di/strip-cite input)
+                                  (di/strip-cite (assoc input :lang nil)))
+                         pub-id (get-in db [:agora/active-publication :id])]
+                     {:db (assoc db :loading? true :error nil)
+                      :fetch (document-page/json-req
+                              :post
+                              (str "/agora/api/documents/" type "/" id)
+                              (cond-> {:title (:title doc)
+                                       :text text
+                                       :author-id (:attributed-author-id doc)
+                                       :author-name (:attributed-author doc)
+                                       :year (:year doc)
+                                       :editor (:editor doc)
+                                       :url (:url doc)
+                                       :locator (:locator doc)
+                                       :target (case kind
+                                                 :extract (:work doc)
+                                                 (:illustration :counter-example) (:target doc)
+                                                 nil)
+                                       :publication-id pub-id}
+                                kind (assoc :kind kind))
+                              [::input-dropped type]
+                              [::fetch-failed])})))
 
 (rf/reg-event-fx ::input-dropped
                  (fn [_ [_ _type response]]
@@ -755,8 +775,7 @@
     [app-view]]
    [chrome/site-footer]
    [auth/auth-modal]
-   [modal/confirm-modal]
-   [document-page/translation-editor]])
+   [modal/confirm-modal]])
 
 (defn ^:dev/after-load mount-root
   []

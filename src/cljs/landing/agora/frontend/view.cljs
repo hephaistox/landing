@@ -110,8 +110,6 @@
      ;; the document's specific, clickable problems (stale references, a missing predecessor) — shown
      ;; where they get fixed; nothing when the document is sound
      [dv/error-panel (:errors doc)]
-     ;; a draft the owner is viewing gets a Publish banner, right above the body
-     [edit/publish-action doc]
      [:div {:style {:font-size "1.05em"
                     :line-height "1.5"
                     :color "#222"}}

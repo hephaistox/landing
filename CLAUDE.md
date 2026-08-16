@@ -94,13 +94,11 @@ API under `/agora/api` is the SPA's backend.
 | `GET /agora/:lang/discover`, `/preferences`, `/articles`                 | `shell/public-shell-route`          | Public shells, **`noindex`** — rotating feeds / a settings page; the sitemap enumerates the corpus and the home page is the indexable hub, so these don't compete for crawl budget (OpenGraph kept for social unfurls). |
 | `GET /agora/:lang/{new,ki/:id,article/:id,admin}`                        | `shell/app-shell-route`             | Authoring/app shells (`noindex`; not canonical content).                         |
 | `/agora/api/auth/{register,login,logout,me,lang,google,google/callback}` | `agora.endpoints.auth`              | Accounts + session (email/password + Google OAuth) and the language preference.  |
-| `/agora/api/admin/{tnrs,issues,drop-tnr,compact-tnr}`                    | `agora.endpoints.admin`             | Maintenance + consistency scan; **owner-only**.                                  |
-| `/agora/api/{ki,article}` + `/by/:name/:major`, `/:id`, `/:id/{edit,translate,inputs}` | `endpoints.document` (`document-routes`, **one generic set mounted per type**) | The whole KI/article surface: list/search, create, by-permalink, by-id, edit (new minor), translate, add/drop input. KIs and articles share this engine. |
-| `POST /agora/api/translate`                                              | `endpoints.document`                | Best-effort machine-translation suggestion (authoring aid).                      |
+| `/agora/api/admin/{tnrs,issues,drop-tnr,compact-tnr,rebuild}`            | `agora.endpoints.admin`             | Maintenance + consistency scan + successor-index rebuild; **owner-only**.        |
+| `/agora/api/documents/:type` + `/:name/:lang/:major`, `/:id` (GET/POST/DELETE), `/:id/versions` | `endpoints.document` (`document-routes`, **one generic set, the type is the path wildcard**) | The whole document surface: list/search, create, by-permalink, by-id (read / edit-new-minor / delete-draft), version list. Every `type` (`ki`, `article`, `work`, `extract`, …) shares this engine. |
 | `GET /agora/api/author/:id`                                              | `agora.endpoints.author`            | Public author profile: card + the person's documents + last activity.            |
-| `GET\|POST /agora/api/people`                                            | `agora.endpoints.people`            | Search people (source-author picker) / create a login-less external person.      |
-| `GET\|POST /agora/api/publication` + `GET /:id`                          | `agora.endpoints.publication`       | Publications (`type="publication"` documents — the work-package that gathers a user's drafts): open one / fetch by id / list the caller's open ones. |
-| `GET\|POST /agora/api/source` + `GET /recent`, `POST /:id`               | `agora.endpoints.source`            | Bibliographic sources (now `type="source"` **documents**): search / create / recent / edit. |
+| `GET\|POST /agora/api/people`                                            | `agora.endpoints.people`            | Search people (author picker) / create a login-less external person.             |
+| `GET\|POST /agora/api/publication` + `GET\|PUT\|DELETE /:id`, `POST /:id/publish`, `GET /:id/{documents,graph}` | `agora.endpoints.publication` | Publications (`type="publication"` documents gathering a user's drafts): open / list / fetch / rename / delete; publish-all-drafts (close); its drafts as cards; its dependency graph. |
 
 **Why the look-alike routes are actually distinct.** Several routes touch the same
 concept but answer different questions — the distinction is the reason they exist:
@@ -126,9 +124,6 @@ concept but answer different questions — the distinction is the reason they ex
     links.
   - `ki-collection` (`GET /ki?q=`) — "which KIs match this text" → search / picking
     an input.
-- **`/translate` vs `/ki/:id/translate`.** The first is a stateless
-  machine-translation *suggestion* (writes nothing, used while typing); the second
-  actually *creates* the language-sibling KI. Suggest vs commit.
 
 Notes:
 - The branded **500 page** is produced by `wrap-exception-handling` (auto-web lib)
