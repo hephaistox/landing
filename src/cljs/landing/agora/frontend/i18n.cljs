@@ -92,6 +92,10 @@
     :filter/type "Type"
     :filter/lang "Langue"
     :filter/lang-all "Toutes les langues"
+    :graph/link "Voir le graphe"
+    :graph/back "Retour à la publication"
+    :graph/drag-hint
+    "Glissez le fond pour déplacer, la molette pour zoomer, un nœud pour le repositionner"
     :filter/author-ph "Nom…"
     :filter/search-ph "Rechercher…"
     :pub/filter-status "Statut"
@@ -375,6 +379,9 @@
     :filter/type "Type"
     :filter/lang "Language"
     :filter/lang-all "All languages"
+    :graph/link "View the graph"
+    :graph/back "Back to the publication"
+    :graph/drag-hint "Drag the background to pan, wheel to zoom, a node to reposition it"
     :filter/author-ph "Name…"
     :filter/search-ph "Search…"
     :pub/filter-status "Status"
@@ -608,6 +615,10 @@
   "A publication's page — its documents shown like the discover grid."
   [lang id]
   (str (base lang) "/publication/" id))
+(defn publication-graph
+  "A publication's graph page — its drafts and 1-hop neighbours as a movable graph."
+  [lang id]
+  (str (base lang) "/publication/" id "/graph"))
 (defn ki-id
   "The app URL of a KI by its concrete id (a specific version): /agora/<lang>/ki/<id>.
   Distinct from the public permalink `ki` (name + major), which resolves to the

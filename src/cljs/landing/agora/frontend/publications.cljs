@@ -652,7 +652,13 @@
                      :gap "0.9em"
                      :margin "0.3em 0 1.2em"}}
        [status-pill lang pub]
-       (when editable? [active-toggle lang pub])])))
+       (when editable? [active-toggle lang pub])
+       [:a {:href (i18n/publication-graph lang (:id pub))
+            :style {:color "#b9770e"
+                    :text-decoration "none"
+                    :font-size "0.85em"
+                    :font-weight 600}}
+        (str "🕸 " (i18n/t lang :graph/link))]])))
 
 (defn- doc-card
   "A document card on the publication page, with a delete ✕ when `deletable?` (owner of an open

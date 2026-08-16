@@ -57,6 +57,12 @@
   {:status 200
    :body (engine/publication-cards doc-storage (get-in req [:path-params :id]))})
 
+(defn- graph
+  "The publication's 1-hop draft graph — nodes + edges — for the graph view."
+  [doc-storage req]
+  {:status 200
+   :body (engine/publication-subgraph doc-storage (get-in req [:path-params :id]))})
+
 (defn- rename
   "Rename a publication (owner-only). Body `{:title}`."
   [req]
@@ -134,4 +140,8 @@
    ["/:id/documents"
     {:get {:handler (partial documents doc-storage)
            :operationId "agora-publication-documents"
-           :summary "The publication's modified documents (drafts)"}}]])
+           :summary "The publication's modified documents (drafts)"}}]
+   ["/:id/graph"
+    {:get {:handler (partial graph doc-storage)
+           :operationId "agora-publication-graph"
+           :summary "The publication's 1-hop draft graph (nodes + edges) for the graph view"}}]])

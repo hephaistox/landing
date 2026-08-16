@@ -274,6 +274,58 @@
   [doc-storage pub-cid]
   (mapv (fn [doc] (card doc-storage doc pub-cid)) (db-doc/in-publication pub-cid)))
 
+(defn- graph-node
+  "One node of the publication graph, shaped for the client's mini-card: identity + kind + title +
+  draft flag + `:errors` (for the bell) + `:in-publication?` (a draft this publication gathers vs a
+  1-hop neighbour). nil for a missing id."
+  [doc-storage pub-cid draft-ids id]
+  (when-let [doc (ds/fetch-id doc-storage id)]
+    {:id id
+     :type (:type doc)
+     :name (:name doc)
+     :lang (:lang doc)
+     :major (:major doc)
+     :minor (:minor doc)
+     :kind (:kind doc)
+     :title (:title doc)
+     :draft (:draft doc)
+     :errors (document-errors doc-storage doc pub-cid)
+     :in-publication? (contains? draft-ids id)}))
+
+(defn publication-subgraph
+  "The 1-hop graph of publication `pub-cid` for the graph view: the documents it gathers plus their
+  **direct** predecessors and successors, as `{:nodes [graph-node…] :edges [{:from id :to id}…]}`. Edge
+  direction is the implication (predecessor → dependent). Publication-aware: a draft's predecessors
+  resolve to this publication's own drafts where they exist, and its in-progress draft successors are
+  folded in alongside the published ones."
+  [doc-storage pub-cid]
+  (let [drafts (db-doc/in-publication pub-cid)
+        draft-ids (into #{} (map :id) drafts)
+        {:keys [edges neighbours]}
+        (reduce (fn [acc d]
+                  (let [d-id (:id d)
+                        ;; predecessors = this draft's declared inputs resolved publication-aware
+                        ;; (robust to pin format / unresolved pins)
+                        preds (into #{} (keep #(db-doc/latest-of % pub-cid)) (:inputs d))
+                        succs (into #{}
+                                    (map :id)
+                                    (concat (successor-refs (di/tnlr d))
+                                            (publication-successor-refs pub-cid d)))]
+                    (-> acc
+                        (update :edges into (map (fn [p] [p d-id])) preds)
+                        (update :edges into (map (fn [s] [d-id s])) succs)
+                        (update :neighbours into preds)
+                        (update :neighbours into succs))))
+                {:edges #{}
+                 :neighbours #{}}
+                drafts)]
+    {:nodes
+     (into [] (keep #(graph-node doc-storage pub-cid draft-ids %)) (into draft-ids neighbours))
+     :edges (mapv (fn [[from to]]
+                    {:from from
+                     :to to})
+                  edges)}))
+
 (defn sitemap-rows
   "Every published lineage's permalink row for the sitemap: `{:type :name :major :lang :title
   :lastmod}`, projected from `doc-storage`'s published-latest set."

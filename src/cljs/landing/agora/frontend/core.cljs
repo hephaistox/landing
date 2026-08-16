@@ -21,6 +21,7 @@
    [landing.agora.frontend.document-page    :as document-page]
    [landing.agora.frontend.edit             :as edit]
    [landing.agora.frontend.find-page        :as find-page]
+   [landing.agora.frontend.graph            :as graph]
    [landing.agora.frontend.i18n             :as i18n]
    [landing.agora.frontend.ki-page          :as ki-page]
    [landing.agora.frontend.landing          :as landing]
@@ -82,6 +83,11 @@
     (re-find #"^/agora/([a-z]{2})/publications/?(?:[?#].*)?$" path)
     {:kind :publications
      :lang (second (re-find #"^/agora/([a-z]{2})/publications" path))}
+    (re-find #"^/agora/([a-z]{2})/publication/([^/?#]+)/graph/?(?:[?#].*)?$" path)
+    (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/publication/([^/?#]+)/graph" path)]
+      {:kind :publication-graph
+       :lang lang
+       :id (js/decodeURIComponent id)})
     (re-find #"^/agora/([a-z]{2})/publication/([^/?#]+)/?(?:[?#].*)?$" path)
     (let [[_ lang id] (re-find #"^/agora/([a-z]{2})/publication/([^/?#]+)" path)]
       {:kind :publication
@@ -370,6 +376,12 @@
                                 :loading? false
                                 :error nil)
                      :dispatch [::publications/load-page id]}
+       :publication-graph {:db (assoc db
+                                      :view {:kind :publication-graph
+                                             :id id}
+                                      :loading? false
+                                      :error nil)
+                           :dispatch [::graph/load id]}
        :ki-public (route-changed-fetch-public db name major lang)
        ;; a signed-in author with an active publication lands on it, not the generic home
        :home (if-let [pub-id (:id (:agora/active-publication db))]
@@ -705,7 +717,7 @@
 
 (defn app-view
   []
-  (let [{:keys [kind data]} @(rf/subscribe [::view])
+  (let [{:keys [kind data id]} @(rf/subscribe [::view])
         user @(rf/subscribe [::auth/user])
         loading? @(rf/subscribe [::loading?])
         error @(rf/subscribe [::error])]
@@ -718,6 +730,7 @@
       (= kind :admin) [admin/admin-page]
       (= kind :publications) [publications/publications-page]
       (= kind :publication) [publications/publication-page]
+      (= kind :publication-graph) [graph/graph-page id]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind
