@@ -36,6 +36,8 @@
     :nav/preferences "Préférences"
     :nav/admin "Admin"
     :byline/you "(Vous)"
+    :modal/confirm "Confirmer"
+    :modal/cancel "Annuler"
     :pub/belongs "Dans la publication"
     :error/flag-title "Ce document a des problèmes"
     :error/panel-title "À corriger avant publication"
@@ -68,7 +70,8 @@
     :pub/delete-confirm
     "Supprimer cette publication et TOUS ses documents ? Ce contenu sera définitivement perdu."
     :pub/delete-doc "Supprimer ce document"
-    :pub/delete-doc-confirm "Supprimer ce document ?"
+    :pub/delete-doc-confirm
+    "Supprimer ce document de la publication en cours ? Son contenu sera définitivement perdu — cette action est irréversible."
     :pub/new-ki-hint "Créer une nouvelle connaissance dans cette publication"
     :pub/new-article-hint "Créer un nouvel article dans cette publication"
     :pub/date-open-hint "Date de création de la publication"
@@ -316,6 +319,8 @@
     :nav/preferences "Preferences"
     :nav/admin "Admin"
     :byline/you "(You)"
+    :modal/confirm "Confirm"
+    :modal/cancel "Cancel"
     :pub/belongs "In publication"
     :error/flag-title "This document has problems"
     :error/panel-title "To fix before publishing"
@@ -345,7 +350,8 @@
     :pub/delete-confirm
     "Delete this publication and ALL its documents? This content will be permanently lost."
     :pub/delete-doc "Delete this document"
-    :pub/delete-doc-confirm "Delete this document?"
+    :pub/delete-doc-confirm
+    "Delete this document from the open publication? Its content will be permanently lost — this cannot be undone."
     :pub/new-ki-hint "Create a new knowledge item in this publication"
     :pub/new-article-hint "Create a new article in this publication"
     :pub/date-open-hint "Publication creation date"

@@ -25,6 +25,7 @@
    [landing.agora.frontend.ki-page          :as ki-page]
    [landing.agora.frontend.landing          :as landing]
    [landing.agora.frontend.loading          :as loading]
+   [landing.agora.frontend.modal            :as modal]
    [landing.agora.frontend.preferences-page :as preferences-page]
    [landing.agora.frontend.publications     :as publications]
    [landing.language                        :as language]
@@ -747,6 +748,7 @@
     [app-view]]
    [chrome/site-footer]
    [auth/auth-modal]
+   [modal/confirm-modal]
    [document-page/translation-editor]])
 
 (defn ^:dev/after-load mount-root

@@ -24,6 +24,7 @@
                                                  lang-badge
                                                  language-selector]]
    [landing.agora.frontend.i18n          :as i18n]
+   [landing.agora.frontend.modal         :as modal]
    [landing.agora.frontend.publications  :as publications]
    [landing.agora.frontend.source        :as source]
    [landing.agora.frontend.ui-commons    :as ui]
@@ -129,35 +130,48 @@
 (rf/reg-event-db ::edit-close (fn [db _] (update db ::edit assoc :open? false)))
 (rf/reg-event-db ::edit-set (fn [db [_ k v]] (update db ::edit assoc k v)))
 
+(rf/reg-event-fx ::edit-save
+                 (fn [{:keys [db]} _]
+                   (let [{:keys [text orig-cites]} (::edit db)
+                         removed? (seq (remove (cite/citations text) orig-cites))]
+                     (if removed?
+                       ;; removing a citation drops an input edge — confirm first (React dialog); cancel releases the
+                       ;; in-flight authoring lock set by `ensure-active`
+                       {:dispatch [::modal/confirm {:message (i18n/t (i18n/current db)
+                                                                     :cite/removed-warning)
+                                                    :danger? true
+                                                    :on-confirm [::edit-save!]
+                                                    :on-cancel [::edit-save-cancel]}]}
+                       {:dispatch [::edit-save!]}))))
+
+(rf/reg-event-db ::edit-save-cancel
+                 (fn [db _]
+                   (-> db
+                       (dissoc :agora/authoring-busy?)
+                       (update ::edit assoc :saving? false))))
+
 (rf/reg-event-fx
- ::edit-save
+ ::edit-save!
  (fn [{:keys [db]} _]
-   (let [{:keys [type id title kind text author-id author-name year editor url locator orig-cites]}
-         (::edit db)
-         pub-id (get-in db [:agora/active-publication :id])
-         removed? (seq (remove (cite/citations text) orig-cites))]
-     (if (and removed? (not (js/confirm (i18n/t (i18n/current db) :cite/removed-warning))))
-       ;; user cancelled — release the in-flight lock set by `ensure-active`
-       {:db (-> db
-                (dissoc :agora/authoring-busy?)
-                (update ::edit assoc :saving? false))}
-       {:db (update db ::edit assoc :saving? true :error nil)
-        ;; an edit produces a new version, gathered as a draft in the active
-        ;; publication (`:publication-id`, required by the write path)
-        :fetch (json-req :post
-                         (str "/agora/api/documents/" type "/" id)
-                         (cond-> {:title title
-                                  :text text
-                                  :author-id author-id
-                                  :author-name author-name
-                                  :year year
-                                  :editor editor
-                                  :url url
-                                  :locator locator
-                                  :publication-id pub-id}
-                           kind (assoc :kind kind))
-                         [::saved-ok]
-                         [::op-failed])}))))
+   (let [{:keys [type id title kind text author-id author-name year editor url locator]} (::edit db)
+         pub-id (get-in db [:agora/active-publication :id])]
+     {:db (update db ::edit assoc :saving? true :error nil)
+      ;; an edit produces a new version, gathered as a draft in the active
+      ;; publication (`:publication-id`, required by the write path)
+      :fetch (json-req :post
+                       (str "/agora/api/documents/" type "/" id)
+                       (cond-> {:title title
+                                :text text
+                                :author-id author-id
+                                :author-name author-name
+                                :year year
+                                :editor editor
+                                :url url
+                                :locator locator
+                                :publication-id pub-id}
+                         kind (assoc :kind kind))
+                       [::saved-ok]
+                       [::op-failed])})))
 
 ;; ===========================================================================
 ;; Create a new document (standalone form)
@@ -607,9 +621,12 @@
     :keys [major]}]
   (when @(rf/subscribe [::auth/admin?])
     (let [lang @(rf/subscribe [::i18n/lang])
-          btn (fn [border-color confirm-key label-key event]
-                [:button {:on-click #(when (js/confirm (i18n/t lang confirm-key))
-                                       (rf/dispatch [event doc-type doc-name doc-lang major]))
+          btn (fn [border-color danger? confirm-key label-key event]
+                [:button {:on-click #(rf/dispatch [::modal/confirm
+                                                   {:message (i18n/t lang confirm-key)
+                                                    :danger? danger?
+                                                    :on-confirm
+                                                    [event doc-type doc-name doc-lang major]}])
                           :style {:padding "0.3em 0.7em"
                                   :border (str "1px solid " border-color)
                                   :background "#fff"
@@ -622,8 +639,8 @@
                      :gap "0.5em"
                      :justify-content "flex-end"
                      :margin-top "1.2em"}}
-       (btn "#b9770e" :edit/keep-last-confirm :edit/keep-last ::admin-compact)
-       (btn "#c92a2a" :edit/delete-confirm :edit/delete ::admin-drop)])))
+       (btn "#b9770e" false :edit/keep-last-confirm :edit/keep-last ::admin-compact)
+       (btn "#c92a2a" true :edit/delete-confirm :edit/delete ::admin-drop)])))
 
 ;; ===========================================================================
 ;; Components

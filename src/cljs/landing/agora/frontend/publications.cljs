@@ -6,6 +6,7 @@
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.document-page :as dv]
    [landing.agora.frontend.i18n          :as i18n]
+   [landing.agora.frontend.modal         :as modal]
    [landing.language                     :as language]
    [re-frame.core                        :as rf]
    [reagent.core                         :as r]
@@ -483,9 +484,11 @@
                    :gap "0.35em"}}
      [dv/tooltip
       (i18n/t lang :pub/publish-hint)
-      [:button {:on-click #(when (and (not publishing?)
-                                      (js/confirm (i18n/t lang :pub/publish-confirm)))
-                             (rf/dispatch [::publish (:id pub)]))
+      [:button {:on-click #(when-not publishing?
+                             (rf/dispatch [::modal/confirm
+                                           {:message (i18n/t lang :pub/publish-confirm)
+                                            :confirm-label (i18n/t lang :pub/publish)
+                                            :on-confirm [::publish (:id pub)]}]))
                 :disabled (boolean publishing?)
                 :style {:display "inline-flex"
                         :align-items "center"
@@ -646,8 +649,10 @@
   [:div {:style {:position "relative"}}
    [dv/discover-card lang c]
    (when deletable?
-     [:button {:on-click #(when (js/confirm (i18n/t lang :pub/delete-doc-confirm))
-                            (rf/dispatch [::delete-doc cid (:type c) (:id c)]))
+     [:button {:on-click #(rf/dispatch [::modal/confirm
+                                        {:message (i18n/t lang :pub/delete-doc-confirm)
+                                         :danger? true
+                                         :on-confirm [::delete-doc cid (:type c) (:id c)]}])
                :title (i18n/t lang :pub/delete-doc)
                :style {:position "absolute"
                        :top "0.4em"

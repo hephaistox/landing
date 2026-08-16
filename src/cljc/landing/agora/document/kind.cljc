@@ -295,19 +295,41 @@
   (when-let [{:keys [before author-name after]} (extract-prefix-parts work lang)]
     (str before author-name after)))
 
+(defn- doc-author
+  "The person a statement is attributed to, from either the raw doc (`:author`) or the endpoint view
+  (`:attributed-author`, since the view drops the raw field). Lets the prefix render the byline on
+  both sides without the caller reshaping the doc."
+  [doc]
+  (or (:attributed-author doc) (:author doc)))
+
+(defn- definition-prefix
+  "The opening of a `definition` in `lang`: the author appropriates the term for the graph — « pour
+  <author>, dans ce contexte, ‹ <term> › désigne ». The connector comes from the definition `:say`
+  (single source); the author clause is dropped when the author is unknown; nil without a term."
+  [author term lang]
+  (when-not (str/blank? term)
+    (when-let [connector (or (get-in statement-say [:definition :phrase lang])
+                             (get-in statement-say [:definition :phrase :en]))]
+      (let [who (when-not (str/blank? author)
+                  (if (= lang :en) (str "for " author ", ") (str "pour " author ", ")))]
+        (if (= lang :en)
+          (str who "in this context, “" term "” " connector " ")
+          (str who "dans ce contexte, « " term " » " connector " "))))))
+
 (defn statement-prefix-of
   "The kind-guided opening for `doc` in `lang` (its subject resolved from the doc), or nil for a
-  free-form kind. An `extract` opens with its cited work + locator (`extract-prefix`, from the
-  resolved `:work`). Rendered *separately* from the body so the citation-parsed prose can follow a
-  plain-text prefix (read page, editor label)."
+  free-form kind. An `extract` opens with its cited work + locator (`extract-prefix`, from the resolved
+  `:work`); a `definition` opens with its author appropriating the term (`definition-prefix`). Rendered
+  *separately* from the body so the citation-parsed prose can follow a plain-text prefix (read page,
+  editor label)."
   [doc lang]
-  (if (= :extract
-         (some-> (:kind doc)
-                 keyword))
-    (extract-prefix (:work doc) lang)
+  (case (some-> (:kind doc)
+                keyword)
+    :extract (extract-prefix (:work doc) lang)
+    :definition (definition-prefix (doc-author doc) (:title doc) lang)
     (let [kind (:kind doc)
           subject (case (statement-subject-kind kind)
-                    :author (attributed-author doc)
+                    :author (doc-author doc)
                     :term (:title doc)
                     nil)]
       (statement-prefix kind lang subject))))

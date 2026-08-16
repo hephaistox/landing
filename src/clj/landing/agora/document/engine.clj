@@ -161,7 +161,7 @@
 
 (defn document-errors
   "The structured problems that make `doc` invalid, publication-aware via `pub-cid`. Empty when the
-  document is sound. Two kinds today, each carrying what a specific clickable message needs:
+  document is sound. Each carries what a specific clickable message needs:
    - `:stale-ref` — an input pins a version behind its lineage's current one; `:ref` is the referenced
      identity + its title, `:current` the up-to-date id to link/re-pin to.
    - `:missing-inputs` — a reasoning kind (`kind-requires-inputs?`) that declares no predecessor;
