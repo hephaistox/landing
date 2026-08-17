@@ -4,6 +4,7 @@
   backed by `auth`; creating requires a session."
   (:require
    [landing.agora.auth                :as auth]
+   [landing.agora.endpoints.throttle  :as throttle]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]
@@ -55,8 +56,10 @@
            :summary "Search people (accounts + external cited authors)"}
      :post {:handler create
             :operationId "agora-people-create"
+            :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
             :parameters {:body [:map [:display-name [:string {:min 1}]]]}
             :responses {200 {:description "The created external person"}
                         401 {:description "Login required"
-                             :body error-body}}
+                             :body error-body}
+                        429 {:description "Rate limit exceeded"}}
             :summary "Create a login-less external person"}}]])

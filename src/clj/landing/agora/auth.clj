@@ -108,7 +108,7 @@
      db/ds
      ["SELECT id, display_name FROM AGORA_USER
         WHERE display_name LIKE ? ORDER BY display_name LIMIT 20"
-      (str "%" (str/trim q) "%")]
+      (str "%" (db/escape-like (str/trim q)) "%")]
      {:builder-fn rs/as-unqualified-kebab-maps})))
 
 (defn set-lang!

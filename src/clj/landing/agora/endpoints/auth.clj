@@ -7,6 +7,7 @@
   (:require
    [landing.agora.altcha              :as altcha]
    [landing.agora.auth                :as auth]
+   [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.oauth               :as oauth]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
@@ -63,8 +64,11 @@
           {:status 200
            :body profile
            :session {:user-id (:id profile)}}
+          ;; do not echo `:email-taken` verbatim — it turns register into an email-membership
+          ;; oracle. The credential rate limiter is the primary control; open registration still
+          ;; leaks membership via success-vs-failure, which only an email-verification flow closes.
           {:status 400
-           :body {:error (name profile)}}))
+           :body {:error (if (= profile :email-taken) "registration-failed" (name profile))}}))
       {:status 400
        :body {:error "captcha"}})))
 
@@ -80,7 +84,7 @@
   [req]
   (if-let [id (uid req)]
     (let [lang (get-in req [:body-params :lang])]
-      (auth/set-lang! lang id)
+      (auth/set-lang! id lang)
       {:status 200
        :body {:lang lang}})
     {:status 401
@@ -135,15 +139,17 @@
    ["/register"
     {:post {:handler register
             :operationId "agora-register"
+            :middleware [(:middleware-fn throttle/credential-rate-limiter)]
             :parameters {:body [:map
-                                [:email :string]
-                                [:password :string]
+                                [:email [:string {:max 320}]]
+                                [:password [:string {:max 200}]]
                                 [:altcha :string]
                                 [:display-name {:optional true}
-                                 [:maybe :string]]]}
+                                 [:maybe [:string {:max 200}]]]]}
             :responses {200 {:description "Account created; session established"}
                         400 {:description "Failed captcha, or invalid/taken email / weak password"
-                             :body error-body}}
+                             :body error-body}
+                        429 {:description "Rate limit exceeded"}}
             :summary "Register a password account"}}]
    ["/altcha-challenge"
     {:get {:handler altcha-challenge
@@ -153,10 +159,13 @@
    ["/login"
     {:post {:handler login
             :operationId "agora-login"
-            :parameters {:body [:map [:email :string] [:password :string]]}
+            :middleware [(:middleware-fn throttle/credential-rate-limiter)]
+            :parameters {:body
+                         [:map [:email [:string {:max 320}]] [:password [:string {:max 200}]]]}
             :responses {200 {:description "Authenticated; session established, profile returned"}
                         401 {:description "Bad credentials"
-                             :body error-body}}
+                             :body error-body}
+                        429 {:description "Rate limit exceeded"}}
             :summary "Log in with email/password"}}]
    ["/logout"
     {:post {:handler logout

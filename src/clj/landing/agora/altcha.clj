@@ -17,7 +17,12 @@
            (javax.crypto.spec SecretKeySpec)))
 
 (def ^:private algorithm "SHA-256")
-(def ^:private max-number 100000)
+;; the solver iterates 0..max-number hashing each until it matches, so this sets the proof-of-work
+;; cost (~max-number/2 SHA-256 expected). 1M keeps it sub-second for a real browser but raises the
+;; per-attempt cost of scripted registration. NB: replay protection is per-instance (in-memory
+;; `consumed`), so this cost is the main brake across instances/restarts — the credential rate
+;; limiter now backs it up.
+(def ^:private max-number 1000000)
 (def ^:private ttl-seconds 300)
 (def ^:private rng (SecureRandom.))
 

@@ -100,24 +100,31 @@
   #"\[\[([^@:\]|]+):([^@:\]|]+)(?::([^@:\]|]+))?@(\d+)(?:\|([^\]]+))?\]\]")
 
 (defn- parse-major
+  "Parse a citation's major to an int, or **nil** when it is not a sane version number. Majors are
+  small; a token with more than 6 digits is never a real major, so it is rejected here instead of
+  overflowing `Integer/parseInt` (which would 500 the write path and poison the admin consistency
+  scan that re-parses every version)."
   [s]
-  #?(:clj (Integer/parseInt s)
-     :cljs (js/parseInt s 10)))
+  (when (and s (<= (count s) 6))
+    #?(:clj (try (Integer/parseInt s) (catch Exception _ nil))
+       :cljs (let [n (js/parseInt s 10)] (when-not (js/isNaN n) n)))))
 
 (defn cite-refs
   "Parse `body` and return the TNLRs of its `[[…]]` citations (see `cite-pattern`) — order-preserving
   and deduped. `:lang` is the citation token's **own** language, or **nil** when the token omits one:
   a bare `[[ki:name@major]]` is language-neutral in the prose, and resolving nil → a context language
-  is the *consumer's* job, done where the ref is consumed (`lineage/inputs-of` fills the doc's lang)."
+  is the *consumer's* job, done where the ref is consumed (`lineage/inputs-of` fills the doc's lang).
+  A token with an unknown type or an out-of-range major is skipped (left as inert prose), never fatal."
   [body]
   (->> (re-seq cite-pattern (or body ""))
        (keep (fn [[_ type nm lang-tok mj]]
-               (let [type (keyword type)]
-                 (when (object-types-set type)
+               (let [type (keyword type)
+                     major (parse-major mj)]
+                 (when (and (object-types-set type) major)
                    {:type type
                     :name nm
                     :lang (keyword lang-tok)
-                    :major (parse-major mj)}))))
+                    :major major}))))
        (distinct)
        (vec)))
 

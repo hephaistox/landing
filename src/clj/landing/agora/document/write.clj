@@ -26,8 +26,12 @@
                        (select-keys [:type :name :lang :major])
                        (update :type #(or % :ki))
                        default-lang)
-        inputs (vec (distinct (cond-> text-inputs
-                                target (conj target))))]
+        ;; cap the number of inputs (`max-inputs`): each pin is up to 2 DB round-trips on a tiny
+        ;; connection pool, so an unbounded citation list is a write-amplification vector
+        inputs (into []
+                     (take di/max-inputs)
+                     (distinct (cond-> text-inputs
+                                 target (conj target))))]
     {:inputs inputs
      :pins (di/pin-all inputs #(db-doc/latest-of % publication-id))}))
 

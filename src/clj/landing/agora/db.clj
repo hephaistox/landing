@@ -14,9 +14,19 @@
   cap is per-deployment configurable via `AGORA_DB_POOL_MAX` (default 2) — set prod to 2,
   la/dev to 1 (worst case 2+1+1 = 4 ≤ 5, plus the transient contact-form connection)."
   (:require
+   [clojure.string       :as str]
    [mount.core           :refer [defstate]]
    [next.jdbc.connection :as connection])
   (:import (com.zaxxer.hikari HikariDataSource)))
+
+(defn escape-like
+  "Escape a user-supplied string for use inside a `LIKE` pattern: the wildcards `%`/`_` (and the
+  escape char `\\` itself) become literals, so a search for `50%` matches the text `50%` rather than
+  everything. The caller still wraps the result in `%…%` and binds it as a `?` param — this is a
+  correctness guard, not an injection fix (the value is always parameterized). MySQL's default LIKE
+  escape is `\\`, so no `ESCAPE` clause is needed."
+  [s]
+  (str/replace (or s "") #"[\\%_]" "\\\\$0"))
 
 (def ^:private pool-max
   "Max pooled connections for THIS deployment. Env-tunable because dev/la/prod share one

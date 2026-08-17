@@ -5,6 +5,7 @@
    [landing.agora.auth                :as auth]
    [landing.agora.document.cached-db  :as cached-db]
    [landing.agora.document.engine     :as engine]
+   [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.publication         :as publication]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
@@ -68,16 +69,27 @@
      :body {:error "not found"}}))
 
 (defn- documents
-  "The documents a publication gathers (its drafts), as browse cards."
+  "The documents a publication gathers (its drafts), as browse cards. **Owner-only** — a publication's
+  drafts are its private staging area, so a non-owner (or anonymous caller) gets a 404, never the draft
+  content."
   [doc-storage req]
-  {:status 200
-   :body (engine/publication-cards doc-storage (get-in req [:path-params :id]))})
+  (let [cid (get-in req [:path-params :id])]
+    (if (publication/owns? (uid req) cid)
+      {:status 200
+       :body (engine/publication-cards doc-storage cid)}
+      {:status 404
+       :body {:error "not found"}})))
 
 (defn- graph
-  "The publication's 1-hop draft graph — nodes + edges — for the graph view."
+  "The publication's 1-hop draft graph — nodes + edges — for the graph view. **Owner-only**, same as
+  `documents`: it exposes the same drafts."
   [doc-storage req]
-  {:status 200
-   :body (engine/publication-subgraph doc-storage (get-in req [:path-params :id]))})
+  (let [cid (get-in req [:path-params :id])]
+    (if (publication/owns? (uid req) cid)
+      {:status 200
+       :body (engine/publication-subgraph doc-storage cid)}
+      {:status 404
+       :body {:error "not found"}})))
 
 (defn- rename
   "Rename a publication (owner-only). Body `{:title}`."
@@ -149,10 +161,12 @@
            :summary "List publications (scope=all for every publication, else the caller's own)"}
      :post {:handler create
             :operationId "agora-publication-create"
+            :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
             :parameters {:body title-body}
             :responses {200 {:description "The opened publication"}
                         401 {:description "Login required"
-                             :body error-body}}
+                             :body error-body}
+                        429 {:description "Rate limit exceeded"}}
             :summary "Open a publication"}}]
    ["/:id"
     {:get {:handler fetch
@@ -164,26 +178,31 @@
            :summary "Fetch a publication by id"}
      :put {:handler rename
            :operationId "agora-publication-rename"
+           :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
            :parameters {:path id-path
                         :body title-body}
            :responses {200 {:description "The renamed publication"}
                        401 {:description "Login required"
                             :body error-body}
                        404 {:description "Not the owner, or no such publication"
-                            :body error-body}}
+                            :body error-body}
+                       429 {:description "Rate limit exceeded"}}
            :summary "Rename a publication (owner-only)"}
      :delete {:handler delete
               :operationId "agora-publication-delete"
+              :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
               :parameters {:path id-path}
               :responses {200 {:description "Deleted"}
                           401 {:description "Login required"
                                :body error-body}
                           404 {:description "Not the owner, or already closed"
-                               :body error-body}}
+                               :body error-body}
+                          429 {:description "Rate limit exceeded"}}
               :summary "Delete an open publication and its drafts (owner-only)"}}]
    ["/:id/publish"
     {:post {:handler (partial publish doc-storage)
             :operationId "agora-publication-publish"
+            :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
             :parameters {:path id-path}
             :responses {200 {:description "Published (closed); its drafts are now public"}
                         401 {:description "Login required"
@@ -192,17 +211,22 @@
                              :body error-body}
                         422 {:description
                              "A gathered draft still has errors — the offending docs are returned"
-                             :body [:map [:error :string] [:documents [:sequential :any]]]}}
+                             :body [:map [:error :string] [:documents [:sequential :any]]]}
+                        429 {:description "Rate limit exceeded"}}
             :summary "Publish (close) a publication — its drafts go public (owner-only)"}}]
    ["/:id/documents"
     {:get {:handler (partial documents doc-storage)
            :operationId "agora-publication-documents"
            :parameters {:path id-path}
-           :responses {200 {:description "The publication's drafts, as browse cards"}}
-           :summary "The publication's modified documents (drafts)"}}]
+           :responses {200 {:description "The publication's drafts, as browse cards"}
+                       404 {:description "Not the owner (a publication's drafts are private)"
+                            :body error-body}}
+           :summary "The publication's modified documents (drafts) — owner-only"}}]
    ["/:id/graph"
     {:get {:handler (partial graph doc-storage)
            :operationId "agora-publication-graph"
            :parameters {:path id-path}
-           :responses {200 {:description "The 1-hop draft graph (nodes + edges)"}}
-           :summary "The publication's 1-hop draft graph (nodes + edges) for the graph view"}}]])
+           :responses {200 {:description "The 1-hop draft graph (nodes + edges)"}
+                       404 {:description "Not the owner (a publication's drafts are private)"
+                            :body error-body}}
+           :summary "The publication's 1-hop draft graph (nodes + edges) — owner-only"}}]])

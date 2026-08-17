@@ -10,6 +10,7 @@
    [landing.agora.document.identity   :as di]
    [landing.agora.document.storage    :as ds]
    [landing.agora.document.write      :as write]
+   [landing.agora.endpoints.throttle  :as throttle]
    [landing.language                  :as language]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
@@ -36,9 +37,9 @@
    [:kind {:optional true}
     [:maybe :string]]
    [:title {:optional true}
-    [:maybe :string]]
+    [:maybe [:string {:max 500}]]]
    [:text {:optional true}
-    [:maybe :string]]
+    [:maybe [:string {:max 20000}]]]
    [:lang {:optional true}
     [:maybe :string]]
    [:author-id {:optional true}
@@ -69,6 +70,14 @@
     (when-let [p (db-doc/fetch-latest-any :publication cid)]
       (when (= (:owner-id p) (uid req)) cid))))
 
+(defn- draft-hidden?
+  "True when `id` resolves to a **draft the caller may not see** — a draft owned by someone else (or
+  requested anonymously). Published documents, and the owner's own drafts, are visible. Unknown ids
+  return nil (the caller's read then 404s normally). Drafts are private to their owner: they must
+  never leak through an id read, a versions list, or a successor edge."
+  [req id]
+  (when-let [raw (db-doc/fetch-id id)] (and (:draft raw) (not= (uid req) (:owner-id raw)))))
+
 (defn- coerce-target
   "The structural target TNLR from the request body (an example / counter-example's referenced claim),
   keys coerced to the domain's keywords — JSON sends `:type`/`:lang` as strings. nil when absent."
@@ -89,34 +98,45 @@
   author's name for a work, else the contributor's display name. Returns the created version's endpoint
   view."
   [doc-storage req]
-  (if-let [uid (uid req)]
-    (let [type (keyword (get-in req [:path-params :type]))
-          {:keys
-           [kind title text lang publication-id author-id author-name year editor url locator]}
-          (:body-params req)
-          kind (some-> kind
-                       keyword)
-          ;; JSON delivers kind/lang as strings; the write domain works in keywords
-          author (if (= kind :work) author-name (:display-name (auth/get-user uid)))
-          new-id (write/create! type
-                                uid
-                                author
-                                {:kind kind
-                                 :title title
-                                 :text text
-                                 :lang (some-> lang
-                                               keyword)
-                                 :author-id author-id
-                                 :year year
-                                 :editor editor
-                                 :url url
-                                 :locator locator
-                                 :target (coerce-target req)}
-                                publication-id)]
-      {:status 200
-       :body (engine/read-by-id doc-storage new-id)})
-    {:status 401
-     :body {:error "login required"}}))
+  (let [uid (uid req)
+        type (keyword (get-in req [:path-params :type]))
+        {:keys [kind title text lang publication-id author-id author-name year editor url locator]}
+        (:body-params req)
+        kind (some-> kind
+                     keyword)]
+    (cond
+      (nil? uid) {:status 401
+                  :body {:error "login required"}}
+      ;; only KIs and articles are authored here — `publication` (and any other object type) has its
+      ;; own surface and invariants, so the type wildcard may not forge one
+      (not (contains? #{:ki :article} type)) {:status 400
+                                              :body {:error "unknown document type"}}
+      ;; a write may only target a publication the caller owns — never inject a draft into another
+      ;; user's publication
+      (not (owned-publication req publication-id)) {:status 403
+                                                    :body {:error "not your publication"}}
+      :else
+      ;; JSON delivers kind/lang as strings; the write domain works in keywords. The cited
+      ;; author (`author-name`/`author-id`) is honoured **only for a `work`** — for every other
+      ;; kind the byline is the owner, so a client can't point a document's byline at another person.
+      (let [author (if (= kind :work) author-name (:display-name (auth/get-user uid)))
+            new-id (write/create! type
+                                  uid
+                                  author
+                                  {:kind kind
+                                   :title title
+                                   :text text
+                                   :lang (some-> lang
+                                                 keyword)
+                                   :author-id (when (= kind :work) author-id)
+                                   :year year
+                                   :editor editor
+                                   :url url
+                                   :locator locator
+                                   :target (coerce-target req)}
+                                  publication-id)]
+        {:status 200
+         :body (engine/read-by-id doc-storage new-id)}))))
 
 (defn- edit-handler
   "Edit document `:id` into a new version (text-only). Body is `write-body`: `:publication-id`
@@ -124,19 +144,29 @@
   bibliographic (`:author-id`/`:year`/`:editor`/`:url`) or `:locator` extras a new value overrides. A
   new minor when the caller owns it, else a fork (new major). Returns the new version's endpoint view."
   [doc-storage req]
-  (if-let [editor (uid req)]
-    (let [id (get-in req [:path-params :id])
-          {:keys [title text kind publication-id author-id year url locator]
-           biblio-editor :editor}
-          (:body-params req)]
+  (let [editor (uid req)
+        id (get-in req [:path-params :id])
+        {:keys [title text kind publication-id author-id year url locator]
+         biblio-editor :editor}
+        (:body-params req)
+        kw-kind (some-> kind
+                        keyword)]
+    (cond
+      (nil? editor) {:status 401
+                     :body {:error "login required"}}
+      ;; the new version is a draft in the caller's own publication — never another user's
+      (not (owned-publication req publication-id)) {:status 403
+                                                    :body {:error "not your publication"}}
+      :else
+      ;; `author-id` honoured only for a `work` (H3, see create-handler); nil otherwise carries the
+      ;; existing value forward
       (if-let [new-id (write/edit! id
                                    editor
                                    (:display-name (auth/get-user editor))
                                    {:title title
                                     :text text
-                                    :kind (some-> kind
-                                                  keyword)
-                                    :author-id author-id
+                                    :kind kw-kind
+                                    :author-id (when (= kw-kind :work) author-id)
                                     :year year
                                     :editor biblio-editor
                                     :url url
@@ -150,9 +180,7 @@
              :body (engine/read-by-id doc-storage new-id)})
         {:status 404
          :body {:error "not found"
-                :id id}}))
-    {:status 401
-     :body {:error "login required"}}))
+                :id id}}))))
 
 (defn- delete-handler
   "Delete draft document `:id` (the caller's own). The `:publication` query param is **required** and
@@ -212,11 +240,17 @@
            :summary "Browse documents of a type, or search them with `?q=`"}
      :post {:handler (fn [req] (create-handler doc-storage req))
             :operationId "agora-create-document"
+            :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
             :parameters {:path [:map [:type :string]]
                          :body write-body}
             :responses {200 {:description "The created version's endpoint view"}
+                        400 {:description "Unknown document type"
+                             :body error-body}
                         401 {:description "Login required"
-                             :body error-body}}
+                             :body error-body}
+                        403 {:description "Not your publication"
+                             :body error-body}
+                        429 {:description "Rate limit exceeded"}}
             :summary "Create a new document (session required)"}}]
    ["/:type/:name/:lang/:major"
     {:get
@@ -248,16 +282,16 @@
       :summary
       "A document by its identity — latest published minor; a `*` lang uses the request's language"}}]
    ["/:type/:id"
-    {:get {:handler (fn [req]
-                      (let [id (get-in req [:parameters :path :id])
-                            pub (owned-publication req
-                                                   (get-in req [:parameters :query :publication]))]
-                        (if-let [d (engine/read-by-id doc-storage id pub)]
-                          {:status 200
-                           :body d}
-                          {:status 404
-                           :body {:error "not found"
-                                  :id id}})))
+    {:get {:handler
+           (fn [req]
+             (let [id (get-in req [:parameters :path :id])
+                   pub (owned-publication req (get-in req [:parameters :query :publication]))]
+               (if-let [d (and (not (draft-hidden? req id)) (engine/read-by-id doc-storage id pub))]
+                 {:status 200
+                  :body d}
+                 {:status 404
+                  :body {:error "not found"
+                         :id id}})))
            :operationId "agora-read-by-id"
            :parameters {:path [:map [:type :string] [:id :string]]
                         :query [:map
@@ -269,16 +303,21 @@
            :summary "A document by id"}
      :post {:handler (fn [req] (edit-handler doc-storage req))
             :operationId "agora-edit-document"
+            :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
             :parameters {:path [:map [:type :string] [:id :string]]
                          :body write-body}
             :responses {200 {:description "The new version's endpoint view"}
                         401 {:description "Login required"
                              :body error-body}
+                        403 {:description "Not your publication"
+                             :body error-body}
                         404 {:description "No such document"
-                             :body error-body}}
+                             :body error-body}
+                        429 {:description "Rate limit exceeded"}}
             :summary "Edit a document into a new version (session required)"}
      :delete {:handler delete-handler
               :operationId "agora-delete-document"
+              :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
               :parameters {:path [:map [:type :string] [:id :string]]
                            :query [:map [:publication [:string {:min 1}]]]}
               :responses {200 {:description "Deleted; returns the publication cid"}
@@ -286,12 +325,18 @@
                                :body error-body}
                           404 {:description
                                "Not a deletable draft, not the owner, or wrong publication"
-                               :body error-body}}
+                               :body error-body}
+                          429 {:description "Rate limit exceeded"}}
               :summary "Delete a draft document (owner-only, scoped to its publication)"}}]
    ["/:type/:id/versions"
     {:get {:handler (fn [req]
-                      {:status 200
-                       :body (db-doc/versions-of-id (get-in req [:parameters :path :id]))})
+                      ;; drafts are private: a non-owner sees only the published minors, never a
+                      ;; draft's id or that one is in flight
+                      (let [id (get-in req [:parameters :path :id])
+                            versions (db-doc/versions-of-id id)
+                            owner? (= (uid req) (:owner-id (db-doc/fetch-id id)))]
+                        {:status 200
+                         :body (if owner? versions (remove :draft versions))}))
            :operationId "agora-document-versions"
            :parameters {:path [:map [:type :string] [:id :string]]}
            :responses {200 {:description "Every version of the lineage"}}

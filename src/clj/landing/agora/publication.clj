@@ -86,6 +86,14 @@
   [cid]
   (when cid (cache/fetch view-cache cid)))
 
+(defn owns?
+  "True when `owner-id` owns publication `cid` — the gate for its private draft views (its documents /
+  graph). False for an unknown cid or a nil/other owner."
+  [owner-id cid]
+  (boolean (when (and owner-id cid)
+             (when-let [pub (db-doc/fetch-latest-any :publication cid)]
+               (= owner-id (:owner-id pub))))))
+
 (defn- next-content
   "The publication's next-version content: carry title/status/author/owner-id from `pub`, stamp `now`,
   apply `overrides`. Draft state is derived from its `:status` (`:open` ⇒ draft) by `version-row`."

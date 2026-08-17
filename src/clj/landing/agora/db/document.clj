@@ -455,7 +455,7 @@
   content language; a nil `lang` searches every language. `content` is the EDN blob, so this matches
   title and body text; a blank `q` is the caller's concern."
   [type lang q limit]
-  (let [like (str "%" q "%")]
+  (let [like (str "%" (db/escape-like q) "%")]
     (mapv
      row->doc
      (q!
