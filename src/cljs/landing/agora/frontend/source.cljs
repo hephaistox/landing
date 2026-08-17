@@ -141,7 +141,7 @@
                            "&q="
                            (js/encodeURIComponent text)
                            (when (seq publication-id)
-                             (str "&publication=" (js/encodeURIComponent publication-id))))
+                             (str "&publication-id=" (js/encodeURIComponent publication-id))))
                       (fn [cards]
                         (reset! results (into []
                                               (comp (filter #(= "work" (:kind %))) (map card->work))
@@ -153,8 +153,8 @@
                               :title (:title @draft)
                               :text ""
                               :lang (name lang)
-                              :author-id (:id @author)
-                              :author-name (:display-name @author)
+                              :attributed-author-id (:id @author)
+                              :attributed-author (:display-name @author)
                               :year (let [y (:year @draft)] (when-not (str/blank? y) y))
                               :editor (:editor @draft)
                               :url (:url @draft)

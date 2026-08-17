@@ -165,30 +165,47 @@
                        (dissoc :agora/authoring-busy?)
                        (update ::edit assoc :saving? false))))
 
-(rf/reg-event-fx
- ::edit-save!
- (fn [{:keys [db]} _]
-   (let [{:keys [type id title kind text author-id author-name year editor url locator target]}
-         (::edit db)
-         pub-id (get-in db [:agora/active-publication :id])]
-     {:db (update db ::edit assoc :saving? true :error nil)
-      ;; an edit produces a new version, gathered as a draft in the active
-      ;; publication (`:publication-id`, required by the write path)
-      :fetch (json-req :post
-                       (str "/agora/api/documents/" type "/" id)
-                       (cond-> {:title title
-                                :text text
-                                :author-id author-id
-                                :author-name author-name
-                                :year year
-                                :editor editor
-                                :url url
-                                :locator locator
-                                :target target
-                                :publication-id pub-id}
-                         kind (assoc :kind kind))
-                       [::saved-ok]
-                       [::op-failed])})))
+(defn- structural-input
+  "The single structural input a form carries, keyed by what it *is*: an `:extract`'s `:work` (the
+  œuvre it quotes), else an illustration/counter-example's `:target` (the claim). Strips the
+  display-only `:title` (the server keeps only the TNLR). `{}` when there is none."
+  [kind target]
+  (if (and target (seq (:name target)))
+    (let [tnlr (select-keys target [:type :name :lang :major])]
+      (if (= kind :extract) {:work tnlr} {:target tnlr}))
+    {}))
+
+(defn- write-payload
+  "The create/edit request body shared by both forms: the authored fields, the cited author under the
+  single attribution name (`:attributed-author`/`:attributed-author-id`), the structural input keyed by
+  kind, and the active `:publication-id`."
+  [{:keys [title text kind author-id author-name year editor url locator target]} pub-id]
+  (merge {:title title
+          :text text
+          :attributed-author-id author-id
+          :attributed-author author-name
+          :year year
+          :editor editor
+          :url url
+          :locator locator
+          :publication-id pub-id}
+         (structural-input kind target)))
+
+(rf/reg-event-fx ::edit-save!
+                 (fn [{:keys [db]} _]
+                   (let [{:keys [type id kind]
+                          :as form}
+                         (::edit db)
+                         pub-id (get-in db [:agora/active-publication :id])]
+                     {:db (update db ::edit assoc :saving? true :error nil)
+                      ;; an edit produces a new version, gathered as a draft in the active
+                      ;; publication (`:publication-id`, required by the write path)
+                      :fetch (json-req :post
+                                       (str "/agora/api/documents/" type "/" id)
+                                       (cond-> (write-payload form pub-id)
+                                         kind (assoc :kind kind))
+                                       [::saved-ok]
+                                       [::op-failed])})))
 
 ;; ===========================================================================
 ;; Create a new document (standalone form)
@@ -212,19 +229,8 @@
 (rf/reg-event-fx
  ::new-submit
  (fn [{:keys [db]} _]
-   (let [{:keys [type
-                 show-kind?
-                 title
-                 kind
-                 lang
-                 text
-                 author-id
-                 author-name
-                 year
-                 editor
-                 url
-                 locator
-                 target]}
+   (let [{:keys [type show-kind? kind lang]
+          :as form}
          (::new db)
          pub-id (get-in db [:agora/active-publication :id])]
      {:db (assoc-in db [::new :submitting?] true)
@@ -232,17 +238,7 @@
       ;; required by the write path)
       :fetch (json-req :post
                        (str "/agora/api/documents/" type)
-                       (cond-> {:title title
-                                :lang (or lang (i18n/current db))
-                                :text text
-                                :author-id author-id
-                                :author-name author-name
-                                :year year
-                                :editor editor
-                                :url url
-                                :locator locator
-                                :target target
-                                :publication-id pub-id}
+                       (cond-> (assoc (write-payload form pub-id) :lang (or lang (i18n/current db)))
                          show-kind? (assoc :kind kind))
                        [::saved-ok]
                        [::op-failed])})))
@@ -658,7 +654,7 @@
                                      "&q="
                                      (js/encodeURIComponent v)
                                      (when pub-id
-                                       (str "&publication=" (js/encodeURIComponent pub-id))))
+                                       (str "&publication-id=" (js/encodeURIComponent pub-id))))
                                 #js {:headers #js {"Accept" "application/json"}})
                       (.then #(.json %))
                       (.then #(reset! results (js->clj % :keywordize-keys true)))

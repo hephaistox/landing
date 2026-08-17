@@ -62,20 +62,3 @@ CREATE TABLE IF NOT EXISTS `AGORA_SUCCESSOR` (
   PRIMARY KEY (`input_type`, `input_name`, `input_lang`, `input_major`, `successor_id`),
   KEY `idx_by_input` (`input_type`, `input_name`, `input_lang`, `input_major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- The shared bibliographic *work* a kind=source KI references.
-CREATE TABLE IF NOT EXISTS `AGORA_SOURCE` (
-  `source_id`   CHAR(36)      NOT NULL COMMENT 'UUID',
-  `author_id`   CHAR(36)      NOT NULL COMMENT 'Author — AGORA_USER.id (may be external)',
-  `author_name` VARCHAR(255)  NOT NULL COMMENT 'Author display name, denormalized at creation',
-  `title`       VARCHAR(512)  NOT NULL,
-  `year`        SMALLINT      NULL,
-  `editor`      VARCHAR(255)  NULL,
-  `url`         VARCHAR(1000) NULL,
-  `owner_id`    CHAR(36)      NOT NULL COMMENT 'Owner who created the record — AGORA_USER.id',
-  `created_at`  DATETIME      NOT NULL COMMENT 'UTC',
-  PRIMARY KEY (`source_id`),
-  KEY `idx_source_title`  (`title`),
-  KEY `idx_source_author` (`author_id`),
-  KEY `idx_source_recent` (`owner_id`, `created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

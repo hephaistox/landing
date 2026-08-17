@@ -397,7 +397,7 @@
                                        "&q="
                                        (js/encodeURIComponent text)
                                        (when @pub
-                                         (str "&publication=" (js/encodeURIComponent @pub))))
+                                         (str "&publication-id=" (js/encodeURIComponent @pub))))
                                   #js {:headers #js {"Accept" "application/json"}})
                         (.then #(.json %))
                         (.then #(reset! results (js->clj % :keywordize-keys true)))

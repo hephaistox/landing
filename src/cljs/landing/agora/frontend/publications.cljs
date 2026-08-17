@@ -44,19 +44,19 @@
 (rf/reg-sub ::active (fn [db _] (:agora/active-publication db)))
 
 (defn active-param
-  "A `&publication=<cid>` query fragment for the active publication, so browse/search fetches overlay
+  "A `&publication-id=<cid>` query fragment for the active publication, so browse/search fetches overlay
   its drafts. Empty when none is active. `db` is the re-frame db."
   [db]
   (if-let [id (:id (:agora/active-publication db))]
-    (str "&publication=" (js/encodeURIComponent id))
+    (str "&publication-id=" (js/encodeURIComponent id))
     ""))
 
 (defn active-query
-  "A `?publication=<cid>` query string for the active publication — for a URL with no other query (the
+  "A `?publication-id=<cid>` query string for the active publication — for a URL with no other query (the
   by-id/by-major page reads), so its draft successors overlay. Empty when none is active."
   [db]
   (if-let [id (:id (:agora/active-publication db))]
-    (str "?publication=" (js/encodeURIComponent id))
+    (str "?publication-id=" (js/encodeURIComponent id))
     ""))
 
 ;; adopt the stored active publication at boot
@@ -255,7 +255,7 @@
                    {:fetch {:method :delete
                             :url (str "/agora/api/documents/" type
                                       "/" doc-id
-                                      "?publication=" (js/encodeURIComponent cid))
+                                      "?publication-id=" (js/encodeURIComponent cid))
                             :headers {"Accept" "application/json"}
                             :response-content-types {#"application/json" :json}
                             :on-success [::load-page-cards cid]
@@ -724,7 +724,7 @@
          pub @(rf/subscribe [::viewed])
          cards @(rf/subscribe [::viewed-cards])
          user @(rf/subscribe [::auth/user])
-         owner? (and user (= (:id user) (:author-id pub)))
+         owner? (and user (= (:id user) (:attributed-author-id pub)))
          deletable? (and owner? (= "open" (:status pub)))
          loaded? (some? (:status pub))]
      [:div {:style {:max-width "72em"
@@ -743,9 +743,9 @@
           [title-bar lang pub owner? editing]
           (when deletable? [publish-button lang pub])]
          [dv/byline
-          (:author pub)
+          (:attributed-author pub)
           (:published-at pub)
-          (:author-id pub)
+          (:attributed-author-id pub)
           (i18n/t lang (if (= "open" (:status pub)) :pub/date-open-hint :pub/date-closed-hint))]
          [page-actions lang pub owner?]
          ;; filters only earn their room once there are several documents — a small draft cluster

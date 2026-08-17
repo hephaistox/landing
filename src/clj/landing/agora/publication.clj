@@ -26,14 +26,15 @@
 
 (defn- view
   "Endpoint view of a publication: its stable cid as `:id` (references survive a rename), the
-  authored fields, and `:owner-id` exposed as `:author-id` (as for documents)."
+  authored fields, and the owner exposed as the byline `:attributed-author`/`:attributed-author-id`
+  (the single attribution name used across every document view)."
   [{:keys [name title status author owner-id published-at]}]
   {:id name
    :type :publication
    :title title
    :status status
-   :author author
-   :author-id owner-id
+   :attributed-author author
+   :attributed-author-id owner-id
    :published-at published-at})
 
 (defn- count-owned

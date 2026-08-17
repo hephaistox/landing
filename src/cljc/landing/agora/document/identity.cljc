@@ -67,11 +67,11 @@
 ;; --- object types ---------------------------------------------------------------------
 
 (def object-types
-  "The identity document values (object types sharing the single AGORA_DOCUMENT table). `:source` is
-  the bibliographic *source* a `kind=source` citation references — a leaf, never in a public feed.
-  `:publication` is the work-package that gathers a user's drafts and publishes them together — a
-  change document, also never in a public feed."
-  [:ki :article :source :publication])
+  "The identity document values (object types sharing the single AGORA_DOCUMENT table). `:ki` and
+  `:article` are the public content; the bibliographic register is not its own object type — it is the
+  `work`/`extract` *kinds* of a KI. `:publication` is the work-package that gathers a user's drafts and
+  publishes them together — a change document, never in a public feed."
+  [:ki :article :publication])
 
 (def object-types-set
   "The identity document values (object types sharing the single AGORA_DOCUMENT table)."

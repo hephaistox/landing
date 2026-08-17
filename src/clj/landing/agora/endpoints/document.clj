@@ -30,8 +30,10 @@
 (def ^:private write-body
   "Request body for create/edit. `publication-id` is **required** (non-empty): every write is a draft
   gathered by an open publication, so coercion rejects a write with no publication before the handler
-  runs. The rest are optional — a `work`'s cited author + bibliographic fields, an `extract`'s
-  `locator`. The map is open, so the structural `:target` TNLR rides through to the handler untouched."
+  runs. The rest are optional — a `work`'s cited author (`:attributed-author`/`:attributed-author-id`,
+  the single attribution name used read + write) + bibliographic fields, an `extract`'s `:locator`. The
+  map is open, so the structural input (an extract's `:work`, an illustration/counter-example's
+  `:target`) rides through to the handler untouched."
   [:map
    [:publication-id [:string {:min 1}]]
    [:kind {:optional true}
@@ -42,9 +44,9 @@
     [:maybe [:string {:max 20000}]]]
    [:lang {:optional true}
     [:maybe :string]]
-   [:author-id {:optional true}
+   [:attributed-author-id {:optional true}
     [:maybe :string]]
-   [:author-name {:optional true}
+   [:attributed-author {:optional true}
     [:maybe :string]]
    [:year {:optional true}
     [:maybe :int]]
@@ -78,11 +80,13 @@
   [req id]
   (when-let [raw (db-doc/fetch-id id)] (and (:draft raw) (not= (uid req) (:owner-id raw)))))
 
-(defn- coerce-target
-  "The structural target TNLR from the request body (an example / counter-example's referenced claim),
-  keys coerced to the domain's keywords — JSON sends `:type`/`:lang` as strings. nil when absent."
+(defn- coerce-structural-input
+  "The structural single input TNLR from the request body — named by what it is: an **extract**'s
+  `:work` (the œuvre it quotes), or an **illustration**/**counter-example**'s `:target` (the claim it
+  exemplifies/refutes). Keys coerced to the domain's keywords — JSON sends `:type`/`:lang` as strings.
+  nil when absent."
   [req]
-  (when-let [t (get-in req [:body-params :target])]
+  (when-let [t (or (get-in req [:body-params :work]) (get-in req [:body-params :target]))]
     (when (seq (:name t))
       (-> (select-keys t [:type :name :lang :major])
           (update :type #(keyword (or % "ki")))
@@ -93,14 +97,24 @@
 (defn- create-handler
   "Create a new document of `:type` owned by the caller (text-only). Body is `write-body`:
   `:publication-id` (required — coercion rejects a create with no open publication), `:kind`/`:title`/
-  `:text`/`:lang`, plus for a `work` its cited author (`:author-id` + `:author-name`) and bibliographic
-  `:year`/`:editor`/`:url`, and for an `extract` its `:locator`. The byline `author` is the cited
-  author's name for a work, else the contributor's display name. Returns the created version's endpoint
+  `:text`/`:lang`, plus for a `work` its cited author (`:attributed-author` + `:attributed-author-id`)
+  and bibliographic `:year`/`:editor`/`:url`, and for an `extract` its `:locator`. The byline is the
+  cited author for a work, else the contributor's display name. Returns the created version's endpoint
   view."
   [doc-storage req]
   (let [uid (uid req)
         type (keyword (get-in req [:path-params :type]))
-        {:keys [kind title text lang publication-id author-id author-name year editor url locator]}
+        {:keys [kind
+                title
+                text
+                lang
+                publication-id
+                attributed-author-id
+                attributed-author
+                year
+                editor
+                url
+                locator]}
         (:body-params req)
         kind (some-> kind
                      keyword)]
@@ -116,10 +130,11 @@
       (not (owned-publication req publication-id)) {:status 403
                                                     :body {:error "not your publication"}}
       :else
-      ;; JSON delivers kind/lang as strings; the write domain works in keywords. The cited
-      ;; author (`author-name`/`author-id`) is honoured **only for a `work`** — for every other
-      ;; kind the byline is the owner, so a client can't point a document's byline at another person.
-      (let [author (if (= kind :work) author-name (:display-name (auth/get-user uid)))
+      ;; JSON delivers kind/lang as strings; the write domain works in keywords. The cited author
+      ;; (`attributed-author`/`attributed-author-id`) is honoured **only for a `work`** — for every
+      ;; other kind the byline is the owner, so a client can't point a document's byline at another
+      ;; person. `owner-id` stays the accountability concept, distinct from the displayed attribution.
+      (let [author (if (= kind :work) attributed-author (:display-name (auth/get-user uid)))
             new-id (write/create! type
                                   uid
                                   author
@@ -128,12 +143,12 @@
                                    :text text
                                    :lang (some-> lang
                                                  keyword)
-                                   :author-id (when (= kind :work) author-id)
+                                   :author-id (when (= kind :work) attributed-author-id)
                                    :year year
                                    :editor editor
                                    :url url
                                    :locator locator
-                                   :target (coerce-target req)}
+                                   :target (coerce-structural-input req)}
                                   publication-id)]
         {:status 200
          :body (engine/read-by-id doc-storage new-id)}))))
@@ -141,12 +156,13 @@
 (defn- edit-handler
   "Edit document `:id` into a new version (text-only). Body is `write-body`: `:publication-id`
   (required — coercion rejects an edit with no open publication), `:title`/`:text`/`:kind`, plus the
-  bibliographic (`:author-id`/`:year`/`:editor`/`:url`) or `:locator` extras a new value overrides. A
-  new minor when the caller owns it, else a fork (new major). Returns the new version's endpoint view."
+  bibliographic (`:attributed-author-id`/`:year`/`:editor`/`:url`) or `:locator` extras a new value
+  overrides. A new minor when the caller owns it, else a fork (new major). Returns the new version's
+  endpoint view."
   [doc-storage req]
   (let [editor (uid req)
         id (get-in req [:path-params :id])
-        {:keys [title text kind publication-id author-id year url locator]
+        {:keys [title text kind publication-id attributed-author-id year url locator]
          biblio-editor :editor}
         (:body-params req)
         kw-kind (some-> kind
@@ -158,20 +174,20 @@
       (not (owned-publication req publication-id)) {:status 403
                                                     :body {:error "not your publication"}}
       :else
-      ;; `author-id` honoured only for a `work` (H3, see create-handler); nil otherwise carries the
-      ;; existing value forward
+      ;; the cited author is honoured only for a `work` (see create-handler); nil otherwise carries
+      ;; the existing value forward
       (if-let [new-id (write/edit! id
                                    editor
                                    (:display-name (auth/get-user editor))
                                    {:title title
                                     :text text
                                     :kind kw-kind
-                                    :author-id (when (= kw-kind :work) author-id)
+                                    :author-id (when (= kw-kind :work) attributed-author-id)
                                     :year year
                                     :editor biblio-editor
                                     :url url
                                     :locator locator
-                                    :target (coerce-target req)}
+                                    :target (coerce-structural-input req)}
                                    publication-id)]
         ;; an edit may rewrite a draft **in place** (same id); drop its stale cache entry so the
         ;; read-back returns the new content
@@ -183,14 +199,14 @@
                 :id id}}))))
 
 (defn- delete-handler
-  "Delete draft document `:id` (the caller's own). The `:publication` query param is **required** and
+  "Delete draft document `:id` (the caller's own). The `:publication-id` query param is **required** and
   must be the draft's own publication — a delete is scoped to the publication the caller is working in.
   Returns the publication cid so the client can refresh it."
   [req]
   (if-let [editor (uid req)]
     (if-let [pub-id (write/delete! editor
                                    (get-in req [:path-params :id])
-                                   (get-in req [:parameters :query :publication]))]
+                                   (get-in req [:parameters :query :publication-id]))]
       {:status 200
        :body {:publication-id pub-id}}
       {:status 404
@@ -214,10 +230,10 @@
     {:get {:handler
            (fn [req]
              (let [{:keys [type]} (get-in req [:parameters :path])
-                   {:keys [lang limit offset q publication]} (get-in req [:parameters :query])
+                   {:keys [lang limit offset q publication-id]} (get-in req [:parameters :query])
                    ;; `all` (or absent) → every language (the client filters by content language)
                    lang (when-not (contains? #{nil "all"} lang) lang)
-                   pub (owned-publication req publication)]
+                   pub (owned-publication req publication-id)]
                {:status 200
                 :body
                 (if (some? q)
@@ -234,7 +250,7 @@
                                  [:maybe :int]]
                                 [:offset {:optional true}
                                  [:maybe :int]]
-                                [:publication {:optional true}
+                                [:publication-id {:optional true}
                                  [:maybe :string]]]}
            :responses {200 {:description "Matching document cards"}}
            :summary "Browse documents of a type, or search them with `?q=`"}
@@ -265,7 +281,8 @@
                             :name (di/cid-of name)
                             :lang (keyword lang)
                             :major major}
-                       pub (owned-publication req (get-in req [:parameters :query :publication]))]
+                       pub (owned-publication req
+                                              (get-in req [:parameters :query :publication-id]))]
                    (if-let [d (engine/read-by-major doc-storage ref pub)]
                      {:status 200
                       :body d}
@@ -274,7 +291,7 @@
       :operationId "agora-read-by-tnlr"
       :parameters {:path [:map [:type :string] [:name :string] [:lang :string] [:major :int]]
                    :query [:map
-                           [:publication {:optional true}
+                           [:publication-id {:optional true}
                             [:maybe :string]]]}
       :responses {200 {:description "The document (latest published minor)"}
                   404 {:description "No published version for this identity"
@@ -285,7 +302,7 @@
     {:get {:handler
            (fn [req]
              (let [id (get-in req [:parameters :path :id])
-                   pub (owned-publication req (get-in req [:parameters :query :publication]))]
+                   pub (owned-publication req (get-in req [:parameters :query :publication-id]))]
                (if-let [d (and (not (draft-hidden? req id)) (engine/read-by-id doc-storage id pub))]
                  {:status 200
                   :body d}
@@ -295,7 +312,7 @@
            :operationId "agora-read-by-id"
            :parameters {:path [:map [:type :string] [:id :string]]
                         :query [:map
-                                [:publication {:optional true}
+                                [:publication-id {:optional true}
                                  [:maybe :string]]]}
            :responses {200 {:description "The exact version"}
                        404 {:description "No such version"
@@ -319,7 +336,7 @@
               :operationId "agora-delete-document"
               :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
               :parameters {:path [:map [:type :string] [:id :string]]
-                           :query [:map [:publication [:string {:min 1}]]]}
+                           :query [:map [:publication-id [:string {:min 1}]]]}
               :responses {200 {:description "Deleted; returns the publication cid"}
                           401 {:description "Login required"
                                :body error-body}
