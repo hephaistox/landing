@@ -210,6 +210,20 @@
     :faq/q-localize "À quoi ça sert, au fond ?"
     :faq/a-localize
     "À localiser un désaccord au lieu de trancher. Plutôt que « tu as tort », vous pointez le pas précis qui coince : nous divergeons ici, tout le reste est partagé. Le désaccord devient une coordonnée, pas un verdict."
+    :beta/badge "Bêta"
+    :beta/hint "Agora est en version bêta — en savoir plus"
+    :beta/title "Agora est en bêta"
+    :beta/intro
+    "Les concepts fondateurs sont là. Mais, pour l'instant, l'ergonomie demande encore de comprendre le fonctionnement d'Agora. Voici notre roadmap."
+    :beta/step-1-title "Lire"
+    :beta/step-1-body
+    "Des articles seront publiés ainsi. Ils seront surtout lus par les utilisateurs, leur navigation sera travaillée. Seuls quelques utilisateurs peuvent créer."
+    :beta/step-2-title "Contester"
+    :beta/step-2-body
+    "Une nouvelle catégorie d'utilisateur pourra challenger les articles. Faire des commentaires, des contre propositions, leur propre version de l'article."
+    :beta/step-3-title "Écrire"
+    :beta/step-3-body
+    "Tout le monde peut rédiger des articles ; l'ensemble est suffisamment clair, sans vocabulaire technique ni concept nécessitant des explications : tout est implicite et va droit au but."
     :discover/heading "Découvrir les connaissances"
     :articles/heading "Découvrir les articles"
     :article-form/new-title "Nouvel article"
@@ -533,6 +547,20 @@
     :faq/q-localize "What's the point, ultimately?"
     :faq/a-localize
     "To localize a disagreement instead of settling it. Rather than « you're wrong », you point at the precise step that doesn't hold: we diverge here, everything else is shared. Disagreement becomes a coordinate, not a verdict."
+    :beta/badge "Beta"
+    :beta/hint "Agora is in beta — learn more"
+    :beta/title "Agora is in beta"
+    :beta/intro
+    "The founding concepts are in place. But for now the interface still asks you to understand how Agora works. Here is our roadmap."
+    :beta/step-1-title "Read"
+    :beta/step-1-body
+    "Articles will be published this way. They will mostly be read by users,  their navigatio is worked on. Only some selected users can author new articles."
+    :beta/step-2-title "Challenge"
+    :beta/step-2-body
+    "A new user category can challenge articles. Do comments, counter proposals or write their own version of the article."
+    :beta/step-3-title "Write"
+    :beta/step-3-body
+    "Everybody can write articles, the whole story is clear enough, no technical vocabulary or concept to be explained, everything is underlying and on the point."
     :discover/heading "Discover knowledge"
     :articles/heading "Discover articles"
     :article-form/new-title "New article"
@@ -722,6 +750,10 @@
   "The technical FAQ page (how the graph works, with real cards)."
   [lang]
   (str (base lang) "/faq"))
+(defn beta
+  "The beta notice + roadmap page (linked from the header Bêta badge)."
+  [lang]
+  (str (base lang) "/beta"))
 (defn admin [lang] (str (base lang) "/admin"))
 (defn author "The author profile page for account `id`." [lang id] (str (base lang) "/author/" id))
 (defn ki

@@ -18,14 +18,33 @@
               :style {:background "#1b1a17"
                       :color "#e8e2d6"
                       :border-bottom "2px solid #b9770e"}}
-     [:a {:href (i18n/home lang)
-          :style {:font-family "Georgia, 'Cormorant Garamond', serif"
-                  :font-size "1.4em"
-                  :font-weight 700
-                  :letter-spacing "0.03em"
-                  :color "#d99a2b"
-                  :text-decoration "none"}}
-      "Agora"]
+     ;; brand + a Google-style « Bêta » badge (a sibling link, never nested inside the brand anchor),
+     ;; present on every page and linking to the beta notice + roadmap
+     [:div {:style {:display "flex"
+                    :align-items "flex-start"
+                    :gap "0.3em"}}
+      [:a {:href (i18n/home lang)
+           :style {:font-family "Georgia, 'Cormorant Garamond', serif"
+                   :font-size "1.4em"
+                   :font-weight 700
+                   :letter-spacing "0.03em"
+                   :color "#d99a2b"
+                   :text-decoration "none"}}
+       "Agora"]
+      [:a {:href (i18n/beta lang)
+           :title (i18n/t lang :beta/hint)
+           :style {:font-size "0.6em"
+                   :font-weight 700
+                   :letter-spacing "0.08em"
+                   :text-transform "uppercase"
+                   :color "#1b1a17"
+                   :background "#d99a2b"
+                   :padding "0.15em 0.45em"
+                   :border-radius "0.25em"
+                   :text-decoration "none"
+                   :margin-top "0.25em"
+                   :line-height 1}}
+       (i18n/t lang :beta/badge)]]
      ;; Just the two discover links; creation is a `+` card on each discover grid.
      (let [link (fn [label href] [:a {:key href
                                       :href href

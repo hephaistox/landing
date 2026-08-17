@@ -13,6 +13,7 @@
    [landing.agora.endpoints.shell       :refer [app-shell-route
                                                 article-page-route
                                                 author-page-route
+                                                beta-shell-route
                                                 home-shell-route
                                                 ki-page-route
                                                 public-shell-route
@@ -122,6 +123,7 @@
    ["/preferences" public-shell-route]
    ["/authors" public-shell-route]
    ["/faq" public-shell-route]
+   ["/beta" beta-shell-route]
    ["/publications" app-shell-route]
    ["/new" app-shell-route]
    ["/ki/:id" app-shell-route]

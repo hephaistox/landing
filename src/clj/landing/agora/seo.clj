@@ -236,6 +236,59 @@
                        (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
                        (meta-name "twitter:card" "summary")]))))
 
+(def ^:private beta-copy
+  "The beta notice + roadmap copy, server-side so the page is fully server-rendered (indexable HTML).
+  Mirrors the SPA's `:beta/*` strings; kept here because the CLJS i18n dict is not reachable from the
+  backend. `:steps` are [title body] pairs."
+  {"fr"
+   {:title "Agora est en bêta — lire, contester, écrire"
+    :desc
+    "Agora est en version bêta : les concepts fondateurs sont là. Voici la feuille de route — lire, contester, puis écrire des articles au raisonnement traçable."
+    :intro
+    "Les concepts fondateurs sont là. Mais, pour l'instant, l'ergonomie demande encore de comprendre le fonctionnement d'Agora. Voici le chemin que nous traçons."
+    :steps
+    [["Lire"
+      "Des articles seront publiés ainsi. Ils seront surtout lus par le public, qui doit pouvoir les naviguer simplement."]
+     ["Contester" "Les articles pourront être challengés par le public."]
+     ["Écrire" "Les articles seront écrits par le public."]]}
+   "en"
+   {:title "Agora is in beta — read, challenge, write"
+    :desc
+    "Agora is in beta: the founding concepts are in place. Here is the roadmap — read, challenge, then write articles with traceable reasoning."
+    :intro
+    "The founding concepts are in place. But for now the interface still asks you to understand how Agora works. Here is the path we're on."
+    :steps
+    [["Read"
+      "Articles will be published this way. They will mostly be read by the public, who must be able to navigate them simply."]
+     ["Challenge" "Articles will be challengeable by the public."]
+     ["Write" "Articles will be written by the public."]]}})
+
+(defn beta-head
+  "SEO `<head>` for the beta notice page: a localized title + description, canonical + hreflang
+  alternates, website OpenGraph — **indexable** (no `noindex`), since the page is genuine public
+  content served as static HTML."
+  [base lang]
+  (let [{:keys [title desc]}
+        (get beta-copy (language/normalize lang) (get beta-copy language/default-lang))
+        url (str base "/agora/" lang "/beta")]
+    (str/join "\n"
+              (concat [(str "<title>" (esc title) "</title>")
+                       (meta-name "description" desc)
+                       (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")]
+                      (for [l language/languages]
+                        (str "<link rel=\"alternate\" hreflang=\""
+                             (esc l)
+                             "\" href=\""
+                             (esc (str base "/agora/" l "/beta"))
+                             "\"/>"))
+                      [(meta-prop "og:type" "website")
+                       (meta-prop "og:site_name" "Agora")
+                       (meta-prop "og:title" title)
+                       (meta-prop "og:description" desc)
+                       (meta-prop "og:url" url)
+                       (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
+                       (meta-name "twitter:card" "summary")]))))
+
 (defn generic-head
   "Generic OpenGraph + **`robots noindex`** for the non-canonical public pages this serves:
   the rotating discover / articles feeds and the preferences page (thin aggregations of
@@ -469,6 +522,31 @@
        "<p>No documents yet.</p>")
      "</main>")))
 
+(defn beta-body
+  "Static HTML for the beta notice page — the heading, the honest « still in beta » intro and the
+  three-step roadmap (read → challenge → write) — so a crawler/no-JS agent gets the full content.
+  The SPA replaces it on mount."
+  [base lang]
+  (let [{:keys [title intro steps]}
+        (get beta-copy (language/normalize lang) (get beta-copy language/default-lang))
+        home (str base "/agora/" lang)]
+    (str
+     "<main style=\"max-width:44em;margin:1.5em auto;padding:0 1em;font-family:system-ui,sans-serif;line-height:1.6\">"
+     "<nav><a href=\""
+     (esc home)
+     "\">Agora</a> · <a href=\""
+     (esc (str home "/discover"))
+     "\">Discover</a></nav>"
+     "<p><strong>Beta</strong></p>"
+     "<h1>"
+     (esc title)
+     "</h1>"
+     "<p>"
+     (esc intro)
+     "</p>"
+     "<ol>" (str/join (for [[t b] steps] (str "<li><h2>" (esc t) "</h2><p>" (esc b) "</p></li>")))
+     "</ol>" "</main>")))
+
 ;; ---------------------------------------------------------------------------
 ;; Sitemap
 ;; ---------------------------------------------------------------------------
@@ -512,6 +590,13 @@
                       (for [a language/languages]
                         {:lang a
                          :path (str "/agora/" a)}))))
+     ;; the beta notice page — indexable static HTML, hreflang-linked across languages
+     (str/join (for [l language/languages]
+                 (url (str "/agora/" l "/beta")
+                      nil
+                      (for [a language/languages]
+                        {:lang a
+                         :path (str "/agora/" a "/beta")}))))
      ;; document permalinks (all types), hreflang-linked across their languages. Each
      ;; language version's URL carries its own title-slug (`<cid>~<slug>`); resolution
      ;; is by the shared cid `nm`.

@@ -17,6 +17,7 @@
    [landing.agora.frontend.article-page     :as article-page]
    [landing.agora.frontend.auth             :as auth]
    [landing.agora.frontend.author-page      :as author-page]
+   [landing.agora.frontend.beta             :as beta]
    [landing.agora.frontend.chrome           :as chrome]
    [landing.agora.frontend.document-page    :as document-page]
    [landing.agora.frontend.edit             :as edit]
@@ -72,6 +73,9 @@
     (re-find #"^/agora/([a-z]{2})/faq/?(?:[?#].*)?$" path)
     {:kind :faq
      :lang (second (re-find #"^/agora/([a-z]{2})/faq" path))}
+    (re-find #"^/agora/([a-z]{2})/beta/?(?:[?#].*)?$" path)
+    {:kind :beta
+     :lang (second (re-find #"^/agora/([a-z]{2})/beta" path))}
     (re-find #"^/agora/([a-z]{2})/article/new/?(?:[?#].*)?$" path)
     {:kind :article-new
      :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
@@ -402,6 +406,11 @@
                                :data nil}
                         :loading? false
                         :error nil)}
+       :beta {:db (assoc db
+                         :view {:kind :beta
+                                :data nil}
+                         :loading? false
+                         :error nil)}
        :article-new {:db (assoc db
                                 :view {:kind :article-new
                                        :data nil}
@@ -749,6 +758,7 @@
       (= kind :preferences) [preferences-page/preferences-page]
       (= kind :authors) [find-page/authors-page]
       (= kind :faq) [faq/faq-page]
+      (= kind :beta) [beta/beta-page]
       (= kind :admin) [admin/admin-page]
       (= kind :publications) [publications/publications-page]
       (= kind :publication) [publications/publication-page]

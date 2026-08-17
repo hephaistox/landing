@@ -116,6 +116,23 @@
                  :middleware html-middlewares
                  :summary "Agora home/landing (SEO head injected)"}}])
 
+(defn beta-page-response
+  "Serve the beta notice page (`/agora/<lang>/beta`) **fully server-rendered**: an indexable SEO head
+  plus the roadmap body as static HTML, so a crawler gets the whole page. The SPA replaces the body
+  on mount."
+  [req]
+  (let [lang (language/normalize (get-in req [:path-params :lang]))
+        base (seo/base-url req)]
+    (html-response
+     (seo/inject @public-template (seo/beta-head base lang) lang (seo/beta-body base lang)))))
+
+(defn beta-shell-route
+  "Serve the beta notice page at `prefix` (`/agora/:lang/beta`) — server-rendered, indexable."
+  [prefix]
+  [prefix {:get {:handler beta-page-response
+                 :middleware html-middlewares
+                 :summary "Agora beta notice (server-rendered, indexable)"}}])
+
 (defn public-shell-route
   "Serve the public shell for discover / preferences (generic OG metadata)."
   [prefix]
