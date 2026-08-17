@@ -100,7 +100,31 @@
     "Agora est un graphe public d'étapes de raisonnement contestables — chaque affirmation traçable jusqu'aux étapes qui la fondent, chaque terme jusqu'à sa définition."
     :home/eyebrow "Stockez le raisonnement, pas seulement la conclusion."
     :home/subtitle
-    "Ici, chaque affirmation remonte aux étapes qui la fondent — et chaque étape peut être contestée pour elle-même."
+    "Détaillez les raisonnements, comprenez l'auteur et ses références, et interagissez avec lui — ou avec la communauté — pour améliorer l'article, ou le réfuter."
+    ;; --- Landing orientée lecteur : hero, articles disponibles, exemple travaillé, « à venir » ---
+    :home/headline "Agora — lisez et écrivez des articles vivants"
+    :home/explore-cta "Explorer les articles"
+    :home/live-eyebrow "Un exemple vivant"
+    :home/live-title "Un article qui s'améliore, édition après édition"
+    :home/change-title "Qu'est-ce que ça change ?"
+    :home/change-body
+    "Vous restez en contact avec l'auteur. Et, bien mieux que dans les commentaires des réseaux sociaux, vous voyez ce que les autres en pensent vraiment — surtout quand une objection fait évoluer l'article."
+    :home/live-q1 "« Rapide », ça veut dire quoi, au juste ?"
+    :home/live-q2 "Admettons. Et tu as un fait mesurable ?"
+    :home/live-q4 "Et le modèle en général, pas seulement la tienne ?"
+    :home/live-soon "À venir"
+    :home/live-close
+    "La dernière étape — passer de ta voiture à tout le modèle — est un saut, pas une certitude : c'est précisément là qu'un lecteur pourra bientôt répondre à l'auteur, l'affiner ou le réfuter."
+    :home/soon-title "Bientôt, vous pourrez aller plus loin"
+    :home/soon-1-title "Répondre à l'auteur"
+    :home/soon-2-title "Une date, une prédiction"
+    :home/soon-2-body
+    "Un article peut porter une date : une prédiction que le réel viendra confirmer ou trancher, le moment venu."
+    :home/soon-3-title "Votre système de pensée"
+    :home/soon-3-body
+    "Dites quelles prémisses vous acceptez, et découvrez d'autres articles qui pourraient compléter votre système de pensée — ou le mettre à l'épreuve."
+    :home/find-title "Cherchez un article qui vous intéresse !"
+    :home/find-cta "Parcourir les articles"
     ;; --- « Ce qu'Agora vous permet » — quatre bénéfices ---
     :home/value-title "Ce qu'Agora vous permet"
     :home/value-1-title "Auteurs, formalisez une pensée complexe"
@@ -404,7 +428,31 @@
     ;; --- Landing marketing sections (home / :agora/<lang>) ---
     :home/eyebrow "Store the reasoning, not just the conclusion."
     :home/subtitle
-    "Agora is a public graph of challengeable reasoning steps. Every claim traces back to the steps that support it — and every step can be challenged on its own."
+    "Unfold the reasoning, understand the author and their references, and engage with them — or the community — to improve the article, or refute it."
+    ;; --- Reader-first landing: hero, available articles, worked example, "coming soon" ---
+    :home/headline "Agora — read and write living articles"
+    :home/explore-cta "Explore the articles"
+    :home/live-eyebrow "A living example"
+    :home/live-title "One article, getting better edition by edition"
+    :home/change-title "What does it change?"
+    :home/change-body
+    "You stay in contact with the author. And far better than in social-media comments, you see what others really think — above all when an objection actually moves the article forward."
+    :home/live-q1 "« Fast » — what does that even mean?"
+    :home/live-q2 "Fine. And do you have a measurable fact?"
+    :home/live-q4 "And the model in general, not just yours?"
+    :home/live-soon "Coming soon"
+    :home/live-close
+    "The last step — going from your car to the whole model — is a leap, not a certainty: that's exactly where a reader will soon be able to answer the writer, refine it, or refute it."
+    :home/soon-title "Soon, you'll be able to go further"
+    :home/soon-1-title "Answer the author"
+    :home/soon-2-title "A date, a prediction"
+    :home/soon-2-body
+    "An article can carry a date: a prediction that reality will confirm or settle when the time comes."
+    :home/soon-3-title "Your system of thought"
+    :home/soon-3-body
+    "Say which premises you accept, and discover other articles that could complete your system of thought — or put it to the test."
+    :home/find-title "Find an article that speaks to you!"
+    :home/find-cta "Browse the articles"
     ;; --- "What Agora lets you do" — four value props ---
     :home/value-title "What Agora lets you do"
     :home/value-1-title "Author, formalize complex thinking"

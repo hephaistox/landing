@@ -274,7 +274,7 @@
                                 (.removeEventListener js/window "mousemove" on-move)
                                 (.removeEventListener js/window "mouseup" on-up))
       :reagent-render
-      (fn [lang nodes edges]
+      (fn [lang nodes edges opts]
         ;; seed positions once from the layout; drags keep them afterwards
         (when (nil? @positions) (reset! positions (layout nodes edges)))
         (let [pos @positions
@@ -283,7 +283,7 @@
                  :on-mouse-down start-pan
                  :on-wheel on-wheel
                  :style {:position "relative"
-                         :height "72vh"
+                         :height (:height opts "72vh")
                          :overflow "hidden"
                          :border "1px solid #e2ddd2"
                          :border-radius "0.6em"

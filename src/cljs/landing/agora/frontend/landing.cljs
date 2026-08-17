@@ -1,411 +1,288 @@
 (ns landing.agora.frontend.landing
-  "The Agora landing/home page (`/agora/<lang>`): a marketing hero, the four things Agora
-  lets you do, how it works, a detail paragraph per value prop, and a closing call to action."
+  "The Agora landing/home page (`/agora/<lang>`): focused on what a reader can do *now*.
+  A pitch box with a single explore-the-articles action, then one **living example** — the same
+  article (« Ma voiture est rapide ») improving across four real published editions (the
+  `exemple-pedagogique-1..4` publications). Each edition is its own panel, two columns: the real
+  publication graph (left) and the article's prose at that edition (right), plus the skeptical
+  objection that drove the next one. It closes on « what this changes » for a reader. Everything is
+  real seeded data, fetched live. The mechanism detail lives in the FAQ."
   (:require
-   [landing.agora.frontend.i18n :as i18n]
-   [re-frame.core               :as rf]))
+   [landing.agora.frontend.cite  :as cite]
+   [landing.agora.frontend.graph :as graph]
+   [landing.agora.frontend.i18n  :as i18n]
+   [re-frame.core                :as rf]
+   [reagent.core                 :as r]))
+
+;; --- data: the four editions (real publications) ----------------------------
+
+(def ^:private stages
+  "The pedagogical editions, in order — each a real published publication whose graph we show."
+  [1 2 3 4])
+
+(def ^:private stage-objection
+  "The skeptic's objection shown under an edition — the one that drives the next edition."
+  {1 :home/live-q1
+   2 :home/live-q2
+   3 :home/live-q4})
+
+(rf/reg-sub ::pedago (fn [db _] (:agora/pedago db)))
+(rf/reg-event-db ::noop (fn [db _] db))
+
+(rf/reg-event-db ::text-loaded
+                 (fn [db [_ n resp]] (assoc-in db [:agora/pedago n :article] (:body resp))))
+
+(rf/reg-event-fx ::graph-loaded
+                 (fn [{:keys [db]} [_ n resp]]
+                   (let [lang (or (::i18n/lang db) "fr")
+                         graph (:body resp)
+                         art (first (filter #(and (= "article" (:type %)) (= lang (:lang %)))
+                                            (:nodes graph)))]
+                     (cond-> {:db (assoc-in db [:agora/pedago n :graph] graph)}
+                       art (assoc :fetch
+                                  {:method :get
+                                   :url (str "/agora/api/documents/article/" (:id art))
+                                   :headers {"Accept" "application/json"}
+                                   :response-content-types {#"application/json" :json}
+                                   :on-success [::text-loaded n]
+                                   :on-failure [::noop]})))))
+
+(rf/reg-event-fx ::load
+                 (fn [_ _]
+                   {:fetch (mapv (fn [n]
+                                   {:method :get
+                                    :url
+                                    (str "/agora/api/publication/exemple-pedagogique-" n "/graph")
+                                    :headers {"Accept" "application/json"}
+                                    :response-content-types {#"application/json" :json}
+                                    :on-success [::graph-loaded n]
+                                    :on-failure [::noop]})
+                                 stages)}))
+
+;; --- pieces -----------------------------------------------------------------
 
 (defn- landing-hero
-  "The marketing banner atop the landing page: eyebrow, pitch, the primary explore /
-  publish actions, and a reassurance line — so the value prop lands above the fold."
+  "The pitch box: what Agora is, and the one action — explore the articles."
   [lang]
   [:section {:style {:background "linear-gradient(160deg, #1b1a17, #262019)"
                      :color "#e8e2d6"
                      :border-radius "0.8em"
                      :padding "2.6em 1.4em"
-                     :margin-bottom "1.4em"
+                     :margin-bottom "2em"
                      :text-align "center"}}
-   [:div {:style {:font-size "0.78em"
-                  :font-weight 700
-                  :text-transform "uppercase"
-                  :letter-spacing "0.14em"
-                  :color "#d69a3a"
-                  :margin-bottom "0.9em"}}
-    (i18n/t lang :home/eyebrow)]
    [:h1 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
                  :font-size "clamp(1.7em, 4.4vw, 2.7em)"
-                 :line-height "1.16"
+                 :line-height 1.16
                  :margin "0 0 0.5em"
                  :color "#f0e6d2"}}
-    (i18n/t lang :landing/headline)]
-   [:p {:style {:max-width "42em"
+    (i18n/t lang :home/headline)]
+   [:p {:style {:max-width "40em"
                 :margin "0 auto 1.5em"
                 :font-size "1.08em"
-                :line-height "1.6"
+                :line-height 1.6
                 :color "#c9c1b2"}}
     (i18n/t lang :home/subtitle)]
-   [:div {:style {:display "flex"
-                  :flex-wrap "wrap"
-                  :gap "0.7em"
-                  :justify-content "center"}}
-    [:a {:href (i18n/discover lang)
-         :style {:padding "0.65em 1.4em"
-                 :background "#b9770e"
-                 :color "#fff"
-                 :border-radius "0.4em"
-                 :font-weight 600
-                 :text-decoration "none"}}
-     (i18n/t lang :home/cta-explore)]
-    [:a {:href (i18n/new-ki lang)
-         :style {:padding "0.65em 1.4em"
-                 :background "transparent"
-                 :color "#e8e2d6"
-                 :border "1px solid #b9770e"
-                 :border-radius "0.4em"
-                 :text-decoration "none"}}
-     (i18n/t lang :home/cta-publish)]]
-   [:div {:style {:margin-top "1.3em"
-                  :font-size "0.82em"
-                  :color "#8f8776"}}]])
+   [:a {:href (i18n/articles lang)
+        :style {:display "inline-block"
+                :padding "0.7em 1.6em"
+                :background "#b9770e"
+                :color "#fff"
+                :border-radius "0.4em"
+                :font-weight 600
+                :text-decoration "none"}}
+    (i18n/t lang :home/explore-cta)]])
 
-(defn- home-section-heading
-  "Serif section title, centered — the recurring divider between landing sections."
-  [text]
-  [:h2 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
-                :font-size "clamp(1.4em, 3.2vw, 2em)"
-                :color "#1b1a17"
-                :text-align "center"
-                :margin "0 0 0.8em"}}
-   text])
-
-(defn- home-step
-  "One numbered step in the 'how it works' row."
-  [n title body]
-  [:div {:style {:flex "1 1 14em"
-                 :min-width "12em"}}
-   [:div {:style {:width "2.2em"
-                  :height "2.2em"
-                  :border-radius "50%"
-                  :background "#b9770e"
-                  :color "#fff"
-                  :font-weight 700
-                  :display "flex"
-                  :align-items "center"
-                  :justify-content "center"
-                  :margin-bottom "0.6em"}}
-    n]
-   [:h3 {:style {:margin "0 0 0.3em"
+(defn- section-heading
+  "Serif section title with an eyebrow above it — a section opens on this, not on prose."
+  [eyebrow title]
+  [:div {:style {:margin "0 0 1.4em"}}
+   (when eyebrow
+     [:div {:style {:font-size "0.75em"
+                    :font-weight 700
+                    :text-transform "uppercase"
+                    :letter-spacing "0.14em"
+                    :color "#b9770e"
+                    :margin-bottom "0.35em"}}
+      eyebrow])
+   [:h2 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
+                 :font-size "clamp(1.4em, 3.2vw, 2em)"
                  :color "#1b1a17"
-                 :font-size "1.05em"}}
-    title]
-   [:p {:style {:margin 0
-                :color "#5c5648"
-                :line-height "1.5"}}
-    body]])
+                 :margin 0}}
+    title]])
 
-(defn- home-feature
-  "One feature tile: an emoji glyph, a title and a one-liner."
-  [glyph title body]
-  [:div {:style {:background "#fff"
-                 :border "1px solid #ece5d8"
+(defn- edition-objection
+  "Under an edition's article: the skeptic's objection that drove the next edition (none on the last)."
+  [lang n]
+  (when-let [obj (stage-objection n)]
+    [:div {:style {:margin "1em 0 0"}}
+     [:div {:style {:display "inline-block"
+                    :background "#faf5ea"
+                    :border "1px solid #e6d9bd"
+                    :border-radius "1em 1em 1em 0.2em"
+                    :padding "0.55em 0.9em"
+                    :font-style "italic"
+                    :color "#7a5a12"
+                    :line-height 1.4}}
+      (str "🧐  " (i18n/t lang obj))]]))
+
+(defn- edition-arrow
+  "A big, graphic connector between two editions — the article visibly moving forward a version."
+  []
+  [:div {:style {:display "flex"
+                 :justify-content "center"
+                 :margin "1.1em 0"}}
+   [:svg {:width "56"
+          :height "72"
+          :viewBox "0 0 56 72"
+          :aria-hidden "true"}
+    [:defs
+     [:linearGradient {:id "agora-edition-arrow"
+                       :x1 "0"
+                       :y1 "0"
+                       :x2 "0"
+                       :y2 "1"}
+      [:stop {:offset "0%"
+              :stop-color "#d99a2b"}]
+      [:stop {:offset "100%"
+              :stop-color "#b9770e"}]]]
+    [:path {:d "M20 0 h16 v40 h14 L28 72 L6 40 h14 z"
+            :fill "url(#agora-edition-arrow)"}]]])
+
+(defn- edition-block
+  "One edition, two columns and no frame: the real publication graph (left) and the article's prose at
+  this edition (right), then the objection that drove the next one."
+  [lang n data]
+  (let [nodes (filter #(= lang (:lang %)) (get-in data [:graph :nodes]))
+        ids (into #{} (map :id) nodes)
+        edges (filterv #(and (ids (:from %)) (ids (:to %))) (get-in data [:graph :edges]))
+        article (:article data)]
+    [:div {:style {:display "flex"
+                   :flex-wrap "wrap"
+                   :gap "1.2em"
+                   :align-items "stretch"}}
+     [:div {:style {:flex "1 1 21em"
+                    :min-width "16em"}}
+      (when (seq nodes)
+        ^{:key (count nodes)} [graph/graph-canvas lang nodes edges {:height "17em"}])]
+     [:div {:style {:flex "1 1 18em"
+                    :min-width "15em"
+                    :display "flex"
+                    :flex-direction "column"}}
+      (if article
+        [:p {:style {:margin 0
+                     :font-size "1.04em"
+                     :line-height 1.65
+                     :color "#2a2723"}}
+         (cite/plain-text (:text article) {})]
+        [:div {:style {:height "3em"}}])
+      [edition-objection lang n]]]))
+
+(defn- living-example
+  "The living example: one article improving across four real editions, each shown two-up — its real
+  publication graph beside the article's prose at that edition — a ↓ marking each move forward."
+  [lang]
+  (let [pedago @(rf/subscribe [::pedago])]
+    [:section {:style {:margin "3.2em 0"
+                       :padding "2em 1.6em"
+                       :background "#f7f2e8"
+                       :border "1px solid #ece0c8"
+                       :border-radius "0.9em"}}
+     [section-heading (i18n/t lang :home/live-eyebrow) (i18n/t lang :home/live-title)]
+     (for [n stages]
+       ^{:key n}
+       [:div [edition-block lang n (get pedago n)] (when (< n (last stages)) [edition-arrow])])]))
+
+(defn- soon-card
+  "One forward-looking capability in the « à venir » band."
+  [title body]
+  [:div {:style {:flex "1 1 14em"
+                 :min-width "12em"
+                 :background "#fff"
+                 :border "1px solid #e2ddd2"
                  :border-radius "0.6em"
-                 :padding "1.1em"}}
-   [:div {:style {:font-size "1.6em"
-                  :margin-bottom "0.35em"}}
-    glyph]
-   [:h3 {:style {:margin "0 0 0.25em"
-                 :font-size "1em"
+                 :padding "1.1em 1.2em"}}
+   [:h3 {:style {:margin "0 0 0.35em"
+                 :font-size "1.02em"
                  :color "#1b1a17"}}
     title]
    [:p {:style {:margin 0
                 :color "#5c5648"
                 :font-size "0.92em"
-                :line-height "1.5"}}
+                :line-height 1.55}}
     body]])
 
-(defn- pill
-  "A small uppercase badge."
-  [label bg]
-  [:span {:style {:display "inline-block"
-                  :font-size "0.62em"
-                  :font-weight 700
-                  :text-transform "uppercase"
-                  :letter-spacing "0.06em"
-                  :color "#fff"
-                  :background bg
-                  :padding "0.16em 0.55em"
-                  :border-radius "0.28em"}}
-   label])
-
-(defn- decompose-illustration
-  "Language-neutral graphic for 'formalize': a dense/tangled claim (dark uneven bars)
-  resolving into three clean, numbered steps."
-  []
-  [:div {:style {:width "100%"}}
-   (into [:div {:style {:background "#1b1a17"
-                        :border-radius "0.5em"
-                        :padding "0.85em 0.9em"}}]
-         (for [w ["92%" "100%" "68%"]]
-           ^{:key w}
-           [:div {:style {:height "0.5em"
-                          :width w
-                          :background "#4a4436"
-                          :border-radius "0.25em"
-                          :margin-bottom "0.32em"}}]))
-   [:div {:style {:text-align "center"
-                  :color "#b9770e"
-                  :font-size "1.3em"
-                  :line-height "1.2"
-                  :margin "0.2em 0"}}
-    "↓"]
-   (into [:div {:style {:display "flex"
-                        :flex-direction "column"
-                        :gap "0.4em"}}]
-         (for [n [1 2 3]]
-           ^{:key n}
-           [:div {:style {:display "flex"
-                          :align-items "center"
-                          :gap "0.6em"
-                          :background "#fff"
-                          :border "1px solid #e2ddd2"
-                          :border-radius "0.4em"
-                          :padding "0.5em 0.7em"}}
-            [:span {:style {:flex "0 0 1.5em"
-                            :height "1.5em"
-                            :border-radius "50%"
-                            :background "#b9770e"
-                            :color "#fff"
-                            :font-weight 700
-                            :font-size "0.8em"
-                            :display "flex"
-                            :align-items "center"
-                            :justify-content "center"}}
-             n]
-            [:div {:style {:flex 1
-                           :height "0.5em"
-                           :background "#efe8da"
-                           :border-radius "0.25em"}}]]))])
-
-(defn- claim-anatomy
-  "The worked example as a reasoning chain — Definition + Observation ⟹ Conclusion, plus
-  the objection that keeps it honest. Bilingual copy from :home/ex-* / :home/tag-*."
+(defn- soon-section
+  "« À venir » — what a reader will soon be able to do: answer the author, read a dated prediction the
+  world will settle, and declare which premises they accept to find articles that complete their view."
   [lang]
-  [:div {:style {:width "100%"}}
-   (for [[k tag color] [[:home/ex-definition (i18n/t lang :home/tag-definition) "#a61e8c"]
-                        [:home/ex-observation (i18n/t lang :home/tag-observation) "#0b7285"]
-                        [:home/ex-conclusion (i18n/t lang :home/tag-conclusion) "#2b8a3e"]]]
-     ^{:key k}
-     [:div {:style {:background "#fff"
-                    :border "1px solid #e2ddd2"
-                    :border-radius "0.5em"
-                    :padding "0.6em 0.8em"
-                    :margin-bottom "0.5em"}}
-      [pill tag color]
-      [:p {:style {:margin "0.35em 0 0"
-                   :color "#333"
-                   :line-height "1.45"
-                   :font-size "0.9em"}}
-       (i18n/t lang k)]])
-   [:div {:style {:border-left "3px solid #b9770e"
-                  :background "#fdf6ec"
-                  :padding "0.45em 0.7em"
-                  :border-radius "0 0.4em 0.4em 0"
-                  :color "#8a5709"
-                  :font-style "italic"
-                  :font-size "0.85em"}}
-    (i18n/t lang :home/ex-objection)]])
-
-(defn- prediction-example
-  "One example prediction: a trigger glyph, a PREDICTION badge, the claim and how it resolves."
-  [lang glyph claim resolves]
-  [:div {:style {:flex "1 1 13em"
-                 :background "#fff"
-                 :border "1px solid #cfe0e3"
-                 :border-left "4px solid #0b7285"
-                 :border-radius "0.6em"
-                 :padding "0.85em 1em"}}
+  [:section {:style {:margin "3.2em 0"
+                     :padding "2em 1.6em"
+                     :background "#f4f0ea"
+                     :border "1px dashed #cbb98f"
+                     :border-radius "0.9em"}}
+   [section-heading (i18n/t lang :home/live-soon) (i18n/t lang :home/soon-title)]
    [:div {:style {:display "flex"
-                  :align-items "center"
-                  :gap "0.5em"
-                  :margin-bottom "0.5em"}}
-    [:span {:style {:font-size "1.25em"}}
-     glyph]
-    [pill (i18n/t lang :kind/prediction) "#0b7285"]]
-   [:p {:style {:margin "0 0 0.5em"
-                :color "#1b1a17"
+                  :flex-wrap "wrap"
+                  :gap "0.9em"}}
+    [soon-card (i18n/t lang :home/soon-1-title) (i18n/t lang :home/live-close)]
+    [soon-card (i18n/t lang :home/soon-2-title) (i18n/t lang :home/soon-2-body)]
+    [soon-card (i18n/t lang :home/soon-3-title) (i18n/t lang :home/soon-3-body)]]])
+
+(defn- cta-section
+  "The closing call to action — go find an article that speaks to you."
+  [lang]
+  [:section {:style {:margin "3.2em 0 1em"
+                     :text-align "center"}}
+   [:h2 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
+                 :font-size "clamp(1.4em, 3.4vw, 2.1em)"
+                 :color "#1b1a17"
+                 :margin "0 0 0.9em"}}
+    (i18n/t lang :home/find-title)]
+   [:a {:href (i18n/articles lang)
+        :style {:display "inline-block"
+                :padding "0.75em 1.7em"
+                :background "#b9770e"
+                :color "#fff"
+                :border-radius "0.4em"
                 :font-weight 600
-                :font-size "0.96em"
-                :line-height "1.4"}}
-    claim]
-   [:p {:style {:margin 0
-                :color "#5c5648"
-                :font-size "0.84em"
-                :line-height "1.5"}}
-    resolves]])
+                :font-size "1.05em"
+                :text-decoration "none"}}
+    (i18n/t lang :home/find-cta)]])
 
-(defn- prediction-pair
-  "The two ways a prediction resolves: on a date, or on an event."
+(defn- change-section
+  "« What this changes » — the reader-facing payoff: you stay in touch with the author, and you see
+  what others really think far better than in social-media comments, above all when it moves the
+  article forward."
   [lang]
-  [:div {:style {:display "flex"
-                 :flex-wrap "wrap"
-                 :gap "0.7em"}}
-   [prediction-example
-    lang
-    "📅"
-    (i18n/t lang :home/predict-date-claim)
-    (i18n/t lang :home/predict-date-resolve)]
-   [prediction-example
-    lang
-    "⚡"
-    (i18n/t lang :home/predict-event-claim)
-    (i18n/t lang :home/predict-event-resolve)]])
-
-(defn- consensus-illustration
-  "Graphic for 'find minds like yours': several contributors attest (✓) and converge on one
-  shared step (labelled with the bilingual Conclusion tag)."
-  [lang]
-  [:div {:style {:display "flex"
-                 :flex-direction "column"
-                 :align-items "center"
-                 :gap "0.55em"
-                 :padding "0.4em 0"}}
-   (into [:div {:style {:display "flex"
-                        :gap "0.45em"}}]
-         (for [[i c] (map-indexed vector ["#2b8a3e" "#0b7285" "#b9770e" "#2b8a3e"])]
-           ^{:key i}
-           [:div {:style {:width "1.9em"
-                          :height "1.9em"
-                          :border-radius "50%"
-                          :background c
-                          :color "#fff"
-                          :display "flex"
-                          :align-items "center"
-                          :justify-content "center"
-                          :font-size "0.95em"}}
-            "✓"]))
-   [:div {:style {:color "#b9770e"
-                  :font-size "1.25em"}}
-    "↓"]
-   [:div {:style {:background "#fff"
-                  :border "2px solid #2b8a3e"
-                  :border-radius "0.5em"
-                  :padding "0.55em 1em"}}
-    [pill (i18n/t lang :home/tag-conclusion) "#2b8a3e"]]])
-
-(defn- value-section
-  "One value-prop detail: a centered heading, then an illustration beside its explanatory
-  paragraph (stacking on narrow screens). Opts: `:flip?` puts the illustration on the right;
-  `:band?` wraps the block in a tinted panel so it stands apart from its neighbours."
-  ([heading illustration body] (value-section heading illustration body nil))
-  ([heading illustration body {:keys [flip? band?]}]
-   (let [text [:p {:style {:flex "1 1 17em"
-                           :min-width "14em"
-                           :margin 0
-                           :line-height "1.7"
-                           :color "#5c5648"}}
-               body]
-         art [:div {:style {:flex "1 1 17em"
-                            :min-width "14em"}}
-              illustration]]
-     [:section {:style (merge {:margin "2.8em 0"}
-                              (when band?
-                                {:margin "3.6em 0"
-                                 :padding "2.2em 1.6em"
-                                 :background "#f7f2e8"
-                                 :border "1px solid #ece0c8"
-                                 :border-radius "0.9em"}))}
-      [home-section-heading heading]
-      (into [:div {:style {:display "flex"
-                           :flex-wrap "wrap"
-                           :gap "1.6em"
-                           :align-items "center"
-                           :justify-content "center"}}]
-            (if flip? [text art] [art text]))])))
+  [:section {:style {:margin "0 0 1em"
+                     :padding "2em 1.6em"
+                     :background "#1b1a17"
+                     :color "#e8e2d6"
+                     :border-radius "0.9em"}}
+   [:h2 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
+                 :font-size "clamp(1.4em, 3.2vw, 2em)"
+                 :color "#f0e6d2"
+                 :margin "0 0 0.6em"}}
+    (i18n/t lang :home/change-title)]
+   [:p {:style {:max-width "44em"
+                :margin 0
+                :line-height 1.75
+                :font-size "1.05em"
+                :color "#c9c1b2"}}
+    (i18n/t lang :home/change-body)]])
 
 (defn landing-page
-  "The Agora home/landing page (`/agora/<lang>`): a marketing hero, the four things Agora
-  lets you do, how it works, a detail paragraph per value prop, and a closing call to
-  action. The browse grid lives on the discover page."
-  [_kis]
-  (let [lang @(rf/subscribe [::i18n/lang])]
-    [:div {:style {:max-width "60em"
-                   :margin "1.5em auto"
-                   :padding "0 0.9em"
-                   :font-family "system-ui, sans-serif"}}
-     [landing-hero lang]
-     ;; What Agora lets you do — four value props (the problem it solves)
-     [:section {:style {:margin "2.6em 0"}}
-      [home-section-heading (i18n/t lang :home/value-title)]
-      (into
-       [:div {:style {:display "grid"
-                      :grid-template-columns "repeat(auto-fit, minmax(min(16em, 100%), 1fr))"
-                      :gap "0.9em"}}]
-       [[home-feature "✍️" (i18n/t lang :home/value-1-title) (i18n/t lang :home/value-1-body)]
-        [home-feature "🧠" (i18n/t lang :home/value-2-title) (i18n/t lang :home/value-2-body)]
-        [home-feature "🔮" (i18n/t lang :home/value-3-title) (i18n/t lang :home/value-3-body)]
-        [:div]
-        [home-feature "🤝" (i18n/t lang :home/value-4-title) (i18n/t lang :home/value-4-body)]])]
-     ;; How it works — three steps, set in a tinted band so it reads as its own block,
-     ;; clearly separated from the value cards above.
-     [:section {:style {:margin "3.6em 0"
-                        :padding "2.2em 1.6em"
-                        :background "#f7f2e8"
-                        :border "1px solid #ece0c8"
-                        :border-radius "0.9em"}}
-      [home-section-heading (i18n/t lang :home/how-title)]
-      [:div {:style {:display "flex"
-                     :flex-wrap "wrap"
-                     :gap "1.4em"}}
-       [home-step "1" (i18n/t lang :home/how-1-title) (i18n/t lang :home/how-1-body)]
-       [home-step "2" (i18n/t lang :home/how-2-title) (i18n/t lang :home/how-2-body)]
-       [home-step "3" (i18n/t lang :home/how-3-title) (i18n/t lang :home/how-3-body)]]]
-     ;; One illustrated detail per value prop, illustration side alternating.
-     ;; value-2 reuses the problem framing + the worked example; value-3 the prediction lead
-     ;; + cards; value-1/4 get language-neutral graphics.
-     [value-section
-      (i18n/t lang :home/value-1-title)
-      [decompose-illustration]
-      (i18n/t lang :home/value-1-lead)]
-     [value-section
-      (i18n/t lang :home/value-2-title)
-      [claim-anatomy lang]
-      (i18n/t lang :home/problem-body)
-      {:flip? true
-       :band? true}]
-     [value-section
-      (i18n/t lang :home/value-3-title)
-      [prediction-pair lang]
-      (i18n/t lang :home/predict-lead)]
-     [value-section
-      (i18n/t lang :home/value-4-title)
-      [consensus-illustration lang]
-      (i18n/t lang :home/value-4-lead)
-      {:flip? true
-       :band? true}]
-     ;; Closing call to action
-     [:section {:style {:background "linear-gradient(160deg, #b9770e, #8a5709)"
-                        :color "#fff"
-                        :border-radius "0.8em"
-                        :padding "2.4em 1.6em"
-                        :margin "2.6em 0 1em"
-                        :text-align "center"}}
-      [:h2 {:style {:font-family "Georgia, 'Cormorant Garamond', serif"
-                    :font-size "clamp(1.4em, 3.4vw, 2em)"
-                    :margin "0 0 0.5em"}}
-       (i18n/t lang :home/cta-title)]
-      [:p {:style {:max-width "36em"
-                   :margin "0 auto 1.3em"
-                   :line-height "1.6"
-                   :color "#fbe6cf"}}
-       (i18n/t lang :home/cta-body)]
-      [:div {:style {:display "flex"
-                     :flex-wrap "wrap"
-                     :gap "0.7em"
-                     :justify-content "center"}}
-       [:a {:href (i18n/new-ki lang)
-            :style {:padding "0.7em 1.5em"
-                    :background "#1b1a17"
-                    :color "#f0e6d2"
-                    :border-radius "0.4em"
-                    :font-weight 600
-                    :text-decoration "none"}}
-        (i18n/t lang :home/cta-publish)]
-       [:a {:href (i18n/discover lang)
-            :style {:padding "0.7em 1.5em"
-                    :background "transparent"
-                    :color "#fff"
-                    :border "1px solid rgba(255,255,255,0.7)"
-                    :border-radius "0.4em"
-                    :text-decoration "none"}}
-        (i18n/t lang :home/cta-explore)]]]]))
-
+  "The Agora home/landing page (`/agora/<lang>`). Fetches the four editions' real graphs on mount,
+  then reads reader-first: the pitch box (explore-the-articles), the living example (one article
+  improving across four editions, graph beside prose), and « what this changes » for a reader."
+  [_arg]
+  (r/with-let [_ (rf/dispatch [::load])]
+              (let [lang @(rf/subscribe [::i18n/lang])]
+                [:div {:style {:max-width "60em"
+                               :margin "1.5em auto"
+                               :padding "0 0.9em"
+                               :font-family "system-ui, sans-serif"}}
+                 [landing-hero lang]
+                 [living-example lang]
+                 [soon-section lang]
+                 [change-section lang]
+                 [cta-section lang]])))
