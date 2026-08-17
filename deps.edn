@@ -31,7 +31,7 @@
                            re-pressed/re-pressed {:mvn/version "0.3.2"}
                            reagent/reagent {:mvn/version "2.0.1"}
                            superstructor/re-frame-fetch-fx {:mvn/version "0.4.0"}
-                           thheller/shadow-cljs {:mvn/version "3.4.11"}}
+                           thheller/shadow-cljs {:mvn/version "3.4.12"}}
               :extra-paths ["src/cljc" "src/cljs" "test/unit/cljc"]}
   :codox {:exec-args {:description "`landing` is the Hephaistox public website"
                       :doc-paths ["docs/codox"]
@@ -83,6 +83,6 @@
                                        :hephaistox/root "auto_web_cljc"
                                        :hephaistox/url "https://github.com/hephaistox/auto-web"}
   com.github.seancorfield/next.jdbc {:mvn/version "1.3.1118"}
-  com.mysql/mysql-connector-j {:mvn/version "9.7.0"}
-  com.zaxxer/HikariCP {:mvn/version "5.1.0"}}
+  com.mysql/mysql-connector-j {:mvn/version "26.7.0"}
+  com.zaxxer/HikariCP {:mvn/version "7.1.0"}}
  :paths ["src/clj" "src/cljc" "resources"]}
