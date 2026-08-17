@@ -9,6 +9,8 @@
    [landing.agora.auth                :as auth]
    [landing.agora.oauth               :as oauth]
    [muuntaja.core                     :as m]
+   [reitit.coercion.malli             :refer [coercion]]
+   [reitit.ring.coercion              :as rcoercion]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
    [reitit.ring.middleware.parameters :as parameters]))
 
@@ -16,7 +18,12 @@
   [parameters/parameters-middleware
    muuntaja/format-negotiate-middleware
    muuntaja/format-response-middleware
-   muuntaja/format-request-middleware])
+   muuntaja/format-request-middleware
+   rcoercion/coerce-request-middleware])
+
+(def ^:private error-body
+  "The shape of every error response: `{:error \"...\"}`."
+  [:map [:error :string]])
 
 (defn- uid [req] (get-in req [:session :user-id]))
 
@@ -120,37 +127,70 @@
 
 (defn auth-routes
   [prefix]
-  [prefix {:muuntaja m/instance
+  [prefix {:coercion coercion
+           :muuntaja m/instance
+           :swagger {:tags #{:agora-auth}}
+           :responses {500 {:description "Unexpected server error"}}
            :middleware mw}
    ["/register"
     {:post {:handler register
             :operationId "agora-register"
+            :parameters {:body [:map
+                                [:email :string]
+                                [:password :string]
+                                [:altcha :string]
+                                [:display-name {:optional true}
+                                 [:maybe :string]]]}
+            :responses {200 {:description "Account created; session established"}
+                        400 {:description "Failed captcha, or invalid/taken email / weak password"
+                             :body error-body}}
             :summary "Register a password account"}}]
    ["/altcha-challenge"
     {:get {:handler altcha-challenge
            :operationId "agora-altcha-challenge"
+           :responses {200 {:description "A fresh ALTCHA proof-of-work challenge"}}
            :summary "Issue an ALTCHA proof-of-work challenge"}}]
    ["/login"
     {:post {:handler login
             :operationId "agora-login"
+            :parameters {:body [:map [:email :string] [:password :string]]}
+            :responses {200 {:description "Authenticated; session established, profile returned"}
+                        401 {:description "Bad credentials"
+                             :body error-body}}
             :summary "Log in with email/password"}}]
    ["/logout"
     {:post {:handler logout
             :operationId "agora-logout"
+            :responses {200 {:description "Session cleared"}}
             :summary "Log out"}}]
    ["/me"
     {:get {:handler me
            :operationId "agora-me"
+           :responses {200 {:description "The current user's profile, or null when logged out"}}
            :summary "Current user profile, or null"}}]
    ["/lang"
     {:post {:handler set-lang
             :operationId "agora-set-lang"
+            :parameters {:body [:map [:lang :string]]}
+            :responses {200 {:description "Preference saved"}
+                        401 {:description "Login required"
+                             :body error-body}}
             :summary "Set the preferred interface language"}}]
    ["/google"
     {:get {:handler google-start
            :operationId "agora-google"
+           :responses {302 {:description "Redirect to Google consent (or home when unconfigured)"}}
            :summary "Start Google OAuth"}}]
    ["/google/callback"
     {:get {:handler google-callback
            :operationId "agora-google-callback"
+           :parameters {:query [:map
+                                [:state {:optional true}
+                                 [:maybe :string]]
+                                [:code {:optional true}
+                                 [:maybe :string]]]}
+           :responses {302 {:description
+                            "Redirect back to the app (logged in, or with an error flag)"}
+                       400 {:description "Invalid OAuth state (CSRF check failed)"
+                            :body error-body}}
            :summary "Google OAuth callback"}}]])

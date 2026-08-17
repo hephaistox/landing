@@ -42,8 +42,7 @@
   "Serve the app shell (noindex) at `prefix`. The frontend renders the right page
   from the URL."
   [prefix]
-  [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler app-shell-response
+  [prefix {:get {:handler app-shell-response
                  :middleware html-middlewares
                  :summary "Agora app shell (noindex)"}}])
 
@@ -113,24 +112,21 @@
 (defn home-shell-route
   "Serve the home/landing shell at `prefix` (`/agora/:lang`)."
   [prefix]
-  [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler home-page-response
+  [prefix {:get {:handler home-page-response
                  :middleware html-middlewares
                  :summary "Agora home/landing (SEO head injected)"}}])
 
 (defn public-shell-route
   "Serve the public shell for discover / preferences (generic OG metadata)."
   [prefix]
-  [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler public-shell-response
+  [prefix {:get {:handler public-shell-response
                  :middleware html-middlewares
                  :summary "Public Agora page (discover / preferences)"}}])
 
 (defn ki-page-route
   "Serve the public KI permalink shell with server-rendered SEO metadata, reading from `doc-storage`."
   [doc-storage prefix]
-  [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler (ki-page-response doc-storage)
+  [prefix {:get {:handler (ki-page-response doc-storage)
                  :middleware html-middlewares
                  :summary "Public KI permalink (SEO head injected)"}}])
 
@@ -162,8 +158,7 @@
   "Serve the public article permalink shell with server-rendered SEO metadata, reading from
   `doc-storage`."
   [doc-storage prefix]
-  [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler (article-page-response doc-storage)
+  [prefix {:get {:handler (article-page-response doc-storage)
                  :middleware html-middlewares
                  :summary "Public article permalink (SEO head injected)"}}])
 
@@ -188,8 +183,7 @@
 (defn author-page-route
   "Serve the public author profile shell (indexable, SEO head + author→documents hub)."
   [doc-storage prefix]
-  [prefix {:get {:swagger {:tags #{:agora}}
-                 :handler (author-page-response doc-storage)
+  [prefix {:get {:handler (author-page-response doc-storage)
                  :middleware html-middlewares
                  :summary "Public author profile (SEO head + hub)"}}])
 

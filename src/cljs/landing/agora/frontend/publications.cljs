@@ -252,7 +252,9 @@
 (rf/reg-event-fx ::delete-doc
                  (fn [_ [_ cid type doc-id]]
                    {:fetch {:method :delete
-                            :url (str "/agora/api/documents/" type "/" doc-id)
+                            :url (str "/agora/api/documents/" type
+                                      "/" doc-id
+                                      "?publication=" (js/encodeURIComponent cid))
                             :headers {"Accept" "application/json"}
                             :response-content-types {#"application/json" :json}
                             :on-success [::load-page-cards cid]

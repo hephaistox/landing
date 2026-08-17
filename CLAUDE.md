@@ -114,16 +114,16 @@ concept but answer different questions — the distinction is the reason they ex
   - `app-shell` → `robots noindex`: authoring/app screens (new, edit-by-id, admin)
     must never compete with a canonical permalink in search.
 - **HTML shell vs JSON API for the same identity.** `/agora/:lang/ki/:name/:major`
-  (`ki-page`) returns a crawlable *page*; `/agora/api/ki/by/:name/:major`
-  (`by-major`) returns the *data* the SPA fetches to render it. Browser/crawler vs
-  app.
+  (`ki-page`) returns a crawlable *page*; `/agora/api/documents/ki/:name/:lang/:major`
+  returns the *data* the SPA fetches to render it. Browser/crawler vs app.
 - **Three ways to read a KI**, because each answers a different question:
-  - `by-major` (`/ki/by/:name/:major`) — "the current (latest-minor) version of
-    this permanent identity" → what a shared permalink resolves to.
-  - `ki-route` (`/ki/:id`) — "this *exact* version" → following version/lineage
-    links.
-  - `ki-collection` (`GET /ki?q=`) — "which KIs match this text" → search / picking
-    an input.
+  - by-major (`/agora/api/documents/ki/:name/:lang/:major`) — "the current
+    (latest-minor) version of this permanent identity" → what a shared permalink
+    resolves to.
+  - by-id (`/agora/api/documents/ki/:id`) — "this *exact* version" → following
+    version/lineage links.
+  - collection (`GET /agora/api/documents/ki?q=`) — "which KIs match this text" →
+    search / picking an input.
 
 Notes:
 - The branded **500 page** is produced by `wrap-exception-handling` (auto-web lib)

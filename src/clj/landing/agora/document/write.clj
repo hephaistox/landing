@@ -126,11 +126,13 @@
         (db-doc/insert-next-major! row)))))
 
 (defn delete!
-  "Delete document `id` — a draft the caller owns, gathered by a publication. Removes that lineage's
-  draft versions in the publication. Returns the publication cid on success (so the caller can
-  refresh it), or nil when `id` is unknown, published, or owned by someone else."
-  [editor-id id]
+  "Delete document `id` — a draft the caller owns, in `publication-id`. Removes that lineage's draft
+  versions in the publication. `publication-id` must be the draft's own publication — a delete is
+  scoped to the publication the caller is working in. Returns the publication cid on success (so the
+  caller can refresh it), or nil when `id` is unknown, published, in another publication, or owned by
+  someone else."
+  [editor-id id publication-id]
   (when-let [doc (db-doc/fetch-id id)]
-    (when (and (:draft doc) (:publication-id doc) (= editor-id (:owner-id doc)))
+    (when (and (:draft doc) (= publication-id (:publication-id doc)) (= editor-id (:owner-id doc)))
       (db-doc/delete-draft! (:type doc) (:name doc) (:lang doc) (:publication-id doc))
       (:publication-id doc))))

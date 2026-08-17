@@ -26,6 +26,38 @@
    muuntaja/format-request-middleware
    rcoercion/coerce-request-middleware])
 
+(def ^:private write-body
+  "Request body for create/edit. `publication-id` is **required** (non-empty): every write is a draft
+  gathered by an open publication, so coercion rejects a write with no publication before the handler
+  runs. The rest are optional — a `work`'s cited author + bibliographic fields, an `extract`'s
+  `locator`. The map is open, so the structural `:target` TNLR rides through to the handler untouched."
+  [:map
+   [:publication-id [:string {:min 1}]]
+   [:kind {:optional true}
+    [:maybe :string]]
+   [:title {:optional true}
+    [:maybe :string]]
+   [:text {:optional true}
+    [:maybe :string]]
+   [:lang {:optional true}
+    [:maybe :string]]
+   [:author-id {:optional true}
+    [:maybe :string]]
+   [:author-name {:optional true}
+    [:maybe :string]]
+   [:year {:optional true}
+    [:maybe :int]]
+   [:editor {:optional true}
+    [:maybe :string]]
+   [:url {:optional true}
+    [:maybe :string]]
+   [:locator {:optional true}
+    [:maybe :string]]])
+
+(def ^:private error-body
+  "The shape of every error response: `{:error \"...\"}` (open — some carry an extra `:id`)."
+  [:map [:error :string]])
+
 (defn- uid [req] (get-in req [:session :user-id]))
 
 (defn- owned-publication
@@ -50,12 +82,12 @@
                            keyword))))))
 
 (defn- create-handler
-  "Create a new document of `:type` owned by the caller (text-only). Body:
-  `{:kind :title :text :lang :publication-id}`, plus for a `work` its cited author (`:author-id` +
-  `:author-name`) and bibliographic `:year`/`:editor`/`:url`, and for an `extract` its `:locator`.
-  Created as a draft in the publication (required; 400 when absent). The byline `author` is the cited
-  author's name for a work, else the contributor's display name. Returns the created version's
-  endpoint view."
+  "Create a new document of `:type` owned by the caller (text-only). Body is `write-body`:
+  `:publication-id` (required — coercion rejects a create with no open publication), `:kind`/`:title`/
+  `:text`/`:lang`, plus for a `work` its cited author (`:author-id` + `:author-name`) and bibliographic
+  `:year`/`:editor`/`:url`, and for an `extract` its `:locator`. The byline `author` is the cited
+  author's name for a work, else the contributor's display name. Returns the created version's endpoint
+  view."
   [doc-storage req]
   (if-let [uid (uid req)]
     (let [type (keyword (get-in req [:path-params :type]))
@@ -63,79 +95,74 @@
            [kind title text lang publication-id author-id author-name year editor url locator]}
           (:body-params req)
           kind (some-> kind
-                       keyword)]
-      (if-not (seq publication-id)
-        ;; every create happens inside an open publication (no publish-directly path)
-        {:status 400
-         :body {:error "a publication must be selected"}}
-        ;; JSON delivers kind/lang as strings; the write domain works in keywords
-        (let [author (if (= kind :work) author-name (:display-name (auth/get-user uid)))
-              new-id (write/create! type
-                                    uid
-                                    author
-                                    {:kind kind
-                                     :title title
-                                     :text text
-                                     :lang (some-> lang
-                                                   keyword)
-                                     :author-id author-id
-                                     :year year
-                                     :editor editor
-                                     :url url
-                                     :locator locator
-                                     :target (coerce-target req)}
-                                    publication-id)]
-          {:status 200
-           :body (engine/read-by-id doc-storage new-id)})))
+                       keyword)
+          ;; JSON delivers kind/lang as strings; the write domain works in keywords
+          author (if (= kind :work) author-name (:display-name (auth/get-user uid)))
+          new-id (write/create! type
+                                uid
+                                author
+                                {:kind kind
+                                 :title title
+                                 :text text
+                                 :lang (some-> lang
+                                               keyword)
+                                 :author-id author-id
+                                 :year year
+                                 :editor editor
+                                 :url url
+                                 :locator locator
+                                 :target (coerce-target req)}
+                                publication-id)]
+      {:status 200
+       :body (engine/read-by-id doc-storage new-id)})
     {:status 401
      :body {:error "login required"}}))
 
 (defn- edit-handler
-  "Edit document `:id` into a new version (text-only). Body: `{:title :text :kind :publication-id}`,
-  plus the bibliographic (`:author-id`/`:year`/`:editor`/`:url`) or `:locator` extras a new value
-  overrides. A new minor when the caller owns it, else a fork (new major). Returns the new version's
-  endpoint view."
+  "Edit document `:id` into a new version (text-only). Body is `write-body`: `:publication-id`
+  (required — coercion rejects an edit with no open publication), `:title`/`:text`/`:kind`, plus the
+  bibliographic (`:author-id`/`:year`/`:editor`/`:url`) or `:locator` extras a new value overrides. A
+  new minor when the caller owns it, else a fork (new major). Returns the new version's endpoint view."
   [doc-storage req]
   (if-let [editor (uid req)]
     (let [id (get-in req [:path-params :id])
           {:keys [title text kind publication-id author-id year url locator]
            biblio-editor :editor}
           (:body-params req)]
-      (if-not (seq publication-id)
-        ;; every edit happens inside an open publication (the new version is a draft in it)
-        {:status 400
-         :body {:error "a publication must be selected"}}
-        (if-let [new-id (write/edit! id
-                                     editor
-                                     (:display-name (auth/get-user editor))
-                                     {:title title
-                                      :text text
-                                      :kind (some-> kind
-                                                    keyword)
-                                      :author-id author-id
-                                      :year year
-                                      :editor biblio-editor
-                                      :url url
-                                      :locator locator
-                                      :target (coerce-target req)}
-                                     publication-id)]
-          ;; an edit may rewrite a draft **in place** (same id); drop its stale cache entry so the
-          ;; read-back returns the new content
-          (do (ds/publish-change! doc-storage new-id)
-              {:status 200
-               :body (engine/read-by-id doc-storage new-id)})
-          {:status 404
-           :body {:error "not found"
-                  :id id}})))
+      (if-let [new-id (write/edit! id
+                                   editor
+                                   (:display-name (auth/get-user editor))
+                                   {:title title
+                                    :text text
+                                    :kind (some-> kind
+                                                  keyword)
+                                    :author-id author-id
+                                    :year year
+                                    :editor biblio-editor
+                                    :url url
+                                    :locator locator
+                                    :target (coerce-target req)}
+                                   publication-id)]
+        ;; an edit may rewrite a draft **in place** (same id); drop its stale cache entry so the
+        ;; read-back returns the new content
+        (do (ds/publish-change! doc-storage new-id)
+            {:status 200
+             :body (engine/read-by-id doc-storage new-id)})
+        {:status 404
+         :body {:error "not found"
+                :id id}}))
     {:status 401
      :body {:error "login required"}}))
 
 (defn- delete-handler
-  "Delete draft document `:id` (the caller's own, in a publication). Returns the publication cid so
-  the client can refresh it."
+  "Delete draft document `:id` (the caller's own). The `:publication` query param is **required** and
+  must be the draft's own publication — a delete is scoped to the publication the caller is working in.
+  Returns the publication cid so the client can refresh it."
   [req]
   (if-let [editor (uid req)]
-    (if-let [pub-id (write/delete! editor (get-in req [:path-params :id]))]
+    (if-let [pub-id (write/delete! editor
+                                   (get-in req [:path-params :id])
+                                   (get-in req [:parameters :query :publication]))]
       {:status 200
        :body {:publication-id pub-id}}
       {:status 404
@@ -152,7 +179,8 @@
   [doc-storage prefix]
   [prefix {:coercion coercion
            :muuntaja m/instance
-           :swagger {:tags #{:agora}}
+           :swagger {:tags #{:agora-documents}}
+           :responses {500 {:description "Unexpected server error"}}
            :middleware mw}
    ["/:type"
     {:get {:handler
@@ -180,9 +208,15 @@
                                  [:maybe :int]]
                                 [:publication {:optional true}
                                  [:maybe :string]]]}
+           :responses {200 {:description "Matching document cards"}}
            :summary "Browse documents of a type, or search them with `?q=`"}
      :post {:handler (fn [req] (create-handler doc-storage req))
             :operationId "agora-create-document"
+            :parameters {:path [:map [:type :string]]
+                         :body write-body}
+            :responses {200 {:description "The created version's endpoint view"}
+                        401 {:description "Login required"
+                             :body error-body}}
             :summary "Create a new document (session required)"}}]
    ["/:type/:name/:lang/:major"
     {:get
@@ -208,6 +242,9 @@
                    :query [:map
                            [:publication {:optional true}
                             [:maybe :string]]]}
+      :responses {200 {:description "The document (latest published minor)"}
+                  404 {:description "No published version for this identity"
+                       :body error-body}}
       :summary
       "A document by its identity — latest published minor; a `*` lang uses the request's language"}}]
    ["/:type/:id"
@@ -226,17 +263,36 @@
                         :query [:map
                                 [:publication {:optional true}
                                  [:maybe :string]]]}
+           :responses {200 {:description "The exact version"}
+                       404 {:description "No such version"
+                            :body error-body}}
            :summary "A document by id"}
      :post {:handler (fn [req] (edit-handler doc-storage req))
             :operationId "agora-edit-document"
+            :parameters {:path [:map [:type :string] [:id :string]]
+                         :body write-body}
+            :responses {200 {:description "The new version's endpoint view"}
+                        401 {:description "Login required"
+                             :body error-body}
+                        404 {:description "No such document"
+                             :body error-body}}
             :summary "Edit a document into a new version (session required)"}
      :delete {:handler delete-handler
               :operationId "agora-delete-document"
-              :summary "Delete a draft document (owner-only)"}}]
+              :parameters {:path [:map [:type :string] [:id :string]]
+                           :query [:map [:publication [:string {:min 1}]]]}
+              :responses {200 {:description "Deleted; returns the publication cid"}
+                          401 {:description "Login required"
+                               :body error-body}
+                          404 {:description
+                               "Not a deletable draft, not the owner, or wrong publication"
+                               :body error-body}}
+              :summary "Delete a draft document (owner-only, scoped to its publication)"}}]
    ["/:type/:id/versions"
     {:get {:handler (fn [req]
                       {:status 200
                        :body (db-doc/versions-of-id (get-in req [:parameters :path :id]))})
            :operationId "agora-document-versions"
            :parameters {:path [:map [:type :string] [:id :string]]}
+           :responses {200 {:description "Every version of the lineage"}}
            :summary "Every version of the lineage containing this id (admin version picker)"}}]])

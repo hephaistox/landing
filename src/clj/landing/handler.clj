@@ -138,7 +138,14 @@
   (for [lang languages
         [suffix route-fn] (agora-shell-routes doc-storage)
         :let [[path data] (route-fn (str "/agora/" lang suffix))]]
-    [path (assoc data :lang lang)]))
+    ;; the language and public-vs-app kind are properties of the mounting, so the
+    ;; per-language Swagger tag — `agora-html-<lang>` (public) / `agora-app-<lang>`
+    ;; (noindex app shell) — is set here, not in the generic shell builders
+    [path
+     (assoc data
+            :lang lang
+            :swagger {:tags #{(keyword (str "agora-" (if (= route-fn app-shell-route) "app" "html")
+                                            "-" (name lang)))}})]))
 
 (defn router
   []

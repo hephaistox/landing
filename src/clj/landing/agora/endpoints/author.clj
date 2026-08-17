@@ -5,6 +5,8 @@
    [landing.agora.auth                :as auth]
    [landing.agora.document.engine     :as engine]
    [muuntaja.core                     :as m]
+   [reitit.coercion.malli             :refer [coercion]]
+   [reitit.ring.coercion              :as rcoercion]
    [reitit.ring.middleware.exception  :as exception]
    [reitit.ring.middleware.muuntaja   :as muuntaja]
    [reitit.ring.middleware.parameters :as parameters]))
@@ -14,7 +16,12 @@
    muuntaja/format-negotiate-middleware
    muuntaja/format-response-middleware
    ;; an API error returns a negotiated (JSON) response, not the branded HTML 500
-   exception/exception-middleware])
+   exception/exception-middleware
+   rcoercion/coerce-request-middleware])
+
+(def ^:private error-body
+  "The shape of every error response: `{:error \"...\"}` (open — some carry extra keys)."
+  [:map [:error :string]])
 
 (defn- last-activity
   "The most recent publication time across the author's documents, or nil."
@@ -26,7 +33,10 @@
 
 (defn author-routes
   [doc-storage prefix]
-  [prefix {:muuntaja m/instance
+  [prefix {:coercion coercion
+           :muuntaja m/instance
+           :swagger {:tags #{:agora-author}}
+           :responses {500 {:description "Unexpected server error"}}
            :middleware mw}
    ["/:id"
     {:get {:handler (fn [req]
@@ -40,4 +50,8 @@
                           {:status 404
                            :body {:error "not found"}})))
            :operationId "agora-author"
+           :parameters {:path [:map [:id :string]]}
+           :responses {200 {:description "Author profile: card + documents + last activity"}
+                       404 {:description "No such author"
+                            :body error-body}}
            :summary "Public author profile: card + documents"}}]])
