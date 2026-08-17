@@ -156,6 +156,36 @@
     :home/cta-title "A votre tour, rendez votre raisonnement impossible à ignorer."
     :home/cta-body
     "Publiez votre première étape. La lecture est libre ; contribuer prend une minute."
+    :home/upcoming-eyebrow "À venir"
+    :home/upcoming-title "Ce que la structure rendra possible"
+    :home/upcoming-lead "Le graphe permet ce qu'un texte ne peut pas — bientôt disponible."
+    :home/mock-objection-badge "Objection"
+    :home/mock-objection-title "Trois voitures ne font pas un modèle"
+    :home/mock-objection-body
+    "Contester un pas précis — pas tout le raisonnement. Le désaccord devient une coordonnée, pas un verdict."
+    :home/mock-detection-badge "Détection"
+    :home/mock-detection-title "« Rapide » a deux définitions incompatibles"
+    :home/mock-detection-body
+    "Le graphe repère mécaniquement ce qu'un texte cache : cycles, circularité, un terme employé dans deux sens selon la branche."
+    :home/mock-prediction-title "La voiture électrique dominera avant 2030"
+    :home/mock-prediction-body
+    "Une prédiction datée, horodatée et publique — que le réel tranchera à l'échéance."
+    :nav/faq "FAQ"
+    :faq/title "Comment Agora fonctionne"
+    :faq/lead
+    "Le graphe derrière Agora, expliqué simplement — une question à la fois, illustrée avec de vraies connaissances de la plateforme."
+    :faq/q-ki "Qu'est-ce qu'une « connaissance » ?"
+    :faq/a-ki
+    "L'unité de base d'Agora. Une connaissance est un pas de raisonnement immuable : à partir d'entrées tenues pour vraies, une conclusion s'ensuit. Chacune porte son type — définition, déduction, induction… — et peut être reliée à d'autres et contestée pas à pas."
+    :faq/q-status "Pourquoi séparer un mot de son raisonnement ?"
+    :faq/a-status
+    "Parce que le lecteur doit savoir ce qu'il regarde. Ici, « rapide » est une définition (un contrat de sens), et « cette voiture est rapide » est une déduction qui s'appuie dessus. Le badge le dit d'un coup d'œil — on ne conteste pas une définition comme une affirmation empirique."
+    :faq/q-leap "Déduction ou induction — quelle différence ?"
+    :faq/a-leap
+    "Une déduction est contraignante : accepter les prémisses et la forme, c'est accepter la conclusion — la contester, c'est attaquer la forme ou l'équivoque d'un terme. Une induction fait un saut : « trois exemplaires rapides, donc le modèle est rapide » — on peut tout accepter et trouver le saut trop large. Le badge vous dit quel geste vous faites."
+    :faq/q-localize "À quoi ça sert, au fond ?"
+    :faq/a-localize
+    "À localiser un désaccord au lieu de trancher. Plutôt que « tu as tort », vous pointez le pas précis qui coince : nous divergeons ici, tout le reste est partagé. Le désaccord devient une coordonnée, pas un verdict."
     :discover/heading "Découvrir les connaissances"
     :articles/heading "Découvrir les articles"
     :article-form/new-title "Nouvel article"
@@ -425,6 +455,36 @@
     "Resolves on an event. When it happens, reality decides — the world triggers it."
     :home/cta-title "Your call, make your reasoning impossible to ignore."
     :home/cta-body "Publish your first step. Reading is free; contributing takes a minute."
+    :home/upcoming-eyebrow "Coming soon"
+    :home/upcoming-title "What the structure will make possible"
+    :home/upcoming-lead "A graph enables what prose can't — coming soon."
+    :home/mock-objection-badge "Objection"
+    :home/mock-objection-title "Three cars aren't a model"
+    :home/mock-objection-body
+    "Challenge one precise step — not the whole argument. Disagreement becomes a coordinate, not a verdict."
+    :home/mock-detection-badge "Detection"
+    :home/mock-detection-title "\"Fast\" has two incompatible definitions"
+    :home/mock-detection-body
+    "The graph mechanically catches what prose hides: cycles, circularity, a term used two ways depending on the branch."
+    :home/mock-prediction-title "Electric cars will dominate before 2030"
+    :home/mock-prediction-body
+    "A dated, timestamped, public prediction — that reality will settle at the deadline."
+    :nav/faq "FAQ"
+    :faq/title "How Agora works"
+    :faq/lead
+    "The graph behind Agora, explained simply — one question at a time, illustrated with real knowledge from the platform."
+    :faq/q-ki "What is a « knowledge item » ?"
+    :faq/a-ki
+    "Agora's basic unit. A knowledge item is an immutable reasoning step: from inputs held to be true, a conclusion follows. Each carries its kind — definition, deduction, induction… — and can be linked to others and challenged step by step."
+    :faq/q-status "Why separate a word from its reasoning?"
+    :faq/a-status
+    "Because the reader should know what they're looking at. Here « fast » is a definition (a meaning contract), and « this car is fast » is a deduction that builds on it. The badge says which at a glance — you don't challenge a definition the way you challenge an empirical claim."
+    :faq/q-leap "Deduction or induction — what's the difference?"
+    :faq/a-leap
+    "A deduction is binding: accept the premises and the form and you accept the conclusion — to challenge it is to attack the form or a term's equivocation. An induction takes a leap: « three fast units, so the model is fast » — you can accept everything and still find the leap too wide. The badge tells you which move you're making."
+    :faq/q-localize "What's the point, ultimately?"
+    :faq/a-localize
+    "To localize a disagreement instead of settling it. Rather than « you're wrong », you point at the precise step that doesn't hold: we diverge here, everything else is shared. Disagreement becomes a coordinate, not a verdict."
     :discover/heading "Discover knowledge"
     :articles/heading "Discover articles"
     :article-form/new-title "New article"
@@ -610,6 +670,10 @@
   [lang m]
   (str (base lang) "/article/" (di/permalink-slug (:name m) (:title m)) "/" (:major m)))
 (defn preferences [lang] (str (base lang) "/preferences"))
+(defn faq
+  "The technical FAQ page (how the graph works, with real cards)."
+  [lang]
+  (str (base lang) "/faq"))
 (defn admin [lang] (str (base lang) "/admin"))
 (defn author "The author profile page for account `id`." [lang id] (str (base lang) "/author/" id))
 (defn ki

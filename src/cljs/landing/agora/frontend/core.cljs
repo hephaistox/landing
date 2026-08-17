@@ -20,6 +20,7 @@
    [landing.agora.frontend.chrome           :as chrome]
    [landing.agora.frontend.document-page    :as document-page]
    [landing.agora.frontend.edit             :as edit]
+   [landing.agora.frontend.faq              :as faq]
    [landing.agora.frontend.find-page        :as find-page]
    [landing.agora.frontend.graph            :as graph]
    [landing.agora.frontend.i18n             :as i18n]
@@ -68,6 +69,9 @@
     (re-find #"^/agora/([a-z]{2})/authors/?(?:[?#].*)?$" path)
     {:kind :authors
      :lang (second (re-find #"^/agora/([a-z]{2})/authors" path))}
+    (re-find #"^/agora/([a-z]{2})/faq/?(?:[?#].*)?$" path)
+    {:kind :faq
+     :lang (second (re-find #"^/agora/([a-z]{2})/faq" path))}
     (re-find #"^/agora/([a-z]{2})/article/new/?(?:[?#].*)?$" path)
     {:kind :article-new
      :lang (second (re-find #"^/agora/([a-z]{2})/" path))}
@@ -392,6 +396,12 @@
                                    :data nil}
                             :loading? false
                             :error nil)}
+       ;; the FAQ self-fetches its example cluster on mount
+       :faq {:db (assoc db
+                        :view {:kind :faq
+                               :data nil}
+                        :loading? false
+                        :error nil)}
        :article-new {:db (assoc db
                                 :view {:kind :article-new
                                        :data nil}
@@ -738,6 +748,7 @@
       (= kind :article-new) [article-page/create-form]
       (= kind :preferences) [preferences-page/preferences-page]
       (= kind :authors) [find-page/authors-page]
+      (= kind :faq) [faq/faq-page]
       (= kind :admin) [admin/admin-page]
       (= kind :publications) [publications/publications-page]
       (= kind :publication) [publications/publication-page]

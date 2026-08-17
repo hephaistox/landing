@@ -53,8 +53,7 @@
 (def ^:private footer-legal
   "Legal / info links, adapted from the hephaistox.com landing footer. Paths are
   under the language root of the main site (outside Agora)."
-  [[:footer/home "index.html"]
-   [:footer/legal-notice "articles/legal-notice.html"]
+  [[:footer/legal-notice "articles/legal-notice.html"]
    [:footer/privacy "articles/privacy.html"]
    [:footer/disclaimer "articles/disclaimer.html"]
    [:footer/who-are-we "articles/who-are-we.html"]])
@@ -88,10 +87,10 @@
                       :text-align "center"
                       :font-family "system-ui, sans-serif"}}
      (into [:div {:style row}]
-           (concat [^{:key "prefs"}
-                    [:a {:href (i18n/preferences lang)
+           (concat [^{:key "faq"}
+                    [:a {:href (i18n/faq lang)
                          :style link}
-                     (i18n/t lang :nav/preferences)]]
+                     (i18n/t lang :nav/faq)]]
                    (for [[k path] footer-legal]
                      ^{:key path}
                      [:a {:href (str "/" lang "/" path)
