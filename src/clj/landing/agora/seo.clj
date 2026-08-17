@@ -76,22 +76,6 @@
    "name" (if (str/blank? title) (humanize name) title)
    "url" (str base "/agora/" lang "/ki/" (key-of name title) "/" major)})
 
-(defn- ref->citation
-  "A schema.org CreativeWork for a bibliographic reference (a cited external source):
-  the source's title, its author (Person), publication year and publisher — declaring the
-  document's external provenance as linked data (`citation`)."
-  [{:keys [title year editor author-name url]}]
-  (cond-> {"@type" "CreativeWork"
-           "name" title}
-    author-name (assoc "author"
-                       {"@type" "Person"
-                        "name" author-name})
-    year (assoc "datePublished" (str year))
-    (not (str/blank? url)) (assoc "url" url)
-    (not (str/blank? editor)) (assoc "publisher"
-                                     {"@type" "Organization"
-                                      "name" editor})))
-
 (defn- prose "A document's prose (the unified `:text` key)." [doc] (:text doc))
 
 (defn- description-of
@@ -140,38 +124,35 @@
         desc (description-of {:text (dk/compose-statement ki (:lang ki) (prose ki))})
         url (str base "/agora/" lang "/ki/" (key-of ki-name title) "/" ki-major)
         langs (into [{:lang lang}] (:translations ki))]
-    (str/join
-     "\n"
-     (concat [(str "<title>" (esc title) " — Agora</title>")
-              (meta-name "description" desc)
-              (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")]
-             ;; hreflang alternates across the concept's languages
-             (hreflang-alts base "ki" ki-name title ki-major langs)
-             [(meta-prop "og:type" "article")
-              (meta-prop "og:site_name" "Agora")
-              (meta-prop "og:title" title)
-              (meta-prop "og:description" desc)
-              (meta-prop "og:url" url)
-              (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
-              (meta-name "twitter:card" "summary")
-              (json-ld
-               (cond-> {"@context" "https://schema.org"
-                        "@type" "Article"
-                        "headline" title
-                        "name" title
-                        "description" desc
-                        "inLanguage" lang
-                        "url" url}
-                 (prose ki) (assoc "articleBody" (prose ki))
-                 (:published-at ki) (assoc "datePublished" (:published-at ki))
-                 (:attributed-author ki) (assoc "author"
-                                                {"@type" "Person"
-                                                 "name" (:attributed-author ki)})
-                 ;; the reasoning edges: this KI is derived from
-                 ;; its input KIs (declared as linked works)
-                 (seq (:inputs ki)) (assoc "isBasedOn" (mapv #(ref-entry base %) (:inputs ki)))
-                 ;; external provenance: the sources it cites
-                 (:source ki) (assoc "citation" (ref->citation (:source ki)))))]))))
+    (str/join "\n"
+              (concat [(str "<title>" (esc title) " — Agora</title>")
+                       (meta-name "description" desc)
+                       (str "<link rel=\"canonical\" href=\"" (esc url) "\"/>")]
+                      ;; hreflang alternates across the concept's languages
+                      (hreflang-alts base "ki" ki-name title ki-major langs)
+                      [(meta-prop "og:type" "article")
+                       (meta-prop "og:site_name" "Agora")
+                       (meta-prop "og:title" title)
+                       (meta-prop "og:description" desc)
+                       (meta-prop "og:url" url)
+                       (meta-prop "og:locale" (get language/og-locale (language/normalize lang)))
+                       (meta-name "twitter:card" "summary")
+                       (json-ld (cond-> {"@context" "https://schema.org"
+                                         "@type" "Article"
+                                         "headline" title
+                                         "name" title
+                                         "description" desc
+                                         "inLanguage" lang
+                                         "url" url}
+                                  (prose ki) (assoc "articleBody" (prose ki))
+                                  (:published-at ki) (assoc "datePublished" (:published-at ki))
+                                  (:attributed-author ki) (assoc "author"
+                                                                 {"@type" "Person"
+                                                                  "name" (:attributed-author ki)})
+                                  ;; the reasoning edges: this KI is derived from
+                                  ;; its input KIs (declared as linked works)
+                                  (seq (:inputs ki))
+                                  (assoc "isBasedOn" (mapv #(ref-entry base %) (:inputs ki)))))]))))
 
 (defn- body->text
   "Plain-text of an article body for a meta description: each `[[ki:…]]` citation
@@ -213,9 +194,8 @@
                                   (:published-at art) (assoc "datePublished" (:published-at art))
                                   (:attributed-author art) (assoc "author"
                                                                   {"@type" "Person"
-                                                                   "name" (:attributed-author art)})
-                                  (:source art) (assoc "citation"
-                                                       (ref->citation (:source art)))))]))))
+                                                                   "name" (:attributed-author
+                                                                           art)})))]))))
 
 (def ^:private home-copy
   "Localized marketing title/description for the home/landing page — mirrors the SPA
@@ -390,7 +370,7 @@
   before the SPA runs; the SPA replaces #agora-app on mount. Latest minor only."
   [base
    lang
-   {:keys [major minor kind attributed-author attributed-author-id published-at inputs source]
+   {:keys [major minor kind attributed-author attributed-author-id published-at inputs]
     :as doc}
    successors
    doc-name]
@@ -435,16 +415,6 @@
      "</div>"
      (neighbour-section base "Based on" inputs)
      (neighbour-section base "Used by" successors)
-     (when-let [{:keys [title year editor author-name locator]} source]
-       (str "<section><h2>Source</h2><ul><li>"
-            (when author-name (str (esc author-name) ", "))
-            "<cite>"
-            (esc title)
-            "</cite>"
-            (when year (str " (" (esc year) ")"))
-            (when-not (str/blank? editor) (str ", " (esc editor)))
-            (when-not (str/blank? locator) (str " — " (esc locator)))
-            "</li></ul></section>"))
      "</article></main>")))
 
 (defn- author-name-of [profile] (let [d (:display-name profile)] (if (str/blank? d) "Author" d)))

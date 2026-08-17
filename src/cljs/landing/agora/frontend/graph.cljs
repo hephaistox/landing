@@ -34,7 +34,9 @@
 ;; --- layout (pure) ---------------------------------------------------------
 
 (def ^:private node-w 190)
-(def ^:private node-h 92)
+;; the card renders at exactly this height (fixed below), so an edge's endpoints (`y` / `y + node-h`)
+;; land on the card's real top/bottom edge — no gap under the card
+(def ^:private node-h 58)
 (def ^:private gap-x 46)
 (def ^:private gap-y 74)
 
@@ -130,6 +132,8 @@
                  :left (str x "px")
                  :top (str y "px")
                  :width (str node-w "px")
+                 ;; fixed height so every card is exactly `node-h` tall and edges meet its real edges
+                 :height (str node-h "px")
                  :box-sizing "border-box"
                  :padding "0.5em 0.6em"
                  :border (str "1px " (if (:draft node) "dashed #b98a3e" "solid #ddd"))
@@ -137,7 +141,8 @@
                  :background (if (:in-publication? node) "#fffdf7" "#fff")
                  :box-shadow "0 1px 4px rgba(0,0,0,0.12)"
                  :cursor "grab"
-                 :user-select "none"}}
+                 :user-select "none"
+                 :overflow "hidden"}}
    [:div {:style {:display "flex"
                   :align-items "center"
                   :gap "0.4em"
@@ -150,23 +155,33 @@
    [:div {:style {:font-weight 600
                   :font-size "0.86em"
                   :line-height 1.25
-                  :max-height "2.5em"
-                  :overflow "hidden"}}
+                  :white-space "nowrap"
+                  :overflow "hidden"
+                  :text-overflow "ellipsis"}}
     (:title node)]])
 
 ;; --- the interactive canvas ------------------------------------------------
 
 (defn- edge-line
-  "An SVG line from `a`'s bottom-centre to `b`'s top-centre, with an arrow head."
+  "An SVG edge from `a`'s bottom-centre to `b`'s top-centre: a small dot marks where it leaves the
+  source card, a line runs to the target, and an arrow head marks where it enters the target's top."
   [a b]
   (when (and a b)
-    [:line {:x1 (+ (:x a) (/ node-w 2))
-            :y1 (+ (:y a) node-h)
-            :x2 (+ (:x b) (/ node-w 2))
-            :y2 (:y b)
-            :stroke "#b9770e"
-            :stroke-width 1.5
-            :marker-end "url(#agora-arrow)"}]))
+    (let [x1 (+ (:x a) (/ node-w 2))
+          y1 (+ (:y a) node-h)]
+      [:g
+       [:line {:x1 x1
+               :y1 y1
+               :x2 (+ (:x b) (/ node-w 2))
+               :y2 (:y b)
+               :stroke "#b9770e"
+               :stroke-width 1.5
+               :marker-end "url(#agora-arrow)"}]
+       ;; the connection pastille, sitting on the line at the source card's bottom edge
+       [:circle {:cx x1
+                 :cy y1
+                 :r 3.5
+                 :fill "#b9770e"}]])))
 
 (defn graph-canvas
   "The pan / zoom / drag surface. Local state: node positions (drag mutates them), pan offset, zoom,

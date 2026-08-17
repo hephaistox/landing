@@ -45,7 +45,7 @@
   [s]
   (:pins (or (some-> s
                      edn/read-string)
-             {:pins {}})))
+             {:pins []})))
 
 (defn- truthy?
   "MySQL TINYINT(1) comes back as a Boolean or a 0/1 number. Normalize to a boolean."
