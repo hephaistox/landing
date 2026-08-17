@@ -146,16 +146,12 @@
 (defn deploy!
   "Build the uberjar (no push), fingerprint its assets, then push. `build-fn`
   is `auto-build.tasks.web.prod-build/build`; it builds into `target-dir` and
-  sets up the git repo but does not push. Returns the build exit code; skips
+  sets up the git repo but does not push. `fe-builds` are the shadow-cljs frontend
+  builds to release (from bb.edn `:fe-builds`). Returns the build exit code; skips
   fingerprint + push if the build failed."
-  [build-fn printers current-task env-varname target-dir]
-  (let [exit-code (build-fn printers
-                            "."
-                            current-task
-                            [:env-prod :uberjar]
-                            ["app-admin"]
-                            env-varname
-                            target-dir)]
+  [build-fn printers current-task fe-builds env-varname target-dir]
+  (let [exit-code
+        (build-fn printers "." current-task [:env-prod :uberjar] fe-builds env-varname target-dir)]
     (if (and (number? exit-code) (zero? exit-code))
       (do (fingerprint-jar! (str target-dir "/landing.jar")) (push! target-dir) exit-code)
       (do (println "cache-bust: build failed (exit" exit-code "); skipping fingerprint + push")

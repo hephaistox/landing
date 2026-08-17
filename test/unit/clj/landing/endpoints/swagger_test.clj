@@ -11,7 +11,8 @@
    :headers {}
    :body "Anthony"})
 
-(def handler (rring/ring-handler (rring/router (sut/api-ep "/api") {:data {:muuntaja m/instance}})))
+(def handler
+  (rring/ring-handler (rring/router (sut/api-swagger "/api") {:data {:muuntaja m/instance}})))
 
 (deftest swagger-middleware-test
   (is (= {:status 200

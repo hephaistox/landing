@@ -1,0 +1,836 @@
+(ns landing.agora.frontend.i18n
+  "UI translations and language-fixed path builders for the Agora SPA.
+
+  Two languages for now — `fr` / `en`, matching the landing site. Language identity
+  (codes, order, default, labels) is canonical in `landing.language` (cljc, shared
+  with the backend); this namespace only adds the translated UI strings. Add a
+  language there and its map to `dict` here.
+
+  There are two language dimensions:
+   - the INTERFACE language (`::lang`), a user preference driving the chrome, the
+     discover feed and search. Cached in localStorage and, for logged-in users,
+     persisted to the account (see core `:agora/set-lang`). NOT derived from the
+     URL.
+   - a KI permalink's `/agora/<lang>/…` segment, the CONTENT language to display
+     for that page — independent of the preference (the permalink overrides it).
+
+  Path builders take a language explicitly. `t`/`::lang` use the preference."
+  (:require
+   [landing.agora.document.identity :as di]
+   [landing.language                :as language]
+   [re-frame.core                   :as rf]))
+
+;; ---------------------------------------------------------------------------
+;; Dictionary
+;; ---------------------------------------------------------------------------
+
+(def ^:private dict
+  {"fr"
+   {:nav/discover-ki "Connaissances"
+    :nav/new-ki "Nouvelle connaissance"
+    :nav/discover-articles "Articles"
+    :nav/authors "Auteurs"
+    :nav/publications "Publications"
+    :nav/new-article "Nouvel article"
+    :nav/preferences "Préférences"
+    :nav/admin "Admin"
+    :byline/you "(Vous)"
+    :modal/confirm "Confirmer"
+    :modal/cancel "Annuler"
+    :error/flag-title "Ce document a des problèmes"
+    :error/panel-title "À corriger avant publication"
+    :error/stale-ref "pointe vers une version dépassée"
+    :error/stale-ref-link "voir la version à jour"
+    :error/missing-inputs "doit dériver d'au moins un prédécesseur"
+    :pub/none "Aucune publication."
+    :pub/no-docs "Aucun document."
+    :pub/new-ph "Nouvelle publication…"
+    :pub/create-q "Créer"
+    :pub/status-open "En cours"
+    :pub/status-closed "Publiée"
+    :pub/status-open-hint
+    "Publication en cours de travail — contenu non disponible pour le grand public"
+    :pub/status-closed-hint "Publication clôturée — ses documents sont publics"
+    :pub/rename "Modifier le titre"
+    :pub/index-lead "Vos publications en cours — ouvrez-en une ou créez-en une nouvelle."
+    :pub/rename-hint "Double-cliquez pour modifier le titre"
+    :pub/create-here
+    "Utiliser cette publication pour toute nouvelle création ou modification de document"
+    :pub/work-here "Travailler ici"
+    :pub/leave "Quitter la publication active"
+    :pub/publish "Publier"
+    :pub/publishing "Publication…"
+    :pub/publish-hint "Figer cette version et la rendre disponible pour le grand public"
+    :pub/publish-confirm
+    "Publier cette publication ? Ses documents deviennent publics et elle sera clôturée."
+    :pub/publish-blocked
+    "Publication impossible : des documents ont des problèmes à corriger (voir les cloches ci-dessous)"
+    :pub/delete "Supprimer la publication"
+    :pub/delete-confirm
+    "Supprimer cette publication et TOUS ses documents ? Ce contenu sera définitivement perdu."
+    :pub/delete-doc "Supprimer ce document"
+    :pub/delete-doc-confirm
+    "Supprimer ce document de la publication en cours ? Son contenu sera définitivement perdu — cette action est irréversible."
+    :pub/new-ki-hint "Créer une nouvelle connaissance dans cette publication"
+    :pub/new-article-hint "Créer un nouvel article dans cette publication"
+    :pub/date-open-hint "Date de création de la publication"
+    :pub/date-closed-hint "Date de publication"
+    :authors/title "Auteurs"
+    :authors/lead "Recherchez une personne pour parcourir ses contributions et ce qui la cite."
+    :authors/search-ph "Rechercher un auteur…"
+    :authors/none "Aucun auteur trouvé."
+    :type/article "Article"
+    :type/publication "Publication"
+    :filter/mine "Les miennes"
+    :filter/all "Toutes"
+    :filter/author "Auteur"
+    :filter/type "Type"
+    :filter/lang "Langue"
+    :filter/lang-all "Toutes les langues"
+    :graph/link "Voir le graphe"
+    :graph/back "Retour à la publication"
+    :graph/recenter "Recentrer"
+    :graph/drag-hint
+    "Glissez le fond pour déplacer, la molette pour zoomer, un nœud pour le repositionner"
+    :filter/author-ph "Nom…"
+    :filter/search-ph "Rechercher…"
+    :pub/filter-status "Statut"
+    :landing/headline "Agora, la place publique du raisonnement"
+    :landing/subtitle
+    "Agora est un graphe public d'étapes de raisonnement contestables — chaque affirmation traçable jusqu'aux étapes qui la fondent, chaque terme jusqu'à sa définition."
+    :home/eyebrow "Stockez le raisonnement, pas seulement la conclusion."
+    :home/subtitle
+    "Détaillez les raisonnements, comprenez l'auteur et ses références, et interagissez avec lui — ou avec la communauté — pour améliorer l'article, ou le réfuter."
+    ;; --- Landing orientée lecteur : hero, articles disponibles, exemple travaillé, « à venir » ---
+    :home/headline "Agora — lisez et écrivez des articles vivants"
+    :home/explore-cta "Explorer les articles"
+    :home/live-eyebrow "Un exemple vivant"
+    :home/live-title "Un article qui s'améliore, édition après édition"
+    :home/change-title "Qu'est-ce que ça change ?"
+    :home/change-body
+    "Vous restez en contact avec l'auteur. Et, bien mieux que dans les commentaires des réseaux sociaux, vous voyez ce que les autres en pensent vraiment — surtout quand une objection fait évoluer l'article."
+    :home/live-q1 "« Rapide », ça veut dire quoi, au juste ?"
+    :home/live-q2 "Admettons. Et tu as un fait mesurable ?"
+    :home/live-q4 "Et le modèle en général, pas seulement la tienne ?"
+    :home/live-soon "À venir"
+    :home/live-close
+    "La dernière étape — passer de ta voiture à tout le modèle — est un saut, pas une certitude : c'est précisément là qu'un lecteur pourra bientôt répondre à l'auteur, l'affiner ou le réfuter."
+    :home/soon-title "Bientôt, vous pourrez aller plus loin"
+    :home/soon-1-title "Répondre à l'auteur"
+    :home/soon-2-title "Une date, une prédiction"
+    :home/soon-2-body
+    "Un article peut porter une date : une prédiction que le réel viendra confirmer ou trancher, le moment venu."
+    :home/soon-3-title "Votre système de pensée"
+    :home/soon-3-body
+    "Dites quelles prémisses vous acceptez, et découvrez d'autres articles qui pourraient compléter votre système de pensée — ou le mettre à l'épreuve."
+    :home/find-title "Cherchez un article qui vous intéresse !"
+    :home/find-cta "Parcourir les articles"
+    ;; --- « Ce qu'Agora vous permet » — quatre bénéfices ---
+    :home/value-title "Ce qu'Agora vous permet"
+    :home/value-1-title "Auteurs, formalisez une pensée complexe"
+    :home/value-1-body
+    "Décomposez une idée touffue en étapes nettes et défendables — en tant qu'auteur, rendez chaque affirmation précise et inattaquable."
+    :home/value-2-title "Exposez votre raisonnement"
+    :home/value-2-body
+    "Ne partagez pas qu'une conclusion — exposez ce sur quoi vous la fondez, étape par étape, ouverte à la contestation."
+    :home/value-3-title "Influenceurs, actez une prédiction"
+    :home/value-3-body
+    "Annoncez ce qui va arriver, horodaté et public — la preuve que vous l'aviez dit avant que cela n'advienne."
+    :home/value-4-title "Trouvez les esprits qui vous ressemblent"
+    :home/value-4-body
+    "Construisez un consensus autour d'étapes solides, et trouvez ceux qui raisonnent comme vous."
+    ;; Paragraphes de détail, un par bénéfice (value-2 réutilise :home/problem-body,
+    ;; value-3 réutilise :home/predict-lead)
+    :home/value-1-lead
+    "Une pensée complexe inspire peu confiance quand elle arrive d'un bloc. Agora vous la fait décomposer en étapes uniques et défendables — chacune assez petite pour être vérifiée — si bien que l'ensemble tient et que rien ne se cache dans les interstices. Pour un auteur, c'est ainsi qu'un argument devient précis et inattaquable."
+    :home/value-4-lead
+    "Quand votre raisonnement est exposé, ceux qui le suivent peuvent le dire, étape par étape — et ceux qui divergent peuvent pointer exactement où. Le consensus se forme autour des étapes qui tiennent, et vous trouvez les esprits qui raisonnent comme vous plutôt que de vous invectiver sur des conclusions."
+    :home/cta-explore "Explorer le graphe"
+    :home/cta-publish "＋ Publier une étape"
+    :home/tag-definition "Définition"
+    :home/tag-observation "Observation"
+    :home/tag-conclusion "Conclusion"
+    :home/ex-definition "Ici, « rapide » signifie atteindre 100 km/h en moins de 5 secondes."
+    :home/ex-observation "Cette voiture atteint 100 km/h en 4,2 secondes."
+    :home/ex-conclusion "Donc, cette voiture est rapide."
+    :home/ex-objection
+    "Objection : « rapide » ne devrait-il pas aussi exiger une vitesse soutenue ?"
+    :home/problem-body
+    "Le philosophe qu'on écarte, l'ingénieur qu'on ignore, le penseur dont le raisonnement est solide mais ne convainc pas. Avoir raison ne suffit pas quand personne ne peut suivre votre raisonnement. Agora rend chaque étape de votre pensée lisible — et contestable — pour que l'argument parle de lui-même."
+    :home/how-title "Comment ça marche"
+    :home/how-1-title "Décomposez"
+    :home/how-1-body
+    "Découpez votre argument en étapes de raisonnement uniques, chacune défendable séparément."
+    :home/how-2-title "Reliez"
+    :home/how-2-body
+    "Chaque étape déclare les entrées dont elle dépend et relie ses termes à leur définition."
+    :home/how-3-title "Faites contester"
+    :home/how-3-body
+    "N'importe qui peut objecter à une étape. Les étapes solides survivent ; les faibles se scindent ou bifurquent."
+    :home/predict-lead
+    "Annoncez ce qui va arriver — et quand cela se tranchera. Votre prédiction est horodatée et publique : la preuve que vous l'aviez dit, avant que ce soit évident."
+    :home/predict-date-claim
+    "« D'ici 2027, la voiture électrique se vendra plus que le thermique en Europe. »"
+    :home/predict-date-resolve
+    "Se résout à une date. L'échéance arrivée, la prédiction est évaluée — le temps la déclenche."
+    :home/predict-event-claim
+    "« La prochaine tempête qui touchera Brest provoquera une coupure de courant. »"
+    :home/predict-event-resolve
+    "Se résout sur un événement. Quand il survient, la réalité tranche — c'est le monde qui la déclenche."
+    :home/cta-title "A votre tour, rendez votre raisonnement impossible à ignorer."
+    :home/cta-body
+    "Publiez votre première étape. La lecture est libre ; contribuer prend une minute."
+    :home/upcoming-eyebrow "À venir"
+    :home/upcoming-title "Ce que la structure rendra possible"
+    :home/upcoming-lead "Le graphe permet ce qu'un texte ne peut pas — bientôt disponible."
+    :home/mock-objection-badge "Objection"
+    :home/mock-objection-title "Trois voitures ne font pas un modèle"
+    :home/mock-objection-body
+    "Contester un pas précis — pas tout le raisonnement. Le désaccord devient une coordonnée, pas un verdict."
+    :home/mock-detection-badge "Détection"
+    :home/mock-detection-title "« Rapide » a deux définitions incompatibles"
+    :home/mock-detection-body
+    "Le graphe repère mécaniquement ce qu'un texte cache : cycles, circularité, un terme employé dans deux sens selon la branche."
+    :home/mock-prediction-title "La voiture électrique dominera avant 2030"
+    :home/mock-prediction-body
+    "Une prédiction datée, horodatée et publique — que le réel tranchera à l'échéance."
+    :nav/faq "FAQ"
+    :faq/title "Comment Agora fonctionne"
+    :faq/lead
+    "Le graphe derrière Agora, expliqué simplement — une question à la fois, illustrée avec de vraies connaissances de la plateforme."
+    :faq/q-ki "Qu'est-ce qu'une « connaissance » ?"
+    :faq/a-ki
+    "L'unité de base d'Agora. Une connaissance est un pas de raisonnement immuable : à partir d'entrées tenues pour vraies, une conclusion s'ensuit. Chacune porte son type — définition, déduction, induction… — et peut être reliée à d'autres et contestée pas à pas."
+    :faq/q-status "Pourquoi séparer un mot de son raisonnement ?"
+    :faq/a-status
+    "Parce que le lecteur doit savoir ce qu'il regarde. Ici, « rapide » est une définition (un contrat de sens), et « cette voiture est rapide » est une déduction qui s'appuie dessus. Le badge le dit d'un coup d'œil — on ne conteste pas une définition comme une affirmation empirique."
+    :faq/q-leap "Déduction ou induction — quelle différence ?"
+    :faq/a-leap
+    "Une déduction est contraignante : accepter les prémisses et la forme, c'est accepter la conclusion — la contester, c'est attaquer la forme ou l'équivoque d'un terme. Une induction fait un saut : « trois exemplaires rapides, donc le modèle est rapide » — on peut tout accepter et trouver le saut trop large. Le badge vous dit quel geste vous faites."
+    :faq/q-localize "À quoi ça sert, au fond ?"
+    :faq/a-localize
+    "À localiser un désaccord au lieu de trancher. Plutôt que « tu as tort », vous pointez le pas précis qui coince : nous divergeons ici, tout le reste est partagé. Le désaccord devient une coordonnée, pas un verdict."
+    :beta/badge "Bêta"
+    :beta/hint "Agora est en version bêta — en savoir plus"
+    :beta/title "Agora est en bêta"
+    :beta/intro
+    "Les concepts fondateurs sont là. Mais, pour l'instant, l'ergonomie demande encore de comprendre le fonctionnement d'Agora. Voici notre roadmap."
+    :beta/step-1-title "Lire"
+    :beta/step-1-body
+    "Des articles seront publiés ainsi. Ils seront surtout lus par les utilisateurs, leur navigation sera travaillée. Seuls quelques utilisateurs peuvent créer."
+    :beta/step-2-title "Contester"
+    :beta/step-2-body
+    "Une nouvelle catégorie d'utilisateur pourra challenger les articles. Faire des commentaires, des contre propositions, leur propre version de l'article."
+    :beta/step-3-title "Écrire"
+    :beta/step-3-body
+    "Tout le monde peut rédiger des articles ; l'ensemble est suffisamment clair, sans vocabulaire technique ni concept nécessitant des explications : tout est implicite et va droit au but."
+    :discover/heading "Découvrir les connaissances"
+    :articles/heading "Découvrir les articles"
+    :article-form/new-title "Nouvel article"
+    :article-form/title "Titre"
+    :article-form/title-ph "le titre affiché"
+    :article-form/body "Contenu"
+    :article-form/body-ph "Écrivez votre article. Insérez un KI avec la recherche ci-dessous."
+    :article-form/create "Publier"
+    :article-form/creating "Publication…"
+    :article-form/login-to-create "Connectez-vous pour publier"
+    :article-form/cancel "Annuler"
+    :article-form/edit "Modifier"
+    :article-form/save "Enregistrer"
+    :article-form/saving "Enregistrement…"
+    :article-form/login-to-edit "Connectez-vous pour modifier"
+    :cite/search-ph "Citer une connaissance — rechercher…"
+    :cite/create-new "Créer"
+    :cite/new-title-ph "Titre de la nouvelle connaissance…"
+    :cite/new-statement-ph "Énoncé (facultatif — à défaut, le titre)…"
+    :cite/removed-warning "Vous retirez une référence (une entrée). Continuer ?"
+    :prefs/title "Préférences"
+    :admin/title "Administration"
+    :admin/major "Majeur"
+    :admin/type "Type"
+    :admin/kind "Genre"
+    :admin/language "Langue"
+    :admin/all-langs "Toutes les langues"
+    :admin/sitemap-urls "URL du sitemap"
+    :admin/sitemap-near-limit
+    "Proche de la limite d'un seul sitemap (50 000) — prévoir l'index découpé."
+    :admin/versions "Versions"
+    :admin/latest "Dernier"
+    :admin/drop "Tout supprimer"
+    :admin/compact "Garder le dernier"
+    :admin/rebuild "Recalculer maintenant les caches"
+    :admin/rebuild-busy "Recalcul…"
+    :admin/rebuild-done "✓ Recalculé"
+    :admin/confirm "Confirmer ?"
+    :admin/empty "Aucune connaissance."
+    :admin/login-required "Connectez-vous pour administrer."
+    :admin/not-authorized "Accès réservé à l'administrateur."
+    :admin/issues-title "Cohérence des références"
+    :admin/issues-none "Aucune référence cassée détectée."
+    :admin/issues-broken "cassées"
+    :admin/issues-self "auto-référence"
+    :admin/issues-dangling "successeurs fantômes"
+    :author/member-since "Membre depuis"
+    :author/last-activity "dernière modification"
+    :author/search-ph "Rechercher parmi ses savoirs…"
+    :author/kis "savoirs"
+    :author/no-kis "Aucun savoir ne correspond."
+    :author/unknown "Auteur inconnu"
+    :source/heading "Source"
+    :extract/cite-work "Citer une œuvre"
+    :extract/locator-ph "Page, chapitre, verset…"
+    :target/label "L'énoncé illustré / réfuté"
+    :target/search-ph "Chercher l'énoncé cible…"
+    :target/change "Changer la cible"
+    :extract/work-label "L'œuvre citée"
+    :source/find "Trouver une source"
+    :source/find-title "Trouver une source"
+    :source/create-title "Nouvelle source"
+    :source/create-new "Créer"
+    :source/find-existing "Rechercher"
+    :source/author "Auteur"
+    :source/author-ph "Rechercher ou créer un auteur…"
+    :source/title "Titre"
+    :source/year "Année"
+    :source/editor "Éditeur"
+    :source/url-ph "URL (lien vers l'œuvre)…"
+    :source/new-person "Nouvel auteur"
+    :source/add "Ajouter la source"
+    :source/no-results "Aucune source trouvée."
+    :card/by "Écrit par"
+    :card/in-pub "dans"
+    :card/on-date "le"
+    :date/today "Aujourd'hui"
+    :date/yesterday "Hier"
+    :prefs/account "Compte"
+    :prefs/connection "Méthode de connexion"
+    :prefs/via-password "E-mail et mot de passe"
+    :prefs/not-signed-in "Vous n'êtes pas connecté."
+    :ki/edit "Modifier — créer une nouvelle version"
+    :ki/login-to-edit "Connectez-vous pour modifier"
+    :ki/remove-input "Retirer cette entrée"
+    :ki/versions "Voir toutes les versions"
+    :ki/draft "Brouillon (non publié)"
+    :ki/add-consequence "Ajouter une conséquence"
+    :ki/consequence-ph "Titre de la conséquence…"
+    :ki/consequence-create "Créer (brouillon)"
+    :ki/consequence-failed "La création a échoué."
+    :ki/add-predecessor "Ajouter un prédécesseur"
+    :ki/predecessor-ph "Titre du prédécesseur…"
+    :kind/deduction "Déduction"
+    :kind/induction "Induction"
+    :kind/prediction "Prédiction"
+    :kind/measurable-fact "Fait mesurable"
+    :kind/definition "Définition"
+    :kind/belief "Croyance"
+    :kind/assumption "Supposition"
+    :kind/illustration "Illustration"
+    :kind/counter-example "Contre-exemple"
+    :kind/work "Œuvre"
+    :kind/extract "Extrait"
+    :kind/explainer "Explication"
+    :kind/definition-link "Voir la définition de ce type"
+    :ki/other-languages "Aussi en"
+    :ki/lang-notice-shown "Vous consultez cette connaissance en"
+    :ki/lang-notice-switch "Voir la version dans votre langue"
+    :form/new-title "Nouvelle connaissance"
+    :form/name "Nom"
+    :form/title "Titre"
+    :form/title-ph "un titre lisible (facultatif)"
+    :form/type "Type"
+    :form/language "Langue"
+    :form/statement "Énoncé"
+    :form/statement-ph "l'affirmation portée par cette connaissance"
+    :form/create "Créer"
+    :form/creating "Création…"
+    :form/login-to-create "Connectez-vous pour créer"
+    :form/save "Enregistrer la nouvelle version"
+    :form/saving "Enregistrement…"
+    :form/save-failed "Échec — voir la console."
+    :form/cancel "Annuler"
+    :form/next "→ suivante"
+    :edit/keep-last "Garder la dernière version"
+    :edit/keep-last-confirm
+    "Supprimer toutes les versions antérieures et ne garder que la dernière ?"
+    :edit/delete "Supprimer"
+    :edit/delete-confirm "Supprimer définitivement ce document (toutes les versions) ?"
+    :auth/login "Se connecter"
+    :auth/register "S'inscrire"
+    :auth/logout "Se déconnecter"
+    :auth/google "Continuer avec Google"
+    :auth/or "— ou —"
+    :auth/email "E-mail"
+    :auth/password "Mot de passe"
+    :auth/alias "Pseudonyme"
+    :auth/create-account "Créer un compte"
+    :auth/have-account "Déjà un compte ? "
+    :auth/new-here "Nouveau ici ? "
+    :footer/home "Accueil"
+    :footer/legal-notice "Mentions légales"
+    :footer/privacy "Confidentialité"
+    :footer/disclaimer "Avertissement"
+    :footer/who-are-we "Qui sommes-nous ?"}
+   "en"
+   {:nav/discover-ki "Knowledges"
+    :nav/new-ki "New Knowledge"
+    :nav/discover-articles "Articles"
+    :nav/authors "Authors"
+    :nav/publications "Publications"
+    :nav/new-article "New article"
+    :nav/preferences "Preferences"
+    :nav/admin "Admin"
+    :byline/you "(You)"
+    :modal/confirm "Confirm"
+    :modal/cancel "Cancel"
+    :error/flag-title "This document has problems"
+    :error/panel-title "To fix before publishing"
+    :error/stale-ref "points to an outdated version"
+    :error/stale-ref-link "see the up-to-date version"
+    :error/missing-inputs "must derive from at least one predecessor"
+    :pub/none "No publications yet."
+    :pub/no-docs "No documents."
+    :pub/new-ph "New publication…"
+    :pub/create-q "Create"
+    :pub/status-open "In progress"
+    :pub/status-closed "Published"
+    :pub/status-open-hint "Work in progress — its content isn't available to the public"
+    :pub/status-closed-hint "Closed publication — its documents are public"
+    :pub/rename "Edit the title"
+    :pub/index-lead "Your open publications — open one or create a new one."
+    :pub/rename-hint "Double-click to edit the title"
+    :pub/create-here "Use this publication for any new document creation or edit"
+    :pub/work-here "Work here"
+    :pub/leave "Leave the active publication"
+    :pub/publish "Publish"
+    :pub/publishing "Publishing…"
+    :pub/publish-hint "Freeze this version and make it available to the public"
+    :pub/publish-confirm
+    "Publish this publication? Its documents become public and it will be closed."
+    :pub/publish-blocked "Cannot publish: some documents have problems to fix (see the bells below)"
+    :pub/delete "Delete publication"
+    :pub/delete-confirm
+    "Delete this publication and ALL its documents? This content will be permanently lost."
+    :pub/delete-doc "Delete this document"
+    :pub/delete-doc-confirm
+    "Delete this document from the open publication? Its content will be permanently lost — this cannot be undone."
+    :pub/new-ki-hint "Create a new knowledge item in this publication"
+    :pub/new-article-hint "Create a new article in this publication"
+    :pub/date-open-hint "Publication creation date"
+    :pub/date-closed-hint "Publication date"
+    :authors/title "Authors"
+    :authors/lead "Search a person to browse their contributions and what cites them."
+    :authors/search-ph "Search an author…"
+    :authors/none "No author found."
+    :type/article "Article"
+    :type/publication "Publication"
+    :filter/mine "Mine"
+    :filter/all "All"
+    :filter/author "Author"
+    :filter/type "Type"
+    :filter/lang "Language"
+    :filter/lang-all "All languages"
+    :graph/link "View the graph"
+    :graph/back "Back to the publication"
+    :graph/recenter "Recenter"
+    :graph/drag-hint "Drag the background to pan, wheel to zoom, a node to reposition it"
+    :filter/author-ph "Name…"
+    :filter/search-ph "Search…"
+    :pub/filter-status "Status"
+    :landing/headline "Agora, the public square for reasoning"
+    :landing/subtitle
+    "Agora is a public graph of challengeable reasoning steps — every claim traceable to the steps it stands on, every term to its definition."
+    ;; --- Landing marketing sections (home / :agora/<lang>) ---
+    :home/eyebrow "Store the reasoning, not just the conclusion."
+    :home/subtitle
+    "Unfold the reasoning, understand the author and their references, and engage with them — or the community — to improve the article, or refute it."
+    ;; --- Reader-first landing: hero, available articles, worked example, "coming soon" ---
+    :home/headline "Agora — read and write living articles"
+    :home/explore-cta "Explore the articles"
+    :home/live-eyebrow "A living example"
+    :home/live-title "One article, getting better edition by edition"
+    :home/change-title "What does it change?"
+    :home/change-body
+    "You stay in contact with the author. And far better than in social-media comments, you see what others really think — above all when an objection actually moves the article forward."
+    :home/live-q1 "« Fast » — what does that even mean?"
+    :home/live-q2 "Fine. And do you have a measurable fact?"
+    :home/live-q4 "And the model in general, not just yours?"
+    :home/live-soon "Coming soon"
+    :home/live-close
+    "The last step — going from your car to the whole model — is a leap, not a certainty: that's exactly where a reader will soon be able to answer the writer, refine it, or refute it."
+    :home/soon-title "Soon, you'll be able to go further"
+    :home/soon-1-title "Answer the author"
+    :home/soon-2-title "A date, a prediction"
+    :home/soon-2-body
+    "An article can carry a date: a prediction that reality will confirm or settle when the time comes."
+    :home/soon-3-title "Your system of thought"
+    :home/soon-3-body
+    "Say which premises you accept, and discover other articles that could complete your system of thought — or put it to the test."
+    :home/find-title "Find an article that speaks to you!"
+    :home/find-cta "Browse the articles"
+    ;; --- "What Agora lets you do" — four value props ---
+    :home/value-title "What Agora lets you do"
+    :home/value-1-title "Author, formalize complex thinking"
+    :home/value-1-body
+    "Break a tangled idea into clean, defensible steps — as a writer, make every claim precise and bulletproof."
+    :home/value-2-title "Show your reasoning"
+    :home/value-2-body
+    "Don't just share a conclusion — expose what you base it on, step by step, open to challenge."
+    :home/value-3-title "Influencers, put a prediction on record"
+    :home/value-3-body
+    "State what will happen, timestamped and public — proof you called it before it came true."
+    :home/value-4-title "Find minds like yours"
+    :home/value-4-body
+    "Build consensus around solid steps, and find the people who reason the way you do."
+    ;; Detail paragraphs, one per value prop (value-2 reuses :home/problem-body,
+    ;; value-3 reuses :home/predict-lead)
+    :home/value-1-lead
+    "A complex thought is hard to trust when it lands as one big claim. Agora makes you break it into single, defensible steps — each small enough to check — so the whole holds together and nothing hides in the gaps. As a writer, that is how an argument becomes precise and bulletproof."
+    :home/value-4-lead
+    "When your reasoning is out in the open, the people who follow it can say so, step by step — and those who don't can point to exactly where they diverge. Consensus forms around the steps that hold, and you find the minds who reason the way you do instead of talking past each other over conclusions."
+    :home/cta-explore "Explore the graph"
+    :home/cta-publish "＋ Publish a step"
+    :home/tag-definition "Definition"
+    :home/tag-observation "Observation"
+    :home/tag-conclusion "Conclusion"
+    :home/ex-definition "In this graph, \"quick\" means reaching 100 km/h in under 5 seconds."
+    :home/ex-observation "This car reaches 100 km/h in 4.2 seconds."
+    :home/ex-conclusion "Therefore, this car is quick."
+    :home/ex-objection "Objection: shouldn't \"quick\" also require sustained speed?"
+    :home/problem-body
+    "The philosopher who gets waved off, the engineer who gets ignored, the thinker whose reasoning is solid but never lands. Being right isn't enough when no one can follow your reasoning. Agora makes every step of your thinking legible — and challengeable — so the argument speaks for itself."
+    :home/how-title "How it works"
+    :home/how-1-title "Break it down"
+    :home/how-1-body "Split your argument into single reasoning steps, each defensible on its own."
+    :home/how-2-title "Link the steps"
+    :home/how-2-body
+    "Each step declares the inputs it relies on and links its terms to their definition."
+    :home/how-3-title "Invite challenge"
+    :home/how-3-body
+    "Anyone can object to a step. Strong steps survive; weak ones get split or forked."
+    :home/predict-lead
+    "State what will happen — and when it settles. Your prediction is timestamped and public: proof you called it, before it became obvious."
+    :home/predict-date-claim "\"By 2027, EVs will outsell combustion cars in Europe.\""
+    :home/predict-date-resolve
+    "Resolves on a date. When the deadline arrives, the prediction is evaluated — time triggers it."
+    :home/predict-event-claim "\"The next storm to hit Brest will cause a power outage.\""
+    :home/predict-event-resolve
+    "Resolves on an event. When it happens, reality decides — the world triggers it."
+    :home/cta-title "Your call, make your reasoning impossible to ignore."
+    :home/cta-body "Publish your first step. Reading is free; contributing takes a minute."
+    :home/upcoming-eyebrow "Coming soon"
+    :home/upcoming-title "What the structure will make possible"
+    :home/upcoming-lead "A graph enables what prose can't — coming soon."
+    :home/mock-objection-badge "Objection"
+    :home/mock-objection-title "Three cars aren't a model"
+    :home/mock-objection-body
+    "Challenge one precise step — not the whole argument. Disagreement becomes a coordinate, not a verdict."
+    :home/mock-detection-badge "Detection"
+    :home/mock-detection-title "\"Fast\" has two incompatible definitions"
+    :home/mock-detection-body
+    "The graph mechanically catches what prose hides: cycles, circularity, a term used two ways depending on the branch."
+    :home/mock-prediction-title "Electric cars will dominate before 2030"
+    :home/mock-prediction-body
+    "A dated, timestamped, public prediction — that reality will settle at the deadline."
+    :nav/faq "FAQ"
+    :faq/title "How Agora works"
+    :faq/lead
+    "The graph behind Agora, explained simply — one question at a time, illustrated with real knowledge from the platform."
+    :faq/q-ki "What is a « knowledge item » ?"
+    :faq/a-ki
+    "Agora's basic unit. A knowledge item is an immutable reasoning step: from inputs held to be true, a conclusion follows. Each carries its kind — definition, deduction, induction… — and can be linked to others and challenged step by step."
+    :faq/q-status "Why separate a word from its reasoning?"
+    :faq/a-status
+    "Because the reader should know what they're looking at. Here « fast » is a definition (a meaning contract), and « this car is fast » is a deduction that builds on it. The badge says which at a glance — you don't challenge a definition the way you challenge an empirical claim."
+    :faq/q-leap "Deduction or induction — what's the difference?"
+    :faq/a-leap
+    "A deduction is binding: accept the premises and the form and you accept the conclusion — to challenge it is to attack the form or a term's equivocation. An induction takes a leap: « three fast units, so the model is fast » — you can accept everything and still find the leap too wide. The badge tells you which move you're making."
+    :faq/q-localize "What's the point, ultimately?"
+    :faq/a-localize
+    "To localize a disagreement instead of settling it. Rather than « you're wrong », you point at the precise step that doesn't hold: we diverge here, everything else is shared. Disagreement becomes a coordinate, not a verdict."
+    :beta/badge "Beta"
+    :beta/hint "Agora is in beta — learn more"
+    :beta/title "Agora is in beta"
+    :beta/intro
+    "The founding concepts are in place. But for now the interface still asks you to understand how Agora works. Here is our roadmap."
+    :beta/step-1-title "Read"
+    :beta/step-1-body
+    "Articles will be published this way. They will mostly be read by users,  their navigatio is worked on. Only some selected users can author new articles."
+    :beta/step-2-title "Challenge"
+    :beta/step-2-body
+    "A new user category can challenge articles. Do comments, counter proposals or write their own version of the article."
+    :beta/step-3-title "Write"
+    :beta/step-3-body
+    "Everybody can write articles, the whole story is clear enough, no technical vocabulary or concept to be explained, everything is underlying and on the point."
+    :discover/heading "Discover knowledge"
+    :articles/heading "Discover articles"
+    :article-form/new-title "New article"
+    :article-form/title "Title"
+    :article-form/title-ph "the displayed title"
+    :article-form/body "Body"
+    :article-form/body-ph "Write your article. Insert a KI with the search box below."
+    :article-form/create "Publish"
+    :article-form/creating "Publishing…"
+    :article-form/login-to-create "Log in to publish"
+    :article-form/cancel "Cancel"
+    :article-form/edit "Edit"
+    :article-form/save "Save"
+    :article-form/saving "Saving…"
+    :article-form/login-to-edit "Log in to edit"
+    :cite/search-ph "Cite a KI — search…"
+    :cite/create-new "Create"
+    :cite/new-title-ph "New KI title…"
+    :cite/new-statement-ph "Statement (optional — defaults to the title)…"
+    :cite/removed-warning "You're removing a reference (an input). Continue?"
+    :prefs/title "Preferences"
+    :admin/title "Administration"
+    :admin/major "Major"
+    :admin/type "Type"
+    :admin/kind "Kind"
+    :admin/versions "Versions"
+    :admin/language "Language"
+    :admin/all-langs "All languages"
+    :admin/sitemap-urls "Sitemap URLs"
+    :admin/sitemap-near-limit
+    "Approaching the single-sitemap limit (50,000) — plan the chunked index."
+    :admin/latest "Latest"
+    :admin/drop "Drop all"
+    :admin/compact "Keep latest only"
+    :admin/rebuild "Recompute now the caches"
+    :admin/rebuild-busy "Recomputing…"
+    :admin/rebuild-done "✓ Recomputed"
+    :admin/confirm "Confirm?"
+    :admin/empty "No knowledge items."
+    :admin/login-required "Log in to administer."
+    :admin/not-authorized "Administrator access only."
+    :admin/issues-title "Reference consistency"
+    :admin/issues-none "No broken references."
+    :admin/issues-broken "broken"
+    :admin/issues-self "self-reference"
+    :admin/issues-dangling "ghost successors"
+    :author/member-since "Member since"
+    :author/last-activity "last edit"
+    :author/search-ph "Search their knowledge…"
+    :author/kis "items"
+    :author/no-kis "No knowledge item matches."
+    :author/unknown "Unknown author"
+    :source/heading "Source"
+    :extract/cite-work "Cite a work"
+    :extract/locator-ph "Page, chapter, verse…"
+    :target/label "The claim illustrated / refuted"
+    :target/search-ph "Search the target claim…"
+    :target/change "Change the target"
+    :extract/work-label "The cited work"
+    :source/find "Find a source"
+    :source/find-title "Find a source"
+    :source/create-title "New source"
+    :source/create-new "Create"
+    :source/find-existing "Search"
+    :source/author "Author"
+    :source/author-ph "Search or create an author…"
+    :source/title "Title"
+    :source/year "Year"
+    :source/editor "Editor"
+    :source/url-ph "URL (link to the work)…"
+    :source/new-person "New author"
+    :source/add "Add source"
+    :source/no-results "No source found."
+    :card/by "Written by"
+    :card/in-pub "in"
+    :card/on-date "on"
+    :date/today "Today"
+    :date/yesterday "Yesterday"
+    :prefs/account "Account"
+    :prefs/connection "Sign-in method"
+    :prefs/via-password "Email & password"
+    :prefs/not-signed-in "You are not signed in."
+    :ki/edit "Edit — create a new version"
+    :ki/login-to-edit "Log in to edit"
+    :ki/remove-input "Remove this input link"
+    :ki/versions "Show all versions"
+    :ki/draft "Draft (unpublished)"
+    :ki/add-consequence "Add a consequence"
+    :ki/consequence-ph "Consequence title…"
+    :ki/consequence-create "Create (draft)"
+    :ki/consequence-failed "Creation failed."
+    :ki/add-predecessor "Add a predecessor"
+    :ki/predecessor-ph "Predecessor title…"
+    :kind/deduction "Deduction"
+    :kind/induction "Induction"
+    :kind/prediction "Prediction"
+    :kind/measurable-fact "Measurable fact"
+    :kind/definition "Definition"
+    :kind/belief "Belief"
+    :kind/assumption "Assumption"
+    :kind/illustration "Illustration"
+    :kind/counter-example "Counter-example"
+    :kind/work "Work"
+    :kind/extract "Extract"
+    :kind/explainer "Explainer"
+    :kind/definition-link "See this type's definition"
+    :ki/other-languages "Also in"
+    :ki/lang-notice-shown "You're viewing this item in"
+    :ki/lang-notice-switch "See the version in your language"
+    :form/new-title "New Knowledge Item"
+    :form/name "Name"
+    :form/title "Title"
+    :form/title-ph "a readable title (optional)"
+    :form/type "Type"
+    :form/language "Language"
+    :form/statement "Output statement"
+    :form/statement-ph "the claim this KI asserts"
+    :form/create "Create"
+    :form/creating "Creating…"
+    :form/login-to-create "Log in to create"
+    :form/save "Save new version"
+    :form/saving "Saving…"
+    :form/save-failed "Save failed — see console."
+    :form/cancel "Cancel"
+    :form/next "→ next"
+    :edit/keep-last "Keep last version"
+    :edit/keep-last-confirm "Delete all earlier versions and keep only the latest?"
+    :edit/delete "Delete"
+    :edit/delete-confirm "Permanently delete this document (all versions)?"
+    :auth/login "Log in"
+    :auth/register "Register"
+    :auth/logout "Log out"
+    :auth/google "Continue with Google"
+    :auth/or "— or —"
+    :auth/email "Email"
+    :auth/password "Password"
+    :auth/alias "Alias"
+    :auth/create-account "Create an account"
+    :auth/have-account "Already have an account? "
+    :auth/new-here "New here? "
+    :footer/home "Home"
+    :footer/legal-notice "Legal notice"
+    :footer/privacy "Privacy"
+    :footer/disclaimer "Disclaimer"
+    :footer/who-are-we "Who are we?"}})
+
+(defn t
+  "Translate key `k` into language `lang`, falling back to the default language
+  then to the key name."
+  [lang k]
+  (or (get-in dict [(language/normalize lang) k]) (get-in dict [language/default-lang k]) (name k)))
+
+;; ---------------------------------------------------------------------------
+;; Language-fixed path builders
+;; ---------------------------------------------------------------------------
+
+(defn- base [lang] (str "/agora/" (language/normalize lang)))
+(defn home "The Agora landing/home page (marketing hero + live example)." [lang] (base lang))
+(defn discover [lang] (str (base lang) "/discover"))
+(defn new-ki [lang] (str (base lang) "/new"))
+(defn publication
+  "A publication's page — its documents shown like the discover grid."
+  [lang id]
+  (str (base lang) "/publication/" id))
+(defn publication-graph
+  "A publication's graph page — its drafts and 1-hop neighbours as a movable graph."
+  [lang id]
+  (str (base lang) "/publication/" id "/graph"))
+(defn ki-id
+  "The app URL of a KI by its concrete id (a specific version): /agora/<lang>/ki/<id>.
+  Distinct from the public permalink `ki` (name + major), which resolves to the
+  latest minor."
+  [lang id]
+  (str (base lang) "/ki/" id))
+(defn article [lang id] (str (base lang) "/article/" id))
+(defn articles "The article discover page." [lang] (str (base lang) "/articles"))
+(defn authors "The browse-by-author page." [lang] (str (base lang) "/authors"))
+(defn publications "Your publications index." [lang] (str (base lang) "/publications"))
+(defn new-article "The article authoring page." [lang] (str (base lang) "/article/new"))
+(defn article-permalink
+  "Public permalink of an article in `lang` — `/agora/<lang>/article/<cid>~<title-slug>/<major>`.
+  `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
+  [lang m]
+  (str (base lang) "/article/" (di/permalink-slug (:name m) (:title m)) "/" (:major m)))
+(defn preferences [lang] (str (base lang) "/preferences"))
+(defn faq
+  "The technical FAQ page (how the graph works, with real cards)."
+  [lang]
+  (str (base lang) "/faq"))
+(defn beta
+  "The beta notice + roadmap page (linked from the header Bêta badge)."
+  [lang]
+  (str (base lang) "/beta"))
+(defn admin [lang] (str (base lang) "/admin"))
+(defn author "The author profile page for account `id`." [lang id] (str (base lang) "/author/" id))
+(defn ki
+  "Public permalink of a KI in `lang` — `/agora/<lang>/ki/<cid>~<title-slug>/<major>`.
+  `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
+  [lang m]
+  (str (base lang) "/ki/" (di/permalink-slug (:name m) (:title m)) "/" (:major m)))
+
+;; --- Generic, type-driven document URLs ------------------------------------
+;; Every document type shares one URL shape, with its `:type` as the path segment:
+;;   permalink  /agora/<lang>/<type>/<name>/<major>   (latest minor of an identity)
+;;   by-id      /agora/<lang>/<type>/<id>             (one concrete version)
+;; so the generic engine builds URLs from a document's own `:type` — it never needs to
+;; know which types exist.
+(defn doc-permalink
+  "Public permalink of any document — `/agora/<lang>/<type>/<cid>~<title-slug>/<major>`.
+  `m` is a document map (`:name` = cid, `:title`, `:major`); a missing title yields a bare cid."
+  [lang type m]
+  (str (base lang) "/" type "/" (di/permalink-slug (:name m) (:title m)) "/" (:major m)))
+(defn doc-url
+  "App URL of one concrete document version — `/agora/<lang>/<type>/<id>`."
+  [lang type id]
+  (str (base lang) "/" type "/" id))
+
+;; ---------------------------------------------------------------------------
+;; State
+;; ---------------------------------------------------------------------------
+
+;; `::lang` is the INTERFACE language — a user preference, decoupled from the URL.
+;; It drives the chrome, the discover feed and search. A KI permalink's own
+;; `/agora/<lang>/…` segment is a separate dimension: the content language to
+;; display for that page, which may differ from the preference.
+
+(rf/reg-sub ::lang (fn [db _] (or (::lang db) language/default-lang)))
+
+(defn set-lang
+  "Store the normalized language in app-db (for use inside event handlers)."
+  [db lang]
+  (assoc db ::lang (language/normalize lang)))
+
+(defn current
+  "The current interface language from app-db (for use inside event handlers)."
+  [db]
+  (or (::lang db) language/default-lang))
+
+;; ---- Preference persistence (localStorage; DB sync lives in core) ----
+
+(def ^:private ls-key "agora-lang")
+
+(defn read-stored
+  "The preferred language cached in localStorage, or nil."
+  []
+  (try (some-> js/localStorage
+               (.getItem ls-key))
+       (catch :default _ nil)))
+
+(defn write-stored!
+  "Cache the preferred language in localStorage (fast path for next page loads)."
+  [lang]
+  (try (some-> js/localStorage
+               (.setItem ls-key lang))
+       (catch :default _ nil)))
+
+(defn- cookie-lang
+  []
+  (some->> (.-cookie js/document)
+           (re-find #"(?:^|;\s*)lang=([a-z]{2})")
+           second))
+
+(defn- browser-lang
+  []
+  (some-> js/navigator
+          .-language
+          (subs 0 2)))
+
+(defn initial-pref
+  "The preference to start with: localStorage → shared `lang` cookie → browser →
+  default. Normalized to a supported code."
+  []
+  (language/normalize (or (read-stored) (cookie-lang) (browser-lang) language/default-lang)))

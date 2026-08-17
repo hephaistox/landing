@@ -3,5 +3,7 @@ Allow: /
 Disallow: /api
 Disallow: /check-url
 Disallow: /w3c-validate
+Disallow: /agora/api
 
 Sitemap: https://hephaistox.fr/sitemap.xml
+Sitemap: https://hephaistox.fr/agora/sitemap.xml

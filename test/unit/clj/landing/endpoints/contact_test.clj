@@ -6,8 +6,6 @@
    [landing.handler           :as handler]
    [ring.mock.request         :as mock]))
 
-(deftest handle-contact-test (is (sut/contact-route {})))
-
 (def ^:private fake-ip-counter (atom 0))
 
 (defn- fresh-ip

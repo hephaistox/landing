@@ -18,7 +18,7 @@
                                      :cleanup-interval-ms 60000})
           :stop (stop-rate-limit rate-limiter))
 
-(defn api-ep
+(defn api-swagger
   [path-prefix]
   [path-prefix {:no-doc true
                 :muuntaja m/instance

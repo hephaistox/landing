@@ -1,6 +1,7 @@
 (ns landing.web-server
   (:require
    [auto-core.log                     :as core-log]
+   [landing.agora.scheduler]
    [landing.endpoints.default-handler :refer [exception-response]]
    [landing.handler]
    [mount.core                        :refer [defstate]]

@@ -1,0 +1,118 @@
+;; Canonical definitions of the epistemic KI *types*, seeded as `definition`-kind KIs
+;; (slug `type-<kind>`, major 1) so each type is itself described by a KI the kind
+;; badge links to. Keyed by the kind id, then by language (`"fr"` / `"en"`) — each language
+;; is seeded as a sibling KI sharing the `type-<kind>` name (translation-by-name).
+;;
+;; Each `:statement` completes the hard-coded definition prefix — the page renders
+;; "<title> désigne <statement>" / "<title> designates <statement>"
+;; (document.kind/compose-statement) — so its first paragraph is the *definiens* (lower-case,
+;; grammatically continuing the connector). A **second paragraph** (blank-line separated) says
+;; how a KI of that kind can be objected to.
+{:assumption
+ {"en"
+  {:statement
+   "a foundation declared provisionally: a supposition granted for the sake of the reasoning, without claiming it is true.\n\nIt is not refuted directly: you relax it or swap in a different supposition, then watch how the conclusions that depend on it are affected."
+   :title "Assumption"}
+  "fr"
+  {:statement
+   "un fondement déclaré à titre provisoire : une supposition admise pour les besoins du raisonnement, sans prétendre qu'elle soit vraie.\n\nOn ne la réfute pas directement : on la relâche ou on lui substitue une supposition différente, puis on observe comment les conclusions qui en dépendent s'en trouvent affectées."
+   :title "Supposition"}}
+ :belief
+ {"en"
+  {:statement
+   "a foundation you hold as given and stand by, whatever the register — personal, philosophical, civic or formal.\n\nIt is not refuted by counterexample: a belief is contested only by an incompatible belief, and the platform keeps the rival variants with their objection histories rather than forcing a resolution that does not exist."
+   :title "Belief"}
+  "fr"
+  {:statement
+   "un fondement que l'on tient pour acquis et que l'on assume, quel qu'en soit le registre — personnel, philosophique, civique ou formel.\n\nOn ne la réfute pas par contre-exemple : une croyance ne se conteste que par une croyance incompatible, et la plateforme conserve les variantes rivales avec leur histoire d'objections plutôt que d'imposer une résolution qui n'existe pas."
+   :title "Croyance"}}
+ :counter-example
+ {"en"
+  {:statement
+   "a single instance that refutes a general claim by contradicting it: if a claim asserts 'all X are Y', one X that is not Y shows it false — or at least not precise enough. It targets another claim and withdraws its generality.\n\nIt is itself challenged on two grounds: whether the instance is real (is Einstein actually smart?) and whether it truly falls under the claim (is Einstein one of 'all people'?). A sound counter-example forces the target to narrow, qualify, or be withdrawn."
+   :title "Counter-example"}
+  "fr"
+  {:statement
+   "un cas unique qui réfute une affirmation générale en la contredisant : si un énoncé affirme « tous les X sont Y », un seul X qui n'est pas Y la montre fausse — ou du moins pas assez précise. Il vise un autre énoncé et lui retire sa généralité.\n\nOn le conteste lui-même de deux façons : le cas est-il réel (Einstein est-il vraiment intelligent ?) et relève-t-il bien de l'affirmation (Einstein fait-il partie de « tous les gens » ?). Un bon contre-exemple oblige la cible à se restreindre, se nuancer, ou être retirée."
+   :title "Contre-exemple"}}
+ :deduction
+ {"en"
+  {:statement
+   "a deductive step: from inputs held to be true, the conclusion follows *necessarily*.\n\nThe only admissible challenges are that the form is invalid, or that a term is used equivocally — you cannot accept the premises and the form and yet refuse the conclusion."
+   :title "Deduction"}
+  "fr"
+  {:statement
+   "un pas déductif : à partir d'entrées tenues pour vraies, la conclusion suit *nécessairement*.\n\nLes seuls reproches recevables sont l'invalidité de la forme ou l'équivoque sur un terme — on ne peut pas accepter les prémisses et la forme puis refuser la conclusion."
+   :title "Déduction"}}
+ :definition
+ {"en"
+  {:statement
+   "a semantic contract that fixes the meaning of a term in the graph; the key terms of other statements link to it.\n\nA definition is not contested in itself: you set a different definition of the same word against it. The graph then surfaces the ambiguity — several competing definitions for one term — instead of deciding."
+   :title "Definition"}
+  "fr"
+  {:statement
+   "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient.\n\nUne définition ne se conteste pas en elle-même : on lui oppose une autre définition du même mot. Le graphe fait alors apparaître l'ambiguïté — plusieurs définitions concurrentes pour un terme — au lieu de trancher."
+   :title "Définition"}}
+ :explainer
+ {"en"
+  {:statement
+   "an article that lays out and links the graph's claims into readable prose — an entry point that makes the reasoning legible for a newcomer, informing and explaining rather than advocating or calling to act.\n\nIt is not challenged like a single reasoning step: an explainer rests on the claims it cites, so a disagreement is taken up with those; the article itself can still be discussed for its clarity, balance or what it leaves out."
+   :title "Explainer"}
+  "fr"
+  {:statement
+   "un article qui expose et relie les énoncés du graphe en une prose lisible — une porte d'entrée qui rend le raisonnement intelligible pour un nouveau venu, informant et expliquant plutôt qu'exhortant ou appelant à agir.\n\nOn ne la conteste pas comme une étape de raisonnement isolée : une explication repose sur les énoncés qu'elle cite, et c'est à ceux-ci qu'on adresse un désaccord ; l'article lui-même peut néanmoins être discuté pour sa clarté, son équilibre ou ses omissions."
+   :title "Explication"}}
+ :extract
+ {"en"
+  {:statement
+   "a passage drawn verbatim from a work at a precise location (page, chapter, verse): it cites the one work it comes from and pins the locator, so the appropriations built on it can point back to exactly what was said.\n\nIt is contested on fidelity: whether the passage is transcribed accurately, at the stated location, in the edition cited."
+   :title "Extract"}
+  "fr"
+  {:statement
+   "un passage tiré mot pour mot d'une œuvre à un endroit précis (page, chapitre, verset) : il cite l'unique œuvre dont il provient et fixe le locator, afin que les appropriations qui s'appuient dessus renvoient exactement à ce qui a été dit.\n\nOn le conteste sur la fidélité : le passage est-il transcrit fidèlement, à l'endroit indiqué, dans l'édition citée."
+   :title "Extrait"}}
+ :illustration
+ {"en"
+  {:statement
+   "a concrete example that makes another claim vivid — it shows an instance, it does not derive anything: no reasoning depends on it and nothing follows from it.\n\nIt is not challenged as reasoning: an illustration is apt or inapt, representative or misleading, but it proves nothing on its own — one disputes whether it truly exemplifies the claim, not whether it is 'valid'."
+   :title "Illustration"}
+  "fr"
+  {:statement
+   "un exemple concret qui rend une autre affirmation vivante — il montre un cas, il ne démontre rien : aucun raisonnement n'en dépend et rien n'en découle.\n\nOn ne la conteste pas comme un raisonnement : une illustration est pertinente ou non, représentative ou trompeuse, mais elle ne prouve rien en soi — on discute si elle illustre vraiment l'affirmation, non si elle est « valide »."
+   :title "Illustration"}}
+ :induction
+ {"en"
+  {:statement
+   "an ampliative step: the conclusion goes *beyond* what the inputs strictly guarantee.\n\nYou may accept the premises, accept the form, and still find the leap too wide — here the challenge is a judgment on the leap itself, not a matter of formal validity."
+   :title "Induction"}
+  "fr"
+  {:statement
+   "un pas ampliatif : la conclusion va *au-delà* de ce que les entrées garantissent strictement.\n\nOn peut accepter les prémisses, accepter la forme, et trouver le saut trop large — ici la contestation porte sur le saut lui-même, une appréciation, non sur la validité formelle."
+   :title "Induction"}}
+ :measurable-fact
+ {"en"
+  {:statement
+   "an empirical foundation: a statement settled by a reproducible measurement or observation, holding independently of who asserts it.\n\nIt is not contested by reasoning but on the measurement itself — the protocol, the instrument, its reproducibility — or by producing a measurement that contradicts it."
+   :title "Measurable fact"}
+  "fr"
+  {:statement
+   "un fondement empirique : un énoncé tranché par une mesure ou une observation reproductible, valable indépendamment de qui l'affirme.\n\nOn ne le conteste pas par le raisonnement mais sur la mesure elle-même — le protocole, l'instrument, sa reproductibilité — ou en produisant une mesure qui le contredit."
+   :title "Fait mesurable"}}
+ :prediction
+ {"en"
+  {:statement
+   "verifiable knowledge whose truth will be settled by an observable event, possibly in the future.\n\nBefore resolution, objections bear on the soundness of the reasoning; at resolution, reality decides and the debate closes — confirmed or refuted, whatever the community's confidence."
+   :title "Prediction"}
+  "fr"
+  {:statement
+   "un savoir vérifiable dont la vérité sera tranchée par un événement observable, éventuellement futur.\n\nAvant résolution, les objections portent sur la solidité du raisonnement ; à la résolution, la réalité tranche et le débat se clôt — confirmé ou réfuté, quelle que soit la confiance de la communauté."
+   :title "Prédiction"}}
+ :work
+ {"en"
+  {:statement
+   "an external document cited as bibliographic provenance — a book, article, dictionary, page… — shared (title, author, year, editor, URL) and reused by every passage drawn from it.\n\nIt is not contested like a piece of reasoning: you can discuss its accuracy, the edition chosen, or the attribution, but the work itself remains a shared provenance."
+   :title "Work"}
+  "fr"
+  {:statement
+   "un document externe cité comme provenance bibliographique — livre, article, dictionnaire, page… — partagé (titre, auteur, année, éditeur, URL) et réutilisé par chaque passage qui en est tiré.\n\nOn ne la conteste pas comme un raisonnement : on peut en discuter l'exactitude, l'édition retenue ou l'attribution, mais l'œuvre elle-même reste une provenance partagée."
+   :title "Œuvre"}}}

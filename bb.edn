@@ -3,7 +3,8 @@
  :tasks
  {:init (def pars
           {:target-dir "target/uberjar"
-           :cljs-app ":app-admin"})
+           ;; every shadow-cljs frontend build bundled into the jar
+           :fe-builds ["app-admin" "agora"]})
   :requires [[auto-build.os.exit-codes]
              [auto-build.os.exiting :refer [exit]]
              [auto-build.echo :refer [level1-header]]]
@@ -20,9 +21,6 @@
                         (run 'cljs-node-test))
                       auto-build.os.exit-codes/ok)
                   System/exit))}
-  claude {:doc "Claude run"
-          :requires [run-task]
-          :task (run-task.run)}
   clean {:doc "Remove temporary build files"
          :requires [[auto-build.tasks.clean :as task-clean]]
          :task (-> (task-clean/clean level1-header
@@ -58,17 +56,6 @@
   copy {:doc "Copy files from source projects (as defined in ext_src.edn)"
         :requires [[auto-build.tasks.copy :as tc]]
         :task (tc/run level1-header "ext_src.edn")}
-  deploy
-  {:doc "Build and deploy"
-   :requires [[auto-build.tasks.frontend :as build-frontend]]
-   :task
-   (->
-     (build-frontend/deploy
-      level1-header
-      "." "target/production"
-      "app-admin"
-      "git+ssh://git@push-n3-par-clevercloud-customers.services.clever-cloud.com/app_310e3757-812b-4d7a-bd70-a58cfc181505.git")
-     exit)}
   deps {:doc "Update deps clojure(script) and npm"
         :task (do (shell "clj -M:antq") (shell "npm upgrade"))}
   format {:doc "Format source code"
@@ -86,40 +73,48 @@
       :task (cache-bust/deploy! task-prod-build/build
                                 level1-header
                                 (current-task)
+                                (:fe-builds pars)
                                 "LANDING_LA_REPO"
                                 "target/la")}
   lint {:doc "Lint source code"
         :requires [[auto-build.tasks.lint :as task-lint]]
-        :task (-> (task-lint/lint level1-header ["src" "test"] "." (current-task))
+        :task (-> (task-lint/lint level1-header ["src" "test" "scripts"] "." (current-task))
                   exit)}
   prod {:doc "Deploy current codebase to production"
         :requires [[auto-build.tasks.web.prod-build :as task-prod-build] [cache-bust]]
         :task (cache-bust/deploy! task-prod-build/build
                                   level1-header
                                   (current-task)
+                                  (:fe-builds pars)
                                   "LANDING_PROD_REPO"
                                   "target/prod")}
-  prod-local {:doc "Compile frontend and backend in production mode and start it locally"
-              :requires [[auto-build.tasks.frontend :as build-frontend] [cache-bust]]
-              :task (do
-                      (build-frontend/uberjar level1-header "." (:target-dir pars) (:cljs-app pars))
-                      (cache-bust/fingerprint-jar! (str (:target-dir pars) "/landing.jar"))
-                      (shell (str "java -jar " (:target-dir pars) "/landing.jar"))
-                      exit)}
+  prod-local {:doc "Compile frontends (app-admin + agora) + backend in prod mode, run locally"
+              :requires [[cache-bust]]
+              :task (do (shell "rm -rf resources/public/js/compiled" (:target-dir pars))
+                        (shell "npm install")
+                        (apply shell "npx shadow-cljs release" (:fe-builds pars))
+                        (shell "clojure -T:uberjar :target-dir" (:target-dir pars))
+                        (cache-bust/fingerprint-jar! (str (:target-dir pars) "/landing.jar"))
+                        (shell "java -jar" (str (:target-dir pars) "/landing.jar")))}
   repl {:doc "Clojure repl"
         :override-builtin true
         :requires [[auto-build.tasks.repl :as build-repl]]
-        :task (-> (build-repl/repl level1-header "." (current-task) [:env-dev :test-clj] 7051)
-                  exit)}
+        ;; :env-seed puts the seed namespaces (types-seed / art-of-war-seed) on the REPL
+        ;; classpath too, so one REPL can both compile-check and run seeds. Extra path only,
+        ;; no deps, no side effects on startup.
+        :task
+        (-> (build-repl/repl level1-header "." (current-task) [:env-dev :test-clj :env-seed] 7051)
+            exit)}
   repl-fe {:doc "Clojure repl for frontend"
            :override-builtin true
            :requires [[auto-build.tasks.repl-fe :as build-repl-fe]]
-           :task (-> (build-repl-fe/repl-fe level1-header "." (current-task) ["app-admin"])
+           :task (-> (build-repl-fe/repl-fe level1-header "." (current-task) (:fe-builds pars))
                      exit)}
-  uberjar {:doc "Uberjar"
+  uberjar {:doc "Build the uberjar (bundles the app-admin + agora frontends)"
            :override-builtin true
-           :requires [[auto-build.tasks.frontend :as build-frontend]]
-           :task (-> (build-frontend/uberjar level1-header "." (:target-dir pars) (:cljs-app pars))
-                     exit)}
+           :task (do (shell "rm -rf resources/public/js/compiled" (:target-dir pars))
+                     (shell "npm install")
+                     (apply shell "npx shadow-cljs release" (:fe-builds pars))
+                     (shell "clojure -T:uberjar :target-dir" (:target-dir pars)))}
   update-website {:doc "Re-inject fragments into resources/public/<lang>/*.html"
                   :task (load-file "scripts/fragments.bb")}}}

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Mark that JS is available before the first paint, so the server-rendered SEO
+         body (#agora-ssr, present for crawlers / no-JS) is hidden for JS visitors and
+         never flashes before the SPA mounts. -->
+    <script>
+      document.documentElement.classList.add('js');
+    </script>
+    <!-- Agora favicon set (assets live under /agora-icons/ — outside the /agora/:lang
+         route subtree so they resolve as static files, not the home shell). SVG for
+         modern browsers, PNG + .ico raster fallback for Safari and crawlers. -->
+    <link rel="icon" type="image/svg+xml" href="/agora-icons/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/agora-icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/agora-icons/favicon-16.png" />
+    <link rel="icon" href="/agora-icons/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/agora-icons/apple-touch-icon.png" />
+    <title>Agora — Knowledge Item</title>
+    <link rel="stylesheet" href="/fontawesome/css/fontawesome.css" />
+    <link rel="stylesheet" href="/fontawesome/css/brands.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        /* never let a too-wide child cause a horizontal scroll that leaves the
+           full-bleed header/footer short of the viewport edge on tiny screens. */
+        overflow-x: hidden;
+      }
+      /* The server-rendered SEO body is for crawlers / no-JS only; hide it as soon as
+         JS is confirmed (see the head script) so it never flashes before the SPA mounts.
+         React replaces #agora-app's children (incl. #agora-ssr) on mount. */
+      html.js #agora-ssr {
+        display: none;
+      }
+      /* Loading placeholders (see ki-view skeletons). */
+      @keyframes agora-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+      .agora-skel {
+        background: #e7e2d7;
+        border-radius: 0.35em;
+        animation: agora-pulse 1.2s ease-in-out infinite;
+      }
+      /* Header: mobile-first (stacked, search on its own line); a single row from 640px. */
+      .agora-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.6em 0.9em;
+        padding: 0.6em 1em;
+      }
+      .agora-header__search {
+        flex: 1 1 100%;
+        order: 10;
+      }
+      /* On mobile the profile is pushed to the right edge of the top row. */
+      .agora-header__auth {
+        order: 5;
+        margin-left: auto;
+      }
+      @media (min-width: 640px) {
+        .agora-header {
+          gap: 1.2em;
+          padding: 0.6em 1.2em;
+        }
+        .agora-header__search {
+          flex: 0 1 20em;
+          order: 0;
+          margin-left: auto;
+        }
+        .agora-header__auth {
+          margin-left: 0;
+        }
+      }
+      /* Floating "create" button — mobile only; desktop uses the in-grid + card. */
+      .agora-fab {
+        position: fixed;
+        right: 1.1rem;
+        bottom: 1.1rem;
+        z-index: 60;
+        width: 3.2rem;
+        height: 3.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #b9770e;
+        color: #fff;
+        font-size: 2rem;
+        line-height: 1;
+        text-decoration: none;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      }
+      @media (min-width: 640px) {
+        .agora-fab {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="agora-app"></div>
+    <script src="/js/compiled/agora/agora.js"></script>
+  </body>
+</html>

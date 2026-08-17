@@ -5,6 +5,7 @@
   (:require
    [landing.article.rivalis]
    [landing.article.who-are-we]
+   [landing.language :as language]
    [landing.routes]))
 
 (defn add-origin [links origin] (map #(assoc % :origin origin) links))
@@ -53,7 +54,7 @@
   Both languages are checked for every public page."
   (into {}
         (for [[slug path] html-slugs
-              lang ["fr" "en"]]
+              lang language/languages]
           [(keyword (str (name slug) "-" lang)) (str lang "/" path)])))
 
 (def w3c-validate-css

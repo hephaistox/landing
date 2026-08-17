@@ -4,6 +4,7 @@
   so repeat requests skip both disk I/O and compression."
   (:require
    [clojure.string                    :as str]
+   [env]
    [landing.endpoints.cached-response :as cr]
    [reitit.ring                       :as rring]
    [ring.middleware.not-modified      :refer [wrap-not-modified]]
@@ -18,13 +19,18 @@
   page would reference asset URLs that the latest build no longer ships (each
   build is rebuilt from scratch) and 404. `no-cache` lets the browser store the
   page but forces an `If-Modified-Since` revalidation before use; combined with
-  `wrap-not-modified` that costs a tiny `304` when the page is unchanged."
+  `wrap-not-modified` that costs a tiny `304` when the page is unchanged.
+
+  In :dev the immutable rule is dropped: dev assets are NOT fingerprinted (shadow
+  writes a stable `agora.js`), so `immutable` would pin a stale bundle in the
+  browser and every code change would need a hard refresh. Dev serves them
+  `no-cache` instead, revalidating cheaply via `wrap-not-modified`."
   [uri]
   (let [u (or uri "")]
     (cond
       (str/ends-with? u ".html") "no-cache"
       (re-find #"\.(css|js|woff2?|ttf|png|jpg|jpeg|gif|svg|ico|webp)$" u)
-      "public, max-age=31536000, immutable"
+      (if (= :dev env/env) "no-cache" "public, max-age=31536000, immutable")
       :else "public, max-age=600")))
 
 (def ^:private base-handler (rring/create-resource-handler {:path "/"}))
