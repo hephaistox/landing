@@ -680,40 +680,50 @@
                ^{:key i} [:li [error-message lang err]]))])))
 
 (defn provenance-line
-  "The compact provenance line — 'Écrit par <author> dans <publication>, le <date>', author and
-  publication as links. Shared by the discover card and the read page so both read identically."
-  [lang node]
-  (let [author (or (:attributed-author node) (:author node))
-        author-id (or (:attributed-author-id node) (:author-id node))
-        pub (:publication node)
-        ;; reads « le 03/08 » for an absolute date but « Aujourd'hui » (no connector) for a relative
-        ;; one — the connector is added only where it fits
-        date (adate/labelled-date (:published-at node)
-                                  {:today (i18n/t lang :date/today)
-                                   :yesterday (i18n/t lang :date/yesterday)
-                                   :on (i18n/t lang :card/on-date)})]
-    [:div {:style {:color "#888"
-                   :font-size "0.8em"
-                   :line-height 1.5}}
-     (when author
-       [:<>
-        (str (i18n/t lang :card/by) " ")
-        (if author-id
-          [:a {:href (i18n/author lang author-id)
-               :style {:color "#b9770e"
-                       :font-weight 600
-                       :text-decoration "none"}}
-           author]
-          [:span {:style {:font-weight 600}}
-           author])])
-     (when pub
-       [:<>
-        (str " " (i18n/t lang :card/in-pub) " ")
-        [:a {:href (i18n/publication lang (:id pub))
-             :style {:color "#b9770e"
-                     :text-decoration "none"}}
-         (:title pub)]])
-     (when date (str ", " date))]))
+  "The compact provenance line — 'Écrit par <author> dans <publication>, le <date>'. Author and
+  publication are links on the read page, but plain text with `:links? false` — used inside the
+  discover card, which is itself an `<a>` (a nested `<a>` is invalid HTML). Shared so both read
+  identically."
+  ([lang node] (provenance-line lang node nil))
+  ([lang
+    node
+    {:keys [links?]
+     :or {links? true}}]
+   (let [author (or (:attributed-author node) (:author node))
+         author-id (or (:attributed-author-id node) (:author-id node))
+         pub (:publication node)
+         ;; reads « le 03/08 » for an absolute date but « Aujourd'hui » (no connector) for a relative
+         ;; one — the connector is added only where it fits
+         date (adate/labelled-date (:published-at node)
+                                   {:today (i18n/t lang :date/today)
+                                    :yesterday (i18n/t lang :date/yesterday)
+                                    :on (i18n/t lang :card/on-date)})]
+     [:div {:style {:color "#888"
+                    :font-size "0.8em"
+                    :line-height 1.5}}
+      (when author
+        [:<>
+         (str (i18n/t lang :card/by) " ")
+         (if (and author-id links?)
+           [:a {:href (i18n/author lang author-id)
+                :style {:color "#b9770e"
+                        :font-weight 600
+                        :text-decoration "none"}}
+            author]
+           [:span {:style {:color (if links? "#b9770e" "#666")
+                           :font-weight 600}}
+            author])])
+      (when pub
+        [:<>
+         (str " " (i18n/t lang :card/in-pub) " ")
+         (if links?
+           [:a {:href (i18n/publication lang (:id pub))
+                :style {:color "#b9770e"
+                        :text-decoration "none"}}
+            (:title pub)]
+           [:span {:style {:color "#666"}}
+            (:title pub)])])
+      (when date (str ", " date))])))
 
 (defn discover-card
   "A preview card for a node in a discover grid: its badge (a kind badge, a status chip for a
@@ -769,7 +779,7 @@
         excerpt])
      ;; compact provenance, pinned to the card's bottom
      [:div {:style {:margin-top "auto"}}
-      [provenance-line lang node]]]))
+      [provenance-line lang node {:links? false}]]]))
 
 ;; --- shared browse filter (scope / lang / author / q) — narrows a grid client-side, like the author
 ;; page. `:scope` and `:lang` are global (browsing preferences); the text filters (`:author`/`:q`) are
