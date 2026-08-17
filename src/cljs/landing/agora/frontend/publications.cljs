@@ -7,6 +7,7 @@
    [landing.agora.frontend.document-page :as dv]
    [landing.agora.frontend.i18n          :as i18n]
    [landing.agora.frontend.modal         :as modal]
+   [landing.agora.frontend.ui-commons    :as ui]
    [landing.language                     :as language]
    [re-frame.core                        :as rf]
    [reagent.core                         :as r]
@@ -414,20 +415,20 @@
                   :align-items "center"
                   :gap "0.35em"}}
      (if (some? @editing)
-       [:input {:type "text"
-                :value @editing
-                :auto-focus true
-                :on-change #(reset! editing (.. % -target -value))
-                :on-blur save!
-                :on-key-down #(case (.-key %)
-                                "Enter" (save!)
-                                "Escape" (reset! editing nil)
-                                nil)
-                :style {:flex "1"
-                        :font-size "0.9em"
-                        :padding "0.2em 0.4em"
-                        :border "1px solid #ccc"
-                        :border-radius "0.3em"}}]
+       [ui/composed-field {:type "text"
+                           :value @editing
+                           :auto-focus true
+                           :on-text #(reset! editing %)
+                           :on-blur save!
+                           :on-key-down #(case (.-key %)
+                                           "Enter" (save!)
+                                           "Escape" (reset! editing nil)
+                                           nil)
+                           :style {:flex "1"
+                                   :font-size "0.9em"
+                                   :padding "0.2em 0.4em"
+                                   :border "1px solid #ccc"
+                                   :border-radius "0.3em"}}]
        [:<>
         [:span {:on-double-click (when owner? #(reset! editing (or (:title pub) "")))
                 :title (when owner? (i18n/t lang :pub/rename-hint))

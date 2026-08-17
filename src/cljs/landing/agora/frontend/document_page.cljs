@@ -929,17 +929,16 @@
                        (nil? filter-lang) (str/upper-case lang)
                        (= filter-lang :all) (i18n/t lang :filter/lang-all)
                        :else (str/upper-case (name filter-lang)))
-        field (fn [k value ph extra] [:input {:type "text"
-                                              :value (or value "")
-                                              :placeholder (i18n/t lang ph)
-                                              :on-change #(rf/dispatch
-                                                           [::set-filter k (.. % -target -value)])
-                                              :style (merge {:padding "0.35em 0.6em"
-                                                             :border "1px solid #ccc"
-                                                             :border-radius "0.35em"
-                                                             :font-size "0.85em"
-                                                             :min-width "9em"}
-                                                            extra)}])]
+        field (fn [k value ph extra] [ui/composed-field {:type "text"
+                                                         :value (or value "")
+                                                         :placeholder (i18n/t lang ph)
+                                                         :on-text #(rf/dispatch [::set-filter k %])
+                                                         :style (merge {:padding "0.35em 0.6em"
+                                                                        :border "1px solid #ccc"
+                                                                        :border-radius "0.35em"
+                                                                        :font-size "0.85em"
+                                                                        :min-width "9em"}
+                                                                       extra)}])]
     [:div {:style {:display "flex"
                    :flex-wrap "wrap"
                    :gap "0.45em"

@@ -233,22 +233,23 @@
         (i18n/t lang :auth/register)]])))
 
 (defn- field
-  [label type value on-change]
+  [label type value on-text]
   [:label {:style {:display "block"
                    :margin-bottom "0.7em"}}
    [:div {:style {:font-size "0.8em"
                   :color "#555"
                   :margin-bottom "0.2em"}}
     label]
-   [:input {:type type
-            :value value
-            :on-change on-change
-            :style {:width "100%"
-                    :box-sizing "border-box"
-                    :padding "0.5em"
-                    :font-size "0.95em"
-                    :border "1px solid #ccc"
-                    :border-radius "0.3em"}}]])
+   ;; `composed-field` so dead-key / IME composition survives (e.g. an accented display name)
+   [ui/composed-field {:type type
+                       :value value
+                       :on-text on-text
+                       :style {:width "100%"
+                               :box-sizing "border-box"
+                               :padding "0.5em"
+                               :font-size "0.95em"
+                               :border "1px solid #ccc"
+                               :border-radius "0.3em"}}]])
 
 (defn- altcha-captcha
   "The self-hosted ALTCHA proof-of-work widget. It fetches its challenge from our
@@ -328,18 +329,18 @@
          (i18n/t lang :auth/email)
          "email"
          email
-         #(rf/dispatch [::set-form-property :email (.. % -target -value)])]
+         #(rf/dispatch [::set-form-property :email %])]
         [field
          (i18n/t lang :auth/password)
          "password"
          password
-         #(rf/dispatch [::set-form-property :password (.. % -target -value)])]
+         #(rf/dispatch [::set-form-property :password %])]
         (when register?
           [field
            (i18n/t lang :auth/alias)
            "text"
            display-name
-           #(rf/dispatch [::set-form-property :display-name (.. % -target -value)])])
+           #(rf/dispatch [::set-form-property :display-name %])])
         (when register? [altcha-captcha lang])
         (when error
           [:div {:style {:color "#c92a2a"

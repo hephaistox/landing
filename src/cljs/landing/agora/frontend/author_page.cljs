@@ -9,6 +9,7 @@
    [landing.agora.frontend.document-page :as document-page]
    [landing.agora.frontend.fmt           :as fmt]
    [landing.agora.frontend.i18n          :as i18n]
+   [landing.agora.frontend.ui-commons    :as ui]
    [re-frame.core                        :as rf]
    [reagent.core                         :as r]))
 
@@ -58,17 +59,17 @@
             (when-let [a (fmt/utc last-activity)]
               [:span (str "  ·  " (i18n/t lang :author/last-activity) " " a)])]]]
          ;; --- search ---
-         [:input {:type "text"
-                  :placeholder (i18n/t lang :author/search-ph)
-                  :value @q
-                  :on-change #(reset! q (.. % -target -value))
-                  :style {:width "100%"
-                          :box-sizing "border-box"
-                          :padding "0.55em 0.7em"
-                          :font-size "0.95em"
-                          :border "1px solid #ccc"
-                          :border-radius "0.4em"
-                          :margin-bottom "0.5em"}}]
+         [ui/composed-field {:type "text"
+                             :placeholder (i18n/t lang :author/search-ph)
+                             :value @q
+                             :on-text #(reset! q %)
+                             :style {:width "100%"
+                                     :box-sizing "border-box"
+                                     :padding "0.55em 0.7em"
+                                     :font-size "0.95em"
+                                     :border "1px solid #ccc"
+                                     :border-radius "0.4em"
+                                     :margin-bottom "0.5em"}}]
          [:div {:style {:color "#888"
                         :font-size "0.82em"
                         :margin-bottom "0.8em"}}
