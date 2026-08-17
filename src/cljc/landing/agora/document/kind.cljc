@@ -5,7 +5,7 @@
    [clojure.string :as str]))
 
 (def kinds
-  "For a ki, the document `kind`s is inference / prediction / definition / belief / assumption, plus the bibliographic `work` and `extract`);
+  "For a ki, the document `kind`s is deduction / induction / prediction / definition / belief / assumption, plus the bibliographic `work` and `extract`);
   For an *article*, kind sit on a rhetorical axis (*what is this prose doing?* — `explainer` `evangelism`).
 
   Each kind declares its **capabilities and presentation as data**, so
@@ -19,7 +19,7 @@
      draws from). This one flag drives both the backend (input derivation) and the UI (whether the
      citation feature is shown).
    - `:requires-inputs?` — **must** a document of this kind derive from at least one input? True for
-     the reasoning kinds (inference / prediction / counter-example / illustration) whose claim stands
+     the reasoning kinds (deduction / induction / prediction / counter-example / illustration) whose claim stands
      on another claim; a foundation (belief / assumption / measurable-fact), a definition or a
      bibliographic leaf (`work`) has none required. Drives the `missing-inputs` document error.
    - `:def-name` + `:def-major` — a pointer to the KI that *defines* the kind. The rest of that
@@ -27,16 +27,23 @@
      reader's — so only name + major are declared here (see `kind-def`).
    - `:say` — the statement scaffold `{:subject :author|:term, :phrase {lang → connector}}` that
      opens the kind's sentence (\"<author> believes that …\", \"<term> designates …\"). Absent for
-     free-form kinds (`inference`); drives `statement-prefix` (see `statement-say`).
+     free-form kinds (`deduction`); drives `statement-prefix` (see `statement-say`).
    - `:consequence` — the default kind of a new consequence built on this one (`add consequence`);
-     absent means `inference` (see `kind-consequence`).
+     absent means `deduction` (see `kind-consequence`).
   The set is NOT enforced by the DB; the API validates against it and the UI renders it."
-  [{:id :inference
+  [{:id :deduction
     :color "#2c5aa0"
     :inputs? true
     :requires-inputs? true
     :object-type :ki
-    :def-name "type-inference"
+    :def-name "type-deduction"
+    :def-major 1}
+   {:id :induction
+    :color "#2e8b8b"
+    :inputs? true
+    :requires-inputs? true
+    :object-type :ki
+    :def-name "type-induction"
     :def-major 1}
    {:id :prediction
     :color "#0b7285"
@@ -131,7 +138,7 @@
 
 (defn kind-ids-of
   "The kind ids (keywords) for `object-type`, in display order; the **first is that type's
-  default** (inference for KIs, explainer for articles)."
+  default** (deduction for KIs, explainer for articles)."
   [object-type]
   (mapv :id (kinds-of object-type)))
 
@@ -193,14 +200,14 @@
 (defn kind-consequence
   "The default kind for a **consequence** (a new successor citing this one) of a document of `kind` —
   what `add consequence` creates. A `work` yields an `extract` (a verbatim passage of it), an `extract`
-  an appropriation (`definition`), everything else an `inference` (the default reasoning step). It is a
+  an appropriation (`definition`), everything else a `deduction` (the default reasoning step). It is a
   default, not a rule: the author may pick another kind — e.g. a whole-work claim citing a work
   directly (\"the Bible is not set in the 21st century\")."
   [kind]
   (get kind-consequence-map
        (some-> kind
                keyword)
-       :inference))
+       :deduction))
 
 (def kind-def
   "kind (keyword) → the identity of the KI that defines it: `{:type :name :major}`.
@@ -217,22 +224,22 @@
         kinds))
 
 ;; --- Kind-guided statement scaffold ---------------------------------------------------
-;; Each epistemic kind (except the open `inference`) scaffolds the opening of the statement,
+;; Each epistemic kind (except the open `deduction`/`induction`) scaffolds the opening of the statement,
 ;; so the kind is enforced by the grammar rather than being a decorative badge. Two shapes:
 ;;   - author-attributed (belief/assumption/prediction): "<author> <verb> that "
 ;;   - term contract (definition): "<term> means "
-;; `inference` has no scaffold (free-form). Only the author's **body** is stored in `:text`;
+;; `deduction`/`induction` have no scaffold (free-form). Only the author's **body** is stored in `:text`;
 ;; the prefix is DERIVED here (shared clj + cljs) so it stays correct as kind/author change
 ;; and the SPA can render it instantly, without waiting on the read endpoint.
 
 (def ^:private statement-say
   "kind (keyword) → its `:say` scaffold `{:subject :author|:term, :phrase {lang → connector}}`, read
-  straight from `kinds`. Absent for free-form kinds (`inference`) which declare no `:say`."
+  straight from `kinds`. Absent for free-form kinds (`deduction`) which declare no `:say`."
   (into {} (keep (fn [{:keys [id say]}] (when say [id say])) kinds)))
 
 (defn statement-subject-kind
   "Whether `kind`'s (keyword or string) prefix subject is the `:author` or the `:term`, or nil for a
-  free-form kind (`inference`)."
+  free-form kind (`deduction`)."
   [kind]
   (:subject (get statement-say
                  (some-> kind
@@ -358,7 +365,7 @@
 (defn compose-statement
   "The full statement sentence for `doc` in `lang`: the kind-guided prefix + the authored
   `body`. Author-kinds prepend `<attributed-author> <verb> that `; `definition` prepends
-  `<title> designates `; free-form kinds (`inference`) return the body unchanged."
+  `<title> designates `; free-form kinds (`deduction`) return the body unchanged."
   [doc lang body]
   (str (statement-prefix-of doc lang) body))
 

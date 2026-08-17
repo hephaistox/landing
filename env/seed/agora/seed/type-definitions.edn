@@ -35,6 +35,15 @@
   {:statement
    "un cas unique qui réfute une affirmation générale en la contredisant : si un énoncé affirme « tous les X sont Y », un seul X qui n'est pas Y la montre fausse — ou du moins pas assez précise. Il vise un autre énoncé et lui retire sa généralité.\n\nOn le conteste lui-même de deux façons : le cas est-il réel (Einstein est-il vraiment intelligent ?) et relève-t-il bien de l'affirmation (Einstein fait-il partie de « tous les gens » ?). Un bon contre-exemple oblige la cible à se restreindre, se nuancer, ou être retirée."
    :title "Contre-exemple"}}
+ :deduction
+ {"en"
+  {:statement
+   "a deductive step: from inputs held to be true, the conclusion follows *necessarily*.\n\nThe only admissible challenges are that the form is invalid, or that a term is used equivocally — you cannot accept the premises and the form and yet refuse the conclusion."
+   :title "Deduction"}
+  "fr"
+  {:statement
+   "un pas déductif : à partir d'entrées tenues pour vraies, la conclusion suit *nécessairement*.\n\nLes seuls reproches recevables sont l'invalidité de la forme ou l'équivoque sur un terme — on ne peut pas accepter les prémisses et la forme puis refuser la conclusion."
+   :title "Déduction"}}
  :definition
  {"en"
   {:statement
@@ -71,15 +80,15 @@
   {:statement
    "un exemple concret qui rend une autre affirmation vivante — il montre un cas, il ne démontre rien : aucun raisonnement n'en dépend et rien n'en découle.\n\nOn ne la conteste pas comme un raisonnement : une illustration est pertinente ou non, représentative ou trompeuse, mais elle ne prouve rien en soi — on discute si elle illustre vraiment l'affirmation, non si elle est « valide »."
    :title "Illustration"}}
- :inference
+ :induction
  {"en"
   {:statement
-   "derived knowledge: from inputs held to be true, a logical consequence follows.\n\nIt is contested by counterexample — a case where the implication fails — or by an ambiguity objection on one of its terms; its confidence reflects how well its chain of reasoning has withstood scrutiny."
-   :title "Inference"}
+   "an ampliative step: the conclusion goes *beyond* what the inputs strictly guarantee.\n\nYou may accept the premises, accept the form, and still find the leap too wide — here the challenge is a judgment on the leap itself, not a matter of formal validity."
+   :title "Induction"}
   "fr"
   {:statement
-   "un savoir dérivé : à partir d'entrées tenues pour vraies, une conséquence logique s'ensuit.\n\nOn la conteste par contre-exemple — un cas où l'implication échoue — ou par une objection d'ambiguïté sur l'un de ses termes ; sa confiance reflète la résistance de sa chaîne de raisonnement à l'examen."
-   :title "Inférence"}}
+   "un pas ampliatif : la conclusion va *au-delà* de ce que les entrées garantissent strictement.\n\nOn peut accepter les prémisses, accepter la forme, et trouver le saut trop large — ici la contestation porte sur le saut lui-même, une appréciation, non sur la validité formelle."
+   :title "Induction"}}
  :measurable-fact
  {"en"
   {:statement

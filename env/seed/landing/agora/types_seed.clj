@@ -112,7 +112,7 @@
              :author author
              :owner-id owner-id
              :published-at published-at})
-    (pr-str {:pins {}})
+    (pr-str {:pins []})
     published-at
     pub-cid]))
 
