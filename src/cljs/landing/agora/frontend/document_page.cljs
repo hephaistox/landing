@@ -914,90 +914,94 @@
   toggle + a name field), an optional **Type** dropdown (`kind-ids` — the kinds offered as checkboxes;
   nil/empty = hidden), an optional **Language** dropdown (`lang-ids` — the content languages present;
   nil/empty = hidden), and an always-visible text search. Drives `:agora/browse-filter`; `filter-items`
-  applies it. Used by every browse surface."
-  [lang kind-ids lang-ids]
-  (let [{:keys [scope author q kinds]
-         filter-lang :lang}
-        @(rf/subscribe [::browse-filter])
-        kinds (or kinds #{})
-        ;; the "mine" scope reads as the signed-in user's own name; falls back to a generic label when
-        ;; logged out (nothing is "mine" then anyway)
-        mine-label (or (not-empty (:display-name @(rf/subscribe [::auth/user])))
-                       (i18n/t lang :filter/mine))
-        author? (or (= scope :mine) (not (str/blank? author)))
-        lang-summary (cond
-                       (nil? filter-lang) (str/upper-case lang)
-                       (= filter-lang :all) (i18n/t lang :filter/lang-all)
-                       :else (str/upper-case (name filter-lang)))
-        field (fn [k value ph extra] [ui/composed-field {:type "text"
-                                                         :value (or value "")
-                                                         :placeholder (i18n/t lang ph)
-                                                         :on-text #(rf/dispatch [::set-filter k %])
-                                                         :style (merge {:padding "0.35em 0.6em"
-                                                                        :border "1px solid #ccc"
-                                                                        :border-radius "0.35em"
-                                                                        :font-size "0.85em"
-                                                                        :min-width "9em"}
-                                                                       extra)}])]
-    [:div {:style {:display "flex"
-                   :flex-wrap "wrap"
-                   :gap "0.45em"
-                   :align-items "center"
-                   :margin "0 0 0.9em"}}
-     [filter-dropdown {:label (i18n/t lang :filter/author)
-                       :active? author?
-                       :summary (cond
-                                  (= scope :mine) mine-label
-                                  (not (str/blank? author)) author)}
-      [:div {:style {:display "flex"
-                     :flex-direction "column"
-                     :gap "0.4em"
-                     :min-width "12em"}}
-       ;; scope options as a vertical list, the user's own name and "all" at the same level; picking
-       ;; "all" also clears any typed author name, so the two author controls never contradict
-       [:div {:style {:display "flex"
-                      :flex-direction "column"}}
-        [check-row (= scope :mine) mine-label #(rf/dispatch [::set-filter :scope :mine])]
-        [check-row
-         (= scope :all)
-         (i18n/t lang :filter/all)
-         #(do (rf/dispatch [::set-filter :scope :all]) (rf/dispatch [::set-filter :author ""]))]]
-       (field :author author :filter/author-ph nil)]]
-     (when (seq kind-ids)
-       [filter-dropdown {:label (i18n/t lang :filter/type)
-                         :active? (seq kinds)
-                         :summary (when (seq kinds) (count kinds))}
-        (into [:div {:style {:display "flex"
-                             :flex-direction "column"}}]
-              (for [k kind-ids
-                    :let [on? (contains? kinds k)]]
-                ^{:key k}
+  applies it. `opts` may set `:author? false` to drop the Author control — e.g. an author page, where
+  the author is already fixed. Used by every browse surface."
+  ([lang kind-ids lang-ids] (filter-bar lang kind-ids lang-ids nil))
+  ([lang kind-ids lang-ids opts]
+   (let [{:keys [scope author q kinds]
+          filter-lang :lang}
+         @(rf/subscribe [::browse-filter])
+         kinds (or kinds #{})
+         author-control? (get opts :author? true)
+         ;; the "mine" scope reads as the signed-in user's own name; falls back to a generic label when
+         ;; logged out (nothing is "mine" then anyway)
+         mine-label (or (not-empty (:display-name @(rf/subscribe [::auth/user])))
+                        (i18n/t lang :filter/mine))
+         author? (or (= scope :mine) (not (str/blank? author)))
+         lang-summary (cond
+                        (nil? filter-lang) (str/upper-case lang)
+                        (= filter-lang :all) (i18n/t lang :filter/lang-all)
+                        :else (str/upper-case (name filter-lang)))
+         field (fn [k value ph extra] [ui/composed-field {:type "text"
+                                                          :value (or value "")
+                                                          :placeholder (i18n/t lang ph)
+                                                          :on-text #(rf/dispatch [::set-filter k %])
+                                                          :style (merge {:padding "0.35em 0.6em"
+                                                                         :border "1px solid #ccc"
+                                                                         :border-radius "0.35em"
+                                                                         :font-size "0.85em"
+                                                                         :min-width "9em"}
+                                                                        extra)}])]
+     [:div {:style {:display "flex"
+                    :flex-wrap "wrap"
+                    :gap "0.45em"
+                    :align-items "center"
+                    :margin "0 0 0.9em"}}
+      (when author-control?
+        [filter-dropdown {:label (i18n/t lang :filter/author)
+                          :active? author?
+                          :summary (cond
+                                     (= scope :mine) mine-label
+                                     (not (str/blank? author)) author)}
+         [:div {:style {:display "flex"
+                        :flex-direction "column"
+                        :gap "0.4em"
+                        :min-width "12em"}}
+          ;; scope options as a vertical list, the user's own name and "all" at the same level; picking
+          ;; "all" also clears any typed author name, so the two author controls never contradict
+          [:div {:style {:display "flex"
+                         :flex-direction "column"}}
+           [check-row (= scope :mine) mine-label #(rf/dispatch [::set-filter :scope :mine])]
+           [check-row
+            (= scope :all)
+            (i18n/t lang :filter/all)
+            #(do (rf/dispatch [::set-filter :scope :all]) (rf/dispatch [::set-filter :author ""]))]]
+          (field :author author :filter/author-ph nil)]])
+      (when (seq kind-ids)
+        [filter-dropdown {:label (i18n/t lang :filter/type)
+                          :active? (seq kinds)
+                          :summary (when (seq kinds) (count kinds))}
+         (into [:div {:style {:display "flex"
+                              :flex-direction "column"}}]
+               (for [k kind-ids
+                     :let [on? (contains? kinds k)]]
+                 ^{:key k}
+                 [check-row
+                  on?
+                  (i18n/t lang (keyword "kind" (name k)))
+                  #(rf/dispatch [::set-filter :kinds (if on? (disj kinds k) (conj kinds k))])]))])
+      (when (seq lang-ids)
+        [filter-dropdown {:label (i18n/t lang :filter/lang)
+                          :active? (some? filter-lang)
+                          :summary lang-summary}
+         (into [:div {:style {:display "flex"
+                              :flex-direction "column"}}
                 [check-row
-                 on?
-                 (i18n/t lang (keyword "kind" (name k)))
-                 #(rf/dispatch [::set-filter :kinds (if on? (disj kinds k) (conj kinds k))])]))])
-     (when (seq lang-ids)
-       [filter-dropdown {:label (i18n/t lang :filter/lang)
-                         :active? (some? filter-lang)
-                         :summary lang-summary}
-        (into [:div {:style {:display "flex"
-                             :flex-direction "column"}}
-               [check-row
-                (= filter-lang :all)
-                (i18n/t lang :filter/lang-all)
-                #(rf/dispatch [::set-filter :lang :all])]]
-              (for [l lang-ids
-                    :let [lk (keyword l)
-                          ;; the interface language is the default (unset), so selecting it clears the
-                          ;; explicit filter rather than pinning it
-                          on? (or (= filter-lang lk) (and (nil? filter-lang) (= (name lk) lang)))]]
-                ^{:key l}
-                [check-row
-                 on?
-                 (str/upper-case (name l))
-                 #(rf/dispatch [::set-filter :lang (if (= (name lk) lang) nil lk)])]))])
-     ;; the search field grows to fill whatever the combos leave on the row
-     (field :q q :filter/search-ph {:flex 1})]))
+                 (= filter-lang :all)
+                 (i18n/t lang :filter/lang-all)
+                 #(rf/dispatch [::set-filter :lang :all])]]
+               (for [l lang-ids
+                     :let [lk (keyword l)
+                           ;; the interface language is the default (unset), so selecting it clears the
+                           ;; explicit filter rather than pinning it
+                           on? (or (= filter-lang lk) (and (nil? filter-lang) (= (name lk) lang)))]]
+                 ^{:key l}
+                 [check-row
+                  on?
+                  (str/upper-case (name l))
+                  #(rf/dispatch [::set-filter :lang (if (= (name lk) lang) nil lk)])]))])
+      ;; the search field grows to fill whatever the combos leave on the row
+      (field :q q :filter/search-ph {:flex 1})])))
 
 (defn add-card
   "A dashed 'create' tile for the end of a discover grid — a large + linking to `href`.
