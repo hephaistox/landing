@@ -68,24 +68,31 @@
     {:status 404
      :body {:error "not found"}}))
 
+(defn- viewable?
+  "May the caller see this publication's gathered documents? Its **owner** always (open staging or
+  closed), and **anyone** once it is **closed** — a closed publication's documents are published, hence
+  public. Only an *open* publication's private drafts are owner-only."
+  [req cid]
+  (or (publication/owns? (uid req) cid) (publication/closed? cid)))
+
 (defn- documents
-  "The documents a publication gathers (its drafts), as browse cards. **Owner-only** — a publication's
-  drafts are its private staging area, so a non-owner (or anonymous caller) gets a 404, never the draft
-  content."
+  "The documents a publication gathers, as browse cards. Visible to the owner, or to anyone once the
+  publication is closed (its documents are then published); an open publication's drafts are its
+  private staging area, so a non-owner gets a 404."
   [doc-storage req]
   (let [cid (get-in req [:path-params :id])]
-    (if (publication/owns? (uid req) cid)
+    (if (viewable? req cid)
       {:status 200
        :body (engine/publication-cards doc-storage cid)}
       {:status 404
        :body {:error "not found"}})))
 
 (defn- graph
-  "The publication's 1-hop draft graph — nodes + edges — for the graph view. **Owner-only**, same as
-  `documents`: it exposes the same drafts."
+  "The publication's 1-hop graph — nodes + edges — for the graph view. Same visibility as `documents`:
+  the owner, or anyone once the publication is closed."
   [doc-storage req]
   (let [cid (get-in req [:path-params :id])]
-    (if (publication/owns? (uid req) cid)
+    (if (viewable? req cid)
       {:status 200
        :body (engine/publication-subgraph doc-storage cid)}
       {:status 404

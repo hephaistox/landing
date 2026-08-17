@@ -95,6 +95,13 @@
              (when-let [pub (db-doc/fetch-latest-any :publication cid)]
                (= owner-id (:owner-id pub))))))
 
+(defn closed?
+  "True when publication `cid` is closed (published). A closed publication has no private drafts — its
+  gathered documents are all published, hence public — so its contents may be shown to anyone, unlike
+  an open publication's staging drafts."
+  [cid]
+  (= :closed (:status (fetch cid))))
+
 (defn- next-content
   "The publication's next-version content: carry title/status/author/owner-id from `pub`, stamp `now`,
   apply `overrides`. Draft state is derived from its `:status` (`:open` ⇒ draft) by `version-row`."
