@@ -14,6 +14,7 @@
   (:require
    [clojure.string                    :as str]
    [landing.agora.date                :as adate]
+   [landing.agora.document.identity   :as di]
    [landing.agora.document.kind       :as dk]
    [landing.agora.frontend.auth       :as auth]
    [landing.agora.frontend.cite       :as cite]
@@ -735,12 +736,11 @@
   ;; prepend the kind-guided opening (derived, not stored) so the card reads as the full
   ;; statement ("Sun Tzŭ holds that …") — nil for the free-form `inference` kind. Citations
   ;; are flattened to the cited KI's title (`:cite-titles`, since names are opaque cids).
-  (let [titles (into {} (map (juxt :name :title)) (:cite-titles node))
-        text (cite/node-text node)
+  (let [text (cite/node-text node)
         ;; prefix in the card's CONTENT language (`:lang node`), not the reader's interface lang
         excerpt (when (seq text)
                   (str (dk/statement-prefix-of node (keyword (:lang node)))
-                       (cite/plain-text text titles)))]
+                       (di/plain-text text (:cite-titles node))))]
     [:a {:href (card-href lang node)
          :style {:display "flex"
                  :flex-direction "column"
@@ -813,7 +813,11 @@
   (let [owner (or (:attributed-author-id node) (:author-id node))
         ;; match what the card shows as the byline
         author-name (or (:attributed-author node) (:author node) "")
-        hay (str/lower-case (str (:title node) " " (:text node) " " author-name))]
+        ;; search the prose as the card shows it — citations read as the titles they reference, so
+        ;; typing a cited title matches and an opaque cid never does
+        hay (str/lower-case (str (:title node)
+                                 " " (di/plain-text (:text node) (:cite-titles node))
+                                 " " author-name))]
     (and (or (not= scope :mine) (and viewer-id (= viewer-id owner)))
          (or (nil? lang)
              ;; a language-neutral container (a publication, lang `zz`) is exempt from a content-

@@ -7,11 +7,11 @@
   objection that drove the next one. It closes on « what this changes » for a reader. Everything is
   real seeded data, fetched live. The mechanism detail lives in the FAQ."
   (:require
-   [landing.agora.frontend.cite  :as cite]
-   [landing.agora.frontend.graph :as graph]
-   [landing.agora.frontend.i18n  :as i18n]
-   [re-frame.core                :as rf]
-   [reagent.core                 :as r]))
+   [landing.agora.document.identity :as di]
+   [landing.agora.frontend.graph    :as graph]
+   [landing.agora.frontend.i18n     :as i18n]
+   [re-frame.core                   :as rf]
+   [reagent.core                    :as r]))
 
 ;; --- data: the four editions (real publications) ----------------------------
 
@@ -172,7 +172,7 @@
                      :font-size "1.04em"
                      :line-height 1.65
                      :color "#2a2723"}}
-         (cite/plain-text (:text article) {})]
+         (di/plain-text (:text article) (:cite-titles article))]
         [:div {:style {:height "3em"}}])
       [edition-objection lang n]]]))
 

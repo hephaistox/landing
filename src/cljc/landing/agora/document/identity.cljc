@@ -128,23 +128,66 @@
        (distinct)
        (vec)))
 
+;; --- how a citation reads when it cannot be a live link -------------------------------
+;; A name is an opaque cid, so a citation shown flat is only readable through the cited document's
+;; **title**. Callers hand over the titles they resolved (`titles`, a `{cid → title}` map — the read
+;; view's `:cite-titles`); the rule itself is here so a card excerpt, a hover preview, a meta
+;; description and the server-rendered prose all label a reference the same way.
+
+(defn humanize
+  "A readable heading from a name: `confidence-is-partial` → `Confidence is partial`. The last-resort
+  label of a reference whose title is unknown."
+  [s]
+  (let [t (-> (or s "")
+              (str/replace #"[-_]+" " ")
+              str/trim)]
+    (if (str/blank? t) (str s) (str (str/upper-case (subs t 0 1)) (subs t 1)))))
+
+(defn titles-by-name
+  "A `{cid → title}` lookup from a document's resolved `:cite-titles` (`[{:name :title}…]`)."
+  [cite-titles]
+  (into {} (map (juxt :name :title)) cite-titles))
+
+(defn cite-label
+  "The text a citation reads as: its custom `|label`, else the cited document's title (from `titles`),
+  else the humanized name."
+  [{:keys [name text]} titles]
+  (or text (get titles name) (humanize name)))
+
+(defn plain-text
+  "`body` with every `[[…]]` citation flattened to its `cite-label` — the prose as running text, for
+  the surfaces that cannot render a live link (card excerpts, hover previews, meta descriptions).
+  `cite-titles` is a document's resolved `[{:name :title}…]`."
+  [body cite-titles]
+  (let [titles (titles-by-name cite-titles)]
+    (str/replace (or body "")
+                 cite-pattern
+                 (fn [[_ _type nm _lang _major label]]
+                   (cite-label {:name nm
+                                :text label}
+                               titles)))))
+
 (defn strip-cite
   "Unweave the citations of **one** input — the given `TNLR` (type, name, lang, major) — from
-  `body`: each matching `[[…]]` token becomes its display text (the custom `|label`, else the bare
-  name) as plain prose, while **every other citation is left intact**."
-  [body TNLR]
-  (if (str/blank? body)
-    body
-    (let [{:keys [type name lang major]} TNLR]
-      (str/replace body
-                   cite-pattern
-                   (fn [[whole re-type re-name re-lang re-major label]]
-                     (if (and (= (keyword re-type) type)
-                              (= re-name name)
-                              (= (keyword re-lang) lang)
-                              (= (parse-major re-major) major))
-                       (or label re-name)
-                       whole))))))
+  `body`: each matching `[[…]]` token becomes its `cite-label` (from the optional `cite-titles`) as
+  plain prose, while **every other citation is left intact**."
+  ([body TNLR] (strip-cite body TNLR nil))
+  ([body TNLR cite-titles]
+   (if (str/blank? body)
+     body
+     (let [{:keys [type name lang major]} TNLR
+           titles (titles-by-name cite-titles)]
+       (str/replace body
+                    cite-pattern
+                    (fn [[whole re-type re-name re-lang re-major label]]
+                      (if (and (= (keyword re-type) type)
+                               (= re-name name)
+                               (= (keyword re-lang) lang)
+                               (= (parse-major re-major) major))
+                        (cite-label {:name re-name
+                                     :text label}
+                                    titles)
+                        whole)))))))
 
 ;; --- inputs -------------------------------------------------------------------
 

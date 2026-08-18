@@ -9,9 +9,11 @@
    [landing.agora.document.storage  :as ds]
    [landing.agora.publication       :as publication]))
 
-;; `document-errors` (defined below with the error helpers) is used by `expand-document` above it —
-;; forward-declared so the view can carry its `:errors`.
+;; `document-errors` and `cite-titles` (defined below, with the error helpers and the card) are used by
+;; `expand-document` above them — forward-declared so the view can carry its `:errors` and the titles
+;; its citations read as.
 (declare document-errors)
+(declare cite-titles)
 
 (defn- work-view
   "The bibliographic work `work-doc` shaped for display, plus this citation's `locator`:
@@ -66,15 +68,15 @@
           (select-keys [:id :title :status])))
 
 (defn- resolve-input
-  "A pinned input ref shaped for display. An `extract` input carries the work it draws from (`:work`)
-  and its title, so a document citing an extract can show the underlying work; every other input is
-  its pin unchanged."
+  "A pinned input ref shaped for display: its pin plus the pinned document's `:title`, so an edge is
+  named by what it references and never by its opaque cid. An `extract` input also carries the work it
+  draws from (`:work`), so a document citing an extract can show the underlying work."
   [doc-storage
    {:keys [id]
     :as pin}]
   (let [d (ds/fetch-id doc-storage id)]
-    (cond-> pin
-      (= :extract (:kind d)) (assoc :title (:title d) :work (resolve-work doc-storage d)))))
+    (cond-> (assoc pin :title (:title d))
+      (= :extract (:kind d)) (assoc :work (resolve-work doc-storage d)))))
 
 (defn- resolve-inputs
   "Each pinned input of `doc` resolved for display (`resolve-input`); a pin with no id (a dangling
@@ -120,6 +122,7 @@
              :publication (resolve-publication (:publication-id doc))
              :successors (cond-> (successor-refs doc)
                            pub-cid (into (publication-successor-refs pub-cid doc)))
+             :cite-titles (cite-titles doc-storage doc pub-cid)
              :errors (document-errors doc-storage doc pub-cid)
              :translations (db-doc/translations-of (:name doc)))
       (dissoc :author :owner-id :author-id :pins :publication-id)))
@@ -143,15 +146,26 @@
    (when-let [doc (ds/fetch-latest-revision doc-storage ref)]
      (expand-document doc-storage doc pub-cid))))
 
+(defn- cite-doc
+  "The document a citation `ref` resolves to, publication-aware like every other reference: `pub-cid`'s
+  own draft of the lineage when it has one, else the latest published minor (cached). nil when neither
+  exists."
+  [doc-storage pub-cid ref]
+  (or (when pub-cid
+        (some->> (db-doc/draft-of (:type ref) (:name ref) (:lang ref) (:major ref) pub-cid)
+                 (ds/fetch-id doc-storage)))
+      (ds/fetch-latest-revision doc-storage ref)))
+
 (defn- cite-titles
-  "Each KI cited inline in `doc`'s text, as `{:name cid :title current-title}`, resolved through
-  `doc-storage` (cached). Lets a card excerpt show the cited titles in place of the raw `[[ki:…]]`
-  tokens. Skips a citation whose lineage no longer resolves."
-  [doc-storage doc]
+  "Each document cited inline in `doc`'s text, as `{:name cid :title current-title}`. Since a name is
+  an opaque cid, this is what lets every flat rendering of the prose — a card excerpt, a hover
+  preview, a meta description — read the citation as its title (`identity/plain-text`). Skips a
+  citation whose lineage does not resolve."
+  [doc-storage doc pub-cid]
   (into []
         (keep (fn [ref]
                 (let [ref (update ref :lang #(or % (:lang doc)))]
-                  (when-let [d (ds/fetch-latest-revision doc-storage ref)]
+                  (when-let [d (cite-doc doc-storage pub-cid ref)]
                     {:name (:name ref)
                      :title (:title d)}))))
         (di/cite-refs (:text doc))))
@@ -218,7 +232,7 @@
              :work (resolve-work doc-storage doc)
              :target (resolve-target doc-storage doc)
              :publication (resolve-publication (:publication-id doc))
-             :cite-titles (cite-titles doc-storage doc)
+             :cite-titles (cite-titles doc-storage doc pub-cid)
              :errors (document-errors doc-storage doc pub-cid))))
 
 (defn- lineage-key

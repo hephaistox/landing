@@ -20,15 +20,6 @@
    [re-frame.core                     :as rf]
    [reagent.core                      :as r]))
 
-(defn humanize
-  "A readable heading from a slug: `confidence-is-partial` → `Confidence is
-  partial`. Used as a citation label until the KI's real title has loaded."
-  [s]
-  (let [t (-> (or s "")
-              (str/replace #"[-_]+" " ")
-              str/trim)]
-    (if (str/blank? t) (str s) (str (str/upper-case (subs t 0 1)) (subs t 1)))))
-
 (defn node-text "A document's prose (the unified `:text` key)." [doc] (:text doc))
 
 (defn parse-segments
@@ -117,8 +108,10 @@
                    :margin-bottom "0.35em"}}
     [:span {:style {:font-weight 700
                     :font-size "1.05em"}}
-     (or (:title doc) (humanize (:name doc)))]
+     (or (:title doc) (di/humanize (:name doc)))]
     [mini-kind-badge (:kind doc)]]
+   ;; a preview is too small for living links, so its own citations read as the titles they
+   ;; reference (`:cite-titles`) rather than as raw tokens
    (when-let [s (node-text doc)]
      [:span {:style {:display "-webkit-box"
                      :-webkit-line-clamp 3
@@ -126,7 +119,7 @@
                      :overflow "hidden"
                      :color "#555"
                      :margin-bottom "0.5em"}}
-      s])
+      (di/plain-text s (:cite-titles doc))])
    [:span {:style {:display "flex"
                    :flex-wrap "wrap"
                    :align-items "center"
@@ -164,7 +157,7 @@
                           :margin-right "0.25em"
                           :vertical-align "0.08em"}}
            "◆"]
-          (or text (:title doc) (humanize name))]
+          (or text (:title doc) (di/humanize name))]
          (when (and @hover? doc) [ki-hover-card doc])]))))
 
 (defn node-link
@@ -208,7 +201,7 @@
               :style {:color "#b9770e"
                       :font-weight 600
                       :text-decoration "none"}}
-          (or label (:title doc) (:title node) (humanize name))]
+          (or label (:title doc) (:title node) (di/humanize name))]
          (when (and @hover? doc) [ki-hover-card doc])]))))
 
 (defn- inline-segs
@@ -261,20 +254,6 @@
                                                     (when (and (zero? i) first-p?) lead)))
                                       {:key i}))
                          blocks))))))
-
-(defn plain-text
-  "`text` with its `[[ki:…]]` citations flattened to a label — for excerpts/previews where
-  rendering live links would be too heavy (e.g. a discover grid of many cards). A citation's
-  label is its custom text, else the cited KI's title from the optional `titles` map
-  (`{cid → title}`), else a humanized slug. Since names are opaque cids, the `titles` map is
-  what keeps a card excerpt readable."
-  ([text] (plain-text text nil))
-  ([text titles]
-   (->> (parse-segments (or text ""))
-        (map
-         (fn [seg]
-           (if (string? seg) seg (or (:text seg) (get titles (:name seg)) (humanize (:name seg))))))
-        (apply str))))
 
 (defn citations
   "The set of KIs cited in `text`, as {:name :major} — the node's declared inputs."
@@ -481,7 +460,7 @@
                                             :style result-btn-style}
                                    [mini-kind-badge (:kind k)]
                                    [:span {:style {:font-weight 600}}
-                                    (or (:title k) (humanize (:name k)))]])
+                                    (or (:title k) (di/humanize (:name k)))]])
                                 ;; a document can't cite itself — drop its own lineage
                                 (remove #(= (:name %) self-name) @results))
                           ^{:key "__new__"}

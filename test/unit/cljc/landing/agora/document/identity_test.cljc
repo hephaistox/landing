@@ -82,6 +82,24 @@
              :major 2}]
            (sut/cite-refs "[[ki:a:en@1]] and [[ki:b:fr@2|label]]")))))
 
+(deftest plain-text
+  (testing "a citation reads as the cited document's title"
+    (is (= "See Confidence is partial here."
+           (sut/plain-text "See [[ki:Xk3f9a2b1c@1]] here."
+                           [{:name "Xk3f9a2b1c"
+                             :title "Confidence is partial"}]))))
+  (testing "a custom label wins over the title"
+    (is (= "See partial here."
+           (sut/plain-text "See [[ki:Xk3f9a2b1c@1|partial]] here."
+                           [{:name "Xk3f9a2b1c"
+                             :title "Confidence is partial"}]))))
+  (testing "an unresolved citation falls back to the humanized name"
+    (is (= "See Confidence is partial here."
+           (sut/plain-text "See [[ki:confidence-is-partial@1]] here." nil))))
+  (testing "prose without citations, and no prose at all"
+    (is (= "plain prose" (sut/plain-text "plain prose" nil)))
+    (is (= "" (sut/plain-text nil nil)))))
+
 (deftest strip-cite
   (testing "strip-cite removes a dropped input's citation, keeping its display text"
     (is (= "See partial then [[ki:other@2]] here."
@@ -90,7 +108,7 @@
                             :name "confidence"
                             :lang nil
                             :major 1})))
-    (is (= "See partial then other here."
+    (is (= "See partial then Other here."
            (-> "See [[ki:confidence@1|partial]] then [[ki:other@2]] here."
                (sut/strip-cite {:type :ki
                                 :name "confidence"
@@ -99,7 +117,17 @@
                (sut/strip-cite {:type :ki
                                 :name "other"
                                 :lang nil
-                                :major 2}))))
+                                :major 2})))
+        "a label-less token falls back to the humanized name")
+    (is (= "See partial then The other one here."
+           (sut/strip-cite "See partial then [[ki:other@2]] here."
+                           {:type :ki
+                            :name "other"
+                            :lang nil
+                            :major 2}
+                           [{:name "other"
+                             :title "The other one"}]))
+        "given the cited titles, the token reads as the document's title")
     (is (= "keep partial."
            (sut/strip-cite "keep [[ki:x:en@1|partial]]."
                            {:type :ki

@@ -59,24 +59,24 @@
       (str/replace ">" "&gt;")
       (str/replace "\"" "&quot;")))
 
-(defn- humanize
-  [s]
-  (let [t (-> (or s "")
-              (str/replace #"[-_]+" " ")
-              str/trim)]
-    (if (str/blank? t) (str s) (str (str/upper-case (subs t 0 1)) (subs t 1)))))
-
-(defn- title-of [ki ki-name] (let [t (:title ki)] (if (str/blank? t) (humanize ki-name) t)))
+(defn- title-of [ki ki-name] (let [t (:title ki)] (if (str/blank? t) (di/humanize ki-name) t)))
 
 (defn- ref-entry
   "A schema.org CreativeWork reference to a neighbouring KI — its title and its
   permalink — so the reasoning graph's edges are declared as linked data."
   [base {:keys [name title major lang]}]
   {"@type" "CreativeWork"
-   "name" (if (str/blank? title) (humanize name) title)
+   "name" (if (str/blank? title) (di/humanize name) title)
    "url" (str base "/agora/" lang "/ki/" (key-of name title) "/" major)})
 
 (defn- prose "A document's prose (the unified `:text` key)." [doc] (:text doc))
+
+(defn- readable-prose
+  "A document's prose with its citations flattened to the cited titles (`:cite-titles`) — the form a
+  crawler or an unfurler must be given, since neither renders the `[[…]]` tokens nor knows what an
+  opaque cid names."
+  [doc]
+  (di/plain-text (prose doc) (:cite-titles doc)))
 
 (defn- description-of
   "A ~160-char, single-line summary from the document's prose."
@@ -121,7 +121,7 @@
         ;; the kind-guided opening (derived) precedes the body so the snippet reads as a
         ;; full sentence ("Sun Tzŭ believes that …") — in the doc's content language (`:lang ki`,
         ;; which may differ from the URL `lang` on a cross-language fallback), so it never mixes
-        desc (description-of {:text (dk/compose-statement ki (:lang ki) (prose ki))})
+        desc (description-of {:text (dk/compose-statement ki (:lang ki) (readable-prose ki))})
         url (str base "/agora/" lang "/ki/" (key-of ki-name title) "/" ki-major)
         langs (into [{:lang lang}] (:translations ki))]
     (str/join "\n"
@@ -144,7 +144,7 @@
                                          "description" desc
                                          "inLanguage" lang
                                          "url" url}
-                                  (prose ki) (assoc "articleBody" (prose ki))
+                                  (prose ki) (assoc "articleBody" (readable-prose ki))
                                   (:published-at ki) (assoc "datePublished" (:published-at ki))
                                   (:attributed-author ki) (assoc "author"
                                                                  {"@type" "Person"
@@ -154,21 +154,12 @@
                                   (seq (:inputs ki))
                                   (assoc "isBasedOn" (mapv #(ref-entry base %) (:inputs ki)))))]))))
 
-(defn- body->text
-  "Plain-text of an article body for a meta description: each `[[ki:…]]` citation
-  token becomes its custom text (or the humanized KI name), so the description reads
-  naturally instead of showing raw tokens."
-  [body]
-  (str/replace (or body "")
-               di/cite-pattern
-               (fn [[_ _type nm _lang _major txt]] (or txt (humanize nm)))))
-
 (defn article-head
   "SEO `<head>` for an article permalink: title, description (from the body), canonical +
   hreflang alternates, OpenGraph and an schema.org Article."
   [base lang art-name art-major art]
   (let [title (title-of art art-name)
-        desc (description-of {:text (body->text (prose art))})
+        desc (description-of {:text (readable-prose art)})
         url (str base "/agora/" lang "/article/" (key-of art-name title) "/" art-major)
         langs (into [{:lang lang}] (:translations art))]
     (str/join "\n"
@@ -351,14 +342,17 @@
 
 (defn- cite->link
   "Replacement fn for `di/cite-pattern`: an in-prose `[[ki:name(:lang)?@major]]` citation →
-  an `<a>` to that KI's permalink (text = the custom label, else the humanized name). The link
-  targets the citation's own language when the token carries one, else the citing doc's `lang`."
-  [base lang]
+  an `<a>` to that KI's permalink, labelled by `di/cite-label` (custom label, else the cited title
+  from `titles`, else the humanized name). The link targets the citation's own language when the
+  token carries one, else the citing doc's `lang`."
+  [base lang titles]
   (fn [[_ tp nm lang-tok mj txt]]
     (str "<a href=\""
          (esc (str base "/agora/" (or lang-tok lang) "/" (or tp "ki") "/" (enc nm) "/" mj))
          "\">"
-         (esc (or txt (humanize nm)))
+         (esc (di/cite-label {:name nm
+                              :text txt}
+                             titles))
          "</a>")))
 
 (defn- prefix-pill-html
@@ -376,13 +370,14 @@
   into **paragraphs** (blank line separates; single line-break → `<br/>`) and **bullet lists**
   (`- `/`* ` lines) via the shared `dk/parse-blocks`, so it matches the SPA renderer. An
   optional `lead` HTML string is placed inline at the start of the first paragraph (the boxed
-  statement prefix)."
-  [base lang text lead]
+  statement prefix). `titles` are the cited documents' titles (`:cite-titles`), so each link reads as
+  what it references."
+  [base lang text lead titles]
   (let [blocks (dk/parse-blocks text)
         first-p? (= :p (:type (first blocks)))
         inline (fn [s]
                  (-> (esc s)
-                     (str/replace di/cite-pattern (cite->link base lang))))
+                     (str/replace di/cite-pattern (cite->link base lang titles))))
         block->html
         (fn [i blk]
           (if (= :ul (:type blk))
@@ -404,7 +399,7 @@
                  "/" (key-of name title)
                  "/" major))
        "\">"
-       (esc (if (str/blank? title) (humanize name) title))
+       (esc (if (str/blank? title) (di/humanize name) title))
        "</a></li>"))
 
 (defn- neighbour-section
@@ -441,7 +436,7 @@
      (esc title*)
      "</h1>"
      "<p>"
-     (when kind (str "<strong>" (esc (humanize (name kind))) "</strong> · "))
+     (when kind (str "<strong>" (esc (di/humanize (name kind))) "</strong> · "))
      (cond
        attributed-author-id (str "<a href=\""
                                  (esc (str home "/author/" attributed-author-id))
@@ -464,7 +459,8 @@
                  (prose doc)
                  ;; prefix in the doc's content language (`:lang doc`), not the URL `lang`
                  (when-let [prefix (dk/statement-prefix-of doc (:lang doc))]
-                   (prefix-pill-html prefix)))
+                   (prefix-pill-html prefix))
+                 (di/titles-by-name (:cite-titles doc)))
      "</div>"
      (neighbour-section base "Based on" inputs)
      (neighbour-section base "Used by" successors)
