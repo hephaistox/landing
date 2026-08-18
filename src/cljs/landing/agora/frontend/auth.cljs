@@ -60,9 +60,11 @@
                    ;; a real session carries a user `:id`; an id-less body (e.g. no session) is
                    ;; logged-out, not a `{}` "user" — `logged-in?`/owner checks key off `:id`.
                    (let [user (let [u (:body resp)] (when (:id u) u))]
-                     (cond-> {:db (assoc db ::user user)}
-                       ;; adopt the account's saved interface-language preference
-                       (:lang user) (assoc :dispatch [:agora/adopt-lang (:lang user)])))))
+                     {:db (assoc db ::user user)
+                      ;; adopt the account's saved interface-language preference, and drop any active
+                      ;; publication that isn't this user's (a value left over from another account)
+                      :fx [(when (:lang user) [:dispatch [:agora/adopt-lang (:lang user)]])
+                           [:dispatch [:landing.agora.frontend.publications/reconcile-active]]]})))
 
 (rf/reg-event-db ::open
                  (fn [db [_ mode]]
@@ -96,11 +98,13 @@
                      {:db (assoc-in db [::form :submitting?] true)
                       :fetch (json-req :post url body [::auth-ok] [::auth-failed])})))
 
-(rf/reg-event-db ::auth-ok
-                 (fn [db [_ resp]]
-                   (-> db
-                       (assoc ::user (:body resp))
-                       (dissoc ::form ::menu?))))
+(rf/reg-event-fx ::auth-ok
+                 (fn [{:keys [db]} [_ resp]]
+                   {:db (-> db
+                            (assoc ::user (:body resp))
+                            (dissoc ::form ::menu?))
+                    ;; a fresh login: drop any active publication left by another account
+                    :dispatch [:landing.agora.frontend.publications/reconcile-active]}))
 
 (rf/reg-event-db ::auth-failed
                  (fn [db [_ resp]]
@@ -120,7 +124,16 @@
                             :on-success [::logged-out]
                             :on-failure [::logged-out]}}))
 
-(rf/reg-event-db ::logged-out (fn [db _] (dissoc db ::user ::menu?)))
+(rf/reg-event-fx ::logged-out
+                 (fn [{:keys [db]} _]
+                   (cond-> {:db (dissoc db ::user ::menu?)
+                            ;; deselect the active publication on logout — it must not carry over to
+                            ;; the next account (or an anonymous session) on this browser
+                            :dispatch [:landing.agora.frontend.publications/clear-active]}
+                     ;; a publication page (publication / its graph) is owner-only, so once logged out
+                     ;; leave it for the landing rather than sit on a now-inaccessible page
+                     (contains? #{:publication :publication-graph} (:kind (:view db)))
+                     (assoc :agora/navigate (i18n/home (i18n/current db))))))
 
 ;; ---------------------------------------------------------------------------
 ;; View

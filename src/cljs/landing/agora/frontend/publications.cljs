@@ -21,8 +21,9 @@
 (rf/reg-sub ::publishing? (fn [db _] (:agora/publishing? db)))
 
 ;; --- active publication (the work-package you are authoring in) ------------
-;; Persisted in localStorage as `{:id :title}` — every document create/edit attaches to it. May be
-;; synced to the account asynchronously later; for now it is client-side only.
+;; Persisted in localStorage as `{:id :title :owner-id}` — every document create/edit attaches to it.
+;; `:owner-id` lets a session load drop a publication left by another account (`::reconcile-active`).
+;; May be synced to the account asynchronously later; for now it is client-side only.
 
 (def ^:private active-key "agora-active-publication")
 
@@ -40,6 +41,15 @@
          (.setItem js/localStorage active-key (js/JSON.stringify (clj->js m)))
          (.removeItem js/localStorage active-key))
        (catch :default _ nil)))
+
+(defn- ->active
+  "The active-publication record persisted client-side: `:id` + `:title` + its `:owner-id`, so a
+  publication belonging to another account (a value left in localStorage after an account switch) can
+  be recognized and dropped. A publication's owner is its byline `:attributed-author-id`."
+  [pub]
+  {:id (:id pub)
+   :title (:title pub)
+   :owner-id (:attributed-author-id pub)})
 
 (rf/reg-sub ::active (fn [db _] (:agora/active-publication db)))
 
@@ -73,16 +83,26 @@
 
 (rf/reg-event-fx ::set-active
                  (fn [{:keys [db]} [_ pub]]
-                   (let [m (select-keys pub [:id :title])]
+                   (let [m (->active pub)]
                      (write-active! m)
                      {:db (assoc db :agora/active-publication m)
                       :dispatch [refetch-scoped]})))
+
+;; drop the active publication when it isn't the current user's — a value left in localStorage after
+;; a different account used this browser (an open publication is private to its owner and must not
+;; surface for anyone else). Dispatched by auth whenever a session loads (login / session check).
+(rf/reg-event-fx
+ ::reconcile-active
+ (fn [{:keys [db]} _]
+   (let [active (:agora/active-publication db)
+         uid (:id (get db ::auth/user))]
+     (if (and active (not= (:owner-id active) uid)) {:dispatch [::clear-active]} {}))))
 
 ;; create a document from this publication's page: make it the active publication, then open the
 ;; authoring form at `url`, so the new document lands in this publication
 (rf/reg-event-fx ::create-here
                  (fn [{:keys [db]} [_ pub url]]
-                   (let [m (select-keys pub [:id :title])]
+                   (let [m (->active pub)]
                      (write-active! m)
                      {:db (assoc db :agora/active-publication m)
                       :agora/navigate url})))
@@ -124,7 +144,7 @@
                                     :on-failure [::ensure-failed]}})))
 (rf/reg-event-fx ::ensured
                  (fn [{:keys [db]} [_ then-event resp]]
-                   (let [m (select-keys (:body resp) [:id :title])]
+                   (let [m (->active (:body resp))]
                      (write-active! m)
                      ;; stay busy — the authoring action (`then-event`) clears it on success/failure.
                      ;; The index is not refreshed here; it reloads when the user next visits it.
