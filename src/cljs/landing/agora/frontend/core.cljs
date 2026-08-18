@@ -788,7 +788,9 @@
 (defn root-view
   "The shared header, the current page, and the footer. A flex column at least as
   tall as the viewport keeps the footer at the bottom: it sits against the bottom
-  edge when content is short, and is pushed below when content overflows."
+  edge when content is short, and is pushed below when content overflows. The
+  floating create control sits above the whole layout — it is the one create
+  affordance, on every screen, and reads the current view to know what it offers."
   []
   [:div {:style {:display "flex"
                  :flex-direction "column"
@@ -798,6 +800,7 @@
                    :min-width 0}}
     [app-view]]
    [chrome/site-footer]
+   [publications/create-fab (:kind @(rf/subscribe [::view]))]
    [auth/auth-modal]
    [modal/confirm-modal]])
 

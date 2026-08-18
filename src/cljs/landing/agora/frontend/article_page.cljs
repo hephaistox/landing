@@ -37,6 +37,4 @@
   [articles]
   [dv/discover-grid {:type "article"
                      :heading-key :articles/heading
-                     :items articles
-                     :new-href-fn i18n/new-article
-                     :new-label-key :nav/new-article}])
+                     :items articles}])

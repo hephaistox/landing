@@ -9,8 +9,8 @@
 
 (defn header
   "Shared Agora header (Hephaistox dark/copper theme): the discover links, the active-publication
-  chip and auth controls. Creation is a `+` card at the end of each discover grid, not a header
-  link. Browse/search is per-view (the shared filter bar). The interface language is a preference,
+  chip and auth controls. Creation is the floating create control, not a header link.
+  Browse/search is per-view (the shared filter bar). The interface language is a preference,
   set on the Preferences page — not here; a signed-in visitor gets the editable page automatically."
   []
   (let [lang @(rf/subscribe [::i18n/lang])]
@@ -45,7 +45,7 @@
                    :margin-top "0.25em"
                    :line-height 1}}
        (i18n/t lang :beta/badge)]]
-     ;; Just the two discover links; creation is a `+` card on each discover grid.
+     ;; Just the discover links; creation is the floating create control.
      (let [link (fn [label href] [:a {:key href
                                       :href href
                                       :style {:color "#e8e2d6"

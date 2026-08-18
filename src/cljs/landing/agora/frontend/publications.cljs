@@ -320,14 +320,6 @@
                         :font-size "0.9em"}}
        (str "＋ " (i18n/t lang :pub/create-q) " « " q " »")])))
 
-(defn- create-fab
-  "A mobile-only floating '+' opening a new, auto-named publication (hidden ≥640px by `.agora-fab`)."
-  [lang]
-  [:button {:class "agora-fab"
-            :title (i18n/t lang :pub/new-ph)
-            :on-click #(rf/dispatch [::create ""])}
-   "+"])
-
 (defn- status-toggle
   "The publications index lifecycle filter, as an Excel-style combobox — open / published (closed) /
   all (a publication has no content language, so it gets this instead of the language filter)."
@@ -347,8 +339,8 @@
 (defn publications-page
   "The publications index: a lifecycle status toggle + the shared browse filter (author / q), a
   create-by-typing control, then the publications it keeps as the shared discover grid of cards (each a
-  publication card, driven by its `:type`/`:status`), plus a mobile FAB. Logged-in only (the header
-  entry that leads here is gated too)."
+  publication card, driven by its `:type`/`:status`). Logged-in only (the header entry that leads here
+  is gated too)."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
         ;; creating a publication is a contributor action — hidden from an anonymous visitor who
@@ -375,10 +367,9 @@
      [dv/filter-bar lang nil nil]
      (when logged-in? [create-from-filter lang pubs])
      (if (seq shown)
-       [dv/card-grid lang shown nil]
+       [dv/card-grid lang shown]
        [:p {:style {:color "#aaa"}}
-        (i18n/t lang :pub/none)])
-     (when logged-in? [create-fab lang])]))
+        (i18n/t lang :pub/none)])]))
 
 (defn active-chip
   "The header's publications entry (logged-in only), replacing a plain Publications link: when a
@@ -600,12 +591,54 @@
                        :transition "left 0.15s"}}]]
       (i18n/t lang :pub/work-here)]]))
 
-(defn- create-doc-fab
-  "A floating create control (`position: fixed`, bottom-right) so it stays visible however long the grid
-  grows or however small the viewport — a '＋' that toggles open the two document types. A scroll/resize
-  listener measures how far the footer rises into the viewport and lifts the button by that much, so it
-  never overlaps the footer at the bottom of the page."
-  [_lang _pub]
+(def ^:private fab-pill
+  "The look of one unfolded entry of the floating create control — a copper pill."
+  {:display "inline-block"
+   :border "none"
+   :background "#b9770e"
+   :color "#fff"
+   :border-radius "1.2em"
+   :padding "0.5em 0.9em"
+   :font-size "0.85em"
+   :font-weight 600
+   :cursor "pointer"
+   :text-decoration "none"
+   :box-shadow "0 2px 8px rgba(0,0,0,0.25)"
+   :white-space "nowrap"})
+
+(def ^:private no-fab-views
+  "The views the floating create control stays out of — the authoring forms, where creating is
+  already the whole page."
+  #{:new :article-new})
+
+(defn- create-options
+  "What the floating create control offers from the view `view-kind` — a vector of
+  `{:label …}` maps carrying either an `:href` (plain navigation) or an `:on-click`.
+
+  Creating a document is a plain link to its authoring form: it lands in the active publication,
+  and one is auto-created on submit when none is active. Two views add context — the page of an
+  open publication you own targets *that* publication (it becomes the active one), and the
+  publications index can create a publication too."
+  [lang view-kind]
+  (let [pub (when (= :publication view-kind) @(rf/subscribe [::viewed]))
+        user @(rf/subscribe [::auth/user])
+        here? (boolean
+               (and pub (= "open" (:status pub)) (= (:id user) (:attributed-author-id pub))))
+        doc (fn [label-key url]
+              (cond-> {:label (i18n/t lang label-key)}
+                here? (assoc :on-click #(rf/dispatch [::create-here pub url]))
+                (not here?) (assoc :href url)))]
+    (cond-> [(doc :nav/new-ki (i18n/new-ki lang)) (doc :nav/new-article (i18n/new-article lang))]
+      (= :publications view-kind) (conj {:label (i18n/t lang :type/publication)
+                                         :on-click #(rf/dispatch [::create ""])}))))
+
+(defn create-fab
+  "The floating create control (`position: fixed`, bottom-right), shown on every screen to a
+  logged-in contributor — a '＋' that unfolds into what can be created from the view `view-kind`
+  (see `create-options`). Fixed rather than in-flow so it stays reachable however long the page
+  grows or however small the viewport. A scroll/resize listener measures how far the footer rises
+  into the viewport and lifts the button by that much, so it never overlaps it."
+  [_view-kind]
   (let [open? (r/atom false)
         ;; px the footer pushes into the viewport from the bottom — the button rises by this much
         lift (r/atom 0)
@@ -614,7 +647,7 @@
                        vh (.-innerHeight js/window)]
                    (reset! lift (if f (max 0 (- vh (.-top (.getBoundingClientRect f)))) 0))))]
     (r/create-class
-     {:display-name "create-doc-fab"
+     {:display-name "create-fab"
       :component-did-mount (fn [_]
                              (recalc)
                              (.addEventListener js/window "scroll" recalc #js {:passive true})
@@ -623,44 +656,44 @@
                                 (.removeEventListener js/window "scroll" recalc)
                                 (.removeEventListener js/window "resize" recalc))
       :reagent-render
-      (fn [lang pub]
-        (let [opt (fn [label url] [:button {:on-click #(rf/dispatch [::create-here pub url])
-                                            :style {:border "none"
-                                                    :background "#b9770e"
-                                                    :color "#fff"
-                                                    :border-radius "1.2em"
-                                                    :padding "0.5em 0.9em"
-                                                    :font-size "0.85em"
-                                                    :font-weight 600
-                                                    :cursor "pointer"
-                                                    :box-shadow "0 2px 8px rgba(0,0,0,0.25)"
-                                                    :white-space "nowrap"}}
-                                   (str "＋ " label)])]
-          [:div {:style {:position "fixed"
-                         :bottom (str "calc(1.4em + " @lift "px)")
-                         :right "1.4em"
-                         :z-index 50
-                         :display "flex"
-                         :flex-direction "column"
-                         :align-items "flex-end"
-                         :gap "0.5em"}}
-           (when @open?
-             [:<>
-              (opt (i18n/t lang :nav/new-ki) (i18n/new-ki lang))
-              (opt (i18n/t lang :nav/new-article) (i18n/new-article lang))])
-           [:button {:on-click #(swap! open? not)
-                     :title (i18n/t lang :pub/new-ki-hint)
-                     :style {:width "3em"
-                             :height "3em"
-                             :border-radius "50%"
-                             :border "none"
-                             :background "#b9770e"
-                             :color "#fff"
-                             :font-size "1.6em"
-                             :cursor "pointer"
-                             :box-shadow "0 3px 10px rgba(0,0,0,0.3)"
-                             :line-height 1}}
-            (if @open? "×" "＋")]]))})))
+      (fn [view-kind]
+        (let [lang @(rf/subscribe [::i18n/lang])
+              ;; picking an entry always navigates away — fold the control back so it
+              ;; does not arrive open on the next screen
+              pill (fn [{:keys [label href on-click]}] [(if href :a :button)
+                                                        {:href href
+                                                         :style fab-pill
+                                                         :on-click (fn [_]
+                                                                     (reset! open? false)
+                                                                     (when on-click (on-click)))}
+                                                        (str "＋ " label)])]
+          (when (and @(rf/subscribe [::auth/user]) (not (no-fab-views view-kind)))
+            [:div {:style {:position "fixed"
+                           :bottom (str "calc(1.4em + " @lift "px)")
+                           :right "1.4em"
+                           :z-index 50
+                           :display "flex"
+                           :flex-direction "column"
+                           :align-items "flex-end"
+                           :gap "0.5em"}}
+             (when @open?
+               [:<>
+                [ui/on-escape #(reset! open? false)]
+                (into [:<>] (for [o (create-options lang view-kind)] ^{:key (:label o)} [pill o]))])
+             [:button {:on-click #(swap! open? not)
+                       :title (i18n/t lang :fab/create)
+                       :aria-label (i18n/t lang :fab/create)
+                       :style {:width "3em"
+                               :height "3em"
+                               :border-radius "50%"
+                               :border "none"
+                               :background "#b9770e"
+                               :color "#fff"
+                               :font-size "1.6em"
+                               :cursor "pointer"
+                               :box-shadow "0 3px 10px rgba(0,0,0,0.3)"
+                               :line-height 1}}
+              (if @open? "×" "＋")]])))})))
 
 (defn- page-actions
   "The publication page's meta row: the status chip and, for the owner of an open publication, the
@@ -787,5 +820,4 @@
                                       "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
                                       :gap "0.9em"}}]
                        (for [c (dv/filter-items cards)]
-                         ^{:key (:id c)} [doc-card lang (:id pub) deletable? c])))
-         (when deletable? [create-doc-fab lang pub])])])))
+                         ^{:key (:id c)} [doc-card lang (:id pub) deletable? c])))])])))

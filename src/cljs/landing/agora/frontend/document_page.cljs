@@ -8,7 +8,7 @@
 
   Holds: the graph layout (`node-frame` with input/successor mini-cards and connectors),
   the badges (`kind-badge`/`lang-badge`/`doc-badge`), `byline`, `version-picker`, the
-  language switcher `languages-control`, `discover-card`/`add-card`/`fab`, `input-drop-fn`, the JSON
+  language switcher `languages-control`, `discover-card`, `input-drop-fn`, the JSON
   request helper `json-req`, the auth `gated` helper, and the app chrome (header, footer,
   search, loading skeletons)."
   (:require
@@ -1023,65 +1023,21 @@
       ;; the search field grows to fill whatever the combos leave on the row
       (field :q q :filter/search-ph {:flex 1})])))
 
-(defn add-card
-  "A dashed 'create' tile for the end of a discover grid — a large + linking to `href`.
-  Auth is handled by the destination form (it shows a log-in prompt when needed)."
-  [href label]
-  [:a {:href href
-       :title label
-       :style {:display "flex"
-               :flex-direction "column"
-               :align-items "center"
-               :justify-content "center"
-               :gap "0.35em"
-               :min-height "6em"
-               :padding "0.9em 1em"
-               :border "2px dashed #cbb68f"
-               :border-radius "0.6em"
-               :background "transparent"
-               :color "#b9770e"
-               :text-decoration "none"}}
-   [:span {:style {:font-size "2.4em"
-                   :line-height "0.9"
-                   :font-weight 300}}
-    "+"]
-   [:span {:style {:font-size "0.85em"
-                   :font-weight 600}}
-    label]])
-
-(defn fab
-  "A mobile-only floating '+' create button, fixed bottom-right so it stays reachable
-  without scrolling to the grid's trailing add-card. Hidden ≥640px by the shell's
-  `.agora-fab` rule (desktop uses the in-grid card). Links to `href`."
-  [href label]
-  [:a {:class "agora-fab"
-       :href href
-       :title label
-       :aria-label label}
-   "+"])
-
 (defn card-grid
-  "The responsive grid of discover cards for `items`, with an optional trailing element `tail` (e.g.
-  an add-card). The shared browse layout — KIs, articles and publications lay out identically."
-  [lang items tail]
+  "The responsive grid of discover cards for `items`. The shared browse layout — KIs, articles and
+  publications lay out identically."
+  [lang items]
   (into [:div {:style {:display "grid"
                        :grid-template-columns "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
                        :gap "0.9em"}}]
-        (cond-> (mapv (fn [it] ^{:key (:id it)} [discover-card lang it]) items)
-          tail (conj ^{:key "__tail__"} tail))))
+        (map (fn [it] ^{:key (:id it)} [discover-card lang it]) items)))
 
 (defn discover-grid
-  "A responsive discover grid of preview cards for `:items`, ending with a `+` add-card and
-  a mobile FAB pointing at `(new-href-fn lang)`. `:heading-key` is optional (omitted when
-  nil); `:new-label-key` labels the add-card/FAB. Generic over document type — each per-type
-  facade supplies the i18n keys + create route."
-  [{:keys [heading-key items new-href-fn new-label-key]}]
+  "A responsive discover grid of preview cards for `:items`. `:heading-key` is optional (omitted
+  when nil). Generic over document type — each per-type facade supplies the i18n keys. Creating is
+  not part of the grid: the floating create control is the one create affordance, on every screen."
+  [{:keys [heading-key items]}]
   (let [lang @(rf/subscribe [::i18n/lang])
-        ;; creation is for logged-in contributors only — an anonymous visitor reads, never authors,
-        ;; so the top create button, the trailing add-card and the mobile FAB are all hidden for them
-        logged-in? (some? @(rf/subscribe [::auth/user]))
-        new-href (new-href-fn lang)
-        new-label (i18n/t lang new-label-key)
         ;; the kinds actually present in the feed, in canonical order — the Type filter's checkboxes
         kind-ids (filterv (into #{}
                                 (keep #(some-> (:kind %)
@@ -1098,37 +1054,13 @@
                    :margin "1.5em auto"
                    :padding "0 0.8em"
                    :font-family "system-ui, sans-serif"}}
-     ;; header row: heading (optional) left, a top 'create' button right — so the
-     ;; create action is reachable without scrolling to the trailing add-card.
-     [:div {:style {:display "flex"
-                    :align-items "center"
-                    :gap "0.8em"
-                    :flex-wrap "wrap"
-                    :margin-bottom "0.2em"}}
-      (when heading-key
-        [:h1 {:style {:font-size "1.4em"
-                      :margin 0
-                      :color "#1b1a17"}}
-         (i18n/t lang heading-key)])
-      (when logged-in?
-        [:a {:href new-href
-             :title new-label
-             :style {:margin-left "auto"
-                     :display "inline-flex"
-                     :align-items "center"
-                     :gap "0.3em"
-                     :padding "0.5em 1em"
-                     :background "#b9770e"
-                     :color "#fff"
-                     :border-radius "0.4em"
-                     :font-size "0.9em"
-                     :font-weight 600
-                     :white-space "nowrap"
-                     :text-decoration "none"}}
-         (str "＋ " new-label)])]
+     (when heading-key
+       [:h1 {:style {:font-size "1.4em"
+                     :margin "0 0 0.2em"
+                     :color "#1b1a17"}}
+        (i18n/t lang heading-key)])
      [filter-bar lang kind-ids lang-ids]
-     [card-grid lang (filter-items items) (when logged-in? [add-card new-href new-label])]
-     (when logged-in? [fab new-href new-label])]))
+     [card-grid lang (filter-items items)]]))
 
 (defn language-selector
   "A language chooser: a badge per supported language, the selected one highlighted.
