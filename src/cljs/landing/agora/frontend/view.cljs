@@ -133,7 +133,7 @@
            [extract-prefix-pill (:work doc) (:lang doc)]
            (when-let [prefix (dk/statement-prefix-of doc (keyword (:lang doc)))]
              [prefix-pill prefix]))])]
-     ;; compact provenance footer — the same phrase as the discover card, pinned at the bottom
+     ;; compact provenance footer, pinned at the bottom — author, publication and date, all linked
      [:div {:style {:margin-top "1.1em"
                     :padding-top "0.7em"
                     :border-top "1px solid #eee"}}

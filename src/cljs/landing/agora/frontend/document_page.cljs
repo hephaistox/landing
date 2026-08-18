@@ -682,13 +682,14 @@
 (defn provenance-line
   "The compact provenance line — 'Écrit par <author> dans <publication>, le <date>'. Author and
   publication are links on the read page, but plain text with `:links? false` — used inside the
-  discover card, which is itself an `<a>` (a nested `<a>` is invalid HTML). Shared so both read
-  identically."
+  discover card, which is itself an `<a>` (a nested `<a>` is invalid HTML). `:pub? false` drops the
+  publication, keeping author and date only."
   ([lang node] (provenance-line lang node nil))
   ([lang
     node
-    {:keys [links?]
-     :or {links? true}}]
+    {:keys [links? pub?]
+     :or {links? true
+          pub? true}}]
    (let [author (or (:attributed-author node) (:author node))
          author-id (or (:attributed-author-id node) (:author-id node))
          pub (:publication node)
@@ -713,7 +714,7 @@
            [:span {:style {:color (if links? "#b9770e" "#666")
                            :font-weight 600}}
             author])])
-      (when pub
+      (when (and pub? pub)
         [:<>
          (str " " (i18n/t lang :card/in-pub) " ")
          (if links?
@@ -728,7 +729,7 @@
 (defn discover-card
   "A preview card for a node in a discover grid: its badge (a kind badge, a status chip for a
   publication, or a neutral type chip), version, title, an excerpt of its text (when it has any,
-  citations flattened and clamped so the grid stays even), and the compact provenance footer. Field-
+  citations flattened and clamped so the grid stays even), and an author/date footer. Field-
   driven, so KIs, articles and publications all render through it."
   [lang node]
   ;; prepend the kind-guided opening (derived, not stored) so the card reads as the full
@@ -777,9 +778,14 @@
                       :-webkit-box-orient "vertical"
                       :overflow "hidden"}}
         excerpt])
-     ;; compact provenance, pinned to the card's bottom
+     ;; compact provenance, pinned to the card's bottom — author and date only, the publication is
+     ;; too heavy for a card
      [:div {:style {:margin-top "auto"}}
-      [provenance-line lang node {:links? false}]]]))
+      [provenance-line
+       lang
+       node
+       {:links? false
+        :pub? false}]]]))
 
 ;; --- shared browse filter (scope / lang / author / q) — narrows a grid client-side, like the author
 ;; page. `:scope` and `:lang` are global (browsing preferences); the text filters (`:author`/`:q`) are
