@@ -91,7 +91,7 @@
     :graph/back "Retour à la publication"
     :graph/recenter "Recentrer"
     :graph/drag-hint
-    "Glissez le fond pour déplacer, la molette pour zoomer, un nœud pour le repositionner"
+    "Glissez le fond pour déplacer, la molette ou le pincement pour zoomer, un nœud pour le repositionner"
     :filter/author-ph "Nom…"
     :filter/search-ph "Rechercher…"
     :pub/filter-status "Statut"
@@ -432,7 +432,7 @@
     :graph/link "View the graph"
     :graph/back "Back to the publication"
     :graph/recenter "Recenter"
-    :graph/drag-hint "Drag the background to pan, wheel to zoom, a node to reposition it"
+    :graph/drag-hint "Drag the background to pan, wheel or pinch to zoom, a node to reposition it"
     :filter/author-ph "Name…"
     :filter/search-ph "Search…"
     :pub/filter-status "Status"

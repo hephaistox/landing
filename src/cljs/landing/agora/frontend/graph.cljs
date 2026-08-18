@@ -1,8 +1,9 @@
 (ns landing.agora.frontend.graph
   "The publication graph page — a movable/zoomable canvas of a publication's drafts and their 1-hop
   neighbours (from `/agora/api/publication/:id/graph`). Self-contained interaction (pan the canvas,
-  wheel to zoom, drag a node) with no graph library: nodes are laid out in DAG layers, rendered as
-  mini-cards, connected by SVG edges (predecessor → dependent). A node links to its document."
+  wheel or pinch to zoom, drag a node) with no graph library: nodes are laid out in DAG layers,
+  rendered as mini-cards, connected by SVG edges (predecessor → dependent). A node links to its
+  document."
   (:require
    [landing.agora.frontend.document-page :as dv]
    [landing.agora.frontend.i18n          :as i18n]
@@ -127,7 +128,7 @@
   "One graph node: a compact card (kind badge, title, error bell) at its position. Dragging it moves
   the node; a click (no drag) opens its document. `on-down` starts a possible drag."
   [node {:keys [x y]} on-down]
-  [:div {:on-mouse-down #(on-down node %)
+  [:div {:on-pointer-down #(on-down node %)
          :style {:position "absolute"
                  :left (str x "px")
                  :top (str y "px")
@@ -183,12 +184,53 @@
                  :r 3.5
                  :fill "#b9770e"}]])))
 
+(def ^:private max-zoom 2.5)
+
+;; a press that stays within this many pixels is a click, not a drag — wide enough for a finger tap
+(def ^:private click-slop 5)
+
+(defn- pointer-xy
+  "The viewport `{:x :y}` of a pointer event."
+  [e]
+  {:x (.-clientX e)
+   :y (.-clientY e)})
+
+(defn- pinch-pair
+  "The two lowest-id tracked pointers as `[a b]`, or nil while fewer than two are down."
+  [pointers]
+  (let [[a b] (map val (sort-by key pointers))] (when b [a b])))
+
+(defn- pinch-gap
+  "Distance between two pointers, floored at 1 so it can divide."
+  [a b]
+  (max 1 (js/Math.hypot (- (:x a) (:x b)) (- (:y a) (:y b)))))
+
+(defn- centre
+  "Midpoint of two pointers."
+  [a b]
+  {:x (/ (+ (:x a) (:x b)) 2)
+   :y (/ (+ (:y a) (:y b)) 2)})
+
+(defn- graph-point
+  "The graph coordinate currently shown at container position `[mx my]`, under `pan` and `zoom`."
+  [pan zoom mx my]
+  {:x (/ (- mx (:x pan)) zoom)
+   :y (/ (- my (:y pan)) zoom)})
+
+(defn- pan-for
+  "The pan that puts graph point `g` at container position `[mx my]` under `zoom` — the anchor that
+  makes a zoom keep one point still."
+  [g zoom mx my]
+  {:x (- mx (* (:x g) zoom))
+   :y (- my (* (:y g) zoom))})
+
 (defn graph-canvas
-  "The pan / zoom / drag surface. Local state: node positions (drag mutates them), pan offset, zoom,
-  and the fit-zoom (a floor so the graph can never be zoomed out smaller than the whole thing). Window
-  mouse listeners handle the drag while the button is held; a container ref lets us measure the
-  viewport to fit and to zoom toward the pointer. A node press-and-release (no move) opens its
-  document; a press-and-drag repositions it."
+  "The pan / zoom / drag surface, driven by pointer events so it behaves the same under mouse and
+  touch. Local state: node positions (drag mutates them), pan offset, zoom, the fit-zoom (a floor so
+  the graph can never be zoomed out smaller than the whole thing), and the pointers currently down.
+  One pointer pans the background or drags a node; two pinch to zoom. Window listeners follow the
+  gesture outside the container; a container ref lets us measure the viewport to fit and to zoom
+  toward the pointer. A node press-and-release (no move) opens its document."
   [_lang _nodes _edges]
   (let [positions (r/atom nil) ; id → {:x :y}
         pan (r/atom {:x 0
@@ -196,8 +238,23 @@
         zoom (r/atom 1)
         min-zoom (r/atom 0.2) ; the fit-zoom — no dezoom past the whole graph
         container (r/atom nil)
-        ;; drag: {:kind :node/:pan, :id, :x0 :y0 (mouse), :ox :oy (start pos/pan), :moved?}
+        pointers (r/atom {}) ; pointerId → viewport {:x :y}, every pointer down on the canvas
+        ;; drag: {:kind :node/:pan, :id, :x0 :y0 (pointer), :ox :oy (start pos/pan), :moved?}
+        ;;    or {:kind :pinch, :d0 (start gap), :z0 (start zoom), :g (the graph point held still)}
         drag (r/atom nil)
+        local (fn [{:keys [x y]}] ; viewport → container coordinates
+                (if-let [el @container]
+                  (let [rect (.getBoundingClientRect el)]
+                    {:x (- x (.-left rect))
+                     :y (- y (.-top rect))})
+                  {:x x
+                   :y y}))
+        zoom-to! (fn [g z {:keys [x y]}]
+                   (let [nz (-> z
+                                (max @min-zoom)
+                                (min max-zoom))]
+                     (reset! zoom nz)
+                     (reset! pan (pan-for g nz x y))))
         fit! (fn []
                (when-let [el @container]
                  (let [[w h] (bounds @positions)
@@ -209,70 +266,90 @@
                    (reset! zoom z)
                    (reset! pan {:x (/ (- vw (* w z)) 2)
                                 :y (/ (- vh (* h z)) 2)}))))
+        start-pan-at (fn [{:keys [x y]}]
+                       (reset! drag {:kind :pan
+                                     :x0 x
+                                     :y0 y
+                                     :ox (:x @pan)
+                                     :oy (:y @pan)}))
+        start-pinch (fn []
+                      (when-let [[a b] (pinch-pair @pointers)]
+                        (let [{:keys [x y]} (local (centre a b))]
+                          (reset! drag {:kind :pinch
+                                        :d0 (pinch-gap a b)
+                                        :z0 @zoom
+                                        :g (graph-point @pan @zoom x y)}))))
         on-move (fn [e]
-                  (when-let [{:keys [kind id x0 y0 ox oy]} @drag]
-                    (let [dx (- (.-clientX e) x0)
-                          dy (- (.-clientY e) y0)]
-                      (when (or (> (js/Math.abs dx) 3) (> (js/Math.abs dy) 3))
-                        (swap! drag assoc :moved? true))
-                      (case kind
-                        :node (swap! positions assoc
-                                id
-                                {:x (+ ox (/ dx @zoom))
-                                 :y (+ oy (/ dy @zoom))})
-                        :pan (reset! pan {:x (+ ox dx)
-                                          :y (+ oy dy)})))))
-        on-up (fn [_]
+                  (when (contains? @pointers (.-pointerId e))
+                    (swap! pointers assoc (.-pointerId e) (pointer-xy e))
+                    (when-let [{:keys [kind id x0 y0 ox oy d0 z0 g]} @drag]
+                      (if (= kind :pinch)
+                        ;; a pinch both zooms (by how far the fingers moved apart) and pans (the held
+                        ;; graph point follows their midpoint)
+                        (when-let [[a b] (pinch-pair @pointers)]
+                          (zoom-to! g (* z0 (/ (pinch-gap a b) d0)) (local (centre a b))))
+                        (let [dx (- (.-clientX e) x0)
+                              dy (- (.-clientY e) y0)]
+                          (when (or (> (js/Math.abs dx) click-slop) (> (js/Math.abs dy) click-slop))
+                            (swap! drag assoc :moved? true))
+                          (case kind
+                            :node (swap! positions assoc
+                                    id
+                                    {:x (+ ox (/ dx @zoom))
+                                     :y (+ oy (/ dy @zoom))})
+                            :pan (reset! pan {:x (+ ox dx)
+                                              :y (+ oy dy)})))))))
+        on-up (fn [e]
+                (swap! pointers dissoc (.-pointerId e))
                 ;; a node pressed and released without moving is a click — open its document
                 (let [{:keys [kind moved? node]} @drag]
                   (when (and (= kind :node) (not moved?) node)
                     (rf/dispatch
                      [:agora/goto
-                      (i18n/doc-url (name (:lang node)) (name (:type node)) (:id node))])))
-                (reset! drag nil))
+                      (i18n/doc-url (name (:lang node)) (name (:type node)) (:id node))]))
+                  ;; one finger lifted out of a pinch: keep panning with the one still down
+                  (if-let [remaining (and (= kind :pinch) (first (vals @pointers)))]
+                    (start-pan-at remaining)
+                    (reset! drag nil))))
+        on-cancel (fn [e] (swap! pointers dissoc (.-pointerId e)) (reset! drag nil))
+        track! (fn [e] (swap! pointers assoc (.-pointerId e) (pointer-xy e)))
         start-node (fn [node e]
                      (.stopPropagation e)
-                     (let [p (get @positions (:id node))]
-                       (reset! drag {:kind :node
-                                     :id (:id node)
-                                     :x0 (.-clientX e)
-                                     :y0 (.-clientY e)
-                                     :ox (:x p)
-                                     :oy (:y p)
-                                     :moved? false
-                                     :node node})))
-        start-pan (fn [e]
-                    (reset! drag {:kind :pan
-                                  :x0 (.-clientX e)
-                                  :y0 (.-clientY e)
-                                  :ox (:x @pan)
-                                  :oy (:y @pan)}))
+                     (track! e)
+                     (if (pinch-pair @pointers)
+                       (start-pinch)
+                       (let [p (get @positions (:id node))]
+                         (reset! drag {:kind :node
+                                       :id (:id node)
+                                       :x0 (.-clientX e)
+                                       :y0 (.-clientY e)
+                                       :ox (:x p)
+                                       :oy (:y p)
+                                       :moved? false
+                                       :node node}))))
+        start-pan
+        (fn [e] (track! e) (if (pinch-pair @pointers) (start-pinch) (start-pan-at (pointer-xy e))))
         on-wheel (fn [e]
                    (.preventDefault e)
-                   (when-let [el @container]
-                     (let [rect (.getBoundingClientRect el)
-                           mx (- (.-clientX e) (.-left rect))
-                           my (- (.-clientY e) (.-top rect))
-                           oz @zoom
-                           nz (-> (* oz (if (pos? (.-deltaY e)) 0.9 1.1))
-                                  (max @min-zoom)
-                                  (min 2.5))
-                           ;; keep the graph point under the cursor fixed while zooming
-                           gx (/ (- mx (:x @pan)) oz)
-                           gy (/ (- my (:y @pan)) oz)]
-                       (reset! zoom nz)
-                       (reset! pan {:x (- mx (* gx nz))
-                                    :y (- my (* gy nz))}))))]
+                   (let [{:keys [x y]} (local (pointer-xy e))
+                         oz @zoom]
+                     ;; keep the graph point under the cursor fixed while zooming
+                     (zoom-to! (graph-point @pan oz x y)
+                               (* oz (if (pos? (.-deltaY e)) 0.9 1.1))
+                               {:x x
+                                :y y})))]
     (r/create-class
      {:display-name "graph-canvas"
       :component-did-mount (fn [_]
-                             (.addEventListener js/window "mousemove" on-move)
-                             (.addEventListener js/window "mouseup" on-up)
+                             (.addEventListener js/window "pointermove" on-move)
+                             (.addEventListener js/window "pointerup" on-up)
+                             (.addEventListener js/window "pointercancel" on-cancel)
                              ;; fit once the container has real dimensions
                              (js/setTimeout fit! 0))
       :component-will-unmount (fn [_]
-                                (.removeEventListener js/window "mousemove" on-move)
-                                (.removeEventListener js/window "mouseup" on-up))
+                                (.removeEventListener js/window "pointermove" on-move)
+                                (.removeEventListener js/window "pointerup" on-up)
+                                (.removeEventListener js/window "pointercancel" on-cancel))
       :reagent-render
       (fn [lang nodes edges opts]
         ;; seed positions once from the layout; drags keep them afterwards
@@ -280,7 +357,7 @@
         (let [pos @positions
               [w h] (bounds pos)]
           [:div {:ref (fn [el] (reset! container el))
-                 :on-mouse-down start-pan
+                 :on-pointer-down start-pan
                  :on-wheel on-wheel
                  :style {:position "relative"
                          :height (:height opts "72vh")
@@ -288,9 +365,13 @@
                          :border "1px solid #e2ddd2"
                          :border-radius "0.6em"
                          :background "#faf8f3"
-                         :cursor "grab"}}
+                         :cursor "grab"
+                         ;; the canvas owns every touch gesture — without this the browser scrolls
+                         ;; the page / zooms the document instead of panning and pinching the graph
+                         :touch-action "none"
+                         :user-select "none"}}
            ;; recenter — outside the transform layer, so it stays put
-           [:button {:on-mouse-down #(.stopPropagation %)
+           [:button {:on-pointer-down #(.stopPropagation %)
                      :on-click (fn [e] (.stopPropagation e) (fit!))
                      :style {:position "absolute"
                              :top "0.6em"
