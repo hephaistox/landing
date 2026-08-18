@@ -351,6 +351,9 @@
   entry that leads here is gated too)."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
+        ;; creating a publication is a contributor action — hidden from an anonymous visitor who
+        ;; reaches this index directly (the header entry that normally leads here is gated too)
+        logged-in? (some? @(rf/subscribe [::auth/user]))
         status @(rf/subscribe [::status-filter])
         pubs @(rf/subscribe [::results])
         by-status (case status
@@ -370,12 +373,12 @@
       (i18n/t lang :pub/index-lead)]
      [status-toggle lang status]
      [dv/filter-bar lang nil nil]
-     [create-from-filter lang pubs]
+     (when logged-in? [create-from-filter lang pubs])
      (if (seq shown)
        [dv/card-grid lang shown nil]
        [:p {:style {:color "#aaa"}}
         (i18n/t lang :pub/none)])
-     [create-fab lang]]))
+     (when logged-in? [create-fab lang])]))
 
 (defn active-chip
   "The header's publications entry (logged-in only), replacing a plain Publications link: when a
@@ -419,12 +422,53 @@
                      :font-size "0.9em"}}
          (i18n/t lang :nav/publications)]))))
 
+(defn- export-icon
+  "A Lucide upload glyph — a tray with an up arrow, for the publish action."
+  []
+  [:svg {:width "1.05em"
+         :height "1.05em"
+         :viewBox "0 0 24 24"
+         :fill "none"
+         :stroke "currentColor"
+         :stroke-width 2
+         :stroke-linecap "round"
+         :stroke-linejoin "round"
+         :style {:vertical-align "-0.15em"}}
+   [:path {:d "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}]
+   [:polyline {:points "17 8 12 3 7 8"}]
+   [:line {:x1 12
+           :y1 3
+           :x2 12
+           :y2 15}]])
+
+(defn- publish-button
+  "Publish (close) the publication — its drafts go public, confirmed. A hover tooltip explains it.
+  Sits in the title row beside the rename and delete icons: a bare glyph on a narrow screen, a
+  labelled green pill from 640px (`.agora-publish` in the shell)."
+  [lang pub]
+  (let [publishing? @(rf/subscribe [::publishing?])]
+    [dv/tooltip
+     (i18n/t lang :pub/publish-hint)
+     [:button {:class "agora-publish"
+               :on-click #(when-not publishing?
+                            (rf/dispatch [::modal/confirm {:message (i18n/t lang
+                                                                            :pub/publish-confirm)
+                                                           :confirm-label (i18n/t lang :pub/publish)
+                                                           :on-confirm [::publish (:id pub)]}]))
+               :disabled (boolean publishing?)
+               :style {:cursor (if publishing? "default" "pointer")
+                       :opacity (if publishing? 0.5 1)}}
+      [export-icon]
+      [:span {:class "agora-publish__label"}
+       (i18n/t lang (if publishing? :pub/publishing :pub/publish))]]]))
+
 (defn- title-bar
-  "The publication page heading: 📖 title. The owner renames by **double-clicking** the title (or the
-  small pencil beside it) — an inline input, Enter or blur saves (→ new minor), Esc cancels.
-  `editing` holds the draft title (an atom) or nil."
+  "The publication page heading: 📖 title, then the rename, delete and publish controls. The owner
+  renames by **double-clicking** the title (or the small pencil beside it) — an inline input, Enter
+  or blur saves (→ new minor), Esc cancels. `editing` holds the draft title (an atom) or nil."
   [lang pub owner? editing]
-  (let [save! (fn []
+  (let [open-owner? (and owner? (= "open" (:status pub)))
+        save! (fn []
                 (when-not (str/blank? @editing)
                   (rf/dispatch [::rename (:id pub) (str/trim @editing)]))
                 (reset! editing nil))]
@@ -433,6 +477,7 @@
                   :color "#1b1a17"
                   :display "flex"
                   :align-items "center"
+                  :flex-wrap "wrap"
                   :gap "0.35em"}}
      (if (some? @editing)
        [ui/composed-field {:type "text"
@@ -468,7 +513,7 @@
             "✎"]])
         ;; delete sits right beside edit — a ✕ opening a warning modal (loses the publication and all
         ;; its drafts); owner of an open publication only
-        (when (and owner? (= "open" (:status pub)))
+        (when open-owner?
           [dv/tooltip
            (i18n/t lang :pub/delete)
            [:button {:on-click #(rf/dispatch [::modal/confirm
@@ -482,26 +527,10 @@
                              :color "#c92a2a"
                              :padding 0
                              :line-height 1}}
-            "✕"]])])]))
-
-(defn- export-icon
-  "A Lucide upload glyph — a tray with an up arrow, for the publish action."
-  []
-  [:svg {:width "1.05em"
-         :height "1.05em"
-         :viewBox "0 0 24 24"
-         :fill "none"
-         :stroke "currentColor"
-         :stroke-width 2
-         :stroke-linecap "round"
-         :stroke-linejoin "round"
-         :style {:vertical-align "-0.15em"}}
-   [:path {:d "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}]
-   [:polyline {:points "17 8 12 3 7 8"}]
-   [:line {:x1 12
-           :y1 3
-           :x2 12
-           :y2 15}]])
+            "✕"]])
+        ;; publish closes the row of controls — the primary action, so it keeps its label and green
+        ;; pill once the screen is wide enough
+        (when open-owner? [publish-button lang pub])])]))
 
 (defn- status-pill
   "The publication's status as a rounded chip (a hover tooltip explains it). Only for a **closed**
@@ -523,45 +552,16 @@
                      :background "#dff3e2"}}
       (i18n/t lang :pub/status-closed)]]))
 
-(defn- publish-button
-  "Publish (close) the publication — its drafts go public, confirmed. A hover tooltip explains it. When
-  a publish is refused because a gathered document is in error, a red line points at the bells below."
-  [lang pub]
-  (let [publishing? @(rf/subscribe [::publishing?])
-        err @(rf/subscribe [::publish-error])]
-    [:div {:style {:display "flex"
-                   :flex-direction "column"
-                   :align-items "flex-end"
-                   :gap "0.35em"}}
-     [dv/tooltip
-      (i18n/t lang :pub/publish-hint)
-      [:button {:on-click #(when-not publishing?
-                             (rf/dispatch [::modal/confirm
-                                           {:message (i18n/t lang :pub/publish-confirm)
-                                            :confirm-label (i18n/t lang :pub/publish)
-                                            :on-confirm [::publish (:id pub)]}]))
-                :disabled (boolean publishing?)
-                :style {:display "inline-flex"
-                        :align-items "center"
-                        :gap "0.4em"
-                        :border "none"
-                        :background "#1d6b2f"
-                        :color "#fff"
-                        :border-radius "1em"
-                        :padding "0.35em 1em"
-                        :font-size "0.85em"
-                        :font-weight 700
-                        :cursor (if publishing? "default" "pointer")}}
-       [export-icon]
-       (i18n/t lang (if publishing? :pub/publishing :pub/publish))]]
-     (when err
-       [:div {:style {:color "#c92a2a"
-                      :font-size "0.8em"
-                      :max-width "24em"
-                      :text-align "right"}}
-        (str "🔔 "
-             (i18n/t lang :pub/publish-blocked)
-             (when-let [n (:count err)] (str " (" n ")")))])]))
+(defn- publish-error
+  "A red line under the title when a publish was refused because a gathered document is in error — it
+  points at the bells on the cards below."
+  [lang]
+  (when-let [err @(rf/subscribe [::publish-error])]
+    [:div {:style {:color "#c92a2a"
+                   :font-size "0.8em"
+                   :max-width "24em"
+                   :margin "0 0 0.4em"}}
+     (str "🔔 " (i18n/t lang :pub/publish-blocked) (when-let [n (:count err)] (str " (" n ")")))]))
 
 (defn- active-toggle
   "Whether you are **working in** this publication — the one every document create/edit (from anywhere)
@@ -754,14 +754,8 @@
       (if-not loaded?
         [header-skeleton]
         [:<>
-         ;; title on the left, Publish as the primary action top-right
-         [:div {:style {:display "flex"
-                        :justify-content "space-between"
-                        :align-items "flex-start"
-                        :gap "1em"
-                        :flex-wrap "wrap"}}
-          [title-bar lang pub owner? editing]
-          (when deletable? [publish-button lang pub])]
+         [title-bar lang pub owner? editing]
+         [publish-error lang]
          [dv/byline
           (:attributed-author pub)
           (:published-at pub)

@@ -1067,6 +1067,9 @@
   facade supplies the i18n keys + create route."
   [{:keys [heading-key items new-href-fn new-label-key]}]
   (let [lang @(rf/subscribe [::i18n/lang])
+        ;; creation is for logged-in contributors only — an anonymous visitor reads, never authors,
+        ;; so the top create button, the trailing add-card and the mobile FAB are all hidden for them
+        logged-in? (some? @(rf/subscribe [::auth/user]))
         new-href (new-href-fn lang)
         new-label (i18n/t lang new-label-key)
         ;; the kinds actually present in the feed, in canonical order — the Type filter's checkboxes
@@ -1097,24 +1100,25 @@
                       :margin 0
                       :color "#1b1a17"}}
          (i18n/t lang heading-key)])
-      [:a {:href new-href
-           :title new-label
-           :style {:margin-left "auto"
-                   :display "inline-flex"
-                   :align-items "center"
-                   :gap "0.3em"
-                   :padding "0.5em 1em"
-                   :background "#b9770e"
-                   :color "#fff"
-                   :border-radius "0.4em"
-                   :font-size "0.9em"
-                   :font-weight 600
-                   :white-space "nowrap"
-                   :text-decoration "none"}}
-       (str "＋ " new-label)]]
+      (when logged-in?
+        [:a {:href new-href
+             :title new-label
+             :style {:margin-left "auto"
+                     :display "inline-flex"
+                     :align-items "center"
+                     :gap "0.3em"
+                     :padding "0.5em 1em"
+                     :background "#b9770e"
+                     :color "#fff"
+                     :border-radius "0.4em"
+                     :font-size "0.9em"
+                     :font-weight 600
+                     :white-space "nowrap"
+                     :text-decoration "none"}}
+         (str "＋ " new-label)])]
      [filter-bar lang kind-ids lang-ids]
-     [card-grid lang (filter-items items) [add-card new-href new-label]]
-     [fab new-href new-label]]))
+     [card-grid lang (filter-items items) (when logged-in? [add-card new-href new-label])]
+     (when logged-in? [fab new-href new-label])]))
 
 (defn language-selector
   "A language chooser: a badge per supported language, the selected one highlighted.

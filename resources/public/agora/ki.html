@@ -104,6 +104,35 @@
           display: none;
         }
       }
+      /* Publish — a bare green glyph beside the ✎/✕ icons on a narrow screen, the full labelled
+         pill from 640px. Sized in em: it sits in the publication title's 1.4em h1. */
+      .agora-publish {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        margin-left: 0.5em;
+        border: none;
+        border-radius: 1em;
+        padding: 0;
+        background: transparent;
+        color: #1d6b2f;
+        font-size: 0.6em;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .agora-publish__label {
+        display: none;
+      }
+      @media (min-width: 640px) {
+        .agora-publish {
+          padding: 0.35em 1em;
+          background: #1d6b2f;
+          color: #fff;
+        }
+        .agora-publish__label {
+          display: inline;
+        }
+      }
     </style>
   </head>
   <body>

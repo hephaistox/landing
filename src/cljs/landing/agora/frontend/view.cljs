@@ -73,24 +73,26 @@
   (let [lang @(rf/subscribe [::i18n/lang])
         labels (:labels cfg)]
     [:article {:style card-style}
+     ;; the edit pencil is for logged-in contributors only — hidden (not merely dimmed) for an
+     ;; anonymous reader, honouring `gated`'s "the caller shadows the control" contract
      (when cfg
        (let [[on-click dim?] (gated #(rf/dispatch [::edit/edit-open doc]))]
-         [:button {:on-click on-click
-                   :title (i18n/t lang (get labels (if dim? :login-to-edit :edit)))
-                   :style {:position "absolute"
-                           :top "0.7em"
-                           :right "0.8em"
-                           :border "1px solid #ddd"
-                           :background "#fff"
-                           :color "#b9770e"
-                           :border-radius "0.3em"
-                           :width "2em"
-                           :height "2em"
-                           :cursor "pointer"
-                           :font-size "0.95em"
-                           :line-height 1
-                           :opacity (if dim? 0.4 1)}}
-          "✎"]))
+         (when-not dim?
+           [:button {:on-click on-click
+                     :title (i18n/t lang (:edit labels))
+                     :style {:position "absolute"
+                             :top "0.7em"
+                             :right "0.8em"
+                             :border "1px solid #ddd"
+                             :background "#fff"
+                             :color "#b9770e"
+                             :border-radius "0.3em"
+                             :width "2em"
+                             :height "2em"
+                             :cursor "pointer"
+                             :font-size "0.95em"
+                             :line-height 1}}
+            "✎"])))
      [:div {:style {:display "flex"
                     :align-items "center"
                     :gap "0.75em"
