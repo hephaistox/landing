@@ -41,11 +41,21 @@
   (or (some-> s
               edn/read-string)
       {}))
-(defn- decode-pins
+(defn- decode-computed
   [s]
-  (:pins (or (some-> s
-                     edn/read-string)
-             {:pins []})))
+  (or (some-> s
+              edn/read-string)
+      {}))
+
+(defn computed
+  "The **derived** blob of a version, stored in the mutable `computed` column: its resolved `:pins`
+  and the byline `:author` (the display name of the person the version is attributed to, omitted
+  when they have none). Both are caches of what the immutable `content` implies — a person renamed
+  or erased is repaired here, never in `content`. One builder, so the write path and the reconcile
+  produce the very same blob."
+  [pins author]
+  (cond-> {:pins (vec pins)}
+    author (assoc :author author)))
 
 (defn- truthy?
   "MySQL TINYINT(1) comes back as a Boolean or a 0/1 number. Normalize to a boolean."
@@ -60,16 +70,19 @@
 
 (defn- row->doc
   "A raw row → a full document: identity columns (`:type` and `:lang` keyworded), decoded `content`
-  (its `:kind` keyworded), resolved `:pins`."
+  (its `:kind` keyworded), and the derived `:pins`/`:author` from `computed` — which is read last, so
+  the byline a document displays is always the derived one."
   [row]
-  (let [content (decode-content (:content row))]
+  (let [content (decode-content (:content row))
+        computed (decode-computed (:computed row))]
     (cond-> (merge (-> (select-keys row [:id :type :name :lang :major :minor])
                        (update :type keyword)
                        (update :lang keyword))
                    {:draft (truthy? (:draft row))
                     :publication-id (:publication-id row)}
                    content
-                   {:pins (decode-pins (:computed row))})
+                   {:pins (:pins computed [])
+                    :author (:author computed)})
       (:kind content) (update :kind keyword))))
 
 (defn fetch-id
@@ -174,10 +187,10 @@
 
 (defn version-row
   "A row for a **new version** of `doc`'s lineage — same (type, name, lang, major), a fresh id, the
-  given `content`, `draft` and `publication-id`, stamped `published-at`, empty pins. Feed to
+  given `content`, `computed`, `draft` and `publication-id`, stamped `published-at`. Feed to
   `insert-next-minor!` / `insert-next-major!` / `publish-publication!`, which assign the version
   number atomically. Any document is versioned the same way, so this is shared across types."
-  [doc {:keys [content draft publication-id published-at]}]
+  [doc {:keys [content computed draft publication-id published-at]}]
   {:id (str (UUID/randomUUID))
    :type (:type doc)
    :name (:name doc)
@@ -185,7 +198,7 @@
    :major (:major doc)
    :draft draft
    :content content
-   :computed {:pins []}
+   :computed computed
    :published-at published-at
    :publication-id publication-id})
 
@@ -547,7 +560,7 @@
   (or (draft-of type name lang major pub-cid) (latest-published-id tnlr)))
 
 ;; --- reconcile: snapshot + targeted repair of the derived caches -----------------------------
-;; The derived caches (`computed.:pins`, `AGORA_SUCCESSOR`) are reconciled against the immutable
+;; The derived caches (the whole `computed` blob, `AGORA_SUCCESSOR`) are reconciled against the immutable
 ;; `content` by *diffing*, not rewriting: read a consistent snapshot, let the caller compute the
 ;; discrepancies (see `admin/discrepancies`), then apply only those. A healthy corpus writes nothing.
 
@@ -556,9 +569,10 @@
   successor edge. Both reads run in one **repeatable-read** transaction, so they share a single read
   view — a write landing between the two SELECTs is invisible, and the versions and edges always
   agree (relying on the connection's default isolation would not guarantee this). Returns
-  `{:versions [{:id :type :name :lang :major :minor :draft :inputs :computed}…]
+  `{:versions [{:id :type :name :lang :major :minor :draft :content :computed}…]
     :edges #{[input-type input-name input-lang input-major successor-id]…}}`
-  — `:type`/`:lang` keyworded, `:inputs`/`:computed` decoded; edges as DB-string tuples."
+  — `:type`/`:lang` keyworded, `:content`/`:computed` decoded; edges as DB-string tuples. The whole
+  immutable `content` rides along: it is what the derived blob is diffed against."
   []
   (try
     (jdbc/with-transaction
@@ -569,19 +583,16 @@
      {:versions
       (mapv
        (fn [row]
-         (let [content (decode-content (:content row))]
-           {:id (:id row)
-            :type (keyword (:type row))
-            :name (:name row)
-            :lang (keyword (:lang row))
-            :major (:major row)
-            :minor (:minor row)
-            :draft (truthy? (:draft row))
-            :publication-id (:publication-id row)
-            :inputs (:inputs content)
-            :computed (or (some-> (:computed row)
-                                  edn/read-string)
-                          {})}))
+         {:id (:id row)
+          :type (keyword (:type row))
+          :name (:name row)
+          :lang (keyword (:lang row))
+          :major (:major row)
+          :minor (:minor row)
+          :draft (truthy? (:draft row))
+          :publication-id (:publication-id row)
+          :content (decode-content (:content row))
+          :computed (decode-computed (:computed row))})
        (jdbc/execute!
         tx
         ["SELECT id, type, name, lang, major, minor, draft, publication_id, content, computed
@@ -599,8 +610,9 @@
         kebab))})
     (catch SQLException e (db-error! e))))
 
-(defn apply-pin-fixes!
-  "Overwrite `computed` for each `{:id :computed}` fix (the versions whose pins drifted). Batched."
+(defn apply-computed-fixes!
+  "Overwrite `computed` for each `{:id :computed}` fix (the versions whose derived blob drifted).
+  Batched."
   [fixes]
   (when (seq fixes)
     (try (with-open [conn (jdbc/get-connection db/ds)]

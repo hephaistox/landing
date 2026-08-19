@@ -261,18 +261,19 @@
       (when-not (str/blank? subject) (str (cap-first subject) " " connector " ")))))
 
 (defn attributed-author
-  "The person a statement is attributed to: the document's own author (`:author`). For most documents
-  this is the contributor who wrote it — an `extract` included, it belongs to its writer. A `work` is
-  the one exception: its `:author` is the cited author (Sun Tzŭ), not the contributor who added the
-  record. The work an extract draws from is shown alongside it, never as the extract's byline."
+  "The name of the person a statement is attributed to: the document's `:author` — the **derived**
+  byline, cached from that person's account rather than authored. For most documents this is the
+  contributor who wrote it — an `extract` included, it belongs to its writer. A `work` is the one
+  exception: its `:author` is the cited author (Sun Tzŭ), not the contributor who added the record.
+  The work an extract draws from is shown alongside it, never as the extract's byline."
   [doc]
   (:author doc))
 
 (defn attributed-author-id
-  "The id of the person `attributed-author` names — for linking the byline to their profile hub. A
-  `work` carries its cited author as `:author-id`, distinct from `:owner-id` (the contributor who
-  maintains the record); every other document has no `:author-id`, so the byline links to its
-  `:owner-id`. `:owner-id` stays the accountability/permissions concept; this is display only."
+  "The id of the person `attributed-author` names — the link, and the identity the name is derived
+  from. A `work` carries its cited author as `:author-id`, distinct from `:owner-id` (the contributor
+  who maintains the record); every other document has no `:author-id`, so the byline is its
+  `:owner-id`. `:owner-id` stays the accountability/permissions concept; this is attribution."
   [doc]
   (or (:author-id doc) (:owner-id doc)))
 

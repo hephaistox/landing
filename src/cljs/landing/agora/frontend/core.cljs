@@ -147,7 +147,7 @@
 
 (defn- kw-kind
   "Keyword a document's epistemic `:kind` at the wire boundary — JSON delivers it as a string, the
-  domain uses keywords (`:source`, `:inference`)."
+  domain uses keywords (`:work`, `:inference`)."
   [doc]
   (cond-> doc
     (:kind doc) (update :kind keyword)))

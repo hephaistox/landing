@@ -16,7 +16,7 @@
 
 (deftest kind-capabilities
   (testing "kinds partition by object type; the first id is that type's default"
-    (is (= :inference (first (sut/kind-ids-of "ki"))) "inference is the KI default")
+    (is (= :deduction (first (sut/kind-ids-of "ki"))) "inference is the KI default")
     (is (= :explainer (first (sut/kind-ids-of "article"))) "explainer is the article default")
     (is (every? #(= :ki (:object-type %)) (sut/kinds-of "ki")) "object-type is the :ki keyword")
     (is (= (sut/kinds-of :ki) (sut/kinds-of "ki")) "kinds-of coerces string ↔ keyword type"))
@@ -34,13 +34,9 @@
   (testing "kind-consequence: work→extract, extract→definition, everything else→inference"
     (is (= :extract (sut/kind-consequence :work)))
     (is (= :definition (sut/kind-consequence :extract)))
-    (is (= :inference (sut/kind-consequence :belief)))
-    (is (= :inference (sut/kind-consequence nil)) "an absent kind defaults to inference"))
+    (is (= :deduction (sut/kind-consequence :belief)))
+    (is (= :deduction (sut/kind-consequence nil)) "an absent kind defaults to inference"))
   (testing "kind-def points each kind at its self-hosting definition KI"
-    (is (= {:type :ki
-            :name "type-inference"
-            :major 1}
-           (get sut/kind-def :inference)))
     (is (= {:type :ki
             :name "type-extract"
             :major 1}

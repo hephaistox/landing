@@ -2,7 +2,7 @@
   "Publications — the work-package that gathers a user's drafts and publishes them together. A
   publication is a `type=publication` document lineage in AGORA_DOCUMENT with the same lifecycle as
   any document: identity is its stable `name` (a cid), it is versioned by minor, and a rename is a
-  new minor. It carries no epistemic kind; its `content` is `{:title :status :author :owner-id
+  new minor. It carries no epistemic kind; its `content` is `{:title :status :owner-id
   :published-at}` and it is `draft` while its status is `:open`.
 
   A publication has **no content language** — it is a container, resolved by its cid alone, and the
@@ -15,6 +15,7 @@
   objection) will open one automatically."
   (:require
    [clojure.string            :as str]
+   [landing.agora.auth        :as auth]
    [landing.agora.cache       :as cache]
    [landing.agora.db.document :as db-doc])
   (:import (java.util UUID)))
@@ -27,7 +28,8 @@
 (defn- view
   "Endpoint view of a publication: its stable cid as `:id` (references survive a rename), the
   authored fields, and the owner exposed as the byline `:attributed-author`/`:attributed-author-id`
-  (the single attribution name used across every document view)."
+  (the single attribution name used across every document view). `:author` is the derived name the
+  document carries, never a stored authored field."
   [{:keys [name title status author owner-id published-at]}]
   {:id name
    :type :publication
@@ -43,18 +45,18 @@
   (count (filter #(= owner-id (:owner-id %)) (db-doc/latest-any-of-type :publication))))
 
 (defn create!
-  "Open a new publication owned by `owner-id` (display name `author`), titled `title`. A **blank
-  `title` is auto-named** `publication<N>` (N = the owner's publication count + 1) — Word-style, so a
-  document can auto-provision one with no user interaction; it stays editable (rename). Mints a cid,
-  status `:open`, `draft` while open, created outside any publication (no content language,
-  `lang-na`). Reusable. Returns the view."
-  [owner-id author title]
+  "Open a new publication owned by `owner-id`, titled `title`. A **blank `title` is auto-named**
+  `publication<N>` (N = the owner's publication count + 1) — Word-style, so a document can
+  auto-provision one with no user interaction; it stays editable (rename). Mints a cid, status
+  `:open`, `draft` while open, created outside any publication (no content language, `lang-na`).
+  Reusable. Returns the view."
+  [owner-id title]
   (let [cid (db-doc/gen-cid)
         now (db-doc/now-iso)
+        author (auth/display-name owner-id)
         title (if (str/blank? title) (str "publication" (inc (count-owned owner-id))) title)
         content {:title title
                  :status :open
-                 :author author
                  :owner-id owner-id
                  :published-at now}]
     (db-doc/insert! {:id (str (UUID/randomUUID))
@@ -65,10 +67,10 @@
                      :minor 0
                      :draft true
                      :content content
-                     :computed {:pins []}
+                     :computed (db-doc/computed [] author)
                      :published-at now
                      :publication-id nil})
-    (view (assoc content :name cid))))
+    (view (assoc content :name cid :author author))))
 
 (defn- load-view
   "Cache loader: publication `cid` → its view (latest minor, drafts included), or nil."
@@ -103,10 +105,10 @@
   (= :closed (:status (fetch cid))))
 
 (defn- next-content
-  "The publication's next-version content: carry title/status/author/owner-id from `pub`, stamp `now`,
+  "The publication's next-version content: carry title/status/owner-id from `pub`, stamp `now`,
   apply `overrides`. Draft state is derived from its `:status` (`:open` ⇒ draft) by `version-row`."
   [pub overrides now]
-  (merge (select-keys pub [:title :status :author :owner-id]) {:published-at now} overrides))
+  (merge (select-keys pub [:title :status :owner-id]) {:published-at now} overrides))
 
 (defn rename!
   "Rename publication `cid` to `title` (a new minor) on behalf of `owner-id`. Returns the view, or
@@ -115,14 +117,16 @@
   (when-let [pub (db-doc/fetch-latest-any :publication cid)]
     (when (= owner-id (:owner-id pub))
       (let [now (db-doc/now-iso)
+            author (auth/display-name owner-id)
             content (next-content pub {:title title} now)]
         (db-doc/insert-next-minor! (db-doc/version-row pub
                                                        {:content content
+                                                        :computed (db-doc/computed [] author)
                                                         :draft (= :open (:status content))
                                                         :publication-id nil
                                                         :published-at now}))
         (cache/evict! view-cache cid)
-        (view (assoc content :name cid))))))
+        (view (assoc content :name cid :author author))))))
 
 (defn publish!
   "Publish publication `cid` on behalf of `owner-id`: flip every draft it gathers to published and
@@ -132,15 +136,17 @@
   (when-let [pub (db-doc/fetch-latest-any :publication cid)]
     (when (and (= owner-id (:owner-id pub)) (= :open (:status pub)))
       (let [now (db-doc/now-iso)
+            author (auth/display-name owner-id)
             content (next-content pub {:status :closed} now)]
         (db-doc/publish-publication! cid
                                      (db-doc/version-row pub
                                                          {:content content
+                                                          :computed (db-doc/computed [] author)
                                                           :draft (= :open (:status content))
                                                           :publication-id nil
                                                           :published-at now}))
         (cache/evict! view-cache cid)
-        (view (assoc content :name cid))))))
+        (view (assoc content :name cid :author author))))))
 
 (defn delete!
   "Delete open publication `cid` and the drafts it gathers, on behalf of `owner-id`. Returns `true`

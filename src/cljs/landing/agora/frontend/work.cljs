@@ -1,10 +1,11 @@
-(ns landing.agora.frontend.source
-  "Bibliographic works — authoring + display. A `work` is a document (`kind=work`): a shared
-  bibliographic record (cited author, title, year, editor, url). An `extract` cites the one work it
-  draws from, like any citation.
+(ns landing.agora.frontend.work
+  "Authoring a bibliographic **work** — a KI of `kind=work` (cited author, title, year, editor, url),
+  written through the generic document API like any other. An `extract` cites the one work it draws
+  from, like any citation.
 
-   - `work-modal` — pick an existing work (search the corpus) or create a new one (author
-     person-picker + title/year/editor/url), used while authoring an extract to cite its work.
+   - `modal` — pick an existing work (search the corpus) or create a new one, used while authoring an
+     extract to cite its work;
+   - `fields` — a work's own bibliographic fields, in the create/edit form.
 
   Low-level (no dependency on the page namespaces), like `cite`."
   (:require
@@ -52,7 +53,7 @@
    :cursor "pointer"
    :font-size "0.9em"})
 
-(defn work-label
+(defn- work-label
   "One-line label of a work — cited author · title (year) · editor."
   [w]
   (str (:author-name w)
@@ -88,7 +89,7 @@
         [:div {:style {:position "relative"}}
          [ui/composed-field {:type "text"
                              :value @q
-                             :placeholder (i18n/t lang :source/author-ph)
+                             :placeholder (i18n/t lang :work/author-ph)
                              :style field
                              :on-text (fn [v]
                                         (reset! q v)
@@ -116,10 +117,10 @@
                                  (POST* "/agora/api/people"
                                         {:display-name @q}
                                         (fn [p] (reset! busy? false) (on-pick p))))}
-            (str "＋ " (i18n/t lang :source/new-person) " “" @q "”")])]))))
+            (str "＋ " (i18n/t lang :work/new-person) " “" @q "”")])]))))
 
 ;; --- the dedicated 'cite a work' modal --------------------------------------
-(defn work-modal
+(defn modal
   "A modal to cite a work: find an existing one (search the corpus) or create a new one (author +
   title/year/editor/url). `on-pick` receives the picked/created work (`card->work` shape); `on-close`
   dismisses. `publication-id` scopes the search and gathers a newly-created work as a draft in it."
@@ -154,7 +155,6 @@
                               :text ""
                               :lang (name lang)
                               :attributed-author-id (:id @author)
-                              :attributed-author (:display-name @author)
                               :year (let [y (:year @draft)] (when-not (str/blank? y) y))
                               :editor (:editor @draft)
                               :url (:url @draft)
@@ -186,7 +186,7 @@
            [:h3 {:style {:margin 0
                          :font-size "1.1em"
                          :flex 1}}
-            (i18n/t lang (if (= @mode :search) :source/find-title :source/create-title))]
+            (i18n/t lang (if (= @mode :search) :work/find-title :work/create-title))]
            [:button {:on-click #(reset! mode (if (= @mode :search) :create :search))
                      :style {:border "1px solid #b9770e"
                              :background "#fff"
@@ -195,7 +195,7 @@
                              :padding "0.25em 0.7em"
                              :cursor "pointer"
                              :font-size "0.85em"}}
-            (i18n/t lang (if (= @mode :search) :source/create-new :source/find-existing))]
+            (i18n/t lang (if (= @mode :search) :work/create-new :work/find-existing))]
            [:button {:on-click on-close
                      :style {:border "none"
                              :background "transparent"
@@ -206,7 +206,7 @@
             ;; ---- find an existing work ----
             [:div
              [ui/composed-field {:type "text"
-                                 :placeholder (i18n/t lang :source/find)
+                                 :placeholder (i18n/t lang :work/find)
                                  :style (assoc field :margin-bottom "0.6em")
                                  :value @q
                                  :on-text run-search}]
@@ -221,13 +221,13 @@
                (when-not (str/blank? @q)
                  [:p {:style {:color "#aaa"
                               :font-size "0.9em"}}
-                  (i18n/t lang :source/no-results)]))]
+                  (i18n/t lang :work/no-results)]))]
             ;; ---- create a new work ----
             [:div
              [:div {:style {:font-size "0.8em"
                             :color "#555"
                             :margin-bottom "0.2em"}}
-              (i18n/t lang :source/author)]
+              (i18n/t lang :work/author)]
              (if @author
                [:div {:style {:display "flex"
                               :align-items "center"
@@ -243,7 +243,7 @@
                [:div {:style {:margin-bottom "0.6em"}}
                 [person-picker #(reset! author %)]])
              [ui/composed-field {:type "text"
-                                 :placeholder (i18n/t lang :source/title)
+                                 :placeholder (i18n/t lang :work/title)
                                  :value (or (:title @draft) "")
                                  :style (assoc field :margin-bottom "0.5em")
                                  :on-text #(swap! draft assoc :title %)}]
@@ -251,17 +251,17 @@
                             :gap "0.5em"
                             :margin-bottom "0.7em"}}
               [:input {:type "number"
-                       :placeholder (i18n/t lang :source/year)
+                       :placeholder (i18n/t lang :work/year)
                        :style field
                        :value (or (:year @draft) "")
                        :on-change #(swap! draft assoc :year (.. % -target -value))}]
               [ui/composed-field {:type "text"
-                                  :placeholder (i18n/t lang :source/editor)
+                                  :placeholder (i18n/t lang :work/editor)
                                   :style field
                                   :value (or (:editor @draft) "")
                                   :on-text #(swap! draft assoc :editor %)}]]
              [:input {:type "url"
-                      :placeholder (i18n/t lang :source/url-ph)
+                      :placeholder (i18n/t lang :work/url-ph)
                       :style (assoc field :margin-bottom "0.7em")
                       :value (or (:url @draft) "")
                       :on-change #(swap! draft assoc :url (.. % -target -value))}]
@@ -274,10 +274,10 @@
                                :cursor (if can-create? "pointer" "default")
                                :opacity (if can-create? 1 0.5)}
                        :on-click #(when can-create? (create!))}
-              (i18n/t lang :source/add)]])]]))))
+              (i18n/t lang :work/add)]])]]))))
 
 ;; --- the bibliographic fields of a work (authoring) -------------------------
-(defn work-fields
+(defn fields
   "The bibliographic fields of a `work` (cited-author person-picker + year / editor / url), bound to
   `value` (`{:author-id :author-name :year :editor :url}`); `on-set` is called `(on-set key value)` per
   change. The title is the form's own title field, so it is not repeated here."
@@ -287,7 +287,7 @@
      [:div {:style {:font-size "0.8em"
                     :color "#555"
                     :margin "0.3em 0 0.2em"}}
-      (i18n/t lang :source/author)]
+      (i18n/t lang :work/author)]
      (if (:author-id value)
        [:div {:style {:display "flex"
                       :align-items "center"
@@ -307,17 +307,17 @@
                     :gap "0.5em"
                     :margin-bottom "0.6em"}}
       [:input {:type "number"
-               :placeholder (i18n/t lang :source/year)
+               :placeholder (i18n/t lang :work/year)
                :style field
                :value (or (:year value) "")
                :on-change #(on-set :year (.. % -target -value))}]
       [ui/composed-field {:type "text"
-                          :placeholder (i18n/t lang :source/editor)
+                          :placeholder (i18n/t lang :work/editor)
                           :style field
                           :value (or (:editor value) "")
                           :on-text #(on-set :editor %)}]]
      [:input {:type "url"
-              :placeholder (i18n/t lang :source/url-ph)
+              :placeholder (i18n/t lang :work/url-ph)
               :style field
               :value (or (:url value) "")
               :on-change #(on-set :url (.. % -target -value))}]]))

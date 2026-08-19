@@ -3,7 +3,8 @@
 
   A read misses to `db`, stores the row, then serves memory on a hit.
 
-  Holds the immutable id → document row. A row is write-once, so an entry is never stale. The mutable
+  Holds the id → document row. Its `content` is write-once; its derived fields (the byline `:author`,
+  the `:pins`) change only when the reconcile repairs them, which clears this cache. The mutable
   indexes (versions, successors, translations) stay uncached — the engine reads them from `db`."
   (:require
    [landing.agora.cache             :as caffeine]
@@ -11,7 +12,8 @@
    [landing.agora.document.identity :as di]
    [landing.agora.document.storage  :as ds]))
 
-;; `by-id` is immutable — a row is write-once, so an id's document is never stale.
+;; `by-id` holds a row whose content is write-once; the reconcile clears the whole cache when it
+;; repairs a derived field, so an id's document is never stale.
 ;; `by-tnlr` is volatile — it maps a lineage to its latest **published** id, which changes when a
 ;; new minor is published, so it must be evicted on `on-new-tnlr`. The document itself still comes
 ;; from the write-once `by-id`, so only the small tnlr→id mapping is ever invalidated.

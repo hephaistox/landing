@@ -26,8 +26,8 @@
    [landing.agora.frontend.i18n          :as i18n]
    [landing.agora.frontend.modal         :as modal]
    [landing.agora.frontend.publications  :as publications]
-   [landing.agora.frontend.source        :as source]
    [landing.agora.frontend.ui-commons    :as ui]
+   [landing.agora.frontend.work          :as work]
    [re-frame.core                        :as rf]
    [reagent.core                         :as r]
    [superstructor.re-frame.fetch-fx]))
@@ -176,14 +176,13 @@
     {}))
 
 (defn- write-payload
-  "The create/edit request body shared by both forms: the authored fields, the cited author under the
-  single attribution name (`:attributed-author`/`:attributed-author-id`), the structural input keyed by
-  kind, and the active `:publication-id`."
-  [{:keys [title text kind author-id author-name year editor url locator target]} pub-id]
+  "The create/edit request body shared by both forms: the authored fields, the cited author as the
+  person it points at (`:attributed-author-id` — the byline name is derived server-side, never sent),
+  the structural input keyed by kind, and the active `:publication-id`."
+  [{:keys [title text kind author-id year editor url locator target]} pub-id]
   (merge {:title title
           :text text
           :attributed-author-id author-id
-          :attributed-author author-name
           :year year
           :editor editor
           :url url
@@ -758,7 +757,7 @@
                           :font-size "0.88em"}}
          (str "🔎 " (i18n/t lang :extract/cite-work))])
       (when @open?
-        [source/work-modal
+        [work/modal
          (fn [w]
            (set-target! {:type "ki"
                          :name (:name w)
@@ -782,11 +781,11 @@
    self-name
    pub-id]
   (cond
-    (= kind :work) [source/work-fields {:author-id author-id
-                                        :author-name author-name
-                                        :year year
-                                        :editor editor
-                                        :url url}
+    (= kind :work) [work/fields {:author-id author-id
+                                 :author-name author-name
+                                 :year year
+                                 :editor editor
+                                 :url url}
                     set-fn]
     (= kind :extract) [:<>
                        [work-target-picker target #(set-fn :target %) pub-id]
@@ -809,7 +808,7 @@
 (defn edit-form
   "The central card in edit mode (a new minor): metadata row (kind selector when
   `:show-kind?`, language badge, next-version tag), editable title, byline, the citation
-  editor over the prose, and the source editor — all in place on the card. `cfg` is the
+  editor over the prose, and the kind's own fields — all in place on the card. `cfg` is the
   facade's config (`:labels`, `:show-kind?`)."
   [{doc-name :name
     doc-lang :lang
@@ -893,7 +892,7 @@
 (defn create-form
   "Standalone create form driven entirely by the facade's `cfg` (`:type`, `:show-kind?`,
   `:cancel-route`, `:labels`): title, an optional kind selector, language, the citation
-  editor over the prose, and its source. `with-let` resets the shared `::new` state on
+  editor over the prose, and the kind's own fields. `with-let` resets the shared `::new` state on
   mount so switching types never carries stale fields."
   [{:keys [show-kind? cancel-route labels]
     object-type :type

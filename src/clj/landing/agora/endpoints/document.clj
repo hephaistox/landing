@@ -4,7 +4,6 @@
   create a new document, or edit one into a new version (text-only for now — see
   `landing.agora.document.write`). One mount, the type in the path."
   (:require
-   [landing.agora.auth                :as auth]
    [landing.agora.db.document         :as db-doc]
    [landing.agora.document.engine     :as engine]
    [landing.agora.document.identity   :as di]
@@ -30,10 +29,10 @@
 (def ^:private write-body
   "Request body for create/edit. `publication-id` is **required** (non-empty): every write is a draft
   gathered by an open publication, so coercion rejects a write with no publication before the handler
-  runs. The rest are optional — a `work`'s cited author (`:attributed-author`/`:attributed-author-id`,
-  the single attribution name used read + write) + bibliographic fields, an `extract`'s `:locator`. The
-  map is open, so the structural input (an extract's `:work`, an illustration/counter-example's
-  `:target`) rides through to the handler untouched."
+  runs. The rest are optional — a `work`'s cited author (`:attributed-author-id`, the person whose
+  name the byline is derived from) + bibliographic fields, an `extract`'s `:locator`. The map is open,
+  so the structural input (an extract's `:work`, an illustration/counter-example's `:target`) rides
+  through to the handler untouched."
   [:map
    [:publication-id [:string {:min 1}]]
    [:kind {:optional true}
@@ -45,8 +44,6 @@
    [:lang {:optional true}
     [:maybe :string]]
    [:attributed-author-id {:optional true}
-    [:maybe :string]]
-   [:attributed-author {:optional true}
     [:maybe :string]]
    [:year {:optional true}
     [:maybe :int]]
@@ -97,24 +94,13 @@
 (defn- create-handler
   "Create a new document of `:type` owned by the caller (text-only). Body is `write-body`:
   `:publication-id` (required — coercion rejects a create with no open publication), `:kind`/`:title`/
-  `:text`/`:lang`, plus for a `work` its cited author (`:attributed-author` + `:attributed-author-id`)
-  and bibliographic `:year`/`:editor`/`:url`, and for an `extract` its `:locator`. The byline is the
-  cited author for a work, else the contributor's display name. Returns the created version's endpoint
+  `:text`/`:lang`, plus for a `work` its cited author (`:attributed-author-id`) and bibliographic
+  `:year`/`:editor`/`:url`, and for an `extract` its `:locator`. Returns the created version's endpoint
   view."
   [doc-storage req]
   (let [uid (uid req)
         type (keyword (get-in req [:path-params :type]))
-        {:keys [kind
-                title
-                text
-                lang
-                publication-id
-                attributed-author-id
-                attributed-author
-                year
-                editor
-                url
-                locator]}
+        {:keys [kind title text lang publication-id attributed-author-id year editor url locator]}
         (:body-params req)
         kind (some-> kind
                      keyword)]
@@ -131,13 +117,11 @@
                                                     :body {:error "not your publication"}}
       :else
       ;; JSON delivers kind/lang as strings; the write domain works in keywords. The cited author
-      ;; (`attributed-author`/`attributed-author-id`) is honoured **only for a `work`** — for every
-      ;; other kind the byline is the owner, so a client can't point a document's byline at another
-      ;; person. `owner-id` stays the accountability concept, distinct from the displayed attribution.
-      (let [author (if (= kind :work) attributed-author (:display-name (auth/get-user uid)))
-            new-id (write/create! type
+      ;; (`attributed-author-id`) is honoured **only for a `work`** — for every other kind the byline
+      ;; is the owner, so a client can't point a document's byline at another person. `owner-id` stays
+      ;; the accountability concept, distinct from the displayed attribution.
+      (let [new-id (write/create! type
                                   uid
-                                  author
                                   {:kind kind
                                    :title title
                                    :text text
@@ -178,7 +162,6 @@
       ;; the existing value forward
       (if-let [new-id (write/edit! id
                                    editor
-                                   (:display-name (auth/get-user editor))
                                    {:title title
                                     :text text
                                     :kind kw-kind

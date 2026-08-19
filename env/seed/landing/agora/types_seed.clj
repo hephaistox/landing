@@ -25,6 +25,7 @@
    [clojure.java.io                  :as io]
    [landing.agora.auth               :as auth]
    [landing.agora.db                 :as db]
+   [landing.agora.db.document        :as db-doc]
    [landing.agora.document.cached-db :as dcd]
    [landing.agora.document.kind      :as dk]
    [next.jdbc                        :as jdbc])
@@ -85,10 +86,9 @@
       pub-lang
       (pr-str {:title "Vocabulaire des types"
                :status :closed
-               :author author
                :owner-id owner-id
                :published-at published-at})
-      (pr-str {:pins []})
+      (pr-str (db-doc/computed [] author))
       published-at])))
 
 (defn- insert!
@@ -109,10 +109,9 @@
              :title title
              :text statement
              :inputs []
-             :author author
              :owner-id owner-id
              :published-at published-at})
-    (pr-str {:pins []})
+    (pr-str (db-doc/computed [] author))
     published-at
     pub-cid]))
 

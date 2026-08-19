@@ -46,7 +46,7 @@
 (defn- extract-prefix-pill
   "An extract's opening sentence as a pill, with the cited author rendered as a profile link (title
   and locator stay plain, from `kind/extract-prefix-parts`) — so the author link lives in the opening
-  and no separate source block is needed. nil when the work isn't resolved."
+  and no separate work block is needed. nil when the work isn't resolved."
   [work lang]
   (when-let [{:keys [before author-name author-id after]} (dk/extract-prefix-parts work
                                                                                    (keyword lang))]

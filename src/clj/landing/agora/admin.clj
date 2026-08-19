@@ -9,10 +9,12 @@
    [auto-core.log                    :as core-log]
    [clojure.edn                      :as edn]
    [clojure.set                      :as set]
+   [landing.agora.auth               :as auth]
    [landing.agora.db                 :as db]
    [landing.agora.db.document        :as db-doc]
    [landing.agora.document.cached-db :as cached-db]
    [landing.agora.document.identity  :as di]
+   [landing.agora.document.kind      :as dk]
    [next.jdbc                        :as jdbc]
    [next.jdbc.result-set             :as rs]))
 
@@ -140,13 +142,16 @@
 ;; --- derived-state maintenance --------------------------------------------
 
 (defn discrepancies
-  "Pure diff of a `derivation-snapshot` against what the immutable `content` implies. Returns
-  `{:pin-fixes [{:id :computed}…]   ; versions whose computed.:pins ≠ pin-all(content.:inputs)
-    :edge-inserts [tuple…]          ; expected reverse edges missing from AGORA_SUCCESSOR
-    :edge-deletes [tuple…]}`        ; indexed edges no longer expected (stale)
-  Writes nothing; the corpus is consistent when all three are empty. Expected edges come from each
-  **latest-published** version's inputs only. Tuples are DB-string form, matching the snapshot."
-  [{:keys [versions edges]}]
+  "Pure diff of a `derivation-snapshot` (plus `people`, id → display name) against what the immutable
+  `content` implies. Returns
+  `{:computed-fixes [{:id :computed}…] ; versions whose derived blob ≠ what their content implies
+    :edge-inserts [tuple…]             ; expected reverse edges missing from AGORA_SUCCESSOR
+    :edge-deletes [tuple…]}`           ; indexed edges no longer expected (stale)
+  Writes nothing; the corpus is consistent when all three are empty. The expected blob is built
+  **whole** by `db-doc/computed` — the pins the content's inputs resolve to and the byline name of the
+  person it is attributed to — so one comparison covers every derived field. Expected edges come from
+  each **latest-published** version's inputs only. Tuples are DB-string form, matching the snapshot."
+  [{:keys [versions edges people]}]
   (let [latest-pub (reduce (fn [m {:keys [id type name lang major minor draft]}]
                              (if draft
                                m
@@ -174,46 +179,51 @@
                         (fn [{:keys [type name lang major]}]
                           (or (get draft-idx [publication-id type name lang major])
                               (:id (get latest-pub [type name lang major])))))
-        pin-fixes (into []
-                        (keep (fn [{:keys [id inputs computed publication-id]}]
-                                (let [expected (di/pin-all inputs (pin-latest-of publication-id))]
-                                  (when (not= expected (:pins computed))
-                                    {:id id
-                                     :computed (assoc computed :pins expected)}))))
-                        versions)
+        computed-fixes
+        (into []
+              (keep (fn [{:keys [id content computed publication-id]}]
+                      (let [expected (db-doc/computed
+                                      (di/pin-all (:inputs content) (pin-latest-of publication-id))
+                                      (get people (dk/attributed-author-id content)))]
+                        (when (not= expected computed)
+                          {:id id
+                           :computed expected}))))
+              versions)
         expected-edges (into #{}
                              (comp (filter #(contains? latest-ids (:id %)))
-                                   (mapcat (fn [{:keys [id inputs]}]
+                                   (mapcat (fn [{:keys [id content]}]
                                              (map #(edge-tuple id (:tnlr %))
-                                                  (di/successor-tuples id inputs)))))
+                                                  (di/successor-tuples id (:inputs content))))))
                              versions)]
-    {:pin-fixes pin-fixes
+    {:computed-fixes computed-fixes
      :edge-inserts (vec (set/difference expected-edges edges))
      :edge-deletes (vec (set/difference edges expected-edges))}))
 
 (defn reconcile!
-  "Detect-and-repair the derived caches: snapshot the corpus, diff it against what the immutable
-  `content` implies (`discrepancies`), and apply **only** the differences — re-pin drifted versions,
-  insert missing successor edges, delete stale ones. A consistent corpus writes nothing (and does not
-  even flush the cache). Logs every discrepancy found, then evicts the read caches if anything
-  changed. Returns a report `{:versions :pins-fixed :edges-inserted :edges-deleted}`."
+  "Detect-and-repair the derived caches: snapshot the corpus and the people its bylines name, diff it
+  against what the immutable `content` implies (`discrepancies`), and apply **only** the differences —
+  rewrite the drifted `computed` blobs, insert missing successor edges, delete stale ones. A
+  consistent corpus writes nothing (and does not even flush the cache). Logs every discrepancy found,
+  then evicts the read caches if anything changed. The people are read outside the document snapshot:
+  a rename landing in between is simply repaired on the next run, like any write after a snapshot.
+  Returns a report `{:versions :computed-fixed :edges-inserted :edges-deleted}`."
   []
-  (let [snap (db-doc/derivation-snapshot)
-        {:keys [pin-fixes edge-inserts edge-deletes]} (discrepancies snap)
-        drift? (or (seq pin-fixes) (seq edge-inserts) (seq edge-deletes))]
+  (let [snap (assoc (db-doc/derivation-snapshot) :people (auth/display-names))
+        {:keys [computed-fixes edge-inserts edge-deletes]} (discrepancies snap)
+        drift? (or (seq computed-fixes) (seq edge-inserts) (seq edge-deletes))]
     (if drift?
       (core-log/warn (str "Agora reconcile: discrepancies found — "
-                          "pins " (mapv :id pin-fixes)
+                          "computed " (mapv :id computed-fixes)
                           "; edges+ " (vec edge-inserts)
                           "; edges- " (vec edge-deletes)))
       (core-log/info
        (str "Agora reconcile: no discrepancies (" (count (:versions snap)) " version(s) scanned)")))
-    (db-doc/apply-pin-fixes! pin-fixes)
+    (db-doc/apply-computed-fixes! computed-fixes)
     (db-doc/insert-successor-edges! edge-inserts)
     (db-doc/delete-successor-edges! edge-deletes)
     (when drift? (cached-db/clear!))
     {:versions (count (:versions snap))
-     :pins-fixed (count pin-fixes)
+     :computed-fixed (count computed-fixes)
      :edges-inserted (count edge-inserts)
      :edges-deleted (count edge-deletes)}))
 

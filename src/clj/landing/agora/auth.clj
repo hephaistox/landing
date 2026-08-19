@@ -65,10 +65,29 @@
                       id]
                      {:builder-fn rs/as-unqualified-kebab-maps}))
 
+(defn display-name
+  "The public name of person `id`, or nil when unknown. The single source of every byline: a
+  document caches it in its derived `computed`, so a rename or an erasure of this row propagates."
+  [id]
+  (when id
+    (:display-name (jdbc/execute-one! db/ds
+                                      ["SELECT display_name FROM AGORA_USER WHERE id = ?" id]
+                                      {:builder-fn rs/as-unqualified-kebab-maps}))))
+
+(defn display-names
+  "Every person as `id → display_name`. One query, so the reconcile can derive the whole corpus's
+  bylines without a lookup per document."
+  []
+  (into {}
+        (map (juxt :id :display-name))
+        (jdbc/execute! db/ds
+                       ["SELECT id, display_name FROM AGORA_USER"]
+                       {:builder-fn rs/as-unqualified-kebab-maps})))
+
 (defn create-external-person!
   "Create a login-less **external** person — a cited author with no account (e.g.
   \"Sun Tzu\"), stored as an AGORA_USER row with `provider='external'` and no
-  email/password. Returns {:id :display-name}. Used when granting a source whose author
+  email/password. Returns {:id :display-name}. Used when citing a work whose author
   isn't a platform member."
   [display-name]
   (let [id (str (UUID/randomUUID))

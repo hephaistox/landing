@@ -45,8 +45,7 @@
   [req]
   (if-let [id (uid req)]
     {:status 200
-     :body
-     (publication/create! id (:display-name (auth/get-user id)) (get-in req [:body-params :title]))}
+     :body (publication/create! id (get-in req [:body-params :title]))}
     {:status 401
      :body {:error "login required"}}))
 
