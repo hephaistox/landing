@@ -152,18 +152,32 @@
       (cache/evict! view-cache cid)
       true)))
 
+(defn- in-scope?
+  "Whether publication `p` belongs to `scope` for `viewer`:
+   - `:visible` — what `viewer` may see: their own, either status, plus every **closed** publication
+     whoever owns it. An open publication is private staging (the drafts it gathers are unpublished),
+     a closed one has published everything it gathers — the very rule `owns?`/`closed?` apply to a
+     publication's documents, lifted to the listing. An anonymous `viewer` (nil) owns nothing, so it
+     leaves them the closed ones.
+   - `:mine`    — owned by `viewer`, either status.
+   - `:all`     — every publication, including other owners' private staging; administrators only."
+  [viewer scope p]
+  (case scope
+    :visible (or (= :closed (:status p)) (= viewer (:owner-id p)))
+    :mine (= viewer (:owner-id p))
+    true))
+
 (defn list-visible
-  "Publications for the index, newest first, optionally filtered by `q` (title substring). `scope`
-  picks the set: `:mine` — those owned by `viewer`; `:all` — every publication. Both statuses show
-  (open drafts and closed, published ones), each view carrying its `:author`/`:author-id` so the
-  index can mark the viewer's own and link to the others'."
+  "Publications for the index, newest first, optionally filtered by `q` (title substring), restricted
+  to `scope` (see `in-scope?`). Each view carries its `:author`/`:author-id` so the index can mark the
+  viewer's own and link to the others'."
   [viewer scope q]
   (let [q (some-> q
                   str/trim
                   str/lower-case)]
     (into []
           (comp (filter (fn [p]
-                          (and (or (= scope :all) (= viewer (:owner-id p)))
+                          (and (in-scope? viewer scope p)
                                (or (str/blank? q)
                                    (str/includes? (str/lower-case (str (:title p))) q)))))
                 (map view))

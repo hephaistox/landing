@@ -1,6 +1,7 @@
 (ns landing.agora.endpoints.publication
-  "Publications: open one, list them (the caller's own or every one), fetch by id, rename, publish
-  (close), and list a publication's documents. All mutations require a session and are owner-only."
+  "Publications: open one, list them (the closed ones, the caller's own, or every one), fetch by id,
+  rename, publish (close), and list a publication's documents. All mutations require a session and
+  are owner-only."
   (:require
    [landing.agora.auth                :as auth]
    [landing.agora.document.cached-db  :as cached-db]
@@ -50,15 +51,21 @@
      :body {:error "login required"}}))
 
 (defn- list-visible
-  "Publications for the index, optionally filtered by `?q=`. `?scope=all` lists every publication;
-  any other value (default) lists the caller's own."
+  "Publications for the index, optionally filtered by `?q=`. Every caller gets the set they may see —
+  their own plus every closed publication, so an anonymous one gets the closed ones. `?scope=mine`
+  narrows it to the caller's own; `?scope=all` adds other owners' **open** publications — their private
+  staging — so it is administrator-only."
   [req]
-  (if-let [id (uid req)]
-    (let [scope (if (= "all" (get-in req [:query-params "scope"])) :all :mine)]
+  (let [id (uid req)
+        scope (case (get-in req [:query-params "scope"])
+                "all" :all
+                "mine" :mine
+                :visible)]
+    (if (and (= scope :all) (not (:admin (auth/get-user id))))
+      {:status 403
+       :body {:error "admin only"}}
       {:status 200
-       :body (publication/list-visible id scope (get-in req [:query-params "q"]))})
-    {:status 401
-     :body {:error "login required"}}))
+       :body (publication/list-visible id scope (get-in req [:query-params "q"]))})))
 
 (defn- fetch
   [req]
@@ -155,17 +162,19 @@
            :responses {500 {:description "Unexpected server error"}}
            :middleware mw}
    [""
-    {:get {:handler list-visible
-           :operationId "agora-publications-search"
-           :parameters {:query [:map
-                                [:scope {:optional true}
-                                 [:maybe :string]]
-                                [:q {:optional true}
-                                 [:maybe :string]]]}
-           :responses {200 {:description "Visible publications"}
-                       401 {:description "Login required"
-                            :body error-body}}
-           :summary "List publications (scope=all for every publication, else the caller's own)"}
+    {:get
+     {:handler list-visible
+      :operationId "agora-publications-search"
+      :parameters {:query [:map
+                           [:scope {:optional true}
+                            [:maybe :string]]
+                           [:q {:optional true}
+                            [:maybe :string]]]}
+      :responses {200 {:description "Visible publications"}
+                  403 {:description "scope=all requested by a non-administrator"
+                       :body error-body}}
+      :summary
+      "List publications the caller may see (own + closed); scope=mine narrows, scope=all is admin-only"}
      :post {:handler create
             :operationId "agora-publication-create"
             :middleware [(:middleware-fn throttle/authoring-rate-limiter)]

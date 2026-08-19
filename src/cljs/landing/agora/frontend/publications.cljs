@@ -166,10 +166,15 @@
    :on-success ok
    :on-failure fail})
 
-;; the index list — every visible publication; the shared browse filter narrows it client-side
+;; the index list — the publications the caller may see (their own + the closed ones); the shared
+;; browse filter narrows it client-side. An administrator asks for `scope=all`, which adds other
+;; owners' open publications — private staging the endpoint refuses to anyone else.
 (rf/reg-event-fx ::search
-                 (fn [_ _]
-                   {:fetch (GET "/agora/api/publication?scope=all" [::search-ok] [::search-fail])}))
+                 (fn [{:keys [db]} _]
+                   {:fetch (GET (cond-> "/agora/api/publication"
+                                  (:admin (get db ::auth/user)) (str "?scope=all"))
+                                [::search-ok]
+                                [::search-fail])}))
 (rf/reg-event-db ::search-ok (fn [db [_ resp]] (assoc db :agora/publication-results (:body resp))))
 (rf/reg-event-db ::search-fail (fn [db _] (assoc db :agora/publication-results [])))
 
@@ -342,10 +347,13 @@
   publication card, driven by its `:type`/`:status`)."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
-        ;; creating a publication is a contributor action — hidden from an anonymous visitor, who
-        ;; still browses the index like any other feed
+        ;; an anonymous visitor browses the index like any other feed, but the contributor parts are
+        ;; hidden: creating is a contributor action, and the lifecycle filter has nothing to filter —
+        ;; the public set is closed publications only
         logged-in? (some? @(rf/subscribe [::auth/user]))
-        status @(rf/subscribe [::status-filter])
+        ;; the default filter is `:open`, which would empty an anonymous visitor's index — the public
+        ;; set holds no open publication. Without the toggle to correct it, their filter is `:all`.
+        status (if logged-in? @(rf/subscribe [::status-filter]) :all)
         pubs @(rf/subscribe [::results])
         by-status (case status
                     :open (filterv #(= "open" (:status %)) pubs)
@@ -362,7 +370,7 @@
      [:p {:style {:color "#777"
                   :margin "0 0 1em"}}
       (i18n/t lang :pub/index-lead)]
-     [status-toggle lang status]
+     (when logged-in? [status-toggle lang status])
      [dv/filter-bar lang nil nil]
      (when logged-in? [create-from-filter lang pubs])
      (if (seq shown)
