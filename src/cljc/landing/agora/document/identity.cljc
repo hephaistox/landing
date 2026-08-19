@@ -25,7 +25,8 @@
   - `lang` is optional so user language will be picked
   - `label` is optional so it replaces the link in the link with that label"
   (:require
-   [clojure.string :as str]))
+   [clojure.string     :as str]
+   [landing.agora.text :as text]))
 
 ;; --- Identity slug & cid --------------------------------------------------------------
 
@@ -33,12 +34,7 @@
   "A URL slug from a title: `\"L'Être\"` → `\"l-etre\"`. Accents stripped, every run of
   non-alphanumerics becomes one `-`. Blank → \"untitled\"."
   [s]
-  (let [stripped #?(:clj (-> (java.text.Normalizer/normalize (or s "")
-                                                             java.text.Normalizer$Form/NFD)
-                             (str/replace #"\p{M}+" ""))
-                    :cljs (-> (.normalize (or s "") "NFD")
-                              (str/replace #"[\u0300-\u036f]" "")))
-        base (-> stripped
+  (let [base (-> (text/fold-accents s)
                  str/lower-case
                  (str/replace #"[^a-z0-9]+" "-")
                  (str/replace #"(^-+)|(-+$)" ""))]

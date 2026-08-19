@@ -73,7 +73,6 @@
                           {:mode mode
                            :email ""
                            :password ""
-                           :display-name ""
                            :error nil
                            :submitting? false})))
 
@@ -89,12 +88,13 @@
 
 (rf/reg-event-fx ::submit
                  (fn [{:keys [db]} _]
-                   (let [{:keys [mode email password display-name altcha]} (::form db)
+                   (let [{:keys [mode email password altcha]} (::form db)
                          url (if (= mode :login) "/agora/api/auth/login" "/agora/api/auth/register")
+                         ;; no name is asked for: the account's public alias is generated
+                         ;; server-side, so nothing here can carry a civil identity
                          body (cond-> {:email email
                                        :password password}
-                                (= mode :register) (assoc :display-name display-name
-                                                          :altcha altcha))]
+                                (= mode :register) (assoc :altcha altcha))]
                      {:db (assoc-in db [::form :submitting?] true)
                       :fetch (json-req :post url body [::auth-ok] [::auth-failed])})))
 
@@ -296,8 +296,7 @@
 (defn auth-modal
   "Login / registration overlay, shown when a form is open."
   []
-  (when-let [{:keys [mode email password display-name error submitting? altcha]} @(rf/subscribe
-                                                                                   [::form])]
+  (when-let [{:keys [mode email password error submitting? altcha]} @(rf/subscribe [::form])]
     (let [register? (= mode :register)
           lang @(rf/subscribe [::i18n/lang])
           ;; on register, the button stays disabled until the ALTCHA payload is present
@@ -348,12 +347,6 @@
          "password"
          password
          #(rf/dispatch [::set-form-property :password %])]
-        (when register?
-          [field
-           (i18n/t lang :auth/alias)
-           "text"
-           display-name
-           #(rf/dispatch [::set-form-property :display-name %])])
         (when register? [altcha-captcha lang])
         (when error
           [:div {:style {:color "#c92a2a"

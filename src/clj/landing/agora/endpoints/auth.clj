@@ -9,6 +9,7 @@
    [landing.agora.auth                :as auth]
    [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.oauth               :as oauth]
+   [landing.language                  :as language]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]
@@ -59,7 +60,7 @@
   [req]
   (let [body (:body-params req)]
     (if (altcha/verify (:altcha body))
-      (let [[tag profile] (auth/register body)]
+      (let [[tag profile] (auth/register body (language/pick-lang req))]
         (if (= tag :ok)
           {:status 200
            :body profile
@@ -113,12 +114,14 @@
       (let [info (some-> (oauth/exchange-code code)
                          :access_token
                          oauth/fetch-userinfo)
+            ;; `(:name info)` and `(:picture info)` are the person's civil identity — read
+            ;; from the token response and deliberately not passed on: the account is named by a
+            ;; generated alias, like every other provider's
             profile (when (:email info)
                       (auth/upsert-oauth-user {:provider "google"
                                                :provider-id (:sub info)
-                                               :email (:email info)
-                                               :display-name (:name info)
-                                               :avatar-url (:picture info)}))]
+                                               :email (:email info)}
+                                              (language/pick-lang req)))]
         (if profile
           {:status 302
            :headers {"Location" "/agora"}
@@ -143,9 +146,7 @@
             :parameters {:body [:map
                                 [:email [:string {:max 320}]]
                                 [:password [:string {:max 200}]]
-                                [:altcha :string]
-                                [:display-name {:optional true}
-                                 [:maybe [:string {:max 200}]]]]}
+                                [:altcha :string]]}
             :responses {200 {:description "Account created; session established"}
                         400 {:description "Failed captcha, or invalid/taken email / weak password"
                              :body error-body}

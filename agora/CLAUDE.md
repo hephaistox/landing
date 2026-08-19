@@ -242,7 +242,15 @@ Enforcement is layered:
 ### Identity Model
 
 - **Read** — anonymous, fully open, no registration required
-- **Contribute** — registered contributors only, via OAuth (Google), frictionless
+- **Contribute** — registered contributors only, via OAuth (Google) or email/password, frictionless
+- **Pseudonymous by default** — an account's public name is an **alias generated server-side at
+  creation**, for every provider (`landing.agora.person.alias`, drawn with a `SecureRandom` over a
+  ~70 000-word product per language). What an OAuth provider hands us — the civil name, the profile
+  picture — authenticates the person and is then dropped, never persisted. Nobody is asked for a
+  name, so nobody puts their own there by default. Uniqueness is held by the DB on the normalized
+  `alias_key` (NULL for the login-less `external` people, who may be homonyms): draw, insert, catch
+  the violation, redraw. Positions on politics, philosophy and religion are what this graph holds, so
+  the account must not carry a civil identity unless its owner deliberately chooses to.
 
 ### Fork as the Only Mutation
 

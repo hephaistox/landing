@@ -21,13 +21,15 @@ CREATE TABLE IF NOT EXISTS `AGORA_USER` (
   `provider`      ENUM('password','google','external') NOT NULL DEFAULT 'password',
   `provider_id`   VARCHAR(255) DEFAULT NULL COMMENT 'OAuth provider account id (NULL for password/external)',
   `email`         VARCHAR(320) DEFAULT NULL,
-  `display_name`  VARCHAR(255) NOT NULL,
+  `display_name`  VARCHAR(255) NOT NULL COMMENT 'Public alias, generated at creation — never a civil name',
+  `alias_key`     VARCHAR(255) DEFAULT NULL COMMENT 'Normalized alias the uniqueness is held on; NULL for provider=external (cited people are not accounts and may be homonyms)',
   `lang`          CHAR(2)      DEFAULT NULL COMMENT 'Preferred interface language (ISO 639-1)',
   `avatar_url`    VARCHAR(1024) DEFAULT NULL COMMENT 'OAuth profile picture URL',
   `password_hash` VARCHAR(255) DEFAULT NULL COMMENT 'bcrypt hash (NULL for OAuth/external)',
   `created_at`    DATETIME     NOT NULL COMMENT 'UTC',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_user_email` (`email`),
+  UNIQUE KEY `uq_user_alias` (`alias_key`),
   UNIQUE KEY `uq_user_provider` (`provider`, `provider_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

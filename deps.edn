@@ -48,11 +48,12 @@
   ;; its EDN data to the classpath so `(require 'landing.agora.types-seed)` /
   ;; `(require 'art-of-war-seed)` resolve. Run from a REPL: `clj -M:env-dev:env-seed`.
   :env-seed {:extra-paths ["env/seed"]}
-  :test-clj {:extra-deps {ring/ring-mock {:mvn/version "0.6.2"}}
-             :extra-paths ["test/unit/clj" "test/unit/cljc"]
-             :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]
-             :main-opts
-             ["-m" "cognitect.test-runner" "-r" ".*-test.*" "-d" "test/unit/clj" "test/unit/cljc"]}
+  :test-clj
+  {:extra-deps {ring/ring-mock {:mvn/version "0.6.2"}}
+   :extra-paths ["test/unit/clj" "test/unit/cljc"]
+   :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]
+   :main-opts
+   ["-m" "cognitect.test-runner" "-r" ".*-test.*" "-d" "test/unit/clj" "-d" "test/unit/cljc"]}
   :test-demo {:extra-paths ["test/demo/clj"]
               :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]
               :main-opts ["-m" "cognitect.test-runner" "-r" ".*-test.*" "-d" "test/unit/clj"]}
