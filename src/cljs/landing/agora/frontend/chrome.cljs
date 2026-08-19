@@ -5,13 +5,74 @@
    [landing.agora.frontend.auth         :as auth]
    [landing.agora.frontend.i18n         :as i18n]
    [landing.agora.frontend.publications :as publications]
-   [re-frame.core                       :as rf]))
+   [landing.agora.frontend.ui-commons   :as ui]
+   [re-frame.core                       :as rf]
+   [reagent.core                        :as r]))
+
+(def ^:private explore-entries
+  "Every browse surface the app offers, gathered under the `Explorer` menu: the knowledge feed, the
+  author index, the publications index and the FAQ. One place holding the whole set, so the primary
+  nav can stay at what a visitor does — read an article, work in a publication. `[label-key url-fn]`."
+  [[:nav/discover-ki i18n/discover]
+   [:nav/authors i18n/authors]
+   [:nav/publications i18n/publications]
+   [:nav/faq i18n/faq]])
+
+(defn- explore-menu
+  "The secondary nav, as a dropdown: smaller and dimmer than the primary entries, and set further
+  from them — articles are the way in, these are the ways around. Closes on Escape and on picking
+  an entry."
+  [lang]
+  (r/with-let
+   [open? (r/atom false)]
+   [:div {:style {:position "relative"
+                  :margin-left "1.4em"}}
+    [:button {:on-click #(swap! open? not)
+              :aria-expanded @open?
+              :aria-haspopup "menu"
+              :style {:border "none"
+                      :background "transparent"
+                      :padding 0
+                      :cursor "pointer"
+                      :font-family "inherit"
+                      :font-size "0.8em"
+                      :color "#e8e2d6"
+                      :opacity 0.7}}
+     (str (i18n/t lang :nav/explore) " ▾")]
+    (when @open?
+      [:<>
+       [ui/on-escape #(reset! open? false)]
+       (into [:div {:role "menu"
+                    :style {:position "absolute"
+                            :left 0
+                            :top "2em"
+                            :z-index 30
+                            :min-width "11em"
+                            :background "#fff"
+                            :color "#222"
+                            :border "1px solid #ddd"
+                            :border-radius "0.4em"
+                            :box-shadow "0 4px 12px rgba(0,0,0,0.15)"
+                            :padding "0.4em"}}]
+             (for [[k href] explore-entries]
+               ^{:key (str k)}
+               [:a {:href (href lang)
+                    :role "menuitem"
+                    :on-click #(reset! open? false)
+                    :style {:display "block"
+                            :padding "0.4em 0.5em"
+                            :color "#333"
+                            :font-size "0.95em"
+                            :text-decoration "none"}}
+                (i18n/t lang k)]))])]))
 
 (defn header
-  "Shared Agora header (Hephaistox dark/copper theme): the discover links, the active-publication
-  chip and auth controls. Creation is the floating create control, not a header link.
-  Browse/search is per-view (the shared filter bar). The interface language is a preference,
-  set on the Preferences page — not here; a signed-in visitor gets the editable page automatically."
+  "Shared Agora header (Hephaistox dark/copper theme). Two nav groups: the primary one is what a
+  visitor comes to do — read (Articles) and write (the active-publication chip) — and the `Explorer`
+  dropdown holds every other browse surface, further out and smaller. Creation is the floating
+  create control, not a header link. Browse/search is per-view (the shared filter bar). The
+  interface language is a preference, set on the Preferences page — not here; a signed-in visitor
+  gets the editable page automatically."
   []
   (let [lang @(rf/subscribe [::i18n/lang])]
     [:header {:class "agora-header"
@@ -45,28 +106,24 @@
                    :margin-top "0.25em"
                    :line-height 1}}
        (i18n/t lang :beta/badge)]]
-     ;; Just the discover links; creation is the floating create control.
-     (let [link (fn [label href] [:a {:key href
-                                      :href href
-                                      :style {:color "#e8e2d6"
-                                              :text-decoration "none"
-                                              :opacity 0.85}}
-                                  label])]
-       [:nav {:style {:display "flex"
-                      :align-items "center"
-                      :gap "1.1em"
-                      :font-size "0.9em"
-                      :flex-wrap "wrap"}}
-        (link (i18n/t lang :nav/discover-ki) (i18n/discover lang))
-        (link (i18n/t lang :nav/discover-articles) (i18n/articles lang))
-        (link (i18n/t lang :nav/authors) (i18n/authors lang))])
-     ;; Publications lives to the right as the active-publication chip (see `active-chip`)
-     ;; active-publication chip + profile, grouped to the right edge of the header
+     ;; Primary: the two things a visitor is here for — read an article, and (signed in) the
+     ;; publication everything they create attaches to. Creation itself is the floating control.
+     [:nav {:style {:display "flex"
+                    :align-items "center"
+                    :gap "1.1em"
+                    :font-size "0.9em"
+                    :flex-wrap "wrap"}}
+      [:a {:href (i18n/articles lang)
+           :style {:color "#e8e2d6"
+                   :text-decoration "none"}}
+       (i18n/t lang :nav/discover-articles)]
+      [publications/active-chip]]
+     ;; Secondary: every other browse surface, one step further out.
+     [explore-menu lang]
+     ;; profile, at the right edge of the header
      [:div {:style {:margin-left "auto"
                     :display "flex"
-                    :align-items "center"
-                    :gap "0.6em"}}
-      [publications/active-chip]
+                    :align-items "center"}}
       [auth/auth-controls]]]))
 
 (def ^:private footer-legal

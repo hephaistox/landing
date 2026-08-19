@@ -339,12 +339,11 @@
 (defn publications-page
   "The publications index: a lifecycle status toggle + the shared browse filter (author / q), a
   create-by-typing control, then the publications it keeps as the shared discover grid of cards (each a
-  publication card, driven by its `:type`/`:status`). Logged-in only (the header entry that leads here
-  is gated too)."
+  publication card, driven by its `:type`/`:status`)."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
-        ;; creating a publication is a contributor action — hidden from an anonymous visitor who
-        ;; reaches this index directly (the header entry that normally leads here is gated too)
+        ;; creating a publication is a contributor action — hidden from an anonymous visitor, who
+        ;; still browses the index like any other feed
         logged-in? (some? @(rf/subscribe [::auth/user]))
         status @(rf/subscribe [::status-filter])
         pubs @(rf/subscribe [::results])
@@ -372,46 +371,40 @@
         (i18n/t lang :pub/none)])]))
 
 (defn active-chip
-  "The header's publications entry (logged-in only), replacing a plain Publications link: when a
-  publication is **active** (the one create/edit attach to) it shows as a chip with a ✕ that
-  deselects it — deselecting means 'look at all publications', so it lands on the index. With none
-  active it is just a link to that index."
+  "The **active** publication (the one create/edit attach to) as a header chip, with a ✕ that
+  deselects it — deselecting means 'look at all publications', so it lands on the index. It is a
+  mode indicator, so it shows only while a publication is active; the index itself is a plain
+  entry of the header's Explorer menu. Outlined rather than filled: it sits in the primary nav
+  beside Articles, and must read as state, not as the loudest thing on the page."
   []
-  (when @(rf/subscribe [::auth/user])
+  (when-let [pub (and @(rf/subscribe [::auth/user]) @(rf/subscribe [::active]))]
     (let [lang @(rf/subscribe [::i18n/lang])]
-      (if-let [pub @(rf/subscribe [::active])]
-        [:span {:style {:display "inline-flex"
-                        :align-items "center"
-                        :gap "0.3em"
-                        :max-width "14em"
-                        :background "#b9770e"
-                        :color "#fff"
-                        :border-radius "0.35em"
-                        :padding "0.2em 0.5em"
-                        :font-size "0.8em"}}
-         [:a {:href (i18n/publication lang (:id pub))
-              :title (:title pub)
-              :style {:color "#fff"
-                      :text-decoration "none"
-                      :overflow "hidden"
-                      :text-overflow "ellipsis"
-                      :white-space "nowrap"}}
-          (str "📖 " (:title pub))]
-         [:button {:on-click #(rf/dispatch [::leave-to-index])
-                   :title (i18n/t lang :pub/leave)
-                   :style {:border "none"
-                           :background "transparent"
-                           :color "#fff"
-                           :cursor "pointer"
-                           :line-height 1
-                           :padding 0}}
-          "✕"]]
-        [:a {:href (i18n/publications lang)
-             :style {:color "#e8e2d6"
-                     :text-decoration "none"
-                     :opacity 0.85
-                     :font-size "0.9em"}}
-         (i18n/t lang :nav/publications)]))))
+      [:span {:style {:display "inline-flex"
+                      :align-items "center"
+                      :gap "0.3em"
+                      :max-width "14em"
+                      :border "1px solid #b9770e"
+                      :color "#e8e2d6"
+                      :border-radius "0.35em"
+                      :padding "0.15em 0.45em"
+                      :font-size "0.8em"}}
+       [:a {:href (i18n/publication lang (:id pub))
+            :title (:title pub)
+            :style {:color "inherit"
+                    :text-decoration "none"
+                    :overflow "hidden"
+                    :text-overflow "ellipsis"
+                    :white-space "nowrap"}}
+        (str "📖 " (:title pub))]
+       [:button {:on-click #(rf/dispatch [::leave-to-index])
+                 :title (i18n/t lang :pub/leave)
+                 :style {:border "none"
+                         :background "transparent"
+                         :color "inherit"
+                         :cursor "pointer"
+                         :line-height 1
+                         :padding 0}}
+        "✕"]])))
 
 (defn- export-icon
   "A Lucide upload glyph — a tray with an up arrow, for the publish action."
