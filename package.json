@@ -15,7 +15,6 @@
     "snabbdom": "3.5.1"
   },
   "devDependencies": {
-    "shadow-cljs": "^3.4.12",
-    "stylelint-config-standard": "^37.0.0"
+    "shadow-cljs": "^3.4.12"
   }
 }
