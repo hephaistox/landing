@@ -1,7 +1,9 @@
 (ns landing.endpoints.contact
   "Stores data from contacts"
   (:require
+   [auto-core.log                     :as core-log]
    [auto-web.middleware.rate-limit    :refer [make-rate-limiter stop-rate-limit]]
+   [clojure.string                    :as str]
    [landing.db                        :refer [ds execute-query query]]
    [landing.routes                    :refer [links]]
    [mount.core                        :refer [defstate]]
@@ -23,34 +25,44 @@
                                      :cleanup-interval-ms 60000})
           :stop (stop-rate-limit rate-limiter))
 
+(def ^:private gmail-user
+  "The Gmail account the notification is sent from, paired with `GMAIL_APP_PASSWORD`. Read from the
+  environment, not written here: an address in the source is one more identity handed over with the
+  code, and the account name is half of a credential."
+  (System/getenv "GMAIL_USER"))
+
 (def gmail-config
   {:host "smtp.gmail.com"
    :port 587
-   :user "caumond@gmail.com"
+   :user gmail-user
    :pass (System/getenv "GMAIL_APP_PASSWORD")
    :tls true})              ;; Gmail requires TLS
 
 (defn send-email
+  "Notify us of a new contact. Without `GMAIL_USER` there is nothing to authenticate as: we log and
+  give up rather than retry five times against a nil account — the submission itself is already
+  stored in the database, which is the durable record."
   [body]
-  (safely (postal/send-message gmail-config
-                               {:from "caumond@gmail.com"
-                                :to "anthony@hephaistox.fr"
-                                :subject "New contact"
-                                :body body})
-          :on-error
-          :failed? #(not= 0 (:code %))
-          :max-retries 5
-          :retry-delay [:random-exp-backoff :base 3000 :+/- 0.50]))
-
-(comment
-  (send-email "Test5")
-  ;
-)
+  (if (str/blank? gmail-user)
+    (core-log/error "GMAIL_USER is not set — the contact notification was not sent")
+    (safely (postal/send-message gmail-config
+                                 {:from gmail-user
+                                  :to "anthony@hephaistox.fr"
+                                  :subject "New contact"
+                                  :body body})
+            :on-error
+            :failed? #(not= 0 (:code %))
+            :max-retries 5
+            :retry-delay [:random-exp-backoff :base 3000 :+/- 0.50])))
 
 (defn contact-handler
-  "Handle a server side request for contact"
+  "Handle a server side request for contact.
+
+  Reads the **coerced** `:parameters :form`, not the raw `:params`: the route's malli schema is what
+  bounds these fields (non-empty company/name/firstname, a well-formed mail, a French phone), and
+  reading around it would store values nothing ever checked."
   [req]
-  (let [{:keys [company name firstname mail phone adress]} (:params req)]
+  (let [{:keys [company name firstname mail phone adress]} (get-in req [:parameters :form])]
     (if (= "" adress)
       (do (future
            (send-email

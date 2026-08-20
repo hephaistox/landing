@@ -46,6 +46,23 @@
           (is (re-find #"Acme" (first @emails-sent)) "email mentions the company")
           (is (re-find #"jane@example.com" (first @emails-sent)) "email mentions the address"))))))
 
+(deftest contact-sql-is-parameterized-test
+  (testing "the INSERT binds every value — a quote stays inside its parameter, never in the SQL"
+    (let [[sql & params] (landing.db/query "O'Brien & Co" "D'Arcy" "Jean" "a@b.co" "0601020304")]
+      (is (not (re-find #"O'Brien" sql)) "no field is concatenated into the statement")
+      (is (= 5 (count (re-seq #"\?" sql))) "one placeholder per field")
+      (is (= ["O'Brien & Co" "D'Arcy" "Jean" "a@b.co" "0601020304"] params)))))
+
+(deftest contact-stores-the-validated-values-test
+  (testing "the row inserted is the coerced form, so a quote is stored as data and nothing else"
+    (let [executed (atom nil)]
+      (with-redefs [sut/send-email (fn [_])
+                    landing.db/execute-query (fn [_ q] (reset! executed q))]
+        (post-form (assoc valid-form :company "O'Brien'); DROP TABLE CONTACTS--"))
+        (Thread/sleep 100)
+        (is (= "O'Brien'); DROP TABLE CONTACTS--" (second @executed))
+            "the payload is bound as a parameter, verbatim")))))
+
 (deftest contact-server-side-validation-test
   (testing "Empty company field is rejected"
     (let [resp (post-form (assoc valid-form :company ""))] (is (= 400 (:status resp)))))

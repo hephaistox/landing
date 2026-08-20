@@ -18,29 +18,36 @@
                                                 ki-page-route
                                                 public-shell-route
                                                 sitemap-route]]
-   [landing.endpoints.check-url         :refer [check-url-route]]
+   #_[landing.endpoints.check-url :refer [check-url-route]]
    [landing.endpoints.contact           :refer [contact-route]]
    [landing.endpoints.default-handler   :refer [default-handler not-found-for-lang]]
-   [landing.endpoints.html.admin-be     :refer [admin-route]]
+   #_[landing.endpoints.html.admin-be :refer [admin-route]]
    [landing.endpoints.ping              :refer [ping-route]]
    [landing.endpoints.resource          :refer [resource-handler]]
    [landing.endpoints.swagger           :refer [api-swagger]]
-   [landing.endpoints.w3c-validation    :refer [w3c-validate-route]]
+   #_[landing.endpoints.w3c-validation :refer [w3c-validate-route]]
    [landing.language                    :refer [languages pick-lang]]
    [reitit.ring                         :as rring]
    [ring.middleware.session             :refer [wrap-session]]
    [ring.middleware.session.cookie      :refer [cookie-store]]))
 
+(def ^:private dev-session-secret
+  "Session secret used outside production. It is in the source, so anyone holding it can forge a
+  cookie — which is why production must never reach it (see `session-key`)."
+  "agora-dev-secret!")
+
 (defn- session-key
   "16-byte AES key for the signed session cookie. In production SESSION_SECRET is
-  mandatory (≥16 chars): we fail fast rather than fall back to a shared, source
-  visible dev key, which would let anyone forge a session cookie (e.g. the admin's
-  user-id). In dev the default is fine."
+  mandatory (≥16 chars, and never `dev-session-secret`): we fail fast rather than fall
+  back to a shared, source visible dev key, which would let anyone forge a session
+  cookie (e.g. the admin's user-id). In dev the default is fine."
   []
   (let [secret (System/getenv "SESSION_SECRET")]
-    (when (and (= :prod env/env) (or (str/blank? secret) (< (count secret) 16)))
+    (when (and (= :prod env/env)
+               (or (str/blank? secret) (< (count secret) 16) (= secret dev-session-secret)))
       (throw (ex-info "SESSION_SECRET must be set to at least 16 characters in production" {})))
-    (-> (or secret "agora-dev-secret!")
+    ;; blank is unset, not a key — `or` alone would hand back "", a blank string being truthy
+    (-> (if (str/blank? secret) dev-session-secret secret)
         (.getBytes "UTF-8")
         (java.util.Arrays/copyOf 16))))
 
@@ -160,9 +167,14 @@
                        (lang-page-redirect-route "/index.html")
                        (lang-page-redirect-route "/404.html")
                        (legacy-articles-route "/articles")
-                       (admin-route "/all-kind-of-checks")
+                       ;; TEMPORAIRE — la page de diagnostic et ses deux endpoints sont retirés du
+                       ;; routeur le temps de décider s'ils passent derrière l'authentification
+                       ;; admin. Ils sont ouverts à tous et font faire au serveur des requêtes
+                       ;; sortantes ; la page n'a d'intérêt que pour nous. Décommenter ici et plus
+                       ;; bas (w3c-validate) pour les remettre.
+                       #_(admin-route "/all-kind-of-checks")
                        (contact-route "/contact")
-                       (check-url-route "/check-url")
+                       #_(check-url-route "/check-url")
                        (agora-lang-redirect-route "/agora")
                        (sitemap-route dcd/document-cached-db "/agora/sitemap.xml")
                        (auth-routes "/agora/api/auth")
@@ -173,7 +185,8 @@
                        (people-routes "/agora/api/people")
                        (publication-routes dcd/document-cached-db "/agora/api/publication")
                        (api-swagger "/api")
-                       (w3c-validate-route "/w3c-validate")]
+                       ;; TEMPORAIRE — voir la note plus haut (page de diagnostic)
+                       #_(w3c-validate-route "/w3c-validate")]
                       (agora-lang-routes dcd/document-cached-db))
                 {:data {:middleware [lang-injector]}}))
 

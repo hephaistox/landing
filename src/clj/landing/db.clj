@@ -17,26 +17,19 @@
                         :password db-pwd}))
 
 (defn query
+  "The INSERT storing one contact-form submission, as a `next.jdbc` parameterized statement —
+  `[sql & params]`. Every value is **bound**, never concatenated into the SQL: these fields come
+  straight from a public form, and this database also holds the Agora accounts, so a quote escaping
+  its value would reach far beyond the CONTACTS table."
   [company name firstname mail phone]
-  [(str
-    "INSERT INTO `CONTACTS`(`CREATION`,`COMPANY`, `NAME`, `FIRSTNAME`, `MAIL`, `PHONE`) VALUES (now(),'"
-    company
-    "','"
-    name
-    "','"
-    firstname
-    "','"
-    mail
-    "','"
-    phone
-    "')")])
+  ["INSERT INTO `CONTACTS`(`CREATION`, `COMPANY`, `NAME`, `FIRSTNAME`, `MAIL`, `PHONE`)
+    VALUES (now(), ?, ?, ?, ?, ?)"
+   company
+   name
+   firstname
+   mail
+   phone])
 
 (defn execute-query
   [ds query]
   (with-open [connection (jdbc/get-connection ds)] (jdbc/execute! connection query)))
-
-(comment
-  (->> (query "SASU CAUMOND" "CAUMOND" "Anthony" "caumond@gmail.com" "0665250279")
-       (execute-query ds))
-  ;
-)

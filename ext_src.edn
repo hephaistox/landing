@@ -1,4 +1,4 @@
-{com.github.hephaistox/auto-build {:files [".zprintrc" "LICENSE.md"]}
+{com.github.hephaistox/auto-build {:files [".zprintrc"]}
  com.github.hephaistox/auto-web {:files
                                  [".github/workflows/commit_validation.yml"
                                   ["auto_web_clj/resources/log_config/logging-tests.properties"

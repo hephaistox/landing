@@ -6,7 +6,17 @@
 [[https://hephaistox.github.io/landing/][https://img.shields.io/badge/api-blue.svg]]
 
 * Goal
-This is a private project representing [[Hephaistox][www.hephaistox.fr]].
+This is the [[Hephaistox][www.hephaistox.fr]] website.
+
+* Status
+** Landing
+This website serve hephaistox landing.
+
+** Agora 
+The agora sub domain is not exposed under sitemap for now, crawlers don't see it, no ads are made.
+
+The design is still in progress, the technology, the concept is new, difficult to make
+
 * Launch
 ** Locally dev
 #+BEGIN_SRC zsh

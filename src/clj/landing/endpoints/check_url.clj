@@ -15,12 +15,16 @@
    [ring.middleware.keyword-params    :refer [wrap-keyword-params]]
    [ring.util.response                :as rr]))
 
-(defstate rate-limiter
-          :start (make-rate-limiter {:limit 40000
-                                     :window-ms 60000
-                                     :name "landing.endpoints.check-url"
-                                     :cleanup-interval-ms 60000})
-          :stop (stop-rate-limit rate-limiter))
+(defstate
+ rate-limiter
+ "Per-IP throttle. The admin page fires one request per manifest link on load (44 today), so a
+          few hundred a minute covers a reload or two; the previous 40 000 was no limit at all, and
+          each request makes the server open an outbound connection."
+ :start (make-rate-limiter {:limit 300
+                            :window-ms 60000
+                            :name "landing.endpoints.check-url"
+                            :cleanup-interval-ms 60000})
+ :stop (stop-rate-limit rate-limiter))
 
 (defn search
   [link-id origin]
@@ -35,11 +39,40 @@
   ; link-id=w3-schools&origin=landing.pages.structure&domain=http://localhost:8080/
 )
 
-(defn- to-absolute-url
+(def ^:private our-hosts
+  "Hosts a **relative** manifest link may be resolved against — our own sites, plus the local dev
+  server. Same set as the CORS origins (`env/cors-parameters`), for the same reason: these are the
+  deployments this endpoint is meant to probe."
+  [#"^localhost$" #"^127\.0\.0\.1$" #"(^|\.)hephaistox\.(com|fr|pl)$" #"(^|\.)cleverapps\.io$"])
+
+(defn- absolute?
+  "True when `url` already carries a scheme, so no base is needed to resolve it."
+  [url]
+  (boolean (re-find #"^[a-zA-Z][a-zA-Z0-9+.\-]*:" (str url))))
+
+(defn- our-domain?
+  "True when `domain` is an http(s) URL on one of `our-hosts`. Anything else — another host, or a
+  scheme like `file:` — is refused rather than resolved."
+  [domain]
+  (try (let [u (java.net.URL. (str domain))]
+         (and (contains? #{"http" "https"} (.getProtocol u))
+              (boolean (some #(re-find % (str (.getHost u))) our-hosts))))
+       (catch Exception _ false)))
+
+(defn- target-url
+  "The URL to probe, or nil when the request must be refused.
+
+  An **absolute** manifest link is used as is: it comes from our own source, so its host is one we
+  chose to check (LinkedIn, the W3C…). A **relative** one has to be resolved against the caller's
+  `domain`, and that is the only client-controlled part of the target — so it must name one of our
+  own sites. Without that check the endpoint probes any host and reports the status back, which is a
+  scanner for whatever the server can reach, internal addresses included."
   [domain url]
-  ;; If `url` is already absolute, return it unchanged.
-  ;; Otherwise, use the browser to resolve it relative to the current location.
-  (try (str (java.net.URL. (java.net.URL. domain) url)) (catch Exception _ url)))
+  (cond
+    (absolute? url) url
+    (our-domain? domain) (try (str (java.net.URL. (java.net.URL. (str domain)) url))
+                              (catch Exception _ nil))
+    :else nil))
 
 (defn check-url-handler
   [request]
@@ -56,17 +89,18 @@
                                                                        :body {:status 200
                                                                               :curl-data {:url
                                                                                           url}}}
-        :else (let [url (to-absolute-url domain url)
-                    curl-data (client/head url
-                                           {:max-redirects 2
-                                            :cookie-policy :none
-                                            :socket-timeout 1000
-                                            :headers {:user-agent "Mozilla/5.0"}
-                                            :connection-timeout 1000})]
-                {:status 200
-                 :headers {}
-                 :body {:status (:status curl-data)
-                        :curl-data curl-data}}))
+        :else (if-let [target (target-url domain url)]
+                (let [curl-data (client/head target
+                                             {:max-redirects 2
+                                              :cookie-policy :none
+                                              :socket-timeout 1000
+                                              :headers {:user-agent "Mozilla/5.0"}
+                                              :connection-timeout 1000})]
+                  {:status 200
+                   :headers {}
+                   :body {:status (:status curl-data)
+                          :curl-data curl-data}})
+                (rr/bad-request {:status 0})))
       (rr/bad-request {:status 0}))))
 
 (comment

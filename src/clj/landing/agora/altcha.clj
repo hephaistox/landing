@@ -10,7 +10,8 @@
   expiry window (in-memory), so a solution can't be replayed."
   (:require
    [cheshire.core  :as json]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [env])
   (:import (java.security MessageDigest SecureRandom)
            (java.util Base64)
            (javax.crypto Mac)
@@ -26,7 +27,36 @@
 (def ^:private ttl-seconds 300)
 (def ^:private rng (SecureRandom.))
 
-(defn- hmac-key [] (or (System/getenv "ALTCHA_HMAC_KEY") "agora-dev-altcha-secret"))
+(def ^:private dev-hmac-key
+  "Key used outside production. It is in the source, so anyone can sign a challenge with it — which
+  is exactly why production must not reach it (see `hmac-key`)."
+  "agora-dev-altcha-secret")
+
+(def ^:private min-key-length
+  "Shortest accepted `ALTCHA_HMAC_KEY`. An HMAC key below the hash block size adds nothing."
+  16)
+
+(defn- validate-key
+  "The key to sign with, given the configured `secret` and the running `env` — pure, so the rule is
+  testable without touching the environment. In production the secret is mandatory, at least
+  `min-key-length` chars, and never `dev-hmac-key`; anything else throws. Outside production a
+  missing **or blank** secret falls back to the development key — a variable set to the empty string
+  is unset, not a key (`or` alone would hand back \"\", since a blank string is truthy)."
+  [secret env]
+  (when (and (= :prod env)
+             (or (str/blank? secret) (< (count secret) min-key-length) (= secret dev-hmac-key)))
+    (throw (ex-info (str "ALTCHA_HMAC_KEY must be set in production to at least "
+                         min-key-length
+                         " characters, and must not be the development key")
+                    {})))
+  (if (str/blank? secret) dev-hmac-key secret))
+
+(defn- hmac-key
+  "Key the challenge signature is HMAC'd with. Forging a signature is forging a solved captcha, so a
+  source-visible key would leave account creation open to scripted registration: production fails
+  fast instead — the same rule as `landing.handler/session-key`. In dev the default is fine."
+  []
+  (validate-key (System/getenv "ALTCHA_HMAC_KEY") env/env))
 
 (defn- hex [^bytes bs] (apply str (map #(format "%02x" (bit-and % 0xff)) bs)))
 
