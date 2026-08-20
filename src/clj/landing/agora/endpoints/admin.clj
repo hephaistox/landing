@@ -83,6 +83,10 @@
   ;; each operation; the routes add only their own 200
   [prefix {:coercion coercion
            :muuntaja m/instance
+           ;; kept out of the public OpenAPI document: the owner guard is what protects these, but
+           ;; there is no reason to publish a maintenance surface — including the destructive ones —
+           ;; to every passing scanner. The routes themselves are unchanged.
+           :no-doc true
            :swagger {:tags #{:agora-admin}}
            :responses {401 {:description "Login required"
                             :body error-body}
