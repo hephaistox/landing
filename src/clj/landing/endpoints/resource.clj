@@ -39,16 +39,25 @@
   "URI → prepared response (with :body and optional :gzipped bytes)."
   (cr/cache-fn (fn [request] (cr/prepare (base-handler request))) (fn [request] (:uri request))))
 
+(def ^:private not-static
+  "Files that live under `resources/public` but must never be served as static assets. The admin
+  diagnostics shell is one: it has its own route, which decides whether it is exposed at all — and
+  reaching it through the public directory would bypass that decision. It stays in `public` because
+  the build's asset fingerprinting walks that directory and has a case for it."
+  #{"/all-kind-of-checks.html"})
+
 (defn- serve-resource
   "Resources from directory `/` with sensible Cache-Control. In :prod, bodies
   (and their gzipped variants) are cached in memory after first read. Returns
-  nil when no resource matches, so the surrounding route chain falls through."
+  nil when no resource matches — or when the file is one the static handler must not
+  serve — so the surrounding route chain falls through."
   [request]
-  (when-let [prepared (prepared-for-uri request)]
-    (-> prepared
-        (cr/serve request)
-        (rr/header "Access-Control-Allow-Origin" "*")
-        (rr/header "Cache-Control" (cache-control (:uri request))))))
+  (when-not (contains? not-static (:uri request))
+    (when-let [prepared (prepared-for-uri request)]
+      (-> prepared
+          (cr/serve request)
+          (rr/header "Access-Control-Allow-Origin" "*")
+          (rr/header "Cache-Control" (cache-control (:uri request)))))))
 
 (def resource-handler
   "`serve-resource` wrapped in `wrap-not-modified`: when the client sends

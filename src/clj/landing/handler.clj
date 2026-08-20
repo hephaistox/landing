@@ -67,23 +67,35 @@
                           {:status 302
                            :headers {"Location" (str "/" (pick-lang req) path)}})}}])
 
+(def ^:private legacy-slug-re
+  "Shape a legacy article slug must have to be echoed into a `Location` header: letters, digits, and
+  `.`/`_`/`-`. Every real article name matches (`who-are-we`, `legal-notice`, …).
+
+  This is a **header-injection guard**, not tidiness. Reitit percent-decodes a path param, so
+  `/articles/foo%0d%0aSet-Cookie:%20x=1` would otherwise put a raw CRLF inside the redirect's
+  `Location` — and http-kit writes header values as given, so the attacker's line becomes a real
+  header of our response. Anything outside the shape 404s instead."
+  #"^[A-Za-z0-9._-]+$")
+
 (defn legacy-articles-route
   "Rewrite legacy `/articles/<slug>` URLs (no language prefix) to
   `/<lang>/articles/<slug>.html`. Only matches a single path segment
   so `/articles/foo/bar` is *not* silently rewritten to a non-existent
-  resource."
+  resource, and only a `legacy-slug-re` slug is redirected at all."
   [prefix]
   [(str prefix "/:slug")
    {:get {:handler (fn [{:keys [path-params]
                          :as req}]
-                     {:status 301
-                      :headers {"Location" (str "/"
-                                                (pick-lang req)
-                                                "/articles/"
-                                                (:slug path-params)
-                                                (when-not (str/ends-with? (:slug path-params)
-                                                                          ".html")
-                                                  ".html"))}})}}])
+                     (let [slug (str (:slug path-params))]
+                       (if (re-matches legacy-slug-re slug)
+                         {:status 301
+                          :headers {"Location" (str "/"
+                                                    (pick-lang req)
+                                                    "/articles/"
+                                                    slug
+                                                    (when-not (str/ends-with? slug ".html")
+                                                      ".html"))}}
+                         (not-found-for-lang req (pick-lang req)))))}}])
 
 (defn lang-fallback-handler
   "When the request path is `/fr/...` or `/en/...` but no resource matched,
@@ -211,6 +223,55 @@
            :headers {"Location" (str base uri (when-let [q (:query-string req)] (str "?" q)))}}
           (handler req))))))
 
+(def ^:private inline-script-hash
+  "CSP hash of the one inline `<script>` we ship (`resources/public/agora/ki.html`, which flags the
+  document as JS-capable before first paint). Hashing it is what lets `script-src` stay free of
+  `'unsafe-inline'` — the directive that would otherwise make the whole policy decorative. **Recompute
+  this if that script changes**, otherwise the browser blocks it."
+  "'sha256-sa2BD07tH4oO53uT1B5vNSLM2+gcrREM4WTXttKp6oU='")
+
+(def ^:private content-security-policy
+  "What a page may load. Everything we serve is same-origin, so the policy is `'self'` plus four
+  deliberate widenings:
+   - `style-src 'unsafe-inline'` — the pages and the server-rendered Agora body carry `style=`
+     attributes. Injected CSS is a far smaller problem than injected script, and removing them is a
+     refactor, not a security fix.
+   - `img-src https:` — an account's avatar is still hotlinked from the OAuth provider.
+   - `worker-src blob:` — the ALTCHA captcha solves its proof-of-work in a worker it builds itself.
+   - `frame-ancestors 'none'` — nobody frames us, which is `X-Frame-Options` for modern browsers."
+  (str "default-src 'self'; "
+       "script-src 'self' " inline-script-hash
+       "; " "style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data: https:; " "font-src 'self'; "
+       "connect-src 'self'; " "worker-src 'self' blob:; "
+       "object-src 'none'; " "base-uri 'self'; "
+       "form-action 'self'; " "frame-ancestors 'none'"))
+
+(defn wrap-security-headers
+  "Add the response headers a browser needs to defend the page.
+
+  The CSP ships **report-only** for now: it is tuned by reading the source, not by exercising every
+  screen, and an over-tight policy silently breaks features (the captcha worker, an avatar) rather
+  than failing loudly. Report-only puts every violation in the browser console with nothing broken —
+  the designed way to converge — after which the header name loses its `-Report-Only` suffix.
+
+  The other four are unconditional and carry no such risk. HSTS is production-only, and without
+  `includeSubDomains`: it would otherwise bind every subdomain of the apex to HTTPS, including ones
+  this app knows nothing about."
+  [handler]
+  (fn [req]
+    ;; `some->` so a nil (no response at all) stays nil rather than becoming a status-less map
+    (some-> (handler req)
+            (update :headers
+                    (fn [h]
+                      (cond-> (assoc h
+                                     "X-Content-Type-Options" "nosniff"
+                                     "Referrer-Policy" "strict-origin-when-cross-origin"
+                                     "X-Frame-Options" "SAMEORIGIN"
+                                     "Content-Security-Policy-Report-Only" content-security-policy)
+                        (= :prod env/env) (assoc "Strict-Transport-Security"
+                                                 "max-age=31536000")))))))
+
 (defn wrap-strip-trailing-slash
   "Normalize the request URI by dropping any trailing slash (except the root `/`) before
   routing, so `/agora/en/discover/` resolves the same route as `/agora/en/discover`
@@ -240,6 +301,9 @@
                                     ;; never travels over plain HTTP
                                     :secure (= :prod env/env)}})
       wrap-agora-canonical-host
+      ;; above the router so every response carries them — a static asset, a redirect and a 404
+      ;; included
+      wrap-security-headers
       ;; outermost: normalize the URI (drop trailing slash) before any host-redirect
       ;; or routing sees it
       wrap-strip-trailing-slash))

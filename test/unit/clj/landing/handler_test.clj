@@ -79,7 +79,14 @@
            (-> (get-route (sut/legacy-articles-route "/articles")
                           {:headers {"cookie" "lang=en"}
                            :path-params {:slug "rivalis"}})
-               (get-in [:headers "Location"]))))))
+               (get-in [:headers "Location"])))))
+  (testing "a slug carrying control characters never reaches the Location header"
+    ;; reitit percent-decodes the path param, so `%0d%0a` arrives as a real CRLF; http-kit writes
+    ;; header values as given, and the attacker's line would become a header of our response
+    (doseq [slug ["foo\r\nSet-Cookie: injecte=1" "foo\nX-Injecte: 1" "foo bar" "../../etc/passwd"]]
+      (let [resp (get-route (sut/legacy-articles-route "/articles") {:path-params {:slug slug}})]
+        (is (= 404 (:status resp)) (str "refused: " (pr-str slug)))
+        (is (nil? (get-in resp [:headers "Location"])) (str "no redirect for: " (pr-str slug)))))))
 
 (deftest lang-fallback-handler-test
   (testing "Missing /fr/... returns a real 404 in French"
