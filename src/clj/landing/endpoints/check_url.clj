@@ -43,7 +43,7 @@
   "Hosts a **relative** manifest link may be resolved against — our own sites, plus the local dev
   server. Same set as the CORS origins (`env/cors-parameters`), for the same reason: these are the
   deployments this endpoint is meant to probe."
-  [#"^localhost$" #"^127\.0\.0\.1$" #"(^|\.)hephaistox\.(com|fr|pl)$" #"(^|\.)cleverapps\.io$"])
+  [#"^localhost$" #"^127\.0\.0\.1$" #"(^|\.)hephaistox\.(com|fr)$" #"(^|\.)cleverapps\.io$"])
 
 (defn- absolute?
   "True when `url` already carries a scheme, so no base is needed to resolve it."

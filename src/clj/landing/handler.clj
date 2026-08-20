@@ -230,22 +230,34 @@
   this if that script changes**, otherwise the browser blocks it."
   "'sha256-sa2BD07tH4oO53uT1B5vNSLM2+gcrREM4WTXttKp6oU='")
 
-(def ^:private content-security-policy
-  "What a page may load. Everything we serve is same-origin, so the policy is `'self'` plus four
-  deliberate widenings:
+(defn- content-security-policy
+  "What a page may load, given the running `env`. Everything we serve is same-origin, so the policy
+  is `'self'` plus four deliberate widenings:
    - `style-src 'unsafe-inline'` — the pages and the server-rendered Agora body carry `style=`
      attributes. Injected CSS is a far smaller problem than injected script, and removing them is a
      refactor, not a security fix.
    - `img-src https:` — an account's avatar is still hotlinked from the OAuth provider.
    - `worker-src blob:` — the ALTCHA captcha solves its proof-of-work in a worker it builds itself.
-   - `frame-ancestors 'none'` — nobody frames us, which is `X-Frame-Options` for modern browsers."
+   - `frame-ancestors 'none'` — nobody frames us, which is `X-Frame-Options` for modern browsers.
+
+  Outside production, `'unsafe-eval'` is added: a shadow-cljs **dev** build loads namespaces through
+  `goog.globalEval`, which is how hot reload works. The **release** build contains no `eval` in any
+  form, so production keeps the strict policy — the directive that makes the whole thing worth
+  having. Pure, so both variants are testable without an environment."
+  [env]
   (str "default-src 'self'; "
-       "script-src 'self' " inline-script-hash
+       "script-src 'self' "
+       inline-script-hash
+       (when (not= :prod env) " 'unsafe-eval'")
        "; " "style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data: https:; " "font-src 'self'; "
        "connect-src 'self'; " "worker-src 'self' blob:; "
        "object-src 'none'; " "base-uri 'self'; "
        "form-action 'self'; " "frame-ancestors 'none'"))
+
+(def ^:private csp-header
+  "The policy for this deployment, built once."
+  (content-security-policy env/env))
 
 (defn wrap-security-headers
   "Add the response headers a browser needs to defend the page.
@@ -268,7 +280,7 @@
                                      "X-Content-Type-Options" "nosniff"
                                      "Referrer-Policy" "strict-origin-when-cross-origin"
                                      "X-Frame-Options" "SAMEORIGIN"
-                                     "Content-Security-Policy-Report-Only" content-security-policy)
+                                     "Content-Security-Policy-Report-Only" csp-header)
                         (= :prod env/env) (assoc "Strict-Transport-Security"
                                                  "max-age=31536000")))))))
 

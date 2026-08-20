@@ -88,6 +88,24 @@
         (is (= 404 (:status resp)) (str "refused: " (pr-str slug)))
         (is (nil? (get-in resp [:headers "Location"])) (str "no redirect for: " (pr-str slug)))))))
 
+(deftest content-security-policy-test
+  (let [prod (#'sut/content-security-policy :prod)
+        dev (#'sut/content-security-policy :dev)]
+    (testing "production never allows evaluating a string as script"
+      (is (not (str/includes? prod "unsafe-eval"))
+          "the release bundle contains no eval — allowing it would gut the policy"))
+    (testing "a dev build does, because shadow-cljs hot-reloads through goog.globalEval"
+      (is (str/includes? dev "'unsafe-eval'")))
+    (testing "both keep the directives the app actually needs"
+      (doseq [policy [prod dev]]
+        (is (str/includes? policy "worker-src 'self' blob:") "the ALTCHA proof-of-work worker")
+        (is (str/includes? policy "img-src 'self' data: https:") "OAuth avatars")
+        (is (str/includes? policy "frame-ancestors 'none'"))
+        (is (str/includes? policy "object-src 'none'"))
+        ;; inline *scripts* are never blanket-allowed: the one we ship is admitted by its hash
+        (is (not (str/includes? policy "script-src 'self' 'unsafe-inline'")))
+        (is (str/includes? policy "sha256-"))))))
+
 (deftest lang-fallback-handler-test
   (testing "Missing /fr/... returns a real 404 in French"
     (let [resp (sut/lang-fallback-handler {:uri "/fr/articles/does-not-exist.html"})]
