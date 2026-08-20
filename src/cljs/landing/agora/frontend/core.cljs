@@ -626,6 +626,11 @@
 (rf/reg-fx :agora/navigate (fn [url] (pushy/set-token! @history url)))
 
 ;; Event form of the above, for components (e.g. the language switcher) to call.
+;; Drop the whole document cache. For a change that touches every document at once rather than one
+;; lineage — renaming the alias every byline is derived from — where evicting lineage by lineage
+;; would mean knowing the corpus.
+(rf/reg-event-db :agora/forget-documents (fn [db _] (dissoc db :cache :tnlr)))
+
 (rf/reg-event-fx :agora/goto (fn [_ [_ url]] {:agora/navigate url}))
 
 ;; Esc on the creation page → back to discover (like Cancel), but only when no

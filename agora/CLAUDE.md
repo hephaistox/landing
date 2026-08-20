@@ -250,7 +250,12 @@ Enforcement is layered:
   name, so nobody puts their own there by default. Uniqueness is held by the DB on the normalized
   `alias_key` (NULL for the login-less `external` people, who may be homonyms): draw, insert, catch
   the violation, redraw. Positions on politics, philosophy and religion are what this graph holds, so
-  the account must not carry a civil identity unless its owner deliberately chooses to.
+  the account must not carry a civil identity unless its owner deliberately chooses to. The alias is
+  **rectifiable** (art. 16): the preferences page renames it (`POST /agora/api/auth/alias`, 409 when
+  the normalized alias is claimed), warning that a real name typed there will be publicly and durably
+  tied to one's positions — the default path never asks. A rename is one `UPDATE`; the bylines it
+  feeds are then re-derived at once for that person's documents (`admin/refresh-author!`), the daily
+  reconcile staying the net.
 
 ### Fork as the Only Mutation
 

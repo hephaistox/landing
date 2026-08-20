@@ -6,6 +6,7 @@
    [landing.agora.frontend.document-page :as    dv
                                          :refer [card-style language-selector]]
    [landing.agora.frontend.i18n          :as i18n]
+   [landing.agora.frontend.ui-commons    :as ui]
    [re-frame.core                        :as rf]))
 
 (defn- provider-label
@@ -31,10 +32,80 @@
                    :word-break "break-word"}}
     value]])
 
+(def ^:private alias-error-keys
+  "The rename endpoint's error codes → their message."
+  {"missing" :prefs/alias-missing
+   "too-long" :prefs/alias-too-long
+   "alias-taken" :prefs/alias-taken})
+
+(def ^:private small-btn
+  {:font-size "0.8em"
+   :padding "0.3em 0.7em"
+   :border "1px solid #ccc"
+   :border-radius "0.3em"
+   :background "#fff"
+   :cursor "pointer"})
+
+(defn- alias-editor
+  "The open rename form: the field, the warning, and the outcome. The warning belongs here and
+  nowhere else — typing a name is the only path that can tie a civil identity to one's positions,
+  and it is never the path taken by default."
+  [lang {:keys [alias error submitting?]}]
+  [:div {:style {:padding "0.35em 0"
+                 :border-bottom "1px solid #f0eee8"}}
+   [:div {:style {:color "#888"
+                  :font-size "0.9em"
+                  :margin-bottom "0.3em"}}
+    (i18n/t lang :auth/alias)]
+   [ui/composed-field {:type "text"
+                       :value (or alias "")
+                       :on-text #(rf/dispatch [::auth/set-alias-text %])
+                       :style {:width "100%"
+                               :box-sizing "border-box"
+                               :padding "0.5em"
+                               :font-size "0.95em"
+                               :border "1px solid #ccc"
+                               :border-radius "0.3em"}}]
+   [:div {:style {:font-size "0.8em"
+                  :color "#8a6d3b"
+                  :margin "0.4em 0"}}
+    (i18n/t lang :prefs/alias-warning)]
+   (when error
+     [:div {:style {:font-size "0.85em"
+                    :color "#c92a2a"
+                    :margin-bottom "0.4em"}}
+      (i18n/t lang (get alias-error-keys error :prefs/alias-failed))])
+   [:div {:style {:display "flex"
+                  :gap "0.5em"}}
+    [:button {:on-click #(when-not submitting? (rf/dispatch [::auth/submit-alias]))
+              :disabled (boolean submitting?)
+              :style
+              (assoc small-btn :border "1px solid #b9770e" :background "#b9770e" :color "#fff")}
+     (if submitting? "…" (i18n/t lang :prefs/alias-save))]
+    [:button {:on-click #(rf/dispatch [::auth/close-alias-form])
+              :style small-btn}
+     (i18n/t lang :form/cancel)]]])
+
+(defn- alias-row
+  "The account's public name: the value with a rename button, or the editor once open."
+  [lang user]
+  (if-let [form @(rf/subscribe [::auth/alias-form])]
+    [alias-editor lang form]
+    [pref-field
+     (i18n/t lang :auth/alias)
+     [:span {:style {:display "inline-flex"
+                     :align-items "center"
+                     :gap "0.6em"}}
+      (:display-name user)
+      [:button {:on-click #(rf/dispatch [::auth/edit-alias])
+                :title (i18n/t lang :prefs/rename-alias)
+                :style (assoc small-btn :font-weight 400)}
+       (i18n/t lang :prefs/rename-alias)]]]))
+
 (defn preferences-page
-  "User preferences: account details (alias, login, sign-in method) and the
-  interface language. A home for further settings later. Works for anyone — the
-  language is cached locally and, when logged in, persisted to the account."
+  "User preferences: account details — the alias, renameable here, plus the login and sign-in method
+  — and the interface language. A home for further settings later. Works for anyone — the language is
+  cached locally and, when logged in, persisted to the account."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
         user @(rf/subscribe [::auth/user])
@@ -62,7 +133,7 @@
                          :object-fit "cover"
                          :border "1px solid #d99a2b"}}])
         [:div {:style {:flex "1 1 auto"}}
-         [pref-field (i18n/t lang :auth/alias) (:display-name user)]
+         [alias-row lang user]
          [pref-field (i18n/t lang :auth/email) (:email user)]
          [pref-field (i18n/t lang :prefs/connection) (provider-label lang (:provider user))]]]
        [:div {:style {:color "#888"

@@ -189,6 +189,40 @@
                           ::taken)))]
       (if (= ::taken result) (recur (inc attempt)) result))))
 
+(def max-alias-length
+  "Longest alias accepted. Wide enough for any drawn alias or a chosen one, short enough that the
+  column and every byline stay bounded."
+  60)
+
+(defn rename-alias!
+  "Rename the public alias of account `id`, and return the updated profile. Returns one of:
+   - [:ok profile]
+   - [:error :missing]      blank alias
+   - [:error :too-long]     longer than `max-alias-length`
+   - [:error :alias-taken]  another account already holds that normalized alias
+   - [:error :db-error]     the database is unreachable or failing
+
+  A name is a rectifiable field (RGPD art. 16), and the human case is the same: someone published
+  under a name they no longer want. One `UPDATE` — the byline every document displays is derived
+  from this row, so renaming here is what makes the corpus follow."
+  [id new-alias]
+  (let [nm (str/trim (or new-alias ""))]
+    (cond
+      (str/blank? nm) [:error :missing]
+      (> (count nm) max-alias-length) [:error :too-long]
+      :else (try (jdbc/execute!
+                  db/ds
+                  ["UPDATE AGORA_USER SET display_name = ?, alias_key = ? WHERE id = ?"
+                   nm
+                   (person-alias/alias-key nm)
+                   id])
+                 [:ok (get-user id)]
+                 (catch SQLIntegrityConstraintViolationException e
+                   (if (alias-taken? e) [:error :alias-taken] (throw e)))
+                 (catch SQLException e
+                   (core-log/error-exception e "rename-alias!: database error")
+                   [:error :db-error])))))
+
 (defn- find-by-email
   [email]
   (jdbc/execute-one!

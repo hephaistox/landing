@@ -610,6 +610,18 @@
         kebab))})
     (catch SQLException e (db-error! e))))
 
+(defn attribution-rows
+  "Every version as `{:id :content :computed}` — what a byline refresh reads: the immutable content
+  names the person the version is attributed to, the derived blob holds the cached name to repair.
+  Lighter than `derivation-snapshot`: no edges and no pins to re-resolve, since a rename moves
+  nothing but the name."
+  []
+  (mapv (fn [row]
+          {:id (:id row)
+           :content (decode-content (:content row))
+           :computed (decode-computed (:computed row))})
+        (q! db/ds ["SELECT id, content, computed FROM AGORA_DOCUMENT"] kebab)))
+
 (defn apply-computed-fixes!
   "Overwrite `computed` for each `{:id :computed}` fix (the versions whose derived blob drifted).
   Batched."

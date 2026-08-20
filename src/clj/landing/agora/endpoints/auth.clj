@@ -5,6 +5,7 @@
   `(get-in req [:session :user-id])`. Google OAuth logs in the same way after its callback, and
   registration is gated by an ALTCHA proof-of-work solution the server re-verifies."
   (:require
+   [landing.agora.admin               :as admin]
    [landing.agora.altcha              :as altcha]
    [landing.agora.auth                :as auth]
    [landing.agora.endpoints.throttle  :as throttle]
@@ -88,6 +89,24 @@
       (auth/set-lang! id lang)
       {:status 200
        :body {:lang lang}})
+    {:status 401
+     :body {:error "login required"}}))
+
+(defn- set-alias
+  "Rename the caller's public alias, then refresh the byline its documents cache so the change is
+  visible at once (the daily reconcile would otherwise be the first to notice)."
+  [req]
+  (if-let [id (uid req)]
+    (let [[tag v] (auth/rename-alias! id (get-in req [:body-params :alias]))]
+      (if (= tag :ok)
+        (do (admin/refresh-author! id)
+            {:status 200
+             :body v})
+        {:status (case v
+                   :alias-taken 409
+                   :db-error 500
+                   400)
+         :body {:error (name v)}}))
     {:status 401
      :body {:error "login required"}}))
 
@@ -186,6 +205,22 @@
                         401 {:description "Login required"
                              :body error-body}}
             :summary "Set the preferred interface language"}}]
+   ["/alias"
+    {:post {:handler set-alias
+            :operationId "agora-set-alias"
+            ;; a rename re-derives the byline of every document the person signed, so it is throttled
+            ;; like any other write
+            :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
+            :parameters {:body [:map [:alias [:string {:max 200}]]]}
+            :responses {200 {:description "Alias renamed; updated profile returned"}
+                        400 {:description "Blank or over-long alias"
+                             :body error-body}
+                        401 {:description "Login required"
+                             :body error-body}
+                        409 {:description "Alias already taken"
+                             :body error-body}
+                        429 {:description "Rate limit exceeded"}}
+            :summary "Rename the public alias"}}]
    ["/google"
     {:get {:handler google-start
            :operationId "agora-google"

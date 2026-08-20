@@ -3,7 +3,7 @@
   specific routes that need them (never on reads/search). Two separate budgets so sign-in and
   authoring throttles don't share a counter:
    - `authoring-rate-limiter` — state-mutating writes (document create/edit/delete, publication
-     create/rename/publish/delete, create-person);
+     create/rename/publish/delete, create-person, alias rename);
    - `credential-rate-limiter` — the unauthenticated credential endpoints (login/register), the
      brute-force / credential-stuffing surface."
   (:require

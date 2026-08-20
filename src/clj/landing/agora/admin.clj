@@ -1,7 +1,9 @@
 (ns landing.agora.admin
-  "Maintenance over the document store for the admin page: list every lineage, scan references for
-  consistency (dangling / self / successor-cache drift), and drop or compact a lineage. These are
-  read-and-repair operations behind the owner guard — the normal write path is elsewhere.
+  "Maintenance over the document store: list every lineage, scan references for consistency
+  (dangling / self / successor-cache drift), reconcile the derived caches — whole-corpus, or narrowed
+  to one person's byline after a rename — and drop or compact a lineage. These are read-and-repair
+  operations, the normal write path is elsewhere; all but the byline refresh sit behind the owner
+  guard.
 
   `type`/`lang` are DB strings here (`\"ki\"`, `\"fr\"`); the consistency rule keywords `type` at the
   read boundary because the domain (and the stored `:inputs`) work in keyword types."
@@ -226,6 +228,28 @@
      :computed-fixed (count computed-fixes)
      :edges-inserted (count edge-inserts)
      :edges-deleted (count edge-deletes)}))
+
+(defn refresh-author!
+  "Rewrite the cached byline of every version attributed to person `person-id`, then evict the read
+  caches. Returns `{:refreshed n}`.
+
+  Same repair as the reconcile, narrowed to one person: a rename is a single `UPDATE` on the account,
+  but the name each document displays is a copy in its derived `computed`, so without this the person
+  renames and sees nothing change until the daily run. Only the byline is re-derived — a rename moves
+  no pin and no edge. The reconcile stays the net."
+  [person-id]
+  (let [nm (auth/display-name person-id)
+        fixes (into []
+                    (keep (fn [{:keys [id content computed]}]
+                            (when (= person-id (dk/attributed-author-id content))
+                              (let [expected (db-doc/computed (:pins computed) nm)]
+                                (when (not= expected computed)
+                                  {:id id
+                                   :computed expected})))))
+                    (db-doc/attribution-rows))]
+    (db-doc/apply-computed-fixes! fixes)
+    (when (seq fixes) (cached-db/clear!))
+    {:refreshed (count fixes)}))
 
 ;; --- destructive maintenance ----------------------------------------------
 

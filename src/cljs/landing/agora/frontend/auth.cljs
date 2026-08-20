@@ -114,6 +114,49 @@
                            {:submitting? false
                             :error (or (get-in resp [:body :error]) "Something went wrong")})))
 
+;; --- renaming the alias ----------------------------------------------------
+;; The public name is rectifiable: the account holds the only copy, every byline is derived from it.
+;; The form is held here, next to the user it edits, and the preferences page renders it.
+
+(rf/reg-sub ::alias-form (fn [db _] (::alias-form db)))
+
+(rf/reg-event-db ::edit-alias
+                 (fn [db _]
+                   (assoc db
+                          ::alias-form
+                          {:alias (:display-name (::user db))
+                           :error nil
+                           :submitting? false})))
+
+(rf/reg-event-db ::close-alias-form (fn [db _] (dissoc db ::alias-form)))
+(rf/reg-event-db ::set-alias-text (fn [db [_ v]] (assoc-in db [::alias-form :alias] v)))
+
+(rf/reg-event-fx ::submit-alias
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [::alias-form :submitting?] true)
+                    :fetch (json-req :post
+                                     "/agora/api/auth/alias"
+                                     {:alias (get-in db [::alias-form :alias])}
+                                     [::alias-ok]
+                                     [::alias-failed])}))
+
+(rf/reg-event-fx ::alias-ok
+                 (fn [{:keys [db]} [_ resp]]
+                   {:db (-> db
+                            (assoc ::user (:body resp))
+                            (dissoc ::alias-form))
+                    ;; every cached document carries the old byline — drop them so the next page
+                    ;; shows the new name, as the server's caches were dropped on the rename
+                    :dispatch [:agora/forget-documents]}))
+
+(rf/reg-event-db ::alias-failed
+                 (fn [db [_ resp]]
+                   (update db
+                           ::alias-form
+                           merge
+                           {:submitting? false
+                            :error (or (get-in resp [:body :error]) "failed")})))
+
 (rf/reg-event-db ::toggle-menu (fn [db _] (update db ::menu? not)))
 
 (rf/reg-event-fx ::logout
