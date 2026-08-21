@@ -67,7 +67,11 @@
     showStatus(STRINGS.sending, "w3-text-grey");
     setBusy(true);
     try {
-      await postWithRetry(new FormData(form));
+      // URLSearchParams, not FormData: fetch sends a FormData body as multipart/form-data, which
+      // nothing in the /contact middleware chain parses — the request reaches coercion with no form
+      // params and is rejected 400. Wrapping it makes fetch send application/x-www-form-urlencoded,
+      // which is what the endpoint declares and what this form posts natively when JS is off.
+      await postWithRetry(new URLSearchParams(new FormData(form)));
       form.reset();
       showStatus(STRINGS.success, "w3-text-green");
     } catch (err) {

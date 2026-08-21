@@ -46,6 +46,28 @@
           (is (re-find #"Acme" (first @emails-sent)) "email mentions the company")
           (is (re-find #"jane@example.com" (first @emails-sent)) "email mentions the address"))))))
 
+(deftest contact-accepts-only-form-encoded-test
+  (testing "a urlencoded body is what the endpoint declares, and what the page must send"
+    (with-redefs [sut/send-email (fn [_])
+                  landing.db/execute-query (fn [_ _] nil)]
+      (is (= 302 (:status (post-form valid-form))))))
+  (testing "a multipart body reaches coercion with no form params and is refused"
+    ;; `fetch` sends a FormData body as multipart, and nothing here parses it — the contact page
+    ;; must therefore post URLSearchParams (see resources/public/js/contact-form.js)
+    (let [boundary "----test"
+          body (str "--"
+                    boundary
+                    "\r\nContent-Disposition: form-data; name=\"company\"\r\n\r\n"
+                    "Acme\r\n--"
+                    boundary
+                    "--\r\n")
+          h (handler/handler)
+          resp (h (-> (mock/request :post "/contact")
+                      (mock/header "content-type" (str "multipart/form-data; boundary=" boundary))
+                      (assoc :remote-addr (fresh-ip))
+                      (mock/body body)))]
+      (is (= 400 (:status resp))))))
+
 (deftest contact-sql-is-parameterized-test
   (testing "the INSERT binds every value — a quote stays inside its parameter, never in the SQL"
     (let [[sql & params] (landing.db/query "O'Brien & Co" "D'Arcy" "Jean" "a@b.co" "0601020304")]
