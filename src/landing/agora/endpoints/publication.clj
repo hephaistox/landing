@@ -7,23 +7,9 @@
    [landing.agora.document.cached-db   :as cached-db]
    [landing.agora.document.engine      :as engine]
    [landing.agora.document.publication :as publication]
-   [landing.agora.endpoints.throttle   :as throttle]
-   [muuntaja.core                      :as m]
-   [reitit.coercion.malli              :refer [coercion]]
-   [reitit.ring.coercion               :as rcoercion]
-   [reitit.ring.middleware.exception   :as exception]
-   [reitit.ring.middleware.muuntaja    :as muuntaja]
-   [reitit.ring.middleware.parameters  :as parameters]))
+   [landing.agora.http.api             :as api]
+   [landing.agora.http.throttle        :as throttle]))
 
-(def ^:private mw
-  [parameters/parameters-middleware
-   muuntaja/format-negotiate-middleware
-   muuntaja/format-response-middleware
-   ;; catch exceptions here so an API error returns a negotiated (JSON) response, not the branded
-   ;; HTML 500 the outer web handler would serve
-   exception/exception-middleware
-   muuntaja/format-request-middleware
-   rcoercion/coerce-request-middleware])
 
 (def ^:private id-path "The publication cid in the path." [:map [:id :string]])
 
@@ -33,17 +19,12 @@
    [:title {:optional true}
     [:maybe :string]]])
 
-(def ^:private error-body
-  "The shape of every error response: `{:error \"...\"}` (some carry extra keys, e.g. publish's
-  `:documents`)."
-  [:map [:error :string]])
 
-(defn- uid [req] (get-in req [:session :user-id]))
 
 (defn- create
   "Open a publication owned by the caller, titled by the request body."
   [req]
-  (if-let [id (uid req)]
+  (if-let [id (api/uid req)]
     {:status 200
      :body (publication/create! id (get-in req [:body-params :title]))}
     {:status 401
@@ -55,7 +36,7 @@
   narrows it to the caller's own; `?scope=all` adds other owners' **open** publications — their private
   staging — so it is administrator-only."
   [req]
-  (let [id (uid req)
+  (let [id (api/uid req)
         scope (case (get-in req [:query-params "scope"])
                 "all" :all
                 "mine" :mine
@@ -79,7 +60,7 @@
   closed), and **anyone** once it is **closed** — a closed publication's documents are published, hence
   public. Only an *open* publication's private drafts are owner-only."
   [req cid]
-  (or (publication/owns? (uid req) cid) (publication/closed? cid)))
+  (or (publication/owns? (api/uid req) cid) (publication/closed? cid)))
 
 (defn- documents
   "The documents a publication gathers, as browse cards. Visible to the owner, or to anyone once the
@@ -107,7 +88,7 @@
 (defn- rename
   "Rename a publication (owner-only). Body `{:title}`."
   [req]
-  (if-let [id (uid req)]
+  (if-let [id (api/uid req)]
     (if-let [p (publication/rename! id
                                     (get-in req [:path-params :id])
                                     (get-in req [:body-params :title]))]
@@ -124,7 +105,7 @@
   still has `:errors`, returning the offending documents (cards, with their errors) for the client to
   list. Clears the read caches on success."
   [doc-storage req]
-  (if-let [id (uid req)]
+  (if-let [id (api/uid req)]
     (let [cid (get-in req [:path-params :id])
           in-error (filterv (comp seq :errors) (engine/publication-cards doc-storage cid))]
       (if (seq in-error)
@@ -143,7 +124,7 @@
 (defn- delete
   "Delete an open publication and the drafts it gathers (owner-only). Clears the read caches."
   [req]
-  (if-let [id (uid req)]
+  (if-let [id (api/uid req)]
     (if (publication/delete! id (get-in req [:path-params :id]))
       (do (cached-db/clear!)
           {:status 200
@@ -155,11 +136,8 @@
 
 (defn publication-routes
   [doc-storage prefix]
-  [prefix {:coercion coercion
-           :muuntaja m/instance
-           :swagger {:tags #{:agora-publication}}
-           :responses {500 {:description "Unexpected server error"}}
-           :middleware mw}
+  [prefix
+   (api/route-data :agora-publication)
    [""
     {:get
      {:handler list-visible
@@ -171,7 +149,7 @@
                             [:maybe :string]]]}
       :responses {200 {:description "Visible publications"}
                   403 {:description "scope=all requested by a non-administrator"
-                       :body error-body}}
+                       :body api/error-body}}
       :summary
       "List publications the caller may see (own + closed); scope=mine narrows, scope=all is admin-only"}
      :post {:handler create
@@ -180,7 +158,7 @@
             :parameters {:body title-body}
             :responses {200 {:description "The opened publication"}
                         401 {:description "Login required"
-                             :body error-body}
+                             :body api/error-body}
                         429 {:description "Rate limit exceeded"}}
             :summary "Open a publication"}}]
    ["/:id"
@@ -189,7 +167,7 @@
            :parameters {:path id-path}
            :responses {200 {:description "The publication"}
                        404 {:description "No such publication"
-                            :body error-body}}
+                            :body api/error-body}}
            :summary "Fetch a publication by id"}
      :put {:handler rename
            :operationId "agora-publication-rename"
@@ -198,9 +176,9 @@
                         :body title-body}
            :responses {200 {:description "The renamed publication"}
                        401 {:description "Login required"
-                            :body error-body}
+                            :body api/error-body}
                        404 {:description "Not the owner, or no such publication"
-                            :body error-body}
+                            :body api/error-body}
                        429 {:description "Rate limit exceeded"}}
            :summary "Rename a publication (owner-only)"}
      :delete {:handler delete
@@ -209,9 +187,9 @@
               :parameters {:path id-path}
               :responses {200 {:description "Deleted"}
                           401 {:description "Login required"
-                               :body error-body}
+                               :body api/error-body}
                           404 {:description "Not the owner, or already closed"
-                               :body error-body}
+                               :body api/error-body}
                           429 {:description "Rate limit exceeded"}}
               :summary "Delete an open publication and its drafts (owner-only)"}}]
    ["/:id/publish"
@@ -221,9 +199,9 @@
             :parameters {:path id-path}
             :responses {200 {:description "Published (closed); its drafts are now public"}
                         401 {:description "Login required"
-                             :body error-body}
+                             :body api/error-body}
                         404 {:description "Not the owner, or already closed"
-                             :body error-body}
+                             :body api/error-body}
                         422 {:description
                              "A gathered draft still has errors — the offending docs are returned"
                              :body [:map [:error :string] [:documents [:sequential :any]]]}
@@ -235,7 +213,7 @@
            :parameters {:path id-path}
            :responses {200 {:description "The publication's drafts, as browse cards"}
                        404 {:description "Not the owner (a publication's drafts are private)"
-                            :body error-body}}
+                            :body api/error-body}}
            :summary "The publication's modified documents (drafts) — owner-only"}}]
    ["/:id/graph"
     {:get {:handler (partial graph doc-storage)
@@ -243,5 +221,5 @@
            :parameters {:path id-path}
            :responses {200 {:description "The 1-hop draft graph (nodes + edges)"}
                        404 {:description "Not the owner (a publication's drafts are private)"
-                            :body error-body}}
+                            :body api/error-body}}
            :summary "The publication's 1-hop draft graph (nodes + edges) — owner-only"}}]])

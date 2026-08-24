@@ -1,8 +1,8 @@
-(ns landing.agora.endpoints.error-test
+(ns landing.agora.http.error-test
   (:require
-   [clojure.test                  :refer [deftest is testing]]
-   [landing.agora.endpoints.error :as sut]
-   [reitit.ring                   :as rring]))
+   [clojure.test             :refer [deftest is testing]]
+   [landing.agora.http.error :as sut]
+   [reitit.ring              :as rring]))
 
 (defn- throwing-handler
   "A ring handler whose route throws `ex`, guarded by the DB-aware exception
@@ -19,10 +19,10 @@
              :uri "/x"})))
 
 (deftest db-failures-become-503
-  (testing "a ::db-unavailable ex-info is surfaced as 503"
+  (testing "a :landing.agora.db-unavailable ex-info is surfaced as 503"
     (is (= 503
            (status-for (ex-info "database unavailable"
-                                {:type :landing.agora.db.document/db-unavailable})))))
+                                {:type :landing.agora.db-unavailable})))))
   (testing "a raw java.sql.SQLException (e.g. connection refused) is surfaced as 503"
     (is (= 503 (status-for (java.sql.SQLException. "connection refused")))))
   (testing "an unrelated error keeps the default handling (not a 503)"

@@ -21,15 +21,15 @@
            (java.util UUID)))
 
 ;; --------------------------------------------------------------------------------
-;; --- connection + failure handling. A DB error throws ::db-unavailable.
+;; --- connection + failure handling. A DB error throws :landing.agora.db-unavailable.
 ;; --------------------------------------------------------------------------------
 
 (defn db-error!
-  "Log a DB failure and rethrow it as `::db-unavailable`. Public, so a namespace that owns its own
+  "Log a DB failure and rethrow it as `:landing.agora.db-unavailable`. Public, so a namespace that owns its own
   transaction converts failures the same way the queries here do."
   [e]
   (core-log/error-exception e "Agora DB error")
-  (throw (ex-info "database unavailable" {:type ::db-unavailable} e)))
+  (throw (ex-info "database unavailable" {:type :landing.agora.db-unavailable} e)))
 
 (defn- q! [& args] (try (apply jdbc/execute! args) (catch SQLException e (db-error! e))))
 (defn- q1! [& args] (try (apply jdbc/execute-one! args) (catch SQLException e (db-error! e))))

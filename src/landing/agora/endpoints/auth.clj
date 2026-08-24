@@ -5,38 +5,24 @@
   `(get-in req [:session :user-id])`. Google OAuth logs in the same way after its callback, and
   registration is gated by an ALTCHA proof-of-work solution the server re-verifies."
   (:require
-   [clojure.string                    :as str]
-   [landing.agora.admin               :as admin]
-   [landing.agora.altcha              :as altcha]
-   [landing.agora.auth                :as auth]
-   [landing.agora.endpoints.throttle  :as throttle]
-   [landing.agora.oauth               :as oauth]
-   [landing.agora.person.erasure      :as erasure]
-   [landing.language                  :as language]
-   [muuntaja.core                     :as m]
-   [reitit.coercion.malli             :refer [coercion]]
-   [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.muuntaja   :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]))
+   [clojure.string               :as str]
+   [landing.agora.admin          :as admin]
+   [landing.agora.altcha         :as altcha]
+   [landing.agora.auth           :as auth]
+   [landing.agora.http.api       :as api]
+   [landing.agora.http.throttle  :as throttle]
+   [landing.agora.oauth          :as oauth]
+   [landing.agora.person.erasure :as erasure]
+   [landing.language             :as language]))
 
-(def ^:private mw
-  [parameters/parameters-middleware
-   muuntaja/format-negotiate-middleware
-   muuntaja/format-response-middleware
-   muuntaja/format-request-middleware
-   rcoercion/coerce-request-middleware])
 
-(def ^:private error-body
-  "The shape of every error response: `{:error \"...\"}`."
-  [:map [:error :string]])
 
-(defn- uid [req] (get-in req [:session :user-id]))
 
 (defn- me
   "The current user's public profile, or `null` when there is no session."
   [req]
   {:status 200
-   :body (some-> (uid req)
+   :body (some-> (api/uid req)
                  auth/get-user)})
 
 (defn- login
@@ -86,7 +72,7 @@
 (defn- set-lang
   "Persist the caller's preferred interface language (logged-in users only)."
   [req]
-  (if-let [id (uid req)]
+  (if-let [id (api/uid req)]
     (let [lang (get-in req [:body-params :lang])]
       (auth/set-lang! id lang)
       {:status 200
@@ -98,7 +84,7 @@
   "Rename the caller's public display name, then refresh the byline its documents cache so the change is
   visible at once (the daily reconcile would otherwise be the first to notice)."
   [req]
-  (if-let [id (uid req)]
+  (if-let [id (api/uid req)]
     (let [[tag v] (auth/rename-display-name! id (get-in req [:body-params :display-name]))]
       (if (= tag :ok)
         (do (admin/refresh-author! id)
@@ -117,7 +103,7 @@
   the action is irreversible and provider-agnostic, so intent is proven by what the person types,
   not by a password only half the accounts have."
   [req]
-  (if-let [id (uid req)]
+  (if-let [id (api/uid req)]
     (let [confirm (str/trim (or (get-in req [:body-params :confirm]) ""))
           profile (auth/get-user id)]
       (if (and profile (= confirm (:display-name profile)))
@@ -172,11 +158,8 @@
 
 (defn auth-routes
   [prefix]
-  [prefix {:coercion coercion
-           :muuntaja m/instance
-           :swagger {:tags #{:agora-auth}}
-           :responses {500 {:description "Unexpected server error"}}
-           :middleware mw}
+  [prefix
+   (api/route-data :agora-auth)
    ["/register"
     {:post {:handler register
             :operationId "agora-register"
@@ -187,7 +170,7 @@
                                 [:altcha :string]]}
             :responses {200 {:description "Account created; session established"}
                         400 {:description "Failed captcha, or invalid/taken email / weak password"
-                             :body error-body}
+                             :body api/error-body}
                         429 {:description "Rate limit exceeded"}}
             :summary "Register a password account"}}]
    ["/altcha-challenge"
@@ -203,7 +186,7 @@
                          [:map [:email [:string {:max 320}]] [:password [:string {:max 200}]]]}
             :responses {200 {:description "Authenticated; session established, profile returned"}
                         401 {:description "Bad credentials"
-                             :body error-body}
+                             :body api/error-body}
                         429 {:description "Rate limit exceeded"}}
             :summary "Log in with email/password"}}]
    ["/logout"
@@ -224,9 +207,9 @@
               :parameters {:body [:map [:confirm [:string {:max 200}]]]}
               :responses {200 {:description "Account erased; session cleared"}
                           400 {:description "Confirmation does not match the current display name"
-                               :body error-body}
+                               :body api/error-body}
                           401 {:description "Login required"
-                               :body error-body}
+                               :body api/error-body}
                           429 {:description "Rate limit exceeded"}}
               :summary "Erase the account by de-linking it (art. 17)"}}]
    ["/lang"
@@ -235,7 +218,7 @@
             :parameters {:body [:map [:lang :string]]}
             :responses {200 {:description "Preference saved"}
                         401 {:description "Login required"
-                             :body error-body}}
+                             :body api/error-body}}
             :summary "Set the preferred interface language"}}]
    ["/display-name"
     {:post {:handler set-display-name
@@ -246,11 +229,11 @@
             :parameters {:body [:map [:display-name [:string {:max 200}]]]}
             :responses {200 {:description "Display name renamed; updated profile returned"}
                         400 {:description "Blank or over-long display name"
-                             :body error-body}
+                             :body api/error-body}
                         401 {:description "Login required"
-                             :body error-body}
+                             :body api/error-body}
                         409 {:description "Display name already taken"
-                             :body error-body}
+                             :body api/error-body}
                         429 {:description "Rate limit exceeded"}}
             :summary "Rename the public display name"}}]
    ["/google"
@@ -269,5 +252,5 @@
            :responses {302 {:description
                             "Redirect back to the app (logged in, or with an error flag)"}
                        400 {:description "Invalid OAuth state (CSRF check failed)"
-                            :body error-body}}
+                            :body api/error-body}}
            :summary "Google OAuth callback"}}]])

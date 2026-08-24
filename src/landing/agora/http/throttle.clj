@@ -1,7 +1,10 @@
-(ns landing.agora.endpoints.throttle
-  "Shared per-IP rate limiters for the Agora surface, applied as method-level middleware on the
-  specific routes that need them (never on reads/search). Two separate budgets so sign-in and
-  authoring throttles don't share a counter:
+(ns landing.agora.http.throttle
+  "Shared per-IP rate limiters for the Agora surface,
+
+  Applied as method-level middleware on the specific routes that need them
+  (never on reads/search).
+
+  Two separate budgets so sign-in and authoring throttles don't share a counter:
    - `authoring-rate-limiter` — state-mutating writes (document create/edit/delete, publication
      create/rename/publish/delete, create-person, display name rename);
    - `credential-rate-limiter` — the unauthenticated credential endpoints (login/register), the

@@ -2,27 +2,12 @@
   "Public author profile: a person's card plus the documents attributed to them, for the
   interactive author page. Reads the person from `auth` and their documents from `doc-storage`."
   (:require
-   [landing.agora.auth                :as auth]
-   [landing.agora.db.document         :as db-doc]
-   [landing.agora.document.engine     :as engine]
-   [muuntaja.core                     :as m]
-   [reitit.coercion.malli             :refer [coercion]]
-   [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.exception  :as exception]
-   [reitit.ring.middleware.muuntaja   :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]))
+   [landing.agora.auth            :as auth]
+   [landing.agora.db.document     :as db-doc]
+   [landing.agora.document.engine :as engine]
+   [landing.agora.http.api        :as api]))
 
-(def ^:private mw
-  [parameters/parameters-middleware
-   muuntaja/format-negotiate-middleware
-   muuntaja/format-response-middleware
-   ;; an API error returns a negotiated (JSON) response, not the branded HTML 500
-   exception/exception-middleware
-   rcoercion/coerce-request-middleware])
 
-(def ^:private error-body
-  "The shape of every error response: `{:error \"...\"}` (open — some carry extra keys)."
-  [:map [:error :string]])
 
 (defn- admin?
   "Whether the caller is the platform owner. The public profile carries one extra field for them."
@@ -47,11 +32,8 @@
 
 (defn author-routes
   [doc-storage prefix]
-  [prefix {:coercion coercion
-           :muuntaja m/instance
-           :swagger {:tags #{:agora-author}}
-           :responses {500 {:description "Unexpected server error"}}
-           :middleware mw}
+  [prefix
+   (api/route-data :agora-author)
    ["/:id"
     {:get
      {:handler
@@ -75,5 +57,5 @@
        {:description
         "Author profile: card + documents + last activity (+ the attributed count, for an administrator)"}
        404 {:description "No such author"
-            :body error-body}}
+            :body api/error-body}}
       :summary "Public author profile: card + documents"}}]])

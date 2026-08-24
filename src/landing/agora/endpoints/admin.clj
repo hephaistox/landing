@@ -4,29 +4,16 @@
   platform owner (`admin-only`): 401 when anonymous, 403 when logged in but not on the admin
   allowlist."
   (:require
-   [landing.agora.admin               :as admin]
-   [landing.agora.auth                :as auth]
-   [landing.agora.person.erasure      :as erasure]
-   [muuntaja.core                     :as m]
-   [reitit.coercion.malli             :refer [coercion]]
-   [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.muuntaja   :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]))
+   [landing.agora.admin          :as admin]
+   [landing.agora.auth           :as auth]
+   [landing.agora.http.api       :as api]
+   [landing.agora.person.erasure :as erasure]))
 
-(def ^:private mw
-  [parameters/parameters-middleware
-   muuntaja/format-negotiate-middleware
-   muuntaja/format-response-middleware
-   muuntaja/format-request-middleware
-   rcoercion/coerce-request-middleware])
 
 (def ^:private lineage-body
   "The (type, name, lang, major) lineage a drop/compact targets."
   [:map [:type :string] [:name :string] [:lang :string] [:major :int]])
 
-(def ^:private error-body
-  "The shape of every error response: `{:error \"...\"}`."
-  [:map [:error :string]])
 
 (defn- admin-only
   "Run `(f req)` only for an authenticated administrator; 401 anonymous, 403 non-admin."
@@ -99,21 +86,18 @@
 
 (defn admin-routes
   [prefix]
-  ;; every admin route is owner-only, so 401/403 (and 500) are declared once here and merge into
-  ;; each operation; the routes add only their own 200
-  [prefix {:coercion coercion
-           :muuntaja m/instance
-           ;; kept out of the public OpenAPI document: the owner guard is what protects these, but
-           ;; there is no reason to publish a maintenance surface — including the destructive ones —
-           ;; to every passing scanner. The routes themselves are unchanged.
-           :no-doc true
-           :swagger {:tags #{:agora-admin}}
-           :responses {401 {:description "Login required"
-                            :body error-body}
-                       403 {:description "Admin only"
-                            :body error-body}
-                       500 {:description "Unexpected server error"}}
-           :middleware mw}
+  ;; every admin route is owner-only, so 401/403 are declared once here and merge into each
+  ;; operation; the routes add only their own 200
+  [prefix
+   (api/route-data :agora-admin
+                   ;; kept out of the public OpenAPI document: the owner guard is what protects these, but
+                   ;; there is no reason to publish a maintenance surface — including the destructive ones —
+                   ;; to every passing scanner. The routes themselves are unchanged.
+                   {:no-doc true
+                    :responses {401 {:description "Login required"
+                                     :body api/error-body}
+                                403 {:description "Admin only"
+                                     :body api/error-body}}})
    ["/person/:id"
     {:delete {:handler delete-person
               :operationId "agora-admin-delete-person"
@@ -121,9 +105,9 @@
               :responses {200 {:description
                                "How many documents changed byline, and whether the row went"}
                           403 {:description "A seeded platform person may not be removed"
-                               :body error-body}
+                               :body api/error-body}
                           404 {:description "No such person"
-                               :body error-body}}
+                               :body api/error-body}}
               :summary "Remove a person, anonymising what they are attributed with"}}]
    ["/tnrs"
     {:get {:handler tnrs

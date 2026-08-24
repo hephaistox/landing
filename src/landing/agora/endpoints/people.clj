@@ -3,29 +3,13 @@
   search listing the most recently attributed ones — and create a login-less external person for a
   citation whose author isn't a platform member. Creating requires a session."
   (:require
-   [clojure.string                    :as str]
-   [landing.agora.auth                :as auth]
-   [landing.agora.document.engine     :as engine]
-   [landing.agora.endpoints.throttle  :as throttle]
-   [muuntaja.core                     :as m]
-   [reitit.coercion.malli             :refer [coercion]]
-   [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.exception  :as exception]
-   [reitit.ring.middleware.muuntaja   :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]))
+   [clojure.string                :as str]
+   [landing.agora.auth            :as auth]
+   [landing.agora.document.engine :as engine]
+   [landing.agora.http.api        :as api]
+   [landing.agora.http.throttle   :as throttle]))
 
-(def ^:private mw
-  [parameters/parameters-middleware
-   muuntaja/format-negotiate-middleware
-   muuntaja/format-response-middleware
-   ;; an API error returns a negotiated (JSON) response, not the branded HTML 500
-   exception/exception-middleware
-   muuntaja/format-request-middleware
-   rcoercion/coerce-request-middleware])
 
-(def ^:private error-body
-  "The shape of every error response: `{:error \"...\"}`."
-  [:map [:error :string]])
 
 (def ^:private recent-limit
   "How many people the empty search offers. Wide enough to stand as a browse of who writes here, not
@@ -57,11 +41,8 @@
 
 (defn people-routes
   [prefix]
-  [prefix {:coercion coercion
-           :muuntaja m/instance
-           :swagger {:tags #{:agora-people}}
-           :responses {500 {:description "Unexpected server error"}}
-           :middleware mw}
+  [prefix
+   (api/route-data :agora-people)
    [""
     {:get {:handler search
            :operationId "agora-people-search"
@@ -78,6 +59,6 @@
             :parameters {:body [:map [:display-name [:string {:min 1}]]]}
             :responses {200 {:description "The created external person"}
                         401 {:description "Login required"
-                             :body error-body}
+                             :body api/error-body}
                         429 {:description "Rate limit exceeded"}}
             :summary "Create a login-less external person"}}]])

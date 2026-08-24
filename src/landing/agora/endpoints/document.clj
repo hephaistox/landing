@@ -11,22 +11,10 @@
    [landing.agora.document.publication :as publication]
    [landing.agora.document.storage     :as ds]
    [landing.agora.document.write       :as write]
-   [landing.agora.endpoints.throttle   :as throttle]
-   [landing.language                   :as language]
-   [muuntaja.core                      :as m]
-   [reitit.coercion.malli              :refer [coercion]]
-   [reitit.ring.coercion               :as rcoercion]
-   [reitit.ring.middleware.exception   :as exception]
-   [reitit.ring.middleware.muuntaja    :as muuntaja]
-   [reitit.ring.middleware.parameters  :as parameters]))
+   [landing.agora.http.api             :as api]
+   [landing.agora.http.throttle        :as throttle]
+   [landing.language                   :as language]))
 
-(def ^:private mw
-  [parameters/parameters-middleware
-   muuntaja/format-negotiate-middleware
-   muuntaja/format-response-middleware
-   exception/exception-middleware
-   muuntaja/format-request-middleware
-   rcoercion/coerce-request-middleware])
 
 (def ^:private write-body
   "Request body for create/edit. `publication-id` is **required** (non-empty): every write is a draft
@@ -56,17 +44,13 @@
    [:locator {:optional true}
     [:maybe :string]]])
 
-(def ^:private error-body
-  "The shape of every error response: `{:error \"...\"}` (open — some carry an extra `:id`)."
-  [:map [:error :string]])
 
-(defn- uid [req] (get-in req [:session :user-id]))
 
 (defn- viewer-of
   "The reader a feed is built for: `{:id :admin?}`, or nil when anonymous. What the visibility rule is
   applied against (agora/CLAUDE.md, \"Who sees what\")."
   [req]
-  (when-let [id (uid req)]
+  (when-let [id (api/uid req)]
     {:id id
      :admin? (boolean (:admin (auth/get-user id)))}))
 
@@ -76,7 +60,7 @@
   drafts."
   [req cid]
   (when (seq cid)
-    (when-let [p (publication/latest-row cid)] (when (= (:owner-id p) (uid req)) cid))))
+    (when-let [p (publication/latest-row cid)] (when (= (:owner-id p) (api/uid req)) cid))))
 
 (defn- draft-hidden?
   "True when `id` resolves to a **draft the caller may not see** — anyone but its owner or the
@@ -86,7 +70,7 @@
   edge."
   [req id]
   (when-let [raw (db-doc/fetch-id id)]
-    (and (:draft raw) (not (auth/sees-drafts-of? (uid req) (:owner-id raw))))))
+    (and (:draft raw) (not (auth/sees-drafts-of? (api/uid req) (:owner-id raw))))))
 
 (defn- coerce-structural-input
   "The structural single input TNLR from the request body — named by what it is: an **extract**'s
@@ -109,7 +93,7 @@
   `:year`/`:editor`/`:url`, and for an `extract` its `:locator`. Returns the created version's endpoint
   view."
   [doc-storage req]
-  (let [uid (uid req)
+  (let [uid (api/uid req)
         type (keyword (get-in req [:path-params :type]))
         {:keys [kind title text lang publication-id attributed-author-id year editor url locator]}
         (:body-params req)
@@ -155,7 +139,7 @@
   overrides. A new minor when the caller owns it, else a fork (new major). Returns the new version's
   endpoint view."
   [doc-storage req]
-  (let [editor (uid req)
+  (let [editor (api/uid req)
         id (get-in req [:path-params :id])
         {:keys [title text kind publication-id attributed-author-id year url locator]
          biblio-editor :editor}
@@ -197,7 +181,7 @@
   must be the draft's own publication — a delete is scoped to the publication the caller is working in.
   Returns the publication cid so the client can refresh it."
   [req]
-  (if-let [editor (uid req)]
+  (if-let [editor (api/uid req)]
     (if-let [pub-id (write/delete! editor
                                    (get-in req [:path-params :id])
                                    (get-in req [:parameters :query :publication-id]))]
@@ -215,11 +199,8 @@
   (session required): `POST /:type` (create), `POST /:type/:id` (edit → new version). One mount under
   `/agora/api/documents`, so the `:type` wildcard never overlaps the sibling API routes."
   [doc-storage prefix]
-  [prefix {:coercion coercion
-           :muuntaja m/instance
-           :swagger {:tags #{:agora-documents}}
-           :responses {500 {:description "Unexpected server error"}}
-           :middleware mw}
+  [prefix
+   (api/route-data :agora-documents)
    ["/:type"
     {:get
      {:handler
@@ -259,11 +240,11 @@
                          :body write-body}
             :responses {200 {:description "The created version's endpoint view"}
                         400 {:description "Unknown document type"
-                             :body error-body}
+                             :body api/error-body}
                         401 {:description "Login required"
-                             :body error-body}
+                             :body api/error-body}
                         403 {:description "Not your publication"
-                             :body error-body}
+                             :body api/error-body}
                         429 {:description "Rate limit exceeded"}}
             :summary "Create a new document (session required)"}}]
    ["/:type/:name/:lang/:major"
@@ -293,7 +274,7 @@
                             [:maybe :string]]]}
       :responses {200 {:description "The document (latest published minor)"}
                   404 {:description "No published version for this identity"
-                       :body error-body}}
+                       :body api/error-body}}
       :summary
       "A document by its identity — latest published minor; a `*` lang uses the request's language"}}]
    ["/:type/:id"
@@ -314,7 +295,7 @@
                                  [:maybe :string]]]}
            :responses {200 {:description "The exact version"}
                        404 {:description "No such version"
-                            :body error-body}}
+                            :body api/error-body}}
            :summary "A document by id"}
      :post {:handler (fn [req] (edit-handler doc-storage req))
             :operationId "agora-edit-document"
@@ -323,11 +304,11 @@
                          :body write-body}
             :responses {200 {:description "The new version's endpoint view"}
                         401 {:description "Login required"
-                             :body error-body}
+                             :body api/error-body}
                         403 {:description "Not your publication"
-                             :body error-body}
+                             :body api/error-body}
                         404 {:description "No such document"
-                             :body error-body}
+                             :body api/error-body}
                         429 {:description "Rate limit exceeded"}}
             :summary "Edit a document into a new version (session required)"}
      :delete {:handler delete-handler
@@ -337,10 +318,10 @@
                            :query [:map [:publication-id [:string {:min 1}]]]}
               :responses {200 {:description "Deleted; returns the publication cid"}
                           401 {:description "Login required"
-                               :body error-body}
+                               :body api/error-body}
                           404 {:description
                                "Not a deletable draft, not the owner, or wrong publication"
-                               :body error-body}
+                               :body api/error-body}
                           429 {:description "Rate limit exceeded"}}
               :summary "Delete a draft document (owner-only, scoped to its publication)"}}]
    ["/:type/:id/versions"
@@ -349,7 +330,7 @@
                       ;; draft's id or that one is in flight
                       (let [id (get-in req [:parameters :path :id])
                             versions (db-doc/sibling-versions id)
-                            owner? (= (uid req) (:owner-id (db-doc/fetch-id id)))]
+                            owner? (= (api/uid req) (:owner-id (db-doc/fetch-id id)))]
                         {:status 200
                          :body (if owner? versions (remove :draft versions))}))
            :operationId "agora-document-versions"
