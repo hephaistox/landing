@@ -41,9 +41,7 @@ bb copy              # Copy files from ext_src.edn sources
 
 ### Source Structure
 
-- `src/clj/` - Backend Clojure (server, handlers, endpoints)
-- `src/cljs/` - Frontend ClojureScript (admin SPA)
-- `src/cljc/` - Shared code (routes + admin/article URL manifests). No page-rendering code lives here anymore.
+- `src/` - **one source root holding `.clj`, `.cljc` and `.cljs` side by side**, laid out by namespace. A file's extension is what marks its side: `.clj` backend, `.cljs` frontend, `.cljc` the shared core that must give the same answer on both. Same for `test/unit/`.
 
 ### Frontend Builds (shadow-cljs)
 
@@ -144,7 +142,7 @@ Only pure-data modules :
 - `landing.article.{rivalis,who-are-we}` — external-link manifests for those articles, aggregated by `landing.pages.admin`.
 
 The cljc modules are consumed only by:
-- the admin SPA (`src/cljs/landing/admin.cljs`, mounted from the static page at `/all-kind-of-checks`)
+- the admin SPA (`src/landing/admin.cljs`, mounted from the static page at `/all-kind-of-checks`)
 - `landing.endpoints.{contact,check-url,w3c-validation}` (use the manifests + `landing.routes/links`)
 
 The backend's role is: serve static resources, host the REST API (`/contact`, `/api`, `/check-url`, `/w3c-validate`, etc.), serve the admin SPA shell, and serve language-resolved 404/500 pages via `landing.endpoints.default-handler`.

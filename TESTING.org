@@ -4,7 +4,7 @@
 Most server-side behavior — routing, redirects, static-page serving,
 cache headers, CORS, SEO artifacts, contacts-page wiring, language
 detection, in-memory + gzip response caching — is covered automatically
-by the clj suite under =test/unit/clj/= (including =handler_test.clj=,
+by the clj suite under =test/unit/= (clj files) (including =handler_test.clj=,
 =cached_response_test.clj=, =language_test.clj=, and a happy-path
 =POST /contact= test in =endpoints/contact_test.clj=). Run that first;
 only the items below need a human.
@@ -103,7 +103,7 @@ Expected: ~400~.
 
 ** D1. Admin SPA
 - [ ] Open =/all-kind-of-checks= → admin SPA boots, audit tables render, no console errors
-- [ ] With =bb repl-fe= running, editing =src/cljs/landing/admin.cljs= hot-reloads
+- [ ] With =bb repl-fe= running, editing =src/landing/admin.cljs= hot-reloads
 
 ** D2. SEO & static-asset spot-checks
 #+begin_src bash

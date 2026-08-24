@@ -1,21 +1,18 @@
 (ns landing.agora.date
-  "Shared date display for Agora cards/views (clj + cljs). A compact date reads as the relative label
-  when it is today/yesterday, else `DD/MM` within the current year (or `DD/MM/YYYY`). The i18n labels
-  and connector are passed in, so this stays language-agnostic. Only the 'now' lookup is platform-
-  specific (reader conditional); the rest is shared so the server and client never phrase a date
-  differently.")
+  "Date display for Agora cards/views. A compact date reads as the relative label when it is
+  today/yesterday, else `DD/MM` within the current year (or `DD/MM/YYYY`). The i18n labels and
+  connector are passed in, so this stays language-agnostic.
+
+  Reader-facing prose, hence cljs. The server-rendered body phrases a date as a bare ISO day inside
+  `<time>` (`seo/day`), which is what a crawler reads — a different audience, not a divergence.")
 
 (defn- now-ymd
   "Today's and yesterday's UTC dates, each as a `[year month day]` vector."
   []
-  #?(:clj (let [today (java.time.LocalDate/now java.time.ZoneOffset/UTC)
-                yst (.minusDays today 1)]
-            [[(.getYear today) (.getMonthValue today) (.getDayOfMonth today)]
-             [(.getYear yst) (.getMonthValue yst) (.getDayOfMonth yst)]])
-     :cljs (let [now (js/Date.)
-                 yst (js/Date. (- (.getTime now) 86400000))]
-             [[(.getUTCFullYear now) (inc (.getUTCMonth now)) (.getUTCDate now)]
-              [(.getUTCFullYear yst) (inc (.getUTCMonth yst)) (.getUTCDate yst)]])))
+  (let [now (js/Date.)
+        yst (js/Date. (- (.getTime now) 86400000))]
+    [[(.getUTCFullYear now) (inc (.getUTCMonth now)) (.getUTCDate now)]
+     [(.getUTCFullYear yst) (inc (.getUTCMonth yst)) (.getUTCDate yst)]]))
 
 (defn- pad [n] (if (< n 10) (str "0" n) (str n)))
 
