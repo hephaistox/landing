@@ -1,6 +1,6 @@
 (ns landing.agora.text
   "Text normalization shared by clj and cljs. The platform gap only — the JVM and the browser fold
-  accents through different APIs, and a divergence between them would be a bug (a slug or an alias
+  accents through different APIs, and a divergence between them would be a bug (a slug or a display name
   key computed on one side must equal the one computed on the other)."
   (:require
    [clojure.string :as str]))

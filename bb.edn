@@ -78,8 +78,9 @@
                                 "target/la")}
   lint {:doc "Lint source code"
         :requires [[auto-build.tasks.lint :as task-lint]]
-        :task (-> (task-lint/lint level1-header ["src" "test" "scripts"] "." (current-task))
-                  exit)}
+        :task
+        (-> (task-lint/lint level1-header ["src" "test" "scripts" "env/seed"] "." (current-task))
+            exit)}
   prod {:doc "Deploy current codebase to production"
         :requires [[auto-build.tasks.web.prod-build :as task-prod-build] [cache-bust]]
         :task (cache-bust/deploy! task-prod-build/build

@@ -1,11 +1,12 @@
 (ns landing.agora.endpoints.admin
   "Maintenance and consistency routes over the document store: list lineages, list reference issues,
-  drop or compact a lineage, recompute the successor index. Every route is restricted to the
+  drop or compact a lineage, recompute the successor index, remove a person. Every route is restricted to the
   platform owner (`admin-only`): 401 when anonymous, 403 when logged in but not on the admin
   allowlist."
   (:require
    [landing.agora.admin               :as admin]
    [landing.agora.auth                :as auth]
+   [landing.agora.person.erasure      :as erasure]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
    [reitit.ring.coercion              :as rcoercion]
@@ -77,6 +78,25 @@
                 {:status 200
                  :body (admin/reconcile!)})))
 
+(defn- delete-person
+  "Remove a person: whatever they are attributed with becomes the anonymous person's, then the account
+  row goes. Always possible — the count of what will change byline is served on their profile, so the
+  confirmation names it beforehand. That is a decision to put in front of the administrator, not a
+  refusal to hand them.
+
+  Nothing is destroyed (see `erasure/retire!`): documents and drafts stay where they are, under a
+  byline that names nobody."
+  [req]
+  (admin-only req
+              (fn [{{:keys [id]} :path-params}]
+                (cond
+                  (auth/reserved? id) {:status 403
+                                       :body {:error "reserved person"}}
+                  (nil? (auth/author-profile id)) {:status 404
+                                                   :body {:error "not found"}}
+                  :else {:status 200
+                         :body (erasure/retire! id)}))))
+
 (defn admin-routes
   [prefix]
   ;; every admin route is owner-only, so 401/403 (and 500) are declared once here and merge into
@@ -94,6 +114,17 @@
                             :body error-body}
                        500 {:description "Unexpected server error"}}
            :middleware mw}
+   ["/person/:id"
+    {:delete {:handler delete-person
+              :operationId "agora-admin-delete-person"
+              :parameters {:path [:map [:id :string]]}
+              :responses {200 {:description
+                               "How many documents changed byline, and whether the row went"}
+                          403 {:description "A seeded platform person may not be removed"
+                               :body error-body}
+                          404 {:description "No such person"
+                               :body error-body}}
+              :summary "Remove a person, anonymising what they are attributed with"}}]
    ["/tnrs"
     {:get {:handler tnrs
            :operationId "agora-admin-tnrs"

@@ -1,7 +1,7 @@
-(ns landing.agora.publication-test
+(ns landing.agora.document.publication-test
   (:require
-   [clojure.test              :refer [deftest is testing]]
-   [landing.agora.publication :as sut]))
+   [clojure.test                       :refer [deftest is testing]]
+   [landing.agora.document.publication :as sut]))
 
 (def ^:private mine
   {:owner-id "u1"

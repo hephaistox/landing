@@ -252,10 +252,72 @@ Enforcement is layered:
   the violation, redraw. Positions on politics, philosophy and religion are what this graph holds, so
   the account must not carry a civil identity unless its owner deliberately chooses to. The alias is
   **rectifiable** (art. 16): the preferences page renames it (`POST /agora/api/auth/alias`, 409 when
-  the normalized alias is claimed), warning that a real name typed there will be publicly and durably
-  tied to one's positions — the default path never asks. A rename is one `UPDATE`; the bylines it
-  feeds are then re-derived at once for that person's documents (`admin/refresh-author!`), the daily
-  reconcile staying the net.
+  the normalized alias is claimed), warning that a real name typed there will be publicly tied to
+  one's positions — removable here, but not from the copies search engines and archives will already
+  have made. The default path never asks. A rename is one `UPDATE`; the bylines it feeds are then
+  re-derived at once for that person's documents (`admin/refresh-author!`), the daily reconcile
+  staying the net.
+- **Erasable by reattribution** (art. 17) — `DELETE /agora/api/auth/me`, re-confirmed by typing the
+  current alias back (provider-agnostic, and it rides in the body so the name never lands in an
+  access log). `landing.agora.person.erasure/erase!` owns the order: drop the person's **open**
+  publications and the drafts they gather (private staging, nothing published), reattribute
+  everything else to the shared anonymous person, then **delete the account row**.
+
+  Two things singled the person out, and both have to go. The **name** is derived
+  (`computed.:author`), so it leaves the corpus the moment the account does. The **identifier** is
+  the harder one: `attributed-author-id` is served publicly on every document, so an id that gathers
+  exactly one person's output is personal data however anonymous the name beside it reads — anyone
+  who read the corpus while the account lived holds the mapping. A per-erasure placeholder row would
+  therefore be pseudonymisation sold as erasure. Instead every document is pointed at **one shared
+  anonymous person** (`auth/anonymous-id`, the fixed `00000000-0000-0000-0000-000000000000`, seeded
+  with the schema), which groups every erased person together and singles out none, and the account
+  row is deleted outright rather than blanked.
+
+  Two seeded people are **not erasable** (`auth/reserved-ids`): the anonymous person, and **Agora**,
+  the platform itself as an author — what the seeded corpus belongs to (the epistemic type
+  definitions, the FAQ next). Agora is *identified*, accountable for what it signed, where the
+  anonymous person is the absence of an author; they occupy the same slot and mean opposite things.
+  The guard is not theoretical: erasure reattributes *before* it deletes, so the foreign key that
+  protects every other row would let these two go, taking the seeded corpus into the anonymous
+  bucket on the way out.
+
+  This is what puts the two person pointers in **columns** rather than in the immutable `content`:
+  attribution has a lifecycle the claim does not, so reassigning it is one indexed `UPDATE`
+  (`landing.agora.person.attribution/reattribute!`, of which `absorb-into-anonymous!` is the erasure
+  case and a transfer to another contributor the future one). The `owner_id`/`author_id` **foreign
+  keys** make "a person still attributed with something cannot be deleted" a rule of the database:
+  the row can only go once nothing points at it.
+
+  The permanent, citable documents survive — the graph is never torn, and what is left is no longer
+  personal data (art. 17(3) covering the assertions themselves). An erased person has **no row**, so
+  no author page; the anonymous person's own page is the one hub they all share. The admin
+  **rebuild** button is the manual propagation net for both a rename and an erasure.
+
+### Who sees what
+
+One rule, and it holds on **every screen** — discover, articles, search, an author page, a
+publication, a document page. Not a property of one view that others may restate differently:
+
+- **Everyone sees everything they made**, published or not.
+- **Everyone sees everything published**, attributed to its author. Publication is what makes a
+  document public; nothing else does.
+- **A withdrawn author changes the byline, not the visibility.** What they published stays exactly
+  where it was, attributed to the shared anonymous person (see "Erasable by reattribution").
+- **A draft is visible to its author and to the platform owner, to nobody else.**
+
+Held in one predicate, `auth/sees-drafts-of?`, so no two surfaces can hold separate opinions — a card
+a screen offers but a read refuses is worse than a card withheld.
+
+**Visibility is not resolution, and only the second is publication-scoped.** Which documents a screen
+*lists* is this rule. Which version a lineage *resolves to* is the publication-scoped rule (§13,
+"Two resolution modes for a TNLR"): inside a publication a lineage resolves to that publication's
+draft. Conflating them is what makes a screen show less than the rule promises.
+
+**Where it is applied.** In the query, not after it: `db-doc/visible-drafts` selects on the reader,
+so a feed never carries a row its reader may not have — filtering a wider result later would put the
+whole corpus on the wire and trust the far end. The published half of a feed stays one shared cached
+page (`[type lang limit offset]`, never keyed by reader); the drafts are a second, small, reader-
+scoped query the engine merges on top, replacing the published version of any lineage they supersede.
 
 ### Fork as the Only Mutation
 
@@ -501,7 +563,7 @@ Built as vertical slices, each slice producing a working product. Definitions ar
 - **Frontend** — ClojureScript + Reagent/re-frame, own shadow-cljs `:agora` build (SPA). Layered, type-agnostic engine + thin per-type facades: `document-page` (shared widget/chrome engine, no type knowledge) → `view`/`edit` (generic page composition + authoring, driven by a `cfg`) → `ki-page` / `article-page` / `author-page` (thin facades that supply each type's `cfg` and are what `core` calls). The strings `"ki"`/`"article"` live only in the facades.
 - **Hosting** — Clever Cloud. **DB** — MySQL (the shared addon, also used by the contact form). The addon caps at **5 connections split across dev/la/prod**, so the HikariCP pool is small and per-env: `AGORA_DB_POOL_MAX` (default 2; recommend prod 2, la/dev 1).
 - **Auth** — session cookie + Google OAuth + email/password (bcrypt). Admin allowlist is env-driven (`AGORA_ADMIN_EMAILS`).
-- **Tables** (`resources/agora/schema.sql`, applied manually via `scripts/agora_db.clj`): `AGORA_DOCUMENT` (every document — one polymorphic table; `type` ∈ {ki, article, publication}, where a bibliographic `kind=work`/`kind=extract` KI is a source/citation), `AGORA_SUCCESSOR` (derived reverse-edge cache), `AGORA_USER` (accounts **and** login-less `provider='external'` cited people). All text stored inline; no blob store.
+- **Tables** (`resources/agora/schema.sql`, applied manually via `scripts/agora_db.clj`): `AGORA_DOCUMENT` (every document — one polymorphic table; `type` ∈ {ki, article, publication}, where a bibliographic `kind=work`/`kind=extract` KI is a source/citation), `AGORA_SUCCESSOR` (derived reverse-edge cache), `AGORA_USER` (accounts, login-less `provider='external'` credited people, and the two people seeded with the schema at fixed ids: the shared **anonymous** person every erased account is reattributed to (`…0000`) and **Agora**, the platform as an author, owning the seeded corpus (`…0001`) — neither erasable). A document's `owner_id`/`author_id` are FK'd here, so a person still attributed with something cannot be deleted. All text stored inline; no blob store.
 
 ### Read model — document + caches (reads ≫ writes)
 
@@ -509,8 +571,8 @@ Graph traversal and version resolution are **precomputed on write and cached**, 
 
 - **TNLR** = (Type, Name, Lang, major Release) — identity minus `minor`; names a lineage whose latest minor is current.
 - **Two resolution modes for a TNLR.** (1) *Public / permalink* — **latest *published* minor** (`draft = 0`); a **draft-only** lineage does **not** resolve (its permalink 404s), keeping drafts out of public views. (2) *Publication-scoped* — while authoring or reading **in a publication**, a lineage resolves to **the publication's own draft** of it if it has one, else the latest published minor. This is `db-doc/latest-of` = `(or (draft-of … pub-cid) (latest-published-id …))`, used by `pin-all` on **write** (given the `publication_id`) and by `resolve-in-publication` on **read** (reached via `?publication=<id>`). So a version authored in a publication pins to that publication's in-progress inputs and reading in it shows the draft graph, while public reads (no publication context) stay on mode 1. There is **no global draft fallback**: because every create/edit happens inside a publication (enforced, §12 slice 6) and the publish invariant holds, a draft is only ever reachable inside its own publication. On publish, `publication_id` is kept as provenance but the versions become published, so resolution reverts to classical. See §5 "Publication — the document type that gathers drafts".
-- **A document is a row keyed by `id`.** Columns are only the identity keys (`id`, `type`, `name`, `lang`, `major`, `minor`) so indexes never parse EDN. Everything else is two EDN blobs: **immutable `content`** (`{:kind :title :text :owner-id :published-at :inputs [TNLR…]}`, never updated after insert) and **mutable `computed`** (`{:pins [<input TNLR + resolved :id>…] :author "<byline name>"}`, built by `db-doc/computed`). `:pins` is a **vector** produced by `pin-all` — each entry is one input TNLR plus its concrete predecessor `:id`, so it doubles as the API-facing input refs on read (no separate zip step). A KI's "statement" and an article's "body" are the same `:text` slot.
-- **The byline name is derived, the person is stored.** `content` holds only *who* — `:owner-id`, plus a work's cited `:author-id` — and `computed.:author` caches the `AGORA_USER.display_name` of `(or :author-id :owner-id)`, re-derived at every write and repaired by the reconcile. A name in the immutable blob could never be rectified or erased (RGPD art. 16/17); in the derived blob, renaming or anonymizing a person propagates to every document they signed.
+- **A document is a row keyed by `id`.** Columns are the identity keys (`id`, `type`, `name`, `lang`, `major`, `minor`) plus the two person pointers (`owner_id`, and a work's credited `author_id` — FK'd to `AGORA_USER`), so indexes never parse EDN. Everything else is two EDN blobs: **immutable `content`** (`{:kind :title :text :published-at :inputs [TNLR…]}`, never updated after insert) and **mutable `computed`** (`{:pins [<input TNLR + resolved :id>…] :author "<byline name>"}`, built by `db-doc/computed`). `:pins` is a **vector** produced by `pin-all` — each entry is one input TNLR plus its concrete predecessor `:id`, so it doubles as the API-facing input refs on read (no separate zip step). A KI's "statement" and an article's "body" are the same `:text` slot.
+- **The byline name is derived, the person is a column.** The row holds *who* — `owner_id`, plus a work's credited `author_id` — and `computed.:author` caches the `AGORA_USER.display_name` of `(or :author-id :owner-id)`, re-derived at every write and repaired by the reconcile. Neither belongs in the immutable blob: a name there could never be rectified or erased (RGPD art. 16/17), and an id there could never be **reassigned**, which is what an erasure and a transfer of ownership both are. In a column, renaming a person propagates to every document they signed, and reattributing them is one `UPDATE` (see "Erasable by reattribution").
 - **Inputs = the `[[ki:…]]` citations in `:text`** (parsed on write). An input's *declaration* (a TNLR) lives in `content.:inputs`; its *pin* (the exact predecessor id) in `computed.:pins`. Changing inputs → a new **minor** (same permalink; successors re-pin); re-resolving a pin does not, and is never done client-side.
 - **Reverse edges = `AGORA_SUCCESSOR`** (input-TNLR → successor id) — a cache rebuilt incrementally on write and fully every 24h (`landing.agora.scheduler`).
 - **References** are resolved on read by `engine/resolve-work`: an extract's first pin → the work's display fields + its own locator, exposed as `:work` (fetched through the cached storage, like any input). Their authors are `AGORA_USER` people. Confidence, once computed, also lives in mutable `computed` — never in the immutable content.

@@ -1,9 +1,11 @@
 (ns landing.agora.endpoints.people
-  "People: search existing people (accounts + external cited authors) for the author picker, and
-  create a login-less external person for a citation whose author isn't a platform member. Both are
-  backed by `auth`; creating requires a session."
+  "People: search existing people (accounts + external cited authors) for the author picker — a blank
+  search listing the most recently attributed ones — and create a login-less external person for a
+  citation whose author isn't a platform member. Creating requires a session."
   (:require
+   [clojure.string                    :as str]
    [landing.agora.auth                :as auth]
+   [landing.agora.document.engine     :as engine]
    [landing.agora.endpoints.throttle  :as throttle]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
@@ -25,10 +27,24 @@
   "The shape of every error response: `{:error \"...\"}`."
   [:map [:error :string]])
 
+(def ^:private recent-limit
+  "How many people the empty search offers. Wide enough to stand as a browse of who writes here, not
+  just a sample — the list is one name per line and the reader scrolls."
+  100)
+
+(defn- recent
+  "The people most recently attributed a document, as `{:id :display-name :member?}`. What an empty
+  search answers: a picker that opens on nothing tells a newcomer nothing, and the names worth
+  offering first are the ones the corpus is actually made of."
+  []
+  (let [people (auth/people-index)]
+    (into [] (keep people) (engine/recent-author-ids recent-limit))))
+
 (defn- search
   [req]
-  {:status 200
-   :body (auth/search-people (get-in req [:parameters :query :q]))})
+  (let [q (get-in req [:parameters :query :q])]
+    {:status 200
+     :body (if (str/blank? q) (recent) (auth/search-people q))}))
 
 (defn- create
   "Create a login-less external person. `:display-name` is required non-blank (coercion enforces)."
@@ -52,8 +68,10 @@
            :parameters {:query [:map
                                 [:q {:optional true}
                                  [:maybe :string]]]}
-           :responses {200 {:description "Matching people (accounts + external cited authors)"}}
-           :summary "Search people (accounts + external cited authors)"}
+           :responses {200
+                       {:description
+                        "Matching people, or the most recently attributed ones when `q` is blank"}}
+           :summary "Search people; blank `q` lists the most recently attributed authors"}
      :post {:handler create
             :operationId "agora-people-create"
             :middleware [(:middleware-fn throttle/authoring-rate-limiter)]

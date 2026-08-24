@@ -15,12 +15,18 @@
 (rf/reg-sub ::data (fn [db _] (:agora/graph db)))
 
 (rf/reg-event-db ::data-ok (fn [db [_ resp]] (assoc db :agora/graph (:body resp))))
-(rf/reg-event-db ::data-fail
-                 (fn [db _]
-                   (assoc db
-                          :agora/graph
-                          {:nodes []
-                           :edges []})))
+;; `core/fetch-failed` by a fully-qualified keyword — `graph` can't require `core` (it would cycle).
+(def ^:private fetch-failed :landing.agora.frontend.core/fetch-failed)
+
+;; An empty graph and an absent publication look the same on screen, so route the 404 to the "does
+;; not exist" page and keep the empty shape for a publication that is simply empty.
+(rf/reg-event-fx ::data-fail
+                 (fn [{:keys [db]} [_ resp]]
+                   {:db (assoc db
+                               :agora/graph
+                               {:nodes []
+                                :edges []})
+                    :dispatch [fetch-failed resp]}))
 
 (rf/reg-event-fx ::load
                  (fn [{:keys [db]} [_ cid]]

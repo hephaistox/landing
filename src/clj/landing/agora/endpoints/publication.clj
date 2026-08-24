@@ -3,17 +3,17 @@
   rename, publish (close), and list a publication's documents. All mutations require a session and
   are owner-only."
   (:require
-   [landing.agora.auth                :as auth]
-   [landing.agora.document.cached-db  :as cached-db]
-   [landing.agora.document.engine     :as engine]
-   [landing.agora.endpoints.throttle  :as throttle]
-   [landing.agora.publication         :as publication]
-   [muuntaja.core                     :as m]
-   [reitit.coercion.malli             :refer [coercion]]
-   [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.exception  :as exception]
-   [reitit.ring.middleware.muuntaja   :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]))
+   [landing.agora.auth                 :as auth]
+   [landing.agora.document.cached-db   :as cached-db]
+   [landing.agora.document.engine      :as engine]
+   [landing.agora.document.publication :as publication]
+   [landing.agora.endpoints.throttle   :as throttle]
+   [muuntaja.core                      :as m]
+   [reitit.coercion.malli              :refer [coercion]]
+   [reitit.ring.coercion               :as rcoercion]
+   [reitit.ring.middleware.exception   :as exception]
+   [reitit.ring.middleware.muuntaja    :as muuntaja]
+   [reitit.ring.middleware.parameters  :as parameters]))
 
 (def ^:private mw
   [parameters/parameters-middleware

@@ -32,11 +32,11 @@
                    :word-break "break-word"}}
     value]])
 
-(def ^:private alias-error-keys
+(def ^:private display-name-error-keys
   "The rename endpoint's error codes → their message."
-  {"missing" :prefs/alias-missing
-   "too-long" :prefs/alias-too-long
-   "alias-taken" :prefs/alias-taken})
+  {"missing" :prefs/display-name-missing
+   "too-long" :prefs/display-name-too-long
+   "display-name-taken" :prefs/display-name-taken})
 
 (def ^:private small-btn
   {:font-size "0.8em"
@@ -46,20 +46,20 @@
    :background "#fff"
    :cursor "pointer"})
 
-(defn- alias-editor
+(defn- display-name-editor
   "The open rename form: the field, the warning, and the outcome. The warning belongs here and
   nowhere else — typing a name is the only path that can tie a civil identity to one's positions,
   and it is never the path taken by default."
-  [lang {:keys [alias error submitting?]}]
+  [lang {:keys [display-name error submitting?]}]
   [:div {:style {:padding "0.35em 0"
                  :border-bottom "1px solid #f0eee8"}}
    [:div {:style {:color "#888"
                   :font-size "0.9em"
                   :margin-bottom "0.3em"}}
-    (i18n/t lang :auth/alias)]
+    (i18n/t lang :auth/display-name)]
    [ui/composed-field {:type "text"
-                       :value (or alias "")
-                       :on-text #(rf/dispatch [::auth/set-alias-text %])
+                       :value (or display-name "")
+                       :on-text #(rf/dispatch [::auth/set-display-name-text %])
                        :style {:width "100%"
                                :box-sizing "border-box"
                                :padding "0.5em"
@@ -69,43 +69,133 @@
    [:div {:style {:font-size "0.8em"
                   :color "#8a6d3b"
                   :margin "0.4em 0"}}
-    (i18n/t lang :prefs/alias-warning)]
+    (i18n/t lang :prefs/display-name-warning)]
    (when error
      [:div {:style {:font-size "0.85em"
                     :color "#c92a2a"
                     :margin-bottom "0.4em"}}
-      (i18n/t lang (get alias-error-keys error :prefs/alias-failed))])
+      (i18n/t lang (get display-name-error-keys error :prefs/display-name-failed))])
    [:div {:style {:display "flex"
                   :gap "0.5em"}}
-    [:button {:on-click #(when-not submitting? (rf/dispatch [::auth/submit-alias]))
+    [:button {:on-click #(when-not submitting? (rf/dispatch [::auth/submit-display-name]))
               :disabled (boolean submitting?)
               :style
               (assoc small-btn :border "1px solid #b9770e" :background "#b9770e" :color "#fff")}
-     (if submitting? "…" (i18n/t lang :prefs/alias-save))]
-    [:button {:on-click #(rf/dispatch [::auth/close-alias-form])
+     (if submitting? "…" (i18n/t lang :prefs/display-name-save))]
+    [:button {:on-click #(rf/dispatch [::auth/close-display-name-form])
               :style small-btn}
      (i18n/t lang :form/cancel)]]])
 
-(defn- alias-row
+(defn- display-name-row
   "The account's public name: the value with a rename button, or the editor once open."
   [lang user]
-  (if-let [form @(rf/subscribe [::auth/alias-form])]
-    [alias-editor lang form]
+  (if-let [form @(rf/subscribe [::auth/display-name-form])]
+    [display-name-editor lang form]
     [pref-field
-     (i18n/t lang :auth/alias)
+     (i18n/t lang :auth/display-name)
      [:span {:style {:display "inline-flex"
                      :align-items "center"
                      :gap "0.6em"}}
       (:display-name user)
-      [:button {:on-click #(rf/dispatch [::auth/edit-alias])
-                :title (i18n/t lang :prefs/rename-alias)
-                :style (assoc small-btn :font-weight 400)}
-       (i18n/t lang :prefs/rename-alias)]]]))
+      ;; a pencil, labelled by its tooltip — the same gesture, and the same glyph, as renaming a
+      ;; publication. The name is what the row is about; the button beside it should not compete
+      ;; with it for the eye.
+      [dv/tooltip
+       (i18n/t lang :prefs/rename-display-name)
+       [:button {:on-click #(rf/dispatch [::auth/edit-display-name])
+                 :style {:border "none"
+                         :background "transparent"
+                         :cursor "pointer"
+                         :font-size "1em"
+                         :color "#b98a3e"
+                         :padding 0
+                         :line-height 1}}
+        "✎"]]]]))
+
+(def ^:private erase-error-keys
+  "The erasure endpoint's error codes → their message."
+  {"confirm-mismatch" :prefs/erase-mismatch})
+
+(defn- erase-form
+  "The open erasure form: what it destroys, and the display name to type back. Naming the consequences on the
+  page rather than behind a modal is the point — one of the two outcomes (the published documents
+  staying, de-linked) surprises people, and the other (the open publications going) cannot be undone."
+  [lang user {:keys [confirm error submitting?]}]
+  (let [matches? (= confirm (:display-name user))]
+    [:div
+     [:label {:style {:display "block"
+                      :font-size "0.85em"
+                      :margin-bottom "0.3em"}}
+      (i18n/t lang :prefs/erase-confirm-label)]
+     [ui/composed-field {:type "text"
+                         :value (or confirm "")
+                         :on-text #(rf/dispatch [::auth/set-erase-text %])
+                         :style {:width "100%"
+                                 :box-sizing "border-box"
+                                 :padding "0.5em"
+                                 :font-size "0.95em"
+                                 :border "1px solid #ccc"
+                                 :border-radius "0.3em"}}]
+     (when error
+       [:div {:style {:font-size "0.85em"
+                      :color "#c92a2a"
+                      :margin-top "0.4em"}}
+        (i18n/t lang (get erase-error-keys error :prefs/erase-failed))])
+     [:div {:style {:display "flex"
+                    :gap "0.5em"
+                    :margin-top "0.6em"}}
+      [:button {:on-click #(when (and matches? (not submitting?))
+                             (rf/dispatch [::auth/submit-erase]))
+                :disabled (or (not matches?) (boolean submitting?))
+                :style (assoc small-btn
+                              :border "1px solid #c92a2a"
+                              :background (if matches? "#c92a2a" "#e9b4b4")
+                              :color "#fff"
+                              :cursor (if matches? "pointer" "default"))}
+       (if submitting? "…" (i18n/t lang :prefs/erase-submit))]
+      [:button {:on-click #(rf/dispatch [::auth/close-erase-form])
+                :style small-btn}
+       (i18n/t lang :form/cancel)]]]))
+
+(defn- erase-section
+  "Account erasure, kept last and visually apart from the settings above it — it is not a preference.
+
+  Closed, it is one button and nothing else: someone crossing this page to change their language
+  should not have to read what erasing an account destroys. The warning panel opens with the form
+  that acts on it, where it is what the reader came for rather than what they walked past."
+  [lang user]
+  (if-let [form @(rf/subscribe [::auth/erase-form])]
+    [:div {:style {:margin-top "2em"
+                   :padding "0.9em"
+                   :border "1px solid #e6c9c9"
+                   :border-radius "0.4em"
+                   :background "#fdf7f7"}}
+     [:h2 {:style {:font-size "1em"
+                   :margin "0 0 0.4em"
+                   :color "#a33"}}
+      (i18n/t lang :prefs/erase-title)]
+     [:div {:style {:font-size "0.85em"
+                    :color "#5a4a4a"
+                    :margin-bottom "0.5em"}}
+      (i18n/t lang :prefs/erase-lead)]
+     [:div {:style {:font-size "0.85em"
+                    :color "#5a4a4a"
+                    :margin-bottom "0.7em"}}
+      (i18n/t lang :prefs/erase-irreversible)]
+     [:div {:style {:font-size "0.85em"
+                    :color "#5a4a4a"
+                    :margin-bottom "0.7em"}}
+      (i18n/t lang :prefs/erase-drafts)]
+     [erase-form lang user form]]
+    [:div {:style {:margin-top "2em"}}
+     [:button {:on-click #(rf/dispatch [::auth/open-erase-form])
+               :style (assoc small-btn :border "1px solid #c92a2a" :color "#c92a2a")}
+      (i18n/t lang :prefs/erase-open)]]))
 
 (defn preferences-page
-  "User preferences: account details — the alias, renameable here, plus the login and sign-in method
-  — and the interface language. A home for further settings later. Works for anyone — the language is
-  cached locally and, when logged in, persisted to the account."
+  "User preferences: account details — the display name, renameable here, plus the login and sign-in method
+  — the interface language, and erasing the account. A home for further settings later. Works for
+  anyone — the language is cached locally and, when logged in, persisted to the account."
   []
   (let [lang @(rf/subscribe [::i18n/lang])
         user @(rf/subscribe [::auth/user])
@@ -133,7 +223,7 @@
                          :object-fit "cover"
                          :border "1px solid #d99a2b"}}])
         [:div {:style {:flex "1 1 auto"}}
-         [alias-row lang user]
+         [display-name-row lang user]
          [pref-field (i18n/t lang :auth/email) (:email user)]
          [pref-field (i18n/t lang :prefs/connection) (provider-label lang (:provider user))]]]
        [:div {:style {:color "#888"
@@ -142,4 +232,6 @@
      ;; ---- Language ----
      [:h2 {:style section-title}
       (i18n/t lang :form/language)]
-     [language-selector lang #(rf/dispatch [:agora/set-lang %])]]))
+     [language-selector lang #(rf/dispatch [:agora/set-lang %])]
+     ;; ---- Erasure ----
+     (when user [erase-section lang user])]))

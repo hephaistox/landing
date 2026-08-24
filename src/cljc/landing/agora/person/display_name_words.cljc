@@ -1,5 +1,5 @@
-(ns landing.agora.person.alias-words
-  "The curated vocabulary a generated alias is drawn from — data only, no rule (see `alias`).
+(ns landing.agora.person.display-name-words
+  "The curated vocabulary a generated display name is drawn from — data only, no rule (see `display name`).
 
   One entry per language, holding everything that language needs so the drawing rule branches on a
   **field of the data**, never on the language:
@@ -11,11 +11,11 @@
     :nouns       `[\"prémisse\" :f]` — the word and the gender that selects the adjective's form; a
                  language without gender omits it and takes the first form
 
-  The lexical field is the forge and the agora — reasoning, metal, fire, tools, measure — so an alias
+  The lexical field is the forge and the agora — reasoning, metal, fire, tools, measure — so a display name
   reads as belonging here. Every word is chosen to be neutral: nothing that carries a judgment, a
   nationality, a real person or a connotation someone could be stuck with in public.
 
-  The number of aliases is the product of the two lists (`alias/alias-count`), so widening the
+  The number of display names is the product of the two lists (`display-name/display-name-count`), so widening the
   vocabulary is a change to this file alone."
   (:refer-clojure :exclude [words]))
 

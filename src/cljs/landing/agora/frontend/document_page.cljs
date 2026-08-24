@@ -462,17 +462,39 @@
                  :height "3.4em"
                  :border-radius "0.4em"}}])
 
+(defn- absent-mini-card
+  "Shown in a neighbour's place when the document it points at is not there. A skeleton would say
+  *loading* forever — the edge is real, its target is gone, and the reader should be told which."
+  []
+  (let [lang @(rf/subscribe [::i18n/lang])]
+    [:div {:style {:width "16em"
+                   :max-width "100%"
+                   :min-height "3.4em"
+                   :display "flex"
+                   :align-items "center"
+                   :padding "0 0.8em"
+                   :box-sizing "border-box"
+                   :border "1px dashed #cbc3b8"
+                   :border-radius "0.4em"
+                   :color "#8a8177"
+                   :font-size "0.85em"
+                   :font-style "italic"}}
+     (i18n/t lang :doc/absent-card)]))
+
 (defn neighbour-card
   "A neighbour (input/successor) rendered from its `id`: fetches its KI by id (into
-  the shared cache) and shows a `mini-card`, or a skeleton while loading. `link-fn`
-  builds the href from the loaded doc; `drop-fn` (optional) is a fn of the doc → the
-  ✕ on-click."
+  the shared cache) and shows a `mini-card`, a skeleton while it loads, or — when the
+  fetch came back 404 — that the document is gone. `link-fn` builds the href from the
+  loaded doc; `drop-fn` (optional) is a fn of the doc → the ✕ on-click."
   [id _opts]
   (rf/dispatch [:agora/ensure-ki id])
   (fn [id {:keys [link-fn drop-fn locator]}]
-    (if-let [doc @(rf/subscribe [:agora/doc id])]
-      [mini-card doc (link-fn doc) (when drop-fn (drop-fn doc)) locator]
-      [skeleton-mini-card])))
+    (cond
+      (some? @(rf/subscribe [:agora/doc id]))
+      (let [doc @(rf/subscribe [:agora/doc id])]
+        [mini-card doc (link-fn doc) (when drop-fn (drop-fn doc)) locator])
+      @(rf/subscribe [:agora/absent-id? id]) [absent-mini-card]
+      :else [skeleton-mini-card])))
 
 (defn- connector
   "A short vertical directed link (arrow down = direction of implication)."
@@ -583,10 +605,14 @@
 
 (defn- card-href
   "The link a discover card points at, from the node's own `:type`: a publication opens its page; a
-  draft document resolves only by its exact-version URL; anything else by its public permalink."
+  draft document resolves only by its exact-version URL; anything else by its public permalink.
+
+  A publication is addressed by its **cid**, which every shape now carries under `:name` — a card and
+  the publication endpoint view alike. `:id` is the row id, and linking by it produced a URL nothing
+  resolves."
   [lang node]
   (cond
-    (= "publication" (name (:type node))) (i18n/publication lang (:id node))
+    (= "publication" (name (:type node))) (i18n/publication lang (:name node))
     (:draft node) (i18n/doc-url lang (:type node) (:id node))
     :else (permalink lang node)))
 
@@ -719,7 +745,7 @@
         [:<>
          (str " " (i18n/t lang :card/in-pub) " ")
          (if links?
-           [:a {:href (i18n/publication lang (:id pub))
+           [:a {:href (i18n/publication lang (:name pub))
                 :style {:color "#b9770e"
                         :text-decoration "none"}}
             (:title pub)]

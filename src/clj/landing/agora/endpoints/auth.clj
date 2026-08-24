@@ -5,11 +5,13 @@
   `(get-in req [:session :user-id])`. Google OAuth logs in the same way after its callback, and
   registration is gated by an ALTCHA proof-of-work solution the server re-verifies."
   (:require
+   [clojure.string                    :as str]
    [landing.agora.admin               :as admin]
    [landing.agora.altcha              :as altcha]
    [landing.agora.auth                :as auth]
    [landing.agora.endpoints.throttle  :as throttle]
    [landing.agora.oauth               :as oauth]
+   [landing.agora.person.erasure      :as erasure]
    [landing.language                  :as language]
    [muuntaja.core                     :as m]
    [reitit.coercion.malli             :refer [coercion]]
@@ -92,21 +94,38 @@
     {:status 401
      :body {:error "login required"}}))
 
-(defn- set-alias
-  "Rename the caller's public alias, then refresh the byline its documents cache so the change is
+(defn- set-display-name
+  "Rename the caller's public display name, then refresh the byline its documents cache so the change is
   visible at once (the daily reconcile would otherwise be the first to notice)."
   [req]
   (if-let [id (uid req)]
-    (let [[tag v] (auth/rename-alias! id (get-in req [:body-params :alias]))]
+    (let [[tag v] (auth/rename-display-name! id (get-in req [:body-params :display-name]))]
       (if (= tag :ok)
         (do (admin/refresh-author! id)
             {:status 200
              :body v})
         {:status (case v
-                   :alias-taken 409
+                   :display-name-taken 409
                    :db-error 500
                    400)
          :body {:error (name v)}}))
+    {:status 401
+     :body {:error "login required"}}))
+
+(defn- erase-me
+  "Erase the caller's account and end the session. Re-confirmed by typing the current display name back:
+  the action is irreversible and provider-agnostic, so intent is proven by what the person types,
+  not by a password only half the accounts have."
+  [req]
+  (if-let [id (uid req)]
+    (let [confirm (str/trim (or (get-in req [:body-params :confirm]) ""))
+          profile (auth/get-user id)]
+      (if (and profile (= confirm (:display-name profile)))
+        {:status 200
+         :body (erasure/erase! id)
+         :session nil}
+        {:status 400
+         :body {:error "confirm-mismatch"}}))
     {:status 401
      :body {:error "login required"}}))
 
@@ -135,7 +154,7 @@
                          oauth/fetch-userinfo)
             ;; `(:name info)` and `(:picture info)` are the person's civil identity — read
             ;; from the token response and deliberately not passed on: the account is named by a
-            ;; generated alias, like every other provider's
+            ;; generated display name, like every other provider's
             profile (when (:email info)
                       (auth/upsert-oauth-user {:provider "google"
                                                :provider-id (:sub info)
@@ -196,7 +215,20 @@
     {:get {:handler me
            :operationId "agora-me"
            :responses {200 {:description "The current user's profile, or null when logged out"}}
-           :summary "Current user profile, or null"}}]
+           :summary "Current user profile, or null"}
+     :delete {:handler erase-me
+              :operationId "agora-erase-me"
+              :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
+              ;; the confirmation rides in the body, never the query string: the display name may be the
+              ;; very civil name being erased, and a query string lands in access logs
+              :parameters {:body [:map [:confirm [:string {:max 200}]]]}
+              :responses {200 {:description "Account erased; session cleared"}
+                          400 {:description "Confirmation does not match the current display name"
+                               :body error-body}
+                          401 {:description "Login required"
+                               :body error-body}
+                          429 {:description "Rate limit exceeded"}}
+              :summary "Erase the account by de-linking it (art. 17)"}}]
    ["/lang"
     {:post {:handler set-lang
             :operationId "agora-set-lang"
@@ -205,22 +237,22 @@
                         401 {:description "Login required"
                              :body error-body}}
             :summary "Set the preferred interface language"}}]
-   ["/alias"
-    {:post {:handler set-alias
-            :operationId "agora-set-alias"
+   ["/display-name"
+    {:post {:handler set-display-name
+            :operationId "agora-set-display-name"
             ;; a rename re-derives the byline of every document the person signed, so it is throttled
             ;; like any other write
             :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
-            :parameters {:body [:map [:alias [:string {:max 200}]]]}
-            :responses {200 {:description "Alias renamed; updated profile returned"}
-                        400 {:description "Blank or over-long alias"
+            :parameters {:body [:map [:display-name [:string {:max 200}]]]}
+            :responses {200 {:description "Display name renamed; updated profile returned"}
+                        400 {:description "Blank or over-long display name"
                              :body error-body}
                         401 {:description "Login required"
                              :body error-body}
-                        409 {:description "Alias already taken"
+                        409 {:description "Display name already taken"
                              :body error-body}
                         429 {:description "Rate limit exceeded"}}
-            :summary "Rename the public alias"}}]
+            :summary "Rename the public display name"}}]
    ["/google"
     {:get {:handler google-start
            :operationId "agora-google"

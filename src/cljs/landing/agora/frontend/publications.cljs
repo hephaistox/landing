@@ -3,6 +3,7 @@
   (:require
    [clojure.string                       :as str]
    [landing.agora.document.kind          :as dk]
+   [landing.agora.frontend.app-db        :as app-db]
    [landing.agora.frontend.auth          :as auth]
    [landing.agora.frontend.document-page :as dv]
    [landing.agora.frontend.i18n          :as i18n]
@@ -43,11 +44,12 @@
        (catch :default _ nil)))
 
 (defn- ->active
-  "The active-publication record persisted client-side: `:id` + `:title` + its `:owner-id`, so a
+  "The active-publication record persisted client-side: `:name` (the cid) + `:title` + its
+  `:owner-id`, so a
   publication belonging to another account (a value left in localStorage after an account switch) can
   be recognized and dropped. A publication's owner is its byline `:attributed-author-id`."
   [pub]
-  {:id (:id pub)
+  {:name (:name pub)
    :title (:title pub)
    :owner-id (:attributed-author-id pub)})
 
@@ -57,7 +59,7 @@
   "A `&publication-id=<cid>` query fragment for the active publication, so browse/search fetches overlay
   its drafts. Empty when none is active. `db` is the re-frame db."
   [db]
-  (if-let [id (:id (:agora/active-publication db))]
+  (if-let [id (:name (:agora/active-publication db))]
     (str "&publication-id=" (js/encodeURIComponent id))
     ""))
 
@@ -65,7 +67,7 @@
   "A `?publication-id=<cid>` query string for the active publication — for a URL with no other query (the
   by-id/by-major page reads), so its draft successors overlay. Empty when none is active."
   [db]
-  (if-let [id (:id (:agora/active-publication db))]
+  (if-let [id (:name (:agora/active-publication db))]
     (str "?publication-id=" (js/encodeURIComponent id))
     ""))
 
@@ -79,14 +81,30 @@
 ;; `core/refetch-scoped` is dispatched by a fully-qualified keyword (not a `::core/…` alias) so this
 ;; namespace need not require `core` — `core` requires this one, and a mutual require would cycle. It
 ;; re-runs the current discover/search view so the active-publication overlay applies at once.
-(def ^:private refetch-scoped :landing.agora.frontend.core/refetch-scoped)
+(def ^:private context-changed :agora/context-changed)
+
+(defn- forget-scoped
+  "app-db emptied for a change of **active publication**. Everything held was read under the previous
+  scope — inside a publication a document's inputs and successors are its drafts — so none of it
+  survives. The **session** does: the identity did not change, only where its owner is working.
+
+  Dropping it would log the author out for having picked a publication, and `reconcile-active` would
+  then read a nil user, decide the publication is not theirs, and deselect the very one just chosen."
+  [db]
+  (assoc (app-db/forget db) ::auth/user (::auth/user db)))
+
+;; `core/fetch-failed` by a fully-qualified keyword, for the same reason as above. It is what turns a
+;; 404 into the "does not exist" page, so a publication that is gone says so instead of leaving its
+;; header skeleton spinning on data that will never come.
+(def ^:private fetch-failed :landing.agora.frontend.core/fetch-failed)
 
 (rf/reg-event-fx ::set-active
                  (fn [{:keys [db]} [_ pub]]
-                   (let [m (->active pub)]
-                     (write-active! m)
-                     {:db (assoc db :agora/active-publication m)
-                      :dispatch [refetch-scoped]})))
+                   ;; localStorage owns the choice; app-db is emptied and `context-changed` reads it
+                   ;; back
+                   (write-active! (->active pub))
+                   {:db (forget-scoped db)
+                    :dispatch [context-changed]}))
 
 ;; drop the active publication when it isn't the current user's — a value left in localStorage after
 ;; a different account used this browser (an open publication is private to its owner and must not
@@ -102,16 +120,16 @@
 ;; authoring form at `url`, so the new document lands in this publication
 (rf/reg-event-fx ::create-here
                  (fn [{:keys [db]} [_ pub url]]
-                   (let [m (->active pub)]
-                     (write-active! m)
-                     {:db (assoc db :agora/active-publication m)
-                      :agora/navigate url})))
+                   (write-active! (->active pub))
+                   {:db (forget-scoped db)
+                    :dispatch [context-changed]
+                    :agora/navigate url}))
 
 (rf/reg-event-fx ::clear-active
                  (fn [{:keys [db]} _]
                    (write-active! nil)
-                   {:db (dissoc db :agora/active-publication)
-                    :dispatch [refetch-scoped]}))
+                   {:db (forget-scoped db)
+                    :dispatch [context-changed]}))
 
 ;; deselecting the active publication from the header = "look at all publications": clear it and land
 ;; on the index
@@ -207,12 +225,18 @@
 ;; the publication page's data (the publication + its documents as discover cards)
 (rf/reg-event-fx
  ::load-page
- (fn [{:keys [db]} [_ id]]
-   {:db (assoc db :agora/viewed-publication {:id id} :agora/viewed-publication-cards nil)
-    :fetch (GET (str "/agora/api/publication/" id) [::page-ok] [::page-fail])
-    :dispatch [::load-page-cards id]}))
+ (fn [{:keys [db]} [_ cid]]
+   ;; the stub carries the cid under the key the view uses, so the page reads the same shape before
+   ;; and after the fetch lands
+   {:db (assoc db :agora/viewed-publication {:name cid} :agora/viewed-publication-cards nil)
+    :fetch (GET (str "/agora/api/publication/" cid) [::page-ok] [::page-fail])
+    :dispatch [::load-page-cards cid]}))
 (rf/reg-event-db ::page-ok (fn [db [_ resp]] (assoc db :agora/viewed-publication (:body resp))))
-(rf/reg-event-db ::page-fail (fn [db _] db))
+
+(rf/reg-event-fx ::page-fail
+                 (fn [{:keys [db]} [_ resp]]
+                   {:db (dissoc db :agora/viewed-publication)
+                    :dispatch [fetch-failed resp]}))
 (rf/reg-event-fx ::load-page-cards
                  (fn [_ [_ id]]
                    {:fetch (GET (str "/agora/api/publication/" id "/documents")
@@ -258,11 +282,11 @@
                             :on-failure [::publish-fail]}}))
 (rf/reg-event-fx ::publish-ok
                  (fn [{:keys [db]} [_ cid resp]]
-                   (when (= cid (get-in db [:agora/active-publication :id])) (write-active! nil))
+                   (when (= cid (get-in db [:agora/active-publication :name])) (write-active! nil))
                    {:db (cond-> (-> db
                                     (dissoc :agora/publishing?)
                                     (assoc :agora/viewed-publication (:body resp)))
-                          (= cid (get-in db [:agora/active-publication :id]))
+                          (= cid (get-in db [:agora/active-publication :name]))
                           (dissoc :agora/active-publication))
                     :dispatch-n [[::search] [::load-page-cards cid]]}))
 ;; a 422 means some gathered drafts still have errors — flag it so the button area says so (the cards
@@ -291,9 +315,9 @@
 ;; index, drop it as the active publication
 (rf/reg-event-fx ::delete-pub
                  (fn [{:keys [db]} [_ cid]]
-                   (when (= cid (get-in db [:agora/active-publication :id])) (write-active! nil))
+                   (when (= cid (get-in db [:agora/active-publication :name])) (write-active! nil))
                    {:db (cond-> db
-                          (= cid (get-in db [:agora/active-publication :id]))
+                          (= cid (get-in db [:agora/active-publication :name]))
                           (dissoc :agora/active-publication))
                     :fetch {:method :delete
                             :url (str "/agora/api/publication/" cid)
@@ -396,7 +420,7 @@
                       :border-radius "0.35em"
                       :padding "0.15em 0.45em"
                       :font-size "0.8em"}}
-       [:a {:href (i18n/publication lang (:id pub))
+       [:a {:href (i18n/publication lang (:name pub))
             :title (:title pub)
             :style {:color "inherit"
                     :text-decoration "none"
@@ -446,7 +470,7 @@
                             (rf/dispatch [::modal/confirm {:message (i18n/t lang
                                                                             :pub/publish-confirm)
                                                            :confirm-label (i18n/t lang :pub/publish)
-                                                           :on-confirm [::publish (:id pub)]}]))
+                                                           :on-confirm [::publish (:name pub)]}]))
                :disabled (boolean publishing?)
                :style {:cursor (if publishing? "default" "pointer")
                        :opacity (if publishing? 0.5 1)}}
@@ -462,7 +486,7 @@
   (let [open-owner? (and owner? (= "open" (:status pub)))
         save! (fn []
                 (when-not (str/blank? @editing)
-                  (rf/dispatch [::rename (:id pub) (str/trim @editing)]))
+                  (rf/dispatch [::rename (:name pub) (str/trim @editing)]))
                 (reset! editing nil))]
     [:h1 {:style {:font-size "1.4em"
                   :margin "0 0 0.2em"
@@ -511,7 +535,7 @@
            [:button {:on-click #(rf/dispatch [::modal/confirm
                                               {:message (i18n/t lang :pub/delete-confirm)
                                                :danger? true
-                                               :on-confirm [::delete-pub (:id pub)]}])
+                                               :on-confirm [::delete-pub (:name pub)]}])
                      :style {:border "none"
                              :background "transparent"
                              :cursor "pointer"
@@ -560,7 +584,7 @@
   attaches to. A labelled switch: a sliding knob (on = copper) beside « Travailler ici », so it reads
   as an on/off toggle rather than a bare checkbox. The header chip shows and holds the active one."
   [lang pub]
-  (let [active? (= (:id @(rf/subscribe [::active])) (:id pub))]
+  (let [active? (= (:name @(rf/subscribe [::active])) (:name pub))]
     [dv/tooltip
      (i18n/t lang :pub/create-here)
      [:button {:on-click #(rf/dispatch (if active? [::clear-active] [::set-active pub]))
@@ -710,7 +734,7 @@
                      :margin "0.3em 0 1.2em"}}
        [status-pill lang pub]
        (when editable? [active-toggle lang pub])
-       [:a {:href (i18n/publication-graph lang (:id pub))
+       [:a {:href (i18n/publication-graph lang (:name pub))
             :style {:color "#b9770e"
                     :text-decoration "none"
                     :font-size "0.85em"
@@ -821,4 +845,4 @@
                                       "repeat(auto-fill, minmax(min(17em, 100%), 1fr))"
                                       :gap "0.9em"}}]
                        (for [c (dv/filter-items cards)]
-                         ^{:key (:id c)} [doc-card lang (:id pub) deletable? c])))])])))
+                         ^{:key (:id c)} [doc-card lang (:name pub) deletable? c])))])])))

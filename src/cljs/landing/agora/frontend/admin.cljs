@@ -15,8 +15,9 @@
 (rf/reg-sub ::admin-issues (fn [db _] (:admin-issues db)))
 
 (defn- consistency-panel
-  "Admin: nodes with dangling references (a broken input / citation). Shown above the
-  lineage table so data errors surface immediately."
+  "Admin: versions that break an invariant — a dangling or self reference, a stale successor edge, a
+  byline a cache serves under a superseded name. Shown above the lineage table so they surface
+  immediately."
   [lang issues]
   (let [bad? (seq issues)]
     [:div {:style {:margin "0 0 1.4em"
@@ -62,7 +63,11 @@
                    ": " (str/join ", " (map (fn [b] (str (:name b) "@" (:major b))) (:self i)))))
             (when (seq (:dangling-successors i))
               (str " → " (i18n/t lang :admin/issues-dangling)
-                   ": " (count (:dangling-successors i))))]])))]))
+                   ": " (count (:dangling-successors i))))
+            (when-let [{:keys [served stored]} (:stale-byline i)]
+              (str " → " (i18n/t lang :admin/issues-stale-byline)
+                   ": " (pr-str served)
+                   " ≠ " (pr-str stored)))]])))]))
 
 (def ^:private admin-btn
   {:font-size "0.8em"

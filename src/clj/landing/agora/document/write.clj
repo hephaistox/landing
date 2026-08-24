@@ -15,12 +15,12 @@
   (:import (java.util UUID)))
 
 (defn- byline
-  "The byline name a version caches in its derived `computed`: the display name of the person its
-  `content` attributes it to — a work's cited `:author-id`, else its `:owner-id`. Read from
-  AGORA_USER at every write, so the name never comes from the client and never lands in the
-  immutable content."
-  [content]
-  (auth/display-name (dk/attributed-author-id content)))
+  "The byline name a version caches in its derived `computed`: the display name of the person it is
+  attributed to — a work's credited `:author-id`, else its `:owner-id`, both columns on the row.
+  Read from AGORA_USER at every write, so the name never comes from the client and is never stored
+  anywhere it could not later be rectified or erased."
+  [row]
+  (auth/display-name (dk/attributed-author-id row)))
 
 (defn- inputs+pins
   "Derive a draft's `content.:inputs` and publication-aware `computed.:pins`. Inputs are the `[[…]]`
@@ -50,7 +50,7 @@
   `{:kind :title :text :lang}` plus, for a `work`, its bibliographic `:author-id`/`:year`/`:editor`/
   `:url`, and for an `extract` its `:locator`. **`:type`, `:kind` and `:lang` are keywords** (`:ki`,
   `:inference`, `:fr`) — the caller coerces at the JSON boundary; the domain works in keywords. Owned
-  by `owner-id`; the byline **name** is derived from the person the content points at (`byline`), not
+  by `owner-id`; the byline **name** is derived from the person the row points at (`byline`), not
   supplied. The document is a **draft** (minor NULL until publish) gathered by `publication-id`
   (required — every create happens inside an open publication). Returns the new version's row id."
   [type
@@ -63,32 +63,32 @@
         content (cond-> {:kind kind
                          :title title
                          :text text
-                         :owner-id owner-id
                          :inputs inputs
                          :published-at now}
-                  author-id (assoc :author-id author-id)
                   locator (assoc :locator locator)
                   year (assoc :year year)
                   editor (assoc :editor editor)
-                  url (assoc :url url))]
-    (db-doc/insert! {:id (str (UUID/randomUUID))
-                     :type type
-                     :name (db-doc/gen-cid)
-                     :lang lang
-                     :major 1
-                     :minor nil
-                     :draft true
-                     :content content
-                     :computed (db-doc/computed pins (byline content))
-                     :published-at now
-                     :publication-id publication-id})))
+                  url (assoc :url url))
+        row {:id (str (UUID/randomUUID))
+             :type type
+             :name (db-doc/gen-cid)
+             :lang lang
+             :major 1
+             :minor nil
+             :draft true
+             :content content
+             :published-at now
+             :publication-id publication-id
+             :owner-id owner-id
+             :author-id author-id}]
+    (db-doc/insert! (assoc row :computed (db-doc/build-computed pins (byline row))))))
 
 (defn edit!
   "Edit the lineage of document `id` inside `publication-id`, or nil when `id` is unknown. All results
   are a **draft** (minor NULL):
    - the editor **owns** the lineage → **this publication's draft** of it, edited **in place** (same
      id) when one exists, else a **new draft** started from `id`'s content (the future next minor,
-     assigned on publish);
+     assigned on publish) — `upsert-draft!` decides which, atomically;
    - **someone else's** → a **fork**: a new **major**, owned by the editor.
   So re-editing the same lineage in one publication always lands on the one draft — never a duplicate.
   Carries `:kind` and the bibliographic/`:locator` extras forward (a new value in `fields` overrides),
@@ -99,36 +99,33 @@
     (let [owner? (= editor-id (:owner-id doc))
           now (db-doc/now-iso)
           {:keys [inputs pins]} (inputs+pins text (:lang doc) publication-id target)
-          content (-> (select-keys doc [:kind :author-id :locator :year :editor :url])
-                      (merge (into {}
-                                   (remove (comp nil? val))
-                                   {:kind kind
-                                    :author-id author-id
-                                    :locator locator
-                                    :year year
-                                    :editor editor
-                                    :url url}))
-                      (assoc :title (or title (:title doc))
-                             :text text
-                             :owner-id (if owner? (:owner-id doc) editor-id)
-                             :inputs inputs
-                             :published-at now))
-          computed (db-doc/computed pins (byline content))
+          content
+          (-> (select-keys doc [:kind :locator :year :editor :url])
+              (merge (into {}
+                           (remove (comp nil? val))
+                           {:kind kind
+                            :locator locator
+                            :year year
+                            :editor editor
+                            :url url}))
+              (assoc :title (or title (:title doc)) :text text :inputs inputs :published-at now))
+          ;; who the new version belongs to and who it credits — columns, carried forward from the
+          ;; edited version unless the form gives a new credited author. Editing someone else's
+          ;; document forks it, which is where the owner changes.
+          attribution {:owner-id (if owner? (:owner-id doc) editor-id)
+                       :author-id (or author-id (:author-id doc))}
+          computed (db-doc/build-computed pins (byline attribution))
           row (db-doc/version-row doc
-                                  {:content content
-                                   :computed computed
-                                   :draft true
-                                   :publication-id publication-id
-                                   :published-at now})]
-      (if owner?
-        (if-let [did
-                 (db-doc/draft-of (:type doc) (:name doc) (:lang doc) (:major doc) publication-id)]
-          (db-doc/update-draft! {:id did
-                                 :content content
-                                 :computed computed
-                                 :published-at now})
-          (db-doc/insert! row))
-        (db-doc/insert-next-major! row)))))
+                                  (merge attribution
+                                         {:content content
+                                          :computed computed
+                                          :draft true
+                                          :publication-id publication-id
+                                          :published-at now}))]
+      ;; the owner's edit lands on the one draft this publication holds of the lineage — replacing it
+      ;; if there is one, inserting otherwise, decided inside the write itself so two concurrent edits
+      ;; cannot both conclude there is none
+      (if owner? (db-doc/upsert-draft! row) (db-doc/insert-next-major! row)))))
 
 (defn delete!
   "Delete document `id` — a draft the caller owns, in `publication-id`. Removes that lineage's draft
@@ -139,5 +136,5 @@
   [editor-id id publication-id]
   (when-let [doc (db-doc/fetch-id id)]
     (when (and (:draft doc) (= publication-id (:publication-id doc)) (= editor-id (:owner-id doc)))
-      (db-doc/delete-draft! (:type doc) (:name doc) (:lang doc) (:publication-id doc))
+      (db-doc/delete-draft! (:type doc) (:name doc) (:lang doc) (:major doc) (:publication-id doc))
       (:publication-id doc))))

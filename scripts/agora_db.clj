@@ -28,5 +28,5 @@
   [row
    (jdbc/execute!
     ds
-    ["SELECT id, name, type, major, minor, MID(content, 1 10), published_at FROM AGORA_DOCUMENT"])]
+    ["SELECT id, name, type, major, minor, MID(content, 1, 10), published_at FROM AGORA_DOCUMENT"])]
   (prn row))

@@ -7,7 +7,7 @@
   the `:pins`) change only when the reconcile repairs them, which clears this cache. The mutable
   indexes (versions, successors, translations) stay uncached — the engine reads them from `db`."
   (:require
-   [landing.agora.cache             :as caffeine]
+   [landing.agora.cache             :as cache]
    [landing.agora.db.document       :as db]
    [landing.agora.document.identity :as di]
    [landing.agora.document.storage  :as ds]))
@@ -17,54 +17,57 @@
 ;; `by-tnlr` is volatile — it maps a lineage to its latest **published** id, which changes when a
 ;; new minor is published, so it must be evicted on `on-new-tnlr`. The document itself still comes
 ;; from the write-once `by-id`, so only the small tnlr→id mapping is ever invalidated.
-(def ^:private by-id (caffeine/loading 20000 db/fetch-id))
+(cache/defcache ^:private by-id 20000 db/fetch-id)
 
-(def ^:private by-tnlr (caffeine/loading 20000 db/latest-published-id))
+(cache/defcache ^:private by-tnlr 20000 db/latest-published-id)
 
 ;; A browse page depends on the whole set of a type's published lineages, so it can't be
 ;; invalidated per document; it expires by TTL instead — a page may be a few minutes stale.
 (def ^:private page-ttl-seconds 120)
 
-(def ^:private by-page
-  (caffeine/loading 2000
-                    (fn [[type lang limit offset]] (db/published-of-type type lang limit offset))
-                    page-ttl-seconds))
+(cache/defcache ^:private by-page
+                2000
+                (fn [[type lang limit offset]]
+                  (db/latest-page {:type type
+                                   :lang lang
+                                   :limit limit
+                                   :offset offset}))
+                page-ttl-seconds)
 
-;; The sitemap and the author hubs both need the whole set of published-latest documents — a
+;; The sitemap and the author hubs both need the whole set of latest-published documents — a
 ;; corpus scan crawled infrequently. A single-entry TTL cache spares the DB a full scan per hit,
 ;; expiring on the same hour as those pages' Cache-Control; the engine projects/filters in memory.
 (def ^:private latest-ttl-seconds 3600)
 
-(def ^:private latest-set
-  (caffeine/loading 1 (fn [_] (db/published-latest-docs)) latest-ttl-seconds))
+(cache/defcache ^:private latest-set 1 (fn [_] (db/latest-published-docs)) latest-ttl-seconds)
 
-(defn- evict! "Drop the cached document for `id`." [id] (caffeine/evict! by-id id))
+(defn- evict! "Drop the cached document for `id`." [id] (cache/evict! by-id id))
 
 (defn clear!
-  "Drop every cached document, lineage-resolution and browse page."
+  "Drop every Agora read cache: this namespace's documents, lineage resolutions, browse pages and
+  corpus scans, and every other cache built on `landing.agora.cache` — a publication's view among
+  them. Callers reach here because something the whole corpus derives from changed, and which
+  namespace holds a copy of it is not theirs to know."
   []
-  (caffeine/clear! by-id)
-  (caffeine/clear! by-tnlr)
-  (caffeine/clear! by-page)
-  (caffeine/clear! latest-set))
+  (cache/clear-all!))
 
 (defrecord DocumentCachedDB []
   ds/DocumentStorage
     ;; nil id (an unresolved/dangling pin) → no document; guard it, since a nil key would blow up the
     ;; underlying cache
-    (fetch-id [_this id] (when id (caffeine/fetch by-id id)))
+    (fetch-id [_this id] (when id (cache/fetch by-id id)))
     ;; resolve the lineage's latest published id (cached), then its document (cached)
     (fetch-latest-revision [_this ref]
-      (some->> (caffeine/fetch by-tnlr (di/tnlr ref))
-               (caffeine/fetch by-id)))
-    (documents [_this type lang limit offset] (caffeine/fetch by-page [type lang limit offset]))
-    (published-latest [_this] (caffeine/fetch latest-set :all))
+      (some->> (cache/fetch by-tnlr (di/tnlr ref))
+               (cache/fetch by-id)))
+    (documents [_this type lang limit offset] (cache/fetch by-page [type lang limit offset]))
+    (latest-published [_this] (cache/fetch latest-set :all))
     ;; evict one cached row by id — a draft is edited in place (same id), so its write-once entry is
     ;; stale after the write
     (publish-change! [_this change-id] (evict! change-id))
     (probe-tnr-languages [_this _tnr] nil)
     ;; a new minor changes which id is latest for this lineage — drop the stale tnlr→id entry
-    (on-new-tnlr [_this tnlr] (caffeine/evict! by-tnlr (di/tnlr tnlr))))
+    (on-new-tnlr [_this tnlr] (cache/evict! by-tnlr (di/tnlr tnlr))))
 
 (def document-cached-db (DocumentCachedDB.))
 

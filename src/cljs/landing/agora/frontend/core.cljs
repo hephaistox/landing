@@ -389,7 +389,7 @@
                            :dispatch [::graph/load id]}
        :ki-public (route-changed-fetch-public db name major lang)
        ;; a signed-in author with an active publication lands on it, not the generic home
-       :home (if-let [pub-id (:id (:agora/active-publication db))]
+       :home (if-let [pub-id (:name (:agora/active-publication db))]
                {:agora/navigate (i18n/publication (i18n/current db) pub-id)}
                (route-changed-fetch-list db :ki :home))
        :discover (route-changed-fetch-list db :ki :discover)
@@ -422,8 +422,8 @@
 
 (rf/reg-event-fx ::refetch-scoped
                  (fn [{:keys [db]} _]
-                   ;; the active publication changed — re-fetch the current discover grid so its draft overlay
-                   ;; updates without a navigation. Dispatched by `publications/set-active`+`clear-active`.
+                   ;; re-fetch the current view in place, keeping the rest of the store — for a local
+                   ;; change that only this page shows (a consequence created from it, `edit`).
                    (case (:kind (:view db))
                      :home (route-changed-fetch-list db :ki :home)
                      :discover (route-changed-fetch-list db :ki :discover)
@@ -464,22 +464,51 @@
                                 :loading? false)
                          (cache-put ck a)))))
 
+(defn- absent?
+  "Whether `response` says the document is not there. A 404 is an **answer** — this document does not
+  exist, having been deleted or never having existed — where any other failure means the request
+  itself did not get through. The two deserve different screens: a sentence a reader can act on, and
+  a transport error."
+  [response]
+  (= 404 (:status response)))
+
 (rf/reg-event-db ::fetch-failed
                  (fn [db [_ response]]
-                   (js/console.error "[agora] fetch failed:" (clj->js response))
-                   (assoc db :loading? false :error response)))
+                   (if (absent? response)
+                     (assoc db :view {:kind :missing} :loading? false :error nil)
+                     (do (js/console.error "[agora] fetch failed:" (clj->js response))
+                         (assoc db :loading? false :error response)))))
+
+;; Keys a background fetch found absent — an id, or a lineage's `tnlr-key`. Kept so a neighbour card
+;; can say the document is gone instead of waiting on it, and so the `ensure-*` guards stop asking:
+;; a miss is not cached, so without this the page re-requests a deleted neighbour on every render.
+;; A failure that is not a 404 is left unmarked — the request may yet get through, and calling it
+;; deleted would be a lie.
+(rf/reg-event-db :agora/mark-absent
+                 (fn [db [_ k response]]
+                   (if (absent? response)
+                     (update db :missing (fnil conj #{}) k)
+                     (do (js/console.error "[agora] fetch failed:" (clj->js response)) db))))
+
+(defn- absent-key? [db k] (contains? (:missing db) k))
+
+(rf/reg-sub :agora/absent-id? (fn [db [_ id]] (absent-key? db id)))
+
+(rf/reg-sub :agora/absent-tnlr?
+            (fn [db [_ type doc-name doc-major lang]]
+              (absent-key? db (tnlr-key type lang doc-name doc-major))))
 
 ;; Neighbour cards fetch their KI by id (the response now carries bare {:id} refs).
 ;; This fills the cache without touching the current view, and skips already-cached.
 (rf/reg-event-fx :agora/ensure-ki
                  (fn [{:keys [db]} [_ id]]
-                   (when-not (get-in db [:cache id])
+                   (when-not (or (get-in db [:cache id]) (absent-key? db id))
                      {:fetch {:method :get
                               :url (str "/agora/api/documents/ki/" id)
                               :headers {"Accept" "application/json"}
                               :response-content-types {#"application/json" :json}
                               :on-success [::neighbour-ok]
-                              :on-failure [::fetch-failed]}})))
+                              :on-failure [:agora/mark-absent id]}})))
 
 (rf/reg-event-db ::neighbour-ok (fn [db [_ response]] (cache-put-doc db (:body response))))
 
@@ -489,15 +518,16 @@
 ;; Skips already-cached.
 (rf/reg-event-fx :agora/ensure-ki-by-major
                  (fn [{:keys [db]} [_ ki-name ki-major lang]]
-                   (when-not (doc-by-tnlr db :ki lang ki-name ki-major)
-                     {:fetch {:method :get
-                              :url (str "/agora/api/documents/ki/" (js/encodeURIComponent ki-name)
-                                        "/" lang
-                                        "/" ki-major)
-                              :headers {"Accept" "application/json"}
-                              :response-content-types {#"application/json" :json}
-                              :on-success [::cite-ok]
-                              :on-failure [::fetch-failed]}})))
+                   (let [k (tnlr-key :ki lang ki-name ki-major)]
+                     (when-not (or (doc-by-tnlr db :ki lang ki-name ki-major) (absent-key? db k))
+                       {:fetch {:method :get
+                                :url (str "/agora/api/documents/ki/" (js/encodeURIComponent ki-name)
+                                          "/" lang
+                                          "/" ki-major)
+                                :headers {"Accept" "application/json"}
+                                :response-content-types {#"application/json" :json}
+                                :on-success [::cite-ok]
+                                :on-failure [:agora/mark-absent k]}}))))
 
 (rf/reg-event-db ::cite-ok (fn [db [_ response]] (cache-put-doc db (:body response))))
 
@@ -509,16 +539,17 @@
 ;; (KI or article) wherever we only hold its identity (e.g. the admin page).
 (rf/reg-event-fx :agora/ensure-by-major
                  (fn [{:keys [db]} [_ type doc-name doc-major lang]]
-                   (when-not (doc-by-tnlr db type lang doc-name doc-major)
-                     {:fetch {:method :get
-                              :url (str "/agora/api/documents/" type
-                                        "/" (js/encodeURIComponent doc-name)
-                                        "/" lang
-                                        "/" doc-major)
-                              :headers {"Accept" "application/json"}
-                              :response-content-types {#"application/json" :json}
-                              :on-success [::cite-ok]
-                              :on-failure [::fetch-failed]}})))
+                   (let [k (tnlr-key type lang doc-name doc-major)]
+                     (when-not (or (doc-by-tnlr db type lang doc-name doc-major) (absent-key? db k))
+                       {:fetch {:method :get
+                                :url (str "/agora/api/documents/" type
+                                          "/" (js/encodeURIComponent doc-name)
+                                          "/" lang
+                                          "/" doc-major)
+                                :headers {"Accept" "application/json"}
+                                :response-content-types {#"application/json" :json}
+                                :on-success [::cite-ok]
+                                :on-failure [:agora/mark-absent k]}}))))
 
 (rf/reg-sub :agora/node-doc
             (fn [db [_ type doc-name doc-major lang]]
@@ -530,13 +561,13 @@
 ;; to a specific version.
 (rf/reg-event-fx :agora/ensure-by-id
                  (fn [{:keys [db]} [_ type id]]
-                   (when-not (get-in db [:cache id])
+                   (when-not (or (get-in db [:cache id]) (absent-key? db id))
                      {:fetch {:method :get
                               :url (str "/agora/api/documents/" type "/" id)
                               :headers {"Accept" "application/json"}
                               :response-content-types {#"application/json" :json}
                               :on-success [::cite-ok]
-                              :on-failure [::fetch-failed]}})))
+                              :on-failure [:agora/mark-absent id]}})))
 
 (rf/reg-sub :agora/node-doc-by-id (fn [db [_ _type id]] (doc-by-id db id)))
 
@@ -595,7 +626,7 @@
          text (-> (:text doc)
                   (di/strip-cite input titles)
                   (di/strip-cite (assoc input :lang nil) titles))
-         pub-id (get-in db [:agora/active-publication :id])]
+         pub-id (get-in db [:agora/active-publication :name])]
      {:db (assoc db :loading? true :error nil)
       :fetch (document-page/json-req :post
                                      (str "/agora/api/documents/" type "/" id)
@@ -625,12 +656,26 @@
 ;; route change, same as an intercepted link click.
 (rf/reg-fx :agora/navigate (fn [url] (pushy/set-token! @history url)))
 
-;; Event form of the above, for components (e.g. the language switcher) to call.
-;; Drop the whole document cache. For a change that touches every document at once rather than one
-;; lineage — renaming the alias every byline is derived from — where evicting lineage by lineage
-;; would mean knowing the corpus.
-(rf/reg-event-db :agora/forget-documents (fn [db _] (dissoc db :cache :tnlr)))
+;; What a caller runs after emptying app-db (`app-db/forget`) to install the context again: re-read
+;; the active publication from localStorage, which owns it, drop it when it belongs to another
+;; account, then re-enter the current route so the page reloads under the new context.
+(rf/reg-event-fx :agora/context-changed
+                 (fn [_ _]
+                   {:fx [[:dispatch [::publications/adopt-active]]
+                         [:dispatch [::publications/reconcile-active]]
+                         [:dispatch [:agora/reenter-route]]]}))
 
+;; Re-run the current URL through the route handler. Reaches every view, not only the ones holding a
+;; document, and refetches from an emptied store — so it belongs after a `forget`, where there is
+;; nothing left to serve a page from. `::refetch-scoped` is the opposite case: a full store, one
+;; view to force past it.
+(rf/reg-event-fx :agora/reenter-route
+                 (fn [_ _]
+                   ;; the path is read when this runs, so a caller that also navigates re-enters where it landed —
+                   ;; one duplicate fetch on that page, never a stale one on the page left behind
+                   {:dispatch [::route-changed (path->route (.. js/window -location -pathname))]}))
+
+;; Event form of `:agora/navigate`, for components (e.g. the language switcher) to call.
 (rf/reg-event-fx :agora/goto (fn [_ [_ url]] {:agora/navigate url}))
 
 ;; Esc on the creation page → back to discover (like Cancel), but only when no
@@ -724,6 +769,34 @@
    :on-success [:agora/admin-fetch]
    :on-failure [:agora/admin-fetch]})
 
+;; delete a person nothing is attributed to (owner-only, re-checked server-side). A 409 says
+;; documents still point at them: that is the foreign key talking, and the answer is not to force it
+;; but to leave the person alone — erasing an account is its owner's to ask for, not an
+;; administrator's to impose.
+(rf/reg-event-fx :agora/admin-delete-person
+                 (fn [_ [_ id]]
+                   {:fetch {:method :delete
+                            :url (str "/agora/api/admin/person/" (js/encodeURIComponent id))
+                            :headers {"Accept" "application/json"}
+                            :response-content-types {#"application/json" :json}
+                            :on-success [:agora/admin-person-deleted]
+                            :on-failure [:agora/admin-person-delete-failed]}}))
+
+(rf/reg-event-fx :agora/admin-person-deleted
+                 (fn [{:keys [db]} _]
+                   {:db (dissoc db :agora/admin-person-error)
+                    :agora/navigate (i18n/authors (i18n/current db))}))
+
+(rf/reg-event-db :agora/admin-person-delete-failed
+                 (fn [db [_ resp]]
+                   ;; keep the whole body: a refusal here carries *why*, and the count of what still
+                   ;; points at the person is the only thing that tells the administrator what to do
+                   ;; about it
+                   (js/console.error "[agora] delete person failed:" (clj->js resp))
+                   (assoc db :agora/admin-person-error (:body resp))))
+
+(rf/reg-sub :agora/admin-person-error (fn [db _] (:agora/admin-person-error db)))
+
 (rf/reg-event-fx :agora/admin-drop
                  (fn [_ [_ type doc-name lang doc-major]]
                    {:fetch (admin-post "/agora/api/admin/drop-tnr" type doc-name lang doc-major)}))
@@ -754,6 +827,24 @@
                  :border-left "3px solid #c92a2a"}}
    (str "fetch failed:\n\n" (with-out-str (pprint error)))])
 
+(defn- missing-view
+  "Shown where what the URL asks for is not there — a deleted document, a withdrawn author page, or
+  an address that never resolved. Says so, rather than leaving a placeholder that never resolves."
+  []
+  (let [lang @(rf/subscribe [::i18n/lang])]
+    [:div {:style {:max-width "38em"
+                   :margin "3em auto"
+                   :padding "0 1em"
+                   :text-align "center"}}
+     [:h1 {:style {:font-size "1.3em"
+                   :margin "0 0 0.5em"}}
+      (i18n/t lang :doc/absent-title)]
+     [:p {:style {:color "#666"
+                  :margin "0 0 1.2em"}}
+      (i18n/t lang :doc/absent-body)]
+     [:a {:href (i18n/discover lang)}
+      (i18n/t lang :doc/absent-back)]]))
+
 (defn app-view
   []
   (let [{:keys [kind data id]} @(rf/subscribe [::view])
@@ -771,6 +862,7 @@
       (= kind :publications) [publications/publications-page]
       (= kind :publication) [publications/publication-page]
       (= kind :publication-graph) [graph/graph-page id]
+      (= kind :missing) [missing-view]
       ;; Keep showing the current resource whenever we have one — even while the
       ;; next is being fetched. The view swaps only on data arrival.
       data (case kind

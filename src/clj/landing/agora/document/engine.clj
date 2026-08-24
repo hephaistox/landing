@@ -2,12 +2,12 @@
   "Shapes a document into its endpoint view, from the `db` layer (`db.document`) and the domain
   (`identity`, `kind`). Type-agnostic: every type shapes the same."
   (:require
-   [clojure.string                  :as str]
-   [landing.agora.db.document       :as db-doc]
-   [landing.agora.document.identity :as di]
-   [landing.agora.document.kind     :as dk]
-   [landing.agora.document.storage  :as ds]
-   [landing.agora.publication       :as publication]))
+   [clojure.string                     :as str]
+   [landing.agora.db.document          :as db-doc]
+   [landing.agora.document.identity    :as di]
+   [landing.agora.document.kind        :as dk]
+   [landing.agora.document.publication :as publication]
+   [landing.agora.document.storage     :as ds]))
 
 ;; `document-errors` and `cite-titles` (defined below, with the error helpers and the card) are used by
 ;; `expand-document` above them — forward-declared so the view can carry its `:errors` and the titles
@@ -59,13 +59,13 @@
       (select-keys d [:id :type :name :lang :major :title]))))
 
 (defn- resolve-publication
-  "Resolve a document's `publication-id` (a cid) to `{:id :title :status}` — the work-package it
+  "Resolve a document's `publication-id` (a cid) to `{:name :title :status}` — the work-package it
   belongs to, so the reader can open it. Reads through `publication/fetch` (cached). nil when there
   is none."
   [pub-cid]
   (some-> pub-cid
           publication/fetch
-          (select-keys [:id :title :status])))
+          (select-keys [:name :title :status])))
 
 (defn- resolve-input
   "A pinned input ref shaped for display: its pin plus the pinned document's `:title`, so an edge is
@@ -98,7 +98,7 @@
   (let [k (di/tnlr doc)]
     (into []
           (comp (filter (fn [d] (some #(= (di/tnlr %) k) (:pins d)))) (map (fn [d] {:id (:id d)})))
-          (db-doc/in-publication pub-cid))))
+          (publication/documents pub-cid))))
 
 (defn- expand-document
   "Shape `doc` into the endpoint view — the document plus its resolved environment: inputs,
@@ -124,7 +124,7 @@
                            pub-cid (into (publication-successor-refs pub-cid doc)))
              :cite-titles (cite-titles doc-storage doc pub-cid)
              :errors (document-errors doc-storage doc pub-cid)
-             :translations (db-doc/translations-of (:name doc)))
+             :translations (db-doc/translations-of (:type doc) (:name doc)))
       (dissoc :author :owner-id :author-id :pins :publication-id)))
 
 ;; ********************************************************************************
@@ -241,28 +241,53 @@
   [d]
   [(:type d) (:name d) (:lang d) (:major d)])
 
-(defn- publication-drafts
-  "The drafts publication `pub-cid` gathers for `type` (newest first), in `lang` when given (a nil
-  `lang` keeps every language) — the in-progress overlay a scoped view lays over the published corpus.
-  `type`/`lang` are the request's strings."
-  [pub-cid type lang]
-  (filterv (fn [d] (and (= type (name (:type d))) (or (nil? lang) (= lang (name (:lang d))))))
-           (db-doc/in-publication pub-cid)))
-
 (defn- matches?
   "True when `q` (case-insensitive) occurs in a document's name, title or text — the same reach as the
   published search, applied to a publication's drafts."
   [q d]
   (str/includes? (str/lower-case (str (:name d) " " (:title d) " " (:text d))) (str/lower-case q)))
 
+(def ^:private visible-drafts-limit
+  "Cap on the drafts a feed leads with. Generous — they are a person's own work in progress, and there
+  is no page after the first for them."
+  200)
+
+(defn- draft-filter
+  "The `db-doc/draft-versions` narrowing for `viewer` — the visibility rule turned into a query filter
+  (agora/CLAUDE.md, \"Who sees what\"): every draft for the platform owner, their own for a member,
+  none for an anonymous reader. `viewer` is `{:id :admin?}`, or nil.
+
+  The one place the rule becomes a filter, so the database does the restricting and a feed never
+  carries a row its reader may not have."
+  [viewer type lang]
+  (cond
+    (:admin? viewer) {:type type
+                      :lang lang
+                      :limit visible-drafts-limit}
+    (:id viewer) {:type type
+                  :lang lang
+                  :owner (:id viewer)
+                  :limit visible-drafts-limit}
+    :else nil))
+
+(defn- visible-drafts
+  "The drafts of `type`/`lang` that `viewer` may see, newest first."
+  [viewer type lang]
+  (if-let [f (draft-filter viewer type lang)]
+    (db-doc/draft-versions f)
+    []))
+
 (defn list-cards
-  "One page of browse cards for `type` in `lang`, newest first (`limit`/`offset`). The page of
-  documents comes from `doc-storage` (cached); each is shaped into a card. When `pub-cid` is given
-  (the caller's active publication), its drafts of this type/lang lead the first page and replace the
-  published version of any lineage they supersede — the corpus as it will read once the publication
-  is published."
-  [doc-storage type lang limit offset pub-cid]
-  (let [drafts (when pub-cid (publication-drafts pub-cid type lang))
+  "One page of browse cards for `type` in `lang`, newest first (`limit`/`offset`). The published page
+  comes from `doc-storage` (cached, and public — one shared page, never keyed by reader); the drafts
+  `viewer` may see lead the first page and replace the published version of any lineage they
+  supersede.
+
+  Which drafts those are is the visibility rule, not the publication scope: everything the reader
+  made, wherever they made it. `pub-cid` still decides how each card *resolves* — its pins and errors
+  — which is the other question entirely."
+  [doc-storage type lang limit offset pub-cid viewer]
+  (let [drafts (visible-drafts viewer type lang)
         overridden (set (map lineage-key drafts))
         published (remove #(overridden (lineage-key %))
                           (ds/documents doc-storage type lang limit offset))
@@ -271,22 +296,25 @@
 
 (defn search-cards
   "Browse cards for documents of `type` in `lang` matching `q` (name or content). A blank `q` returns
-  no results. Not cached — the query runs per keystroke against the DB. When `pub-cid` is given (the
-  caller's active publication), its matching drafts lead and replace the published version of any
-  lineage they supersede."
-  [doc-storage type lang q pub-cid]
+  no results. Not cached — the query runs per keystroke against the DB. The drafts `viewer` may see
+  and that match lead the results, replacing the published version of any lineage they supersede."
+  [doc-storage type lang q pub-cid viewer]
   (if (str/blank? q)
     []
-    (let [drafts (when pub-cid (filterv #(matches? q %) (publication-drafts pub-cid type lang)))
+    (let [drafts (filterv #(matches? q %) (visible-drafts viewer type lang))
           overridden (set (map lineage-key drafts))
-          published (remove #(overridden (lineage-key %)) (db-doc/search-of-type type lang q 50))]
+          published (remove #(overridden (lineage-key %))
+                            (db-doc/latest-page {:type type
+                                                 :lang lang
+                                                 :q q
+                                                 :limit 50}))]
       (mapv #(card doc-storage % pub-cid) (concat drafts published)))))
 
 (defn publication-cards
   "Browse cards for the documents a publication gathers — newest first. Each card carries `:errors`
   (via `card`), so the publication view flags each document (re-editing a stale one re-pins it)."
   [doc-storage pub-cid]
-  (mapv (fn [doc] (card doc-storage doc pub-cid)) (db-doc/in-publication pub-cid)))
+  (mapv (fn [doc] (card doc-storage doc pub-cid)) (publication/documents pub-cid)))
 
 (defn- graph-node
   "One node of the publication graph, shaped for the client's mini-card: identity + kind + title +
@@ -313,7 +341,7 @@
   resolve to this publication's own drafts where they exist, and its in-progress draft successors are
   folded in alongside the published ones."
   [doc-storage pub-cid]
-  (let [drafts (db-doc/in-publication pub-cid)
+  (let [drafts (publication/documents pub-cid)
         draft-ids (into #{} (map :id) drafts)
         {:keys [edges neighbours]}
         (reduce (fn [acc d]
@@ -340,10 +368,10 @@
 
 (defn sitemap-rows
   "Every published lineage's permalink row for the sitemap: `{:type :name :major :lang :title
-  :lastmod}`, projected from `doc-storage`'s published-latest set."
+  :lastmod}`, projected from `doc-storage`'s latest-published set."
   [doc-storage]
   (mapv #(select-keys % [:type :name :major :lang :title :lastmod])
-        (ds/published-latest doc-storage)))
+        (ds/latest-published doc-storage)))
 
 (def ^:private author-docs-limit
   "Cap on how many documents an author page lists (newest first). A holding value until the page
@@ -351,33 +379,67 @@
   50)
 
 (defn- author-refs
-  "The published-latest entries whose derived byline person (`kind/attributed-author-id` — a work's
-  cited author, else the owner) is `author-id`, newest first, capped at `author-docs-limit`."
-  [doc-storage author-id]
+  "The published documents attributed to `author-id` — their lineage's latest published minor, newest
+  first, capped at `author-docs-limit`.
+
+  Asked of the database rather than filtered out of the corpus: `:owner` narrows to the versions
+  pointing at this person either way, which is a superset, and `kind/attributed-author-id` settles
+  which of the two pointers actually signs it. Reading every published lineage and keeping the
+  matching ones made an author page cost the whole corpus to show fifty cards."
+  [_doc-storage author-id]
   (into []
         (comp (filter (fn [d] (= author-id (dk/attributed-author-id d)))) (take author-docs-limit))
-        (ds/published-latest doc-storage)))
+        (db-doc/latest-page {:owner author-id})))
+
+(defn recent-author-ids
+  "The people most recently attributed a document, newest first, at most `limit`.
+
+  The database collapses the corpus to one row per distinct pair of pointers, newest first
+  (`recent-attributions`); this applies the domain rule (`kind/attributed-author-id`: a work's credited
+  author, else the owner) and dedupes what that collapses together. So the cost is the number of
+  people, not the number of versions, and who counts as an author is still decided in one place.
+
+  **Every version counts, drafts included.** A member whose work is all in progress writes here just
+  as much as one who has published, and their name is already public — the people search and their
+  author page both answer to it. Restricting this to published versions would only make the one list
+  meant to say who writes here the one place that does not."
+  [limit]
+  (into []
+        (comp (keep dk/attributed-author-id) (distinct) (take limit))
+        (db-doc/recent-attributions)))
 
 (defn author-documents
   "Permalink link items of the documents attributed to `author-id` — the server-rendered author hub's
   list."
   [doc-storage author-id]
-  (mapv #(select-keys % [:type :name :lang :major :title :lastmod])
+  (mapv #(assoc (select-keys % [:type :name :lang :major :title]) :lastmod (:published-at %))
         (author-refs doc-storage author-id)))
+
+(defn- draft-cards
+  "Cards for the drafts attributed to `author-id`, newest first. Grouped by the same domain rule as
+  everything else, so a work credited to someone shows on their page and not on its writer's."
+  [doc-storage author-id]
+  (into []
+        (comp (filter (fn [d] (= author-id (dk/attributed-author-id d))))
+              (take author-docs-limit)
+              (map #(card doc-storage % nil)))
+        (db-doc/draft-versions {:owner author-id})))
 
 (defn author-cards
   "Full browse cards for the documents attributed to `author-id` — the interactive author page's grid.
-  Each attributed lineage is fetched (cached) and shaped like a discover card."
-  [doc-storage author-id]
-  (mapv (fn [d]
-          (card doc-storage
-                (ds/fetch-latest-revision doc-storage
-                                          {:type (keyword (:type d))
-                                           :name (:name d)
-                                           :lang (keyword (:lang d))
-                                           :major (:major d)})
-                nil))
-        (author-refs doc-storage author-id)))
+
+  With `drafts?`, the person's unpublished work is listed too, newest first. The schema says a draft
+  is reachable by its exact-version URL and on the author profile; this is that profile, and the
+  caller decides who is looking — a draft is private staging, so only its own author (or the platform
+  owner) ever passes true. Without it a member whose work is all in progress reads as having written
+  nothing, which is exactly what their page should not say to them."
+  ([doc-storage author-id] (author-cards doc-storage author-id false))
+  ([doc-storage author-id drafts?]
+   (into (if drafts? (draft-cards doc-storage author-id) [])
+         ;; the query already returns whole documents, so each is shaped straight into a card — it
+         ;; used to hand back identities and fetch every one of them again
+         (map #(card doc-storage % nil))
+         (author-refs doc-storage author-id))))
 
 (defn- link-of
   "A document's permalink link item `{:type :name :lang :major :title}` — `:lang` as a string, the

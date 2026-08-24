@@ -195,7 +195,10 @@
                  (seo/generic-head base lang (str "/author/" id) "Agora" "Agora"))
           body (when profile
                  (seo/author-body base lang profile (engine/author-documents doc-storage id)))]
-      (html-response (seo/inject @public-template head lang body)))))
+      ;; no profile — unknown, or erased, which withdraws the page. 404 rather than an empty shell:
+      ;; there is nothing here to index, and a crawler that has the URL should drop it
+      (cond-> (html-response (seo/inject @public-template head lang body))
+        (nil? profile) (assoc :status 404)))))
 
 (defn author-page-route
   "Serve the public author profile shell (indexable, SEO head + author→documents hub)."

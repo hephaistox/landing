@@ -4,19 +4,21 @@
   create a new document, or edit one into a new version (text-only for now — see
   `landing.agora.document.write`). One mount, the type in the path."
   (:require
-   [landing.agora.db.document         :as db-doc]
-   [landing.agora.document.engine     :as engine]
-   [landing.agora.document.identity   :as di]
-   [landing.agora.document.storage    :as ds]
-   [landing.agora.document.write      :as write]
-   [landing.agora.endpoints.throttle  :as throttle]
-   [landing.language                  :as language]
-   [muuntaja.core                     :as m]
-   [reitit.coercion.malli             :refer [coercion]]
-   [reitit.ring.coercion              :as rcoercion]
-   [reitit.ring.middleware.exception  :as exception]
-   [reitit.ring.middleware.muuntaja   :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]))
+   [landing.agora.auth                 :as auth]
+   [landing.agora.db.document          :as db-doc]
+   [landing.agora.document.engine      :as engine]
+   [landing.agora.document.identity    :as di]
+   [landing.agora.document.publication :as publication]
+   [landing.agora.document.storage     :as ds]
+   [landing.agora.document.write       :as write]
+   [landing.agora.endpoints.throttle   :as throttle]
+   [landing.language                   :as language]
+   [muuntaja.core                      :as m]
+   [reitit.coercion.malli              :refer [coercion]]
+   [reitit.ring.coercion               :as rcoercion]
+   [reitit.ring.middleware.exception   :as exception]
+   [reitit.ring.middleware.muuntaja    :as muuntaja]
+   [reitit.ring.middleware.parameters  :as parameters]))
 
 (def ^:private mw
   [parameters/parameters-middleware
@@ -60,22 +62,31 @@
 
 (defn- uid [req] (get-in req [:session :user-id]))
 
+(defn- viewer-of
+  "The reader a feed is built for: `{:id :admin?}`, or nil when anonymous. What the visibility rule is
+  applied against (agora/CLAUDE.md, \"Who sees what\")."
+  [req]
+  (when-let [id (uid req)]
+    {:id id
+     :admin? (boolean (:admin (auth/get-user id)))}))
+
 (defn- owned-publication
   "The publication cid to scope a browse/search to — `cid` only when the caller owns it, else nil. The
   active publication comes from the client, so a scoped view may never surface another owner's private
   drafts."
   [req cid]
   (when (seq cid)
-    (when-let [p (db-doc/fetch-latest-any :publication cid)]
-      (when (= (:owner-id p) (uid req)) cid))))
+    (when-let [p (publication/latest-row cid)] (when (= (:owner-id p) (uid req)) cid))))
 
 (defn- draft-hidden?
-  "True when `id` resolves to a **draft the caller may not see** — a draft owned by someone else (or
-  requested anonymously). Published documents, and the owner's own drafts, are visible. Unknown ids
-  return nil (the caller's read then 404s normally). Drafts are private to their owner: they must
-  never leak through an id read, a versions list, or a successor edge."
+  "True when `id` resolves to a **draft the caller may not see** — anyone but its owner or the
+  platform owner (`auth/sees-drafts-of?`, the same rule the author profile lists them by). Published
+  documents are visible to all. Unknown ids return nil (the caller's read then 404s normally). Drafts
+  are private staging: they must never leak through an id read, a versions list, or a successor
+  edge."
   [req id]
-  (when-let [raw (db-doc/fetch-id id)] (and (:draft raw) (not= (uid req) (:owner-id raw)))))
+  (when-let [raw (db-doc/fetch-id id)]
+    (and (:draft raw) (not (auth/sees-drafts-of? (uid req) (:owner-id raw))))))
 
 (defn- coerce-structural-input
   "The structural single input TNLR from the request body — named by what it is: an **extract**'s
@@ -210,33 +221,37 @@
            :responses {500 {:description "Unexpected server error"}}
            :middleware mw}
    ["/:type"
-    {:get {:handler
-           (fn [req]
-             (let [{:keys [type]} (get-in req [:parameters :path])
-                   {:keys [lang limit offset q publication-id]} (get-in req [:parameters :query])
-                   ;; `all` (or absent) → every language (the client filters by content language)
-                   lang (when-not (contains? #{nil "all"} lang) lang)
-                   pub (owned-publication req publication-id)]
-               {:status 200
-                :body
-                (if (some? q)
-                  (engine/search-cards doc-storage type lang q pub)
-                  (engine/list-cards doc-storage type lang (or limit 20) (or offset 0) pub))}))
-           :operationId "agora-list-documents"
-           :parameters {:path [:map [:type :string]]
-                        :query [:map
-                                [:lang {:optional true}
-                                 [:maybe :string]]
-                                [:q {:optional true}
-                                 [:maybe :string]]
-                                [:limit {:optional true}
-                                 [:maybe :int]]
-                                [:offset {:optional true}
-                                 [:maybe :int]]
-                                [:publication-id {:optional true}
-                                 [:maybe :string]]]}
-           :responses {200 {:description "Matching document cards"}}
-           :summary "Browse documents of a type, or search them with `?q=`"}
+    {:get
+     {:handler
+      (fn [req]
+        (let [{:keys [type]} (get-in req [:parameters :path])
+              {:keys [lang limit offset q publication-id]} (get-in req [:parameters :query])
+              ;; `all` (or absent) → every language (the client filters by content language)
+              lang (when-not (contains? #{nil "all"} lang) lang)
+              pub (owned-publication req publication-id)
+              ;; who is reading, so the feed is built for them — the drafts it may carry are
+              ;; selected by the database on this, never filtered out afterwards
+              viewer (viewer-of req)]
+          {:status 200
+           :body
+           (if (some? q)
+             (engine/search-cards doc-storage type lang q pub viewer)
+             (engine/list-cards doc-storage type lang (or limit 20) (or offset 0) pub viewer))}))
+      :operationId "agora-list-documents"
+      :parameters {:path [:map [:type :string]]
+                   :query [:map
+                           [:lang {:optional true}
+                            [:maybe :string]]
+                           [:q {:optional true}
+                            [:maybe :string]]
+                           [:limit {:optional true}
+                            [:maybe :int]]
+                           [:offset {:optional true}
+                            [:maybe :int]]
+                           [:publication-id {:optional true}
+                            [:maybe :string]]]}
+      :responses {200 {:description "Matching document cards"}}
+      :summary "Browse documents of a type, or search them with `?q=`"}
      :post {:handler (fn [req] (create-handler doc-storage req))
             :operationId "agora-create-document"
             :middleware [(:middleware-fn throttle/authoring-rate-limiter)]
@@ -333,7 +348,7 @@
                       ;; drafts are private: a non-owner sees only the published minors, never a
                       ;; draft's id or that one is in flight
                       (let [id (get-in req [:parameters :path :id])
-                            versions (db-doc/versions-of-id id)
+                            versions (db-doc/sibling-versions id)
                             owner? (= (uid req) (:owner-id (db-doc/fetch-id id)))]
                         {:status 200
                          :body (if owner? versions (remove :draft versions))}))

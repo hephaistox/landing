@@ -5,19 +5,19 @@
   in clear. Transport security is HTTPS (Clever Cloud in prod). The user model
   also carries `provider`/`provider_id` so OAuth accounts slot in later.
 
-  **No account ever carries a civil identity.** The public name is an alias drawn
+  **No account ever carries a civil identity.** The public name is a display name drawn
   here at creation, for every provider — what Google hands us (a real name, a
   photo) is used to authenticate and then dropped. On a platform whose subject
   matter is political, philosophical and religious positions, the default cannot
   be the user's legal name."
   (:require
-   [auto-core.log              :as core-log]
-   [buddy.hashers              :as hashers]
-   [clojure.string             :as str]
-   [landing.agora.db           :as db]
-   [landing.agora.person.alias :as person-alias]
-   [next.jdbc                  :as jdbc]
-   [next.jdbc.result-set       :as rs])
+   [auto-core.log                     :as core-log]
+   [buddy.hashers                     :as hashers]
+   [clojure.string                    :as str]
+   [landing.agora.db                  :as db]
+   [landing.agora.person.display-name :as person-name]
+   [next.jdbc                         :as jdbc]
+   [next.jdbc.result-set              :as rs])
   (:import (java.security SecureRandom)
            (java.sql SQLException SQLIntegrityConstraintViolationException)
            (java.util UUID)))
@@ -32,6 +32,42 @@
         (comp (map str/trim) (remove str/blank?))
         (str/split (or (System/getenv "AGORA_ADMIN_EMAILS") "") #"[,\s]+")))
 
+(def anonymous-id
+  "The one person every erased account is absorbed into, seeded with the schema.
+
+  Shared, not one per erasure: an identifier that gathers exactly one person's documents is personal
+  data however anonymous the name on it reads — and this one was public for as long as the account
+  lived, so anyone who read the corpus holds the mapping. What survives an erasure must therefore
+  group every erased person together and single out none.
+
+  Fixed and obviously synthetic, so it is recognizable on sight in a response, a log or a dump."
+  "00000000-0000-0000-0000-000000000000")
+
+(def platform-id
+  "The platform itself, as a person: what the seeded corpus belongs to — the epistemic type
+  definitions, and the FAQ next.
+
+  Not anonymous, and the distinction is the point: Agora is an **identified** author, accountable for
+  what it signed and answerable for it, where `anonymous-id` is the absence of one. They occupy the
+  same slot and mean opposite things.
+
+  Fixed rather than minted by whichever seed runs first, so every environment agrees on who owns the
+  platform's own content and code can name it."
+  "00000000-0000-0000-0000-000000000001")
+
+(def reserved-ids
+  "The people the schema seeds and the corpus is built on. Neither is an account: nobody can log in
+  as them, so nothing reaches them through the API today. The rule is held here anyway, because the
+  failure it guards against is silent — erasure reattributes *before* it deletes, so the foreign key
+  that protects every other row would let these two go, taking the seeded corpus to the anonymous
+  bucket on the way out."
+  #{anonymous-id platform-id})
+
+(defn reserved?
+  "Whether `person-id` is one of the seeded platform people, who may not be erased."
+  [person-id]
+  (contains? reserved-ids person-id))
+
 (def min-password-length
   "Minimum length for a password account. Kept modest (NIST favours length over
   complexity rules); the API also caps the maximum to bound bcrypt work."
@@ -44,6 +80,17 @@
   OAuth identity, not the email string alone."
   [provider email]
   (and (= provider "google") (contains? admin-emails email)))
+
+(defn member?
+  "Whether a person is an **account** — someone who signed up and writes here — rather than one of the
+  login-less people the corpus merely cites (an author credited on a work, and the two seeded rows).
+  Both live in AGORA_USER and both sign documents, so `provider` is the only thing that tells them
+  apart.
+
+  Derived rather than served raw: which of Google or a password someone signs in with is theirs, and
+  a public list has no business publishing it."
+  [provider]
+  (not= "external" provider))
 
 (defn- public
   "A user row reduced to a public profile — no password hash. `:admin` is derived
@@ -63,15 +110,42 @@
     ["SELECT id, email, display_name, provider, avatar_url, lang FROM AGORA_USER WHERE id = ?" id]
     {:builder-fn rs/as-unqualified-kebab-maps})))
 
+(defn sees-drafts-of?
+  "Whether `viewer-id` may see `owner-id`'s unpublished work: the owner themselves, or the platform
+  owner. The one rule, so the listing that offers a draft and the read that opens it cannot disagree
+  — an administrator shown a card they may not open is worse than not being shown it.
+
+  The last clause of the visibility rule (agora/CLAUDE.md, \"Who sees what\"), which holds on every
+  screen: everyone sees what they made, everyone sees what is published attributed to its author, a
+  withdrawn author changes the byline and not the visibility, and a draft is its author's and the
+  platform owner's alone.
+
+  The administrator's reach here is the same one they already have over publications, where the index
+  hands them other owners' open ones. Short-circuits on the owner, so the ordinary case costs no
+  query."
+  [viewer-id owner-id]
+  (boolean (and viewer-id (or (= viewer-id owner-id) (:admin (get-user viewer-id))))))
+
 (defn author-profile
   "The *public author card* for user `id`, or nil: display name, avatar and the
   account-creation date. Deliberately excludes email and any private field — this is
-  shown on the public author page, to anyone."
+  shown on the public author page, to anyone.
+
+  Carries `:member?`, since the same page serves both an account and a login-less person the corpus
+  merely credits, and the difference is the first thing a reader wants: one answers for what they
+  wrote, the other never claimed it.
+
+  An erased person has no row, so no page: their documents were reattributed to the shared anonymous
+  person, whose own page is the one hub they all share."
   [id]
-  (jdbc/execute-one! db/ds
-                     ["SELECT id, display_name, avatar_url, created_at FROM AGORA_USER WHERE id = ?"
-                      id]
-                     {:builder-fn rs/as-unqualified-kebab-maps}))
+  (some-> (jdbc/execute-one!
+           db/ds
+           ["SELECT id, display_name, avatar_url, created_at, provider FROM AGORA_USER WHERE id = ?"
+            id]
+           {:builder-fn rs/as-unqualified-kebab-maps})
+          (as-> row (-> row
+                        (dissoc :provider)
+                        (assoc :member? (member? (:provider row)))))))
 
 (defn display-name
   "The public name of person `id`, or nil when unknown. The single source of every byline: a
@@ -82,6 +156,14 @@
                                       ["SELECT display_name FROM AGORA_USER WHERE id = ?" id]
                                       {:builder-fn rs/as-unqualified-kebab-maps}))))
 
+(defn- person-card
+  "A person as the public surface shows them: who they are, what to display, and whether they are a
+  member."
+  [row]
+  {:id (:id row)
+   :display-name (:display-name row)
+   :member? (member? (:provider row))})
+
 (defn display-names
   "Every person as `id → display_name`. One query, so the reconcile can derive the whole corpus's
   bylines without a lookup per document."
@@ -90,6 +172,16 @@
         (map (juxt :id :display-name))
         (jdbc/execute! db/ds
                        ["SELECT id, display_name FROM AGORA_USER"]
+                       {:builder-fn rs/as-unqualified-kebab-maps})))
+
+(defn people-index
+  "Every person as `id → {:id :display-name :member?}` — one query, for a caller that holds ids and
+  needs cards for them."
+  []
+  (into {}
+        (map (juxt :id person-card))
+        (jdbc/execute! db/ds
+                       ["SELECT id, display_name, provider FROM AGORA_USER"]
                        {:builder-fn rs/as-unqualified-kebab-maps})))
 
 (defn create-external-person!
@@ -113,7 +205,11 @@
   "The external (login-less) person named exactly `display-name`, creating it if absent.
   Used for platform/seed authors (e.g. \"Agora\", cited historical figures) so they are
   normal `AGORA_USER` rows with real profiles — not nil-owner author strings. Returns
-  {:id :display-name}."
+  {:id :display-name}.
+
+  Reaches the shared anonymous person like any other, so a work credited to an author nobody knows
+  lands on the one row that already means exactly that. One name, one row: creating a homonym beside
+  it would give the picker two entries no reader could tell apart."
   [display-name]
   (let [nm (str/trim (or display-name ""))]
     (or
@@ -127,16 +223,24 @@
 
 (defn search-people
   "People whose display name matches `q` — [{:id :display-name}…], for the author
-  picker (both real accounts and external cited people). Blank `q` → []."
+  picker (both real accounts and external cited people, each carrying `:member?`). Blank `q` → [].
+
+  The shared anonymous person is offered like anyone else: \"no known author\" is an ordinary
+  bibliographic attribution, and pointing such a work at the row that already carries the erased is
+  not a conflation to avoid but the same statement twice — nobody knows who wrote this. A wider,
+  more mixed set of documents under that one id is also a poorer thing to correlate than a set made
+  only of erased accounts."
   [q]
   (if (str/blank? q)
     []
-    (jdbc/execute!
-     db/ds
-     ["SELECT id, display_name FROM AGORA_USER
+    (mapv
+     person-card
+     (jdbc/execute!
+      db/ds
+      ["SELECT id, display_name, provider FROM AGORA_USER
         WHERE display_name LIKE ? ORDER BY display_name LIMIT 20"
-      (str "%" (db/escape-like (str/trim q)) "%")]
-     {:builder-fn rs/as-unqualified-kebab-maps})))
+       (str "%" (db/escape-like (str/trim q)) "%")]
+      {:builder-fn rs/as-unqualified-kebab-maps}))))
 
 (defn set-lang!
   "Persist the user's preferred interface language, and return the updated public
@@ -145,83 +249,98 @@
   (jdbc/execute! db/ds ["UPDATE AGORA_USER SET lang = ? WHERE id = ?" lang id])
   (get-user id))
 
-;; --- the generated alias ---------------------------------------------------------------------
-;; A new account is named by drawing a number and reading the alias it denotes. The draw uses
-;; SecureRandom, not `rand-int`: a predictable PRNG would let anyone re-derive an alias from the
-;; account-creation order, which is exactly the link the alias exists to break.
+;; --- the generated display name ---------------------------------------------------------------------
+;; A new account is named by drawing a number and reading the display name it denotes. The draw uses
+;; SecureRandom, not `rand-int`: a predictable PRNG would let anyone re-derive a display name from the
+;; account-creation order, which is exactly the link the display name exists to break.
 
 (def ^:private secure-random
-  "Shared CSPRNG for alias draws (`SecureRandom` is thread-safe)."
+  "Shared CSPRNG for display name draws (`SecureRandom` is thread-safe)."
   (SecureRandom.))
 
-(def ^:private alias-draws
-  "How many fresh aliases to try before falling back to a numbered one. Five draws over a vocabulary
-  of ~70 000 fail only if the corpus of taken aliases is already enormous."
+(def ^:private display-name-draws
+  "How many fresh display names to try before falling back to a numbered one. Five draws over a vocabulary
+  of ~70 000 fail only if the corpus of taken display names is already enormous."
   5)
 
-(defn- draw-alias
-  "A random alias in `lang`."
+(defn- draw-display-name
+  "A random display name in `lang`."
   [lang]
-  (person-alias/alias-of (.nextInt secure-random (person-alias/alias-count lang)) lang))
+  (person-name/display-name-of (.nextInt secure-random (person-name/display-name-count lang)) lang))
 
-(defn- alias-taken?
-  "True when `e` is the **alias** uniqueness violation. One insert can violate two UNIQUE keys (the
-  email, the alias); MySQL names the offending key in the message, which is the only thing that tells
-  them apart — and mistaking a duplicate email for a taken alias would redraw forever."
+(defn- display-name-taken?
+  "True when `e` is the **display name** uniqueness violation. One insert can violate two UNIQUE keys (the
+  email, the display name); MySQL names the offending key in the message, which is the only thing that tells
+  them apart — and mistaking a duplicate email for a taken display name would redraw forever."
   [e]
-  (str/includes? (str (ex-message e)) "uq_user_alias"))
+  (str/includes? (str (ex-message e)) "uq_user_display_name"))
 
-(defn- insert-with-alias!
-  "Call `insert!` with a freshly drawn alias — `(insert! display-name alias-key)` — retrying on the
-  alias uniqueness violation. The constraint is the truth: no `SELECT` first, so two concurrent
-  registrations cannot both believe an alias is free. After `alias-draws` collisions the alias gets a
+(defn- insert-with-display-name!
+  "Call `insert!` with a freshly drawn display name — `(insert! display-name display-name-key)` — retrying on the
+  display name uniqueness violation. The constraint is the truth: no `SELECT` first, so two concurrent
+  registrations cannot both believe a display name is free. After `display-name-draws` collisions the display name gets a
   numeric suffix; the last attempt lets the violation through to the caller rather than looping."
   [lang insert!]
   (loop [attempt 1]
-    (let [drawn (cond-> (draw-alias lang)
-                  (> attempt alias-draws) (str " " (inc (.nextInt secure-random 999))))
-          last? (>= attempt (* 2 alias-draws))
+    (let [drawn (cond-> (draw-display-name lang)
+                  (> attempt display-name-draws) (str " " (inc (.nextInt secure-random 999))))
+          last? (>= attempt (* 2 display-name-draws))
           result (if last?
-                   (insert! drawn (person-alias/alias-key drawn))
-                   (try (insert! drawn (person-alias/alias-key drawn))
+                   (insert! drawn (person-name/display-name-key drawn))
+                   (try (insert! drawn (person-name/display-name-key drawn))
                         (catch SQLIntegrityConstraintViolationException e
-                          (when-not (alias-taken? e) (throw e))
+                          (when-not (display-name-taken? e) (throw e))
                           ::taken)))]
       (if (= ::taken result) (recur (inc attempt)) result))))
 
-(def max-alias-length
-  "Longest alias accepted. Wide enough for any drawn alias or a chosen one, short enough that the
+(def max-display-name-length
+  "Longest display name accepted. Wide enough for any drawn display name or a chosen one, short enough that the
   column and every byline stay bounded."
   60)
 
-(defn rename-alias!
-  "Rename the public alias of account `id`, and return the updated profile. Returns one of:
+(defn rename-display-name!
+  "Rename the public display name of account `id`, and return the updated profile. Returns one of:
    - [:ok profile]
-   - [:error :missing]      blank alias
-   - [:error :too-long]     longer than `max-alias-length`
-   - [:error :alias-taken]  another account already holds that normalized alias
+   - [:error :missing]      blank display name
+   - [:error :too-long]     longer than `max-display-name-length`
+   - [:error :display-name-taken]  another account already holds that normalized display name
    - [:error :db-error]     the database is unreachable or failing
 
   A name is a rectifiable field (RGPD art. 16), and the human case is the same: someone published
   under a name they no longer want. One `UPDATE` — the byline every document displays is derived
   from this row, so renaming here is what makes the corpus follow."
-  [id new-alias]
-  (let [nm (str/trim (or new-alias ""))]
+  [id new-display-name]
+  (let [nm (str/trim (or new-display-name ""))]
     (cond
       (str/blank? nm) [:error :missing]
-      (> (count nm) max-alias-length) [:error :too-long]
+      (> (count nm) max-display-name-length) [:error :too-long]
       :else (try (jdbc/execute!
                   db/ds
-                  ["UPDATE AGORA_USER SET display_name = ?, alias_key = ? WHERE id = ?"
+                  ["UPDATE AGORA_USER SET display_name = ?, display_name_key = ? WHERE id = ?"
                    nm
-                   (person-alias/alias-key nm)
+                   (person-name/display-name-key nm)
                    id])
                  [:ok (get-user id)]
                  (catch SQLIntegrityConstraintViolationException e
-                   (if (alias-taken? e) [:error :alias-taken] (throw e)))
+                   (if (display-name-taken? e) [:error :display-name-taken] (throw e)))
                  (catch SQLException e
-                   (core-log/error-exception e "rename-alias!: database error")
+                   (core-log/error-exception e "rename-display-name!: database error")
                    [:error :db-error])))))
+
+(defn delete-account!
+  "Delete person `id`'s account row. Returns true when a row went.
+
+  The whole row, not a blanked placeholder: what identifies someone is not only the name on the
+  account but the identifier every document pointed at, and that identifier was public. Nothing may
+  reference `id` when this runs — the foreign key on the documents refuses otherwise, which is
+  exactly the guarantee wanted: the row can only go once its documents have been reattributed.
+
+  Registering with the same address afterwards creates a **new**, unrelated account: there is
+  nothing left for `find-by-provider` or `find-by-email` to match."
+  [id]
+  (pos? (or (::jdbc/update-count (jdbc/execute-one! db/ds
+                                                    ["DELETE FROM AGORA_USER WHERE id = ?" id]))
+            0)))
 
 (defn- find-by-email
   [email]
@@ -231,7 +350,7 @@
    {:builder-fn rs/as-unqualified-kebab-maps}))
 
 (defn register
-  "Create a password account, publicly named by a generated alias in `lang`. Returns one of:
+  "Create a password account, publicly named by a generated display name in `lang`. Returns one of:
    - [:ok profile]            on success
    - [:error :missing]        blank email or password
    - [:error :weak-password]  password shorter than the minimum length
@@ -252,18 +371,18 @@
         [:error :email-taken]
         (let [id (str (UUID/randomUUID))
               hash (hashers/derive password)]
-          (insert-with-alias!
+          (insert-with-display-name!
            lang
-           (fn [display-name alias-key]
+           (fn [display-name display-name-key]
              (jdbc/execute!
               db/ds
               ["INSERT INTO AGORA_USER
-                  (id, provider, email, display_name, alias_key, password_hash, created_at)
+                  (id, provider, email, display_name, display_name_key, password_hash, created_at)
                 VALUES (?, 'password', ?, ?, ?, ?, UTC_TIMESTAMP())"
                id
                email
                display-name
-               alias-key
+               display-name-key
                hash])))
           [:ok (get-user id)]))
       (catch SQLIntegrityConstraintViolationException _
@@ -306,7 +425,7 @@
 (defn upsert-oauth-user
   "Find or create the account for an OAuth login. Matches first on
   (provider, provider-id), then on email (loosely linking an existing account),
-  else creates a new one, publicly named by a generated alias in `lang`. Returns
+  else creates a new one, publicly named by a generated display name in `lang`. Returns
   the public profile, or nil when the database is unreachable/failing — the caller
   then treats the login as failed.
 
@@ -320,19 +439,19 @@
     (if-let [existing (or (find-by-provider provider provider-id) (find-by-email email))]
       (get-user (:id existing))
       (let [id (str (UUID/randomUUID))]
-        (insert-with-alias!
+        (insert-with-display-name!
          lang
-         (fn [display-name alias-key]
+         (fn [display-name display-name-key]
            (jdbc/execute!
             db/ds
             ["INSERT INTO AGORA_USER
-                (id, provider, provider_id, email, display_name, alias_key, created_at)
+                (id, provider, provider_id, email, display_name, display_name_key, created_at)
               VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
              id
              provider
              provider-id
              email
              display-name
-             alias-key])))
+             display-name-key])))
         (get-user id)))
     (catch SQLException e (core-log/error-exception e "upsert-oauth-user: database error") nil)))

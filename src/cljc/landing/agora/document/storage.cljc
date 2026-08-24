@@ -8,7 +8,7 @@
    ;; "Documents of `type` in `lang`, newest first (paged by limit/offset)"
    (documents [_this type lang limit offset])
    ;; "Every published lineage's latest minor as decoded maps (sitemap + author hubs)"
-   (published-latest [_this])
+   (latest-published [_this])
    ;; "Drop the cached row for `id` — used to evict a draft after an in-place write"
    (publish-change! [_this change-id])
    ;; "Returns languages of a tnr - expensive"

@@ -38,10 +38,22 @@
 
 ;; --- browse by author -------------------------------------------------------
 (defn authors-page
-  "Search people by name; each result links to their public author profile."
+  "Search people by name; each result links to their public author profile, and says whether they are
+  a member or only a cited author. Opens on the people most recently attributed a document rather than
+  on nothing — a blank search box in front of an unknown corpus asks the reader to guess a name they
+  have no reason to know."
   []
   (r/with-let
-   [q (r/atom "") results (r/atom [])]
+   [q
+    (r/atom "")
+    results
+    (r/atom [])
+    default?
+    (r/atom true)
+    load-default!
+    (fn [] (reset! default? true) (GET* "/agora/api/people" #(reset! results %)))
+    _
+    (load-default!)]
    (let [lang @(rf/subscribe [::i18n/lang])]
      [:div {:style page-style}
       [:h1 {:style {:font-size "1.4em"
@@ -58,9 +70,16 @@
                           :on-text (fn [v]
                                      (reset! q v)
                                      (if (str/blank? v)
-                                       (reset! results [])
-                                       (GET* (str "/agora/api/people?q=" (js/encodeURIComponent v))
-                                             #(reset! results %))))}]
+                                       (load-default!)
+                                       (do (reset! default? false)
+                                           (GET* (str "/agora/api/people?q="
+                                                      (js/encodeURIComponent v))
+                                                 #(reset! results %)))))}]
+      (when (and @default? (seq @results))
+        [:p {:style {:color "#888"
+                     :font-size "0.85em"
+                     :margin "1em 0 0"}}
+         (i18n/t lang :authors/recent)])
       (cond
         (and (not (str/blank? @q)) (empty? @results)) [:p {:style {:color "#aaa"
                                                                    :margin-top "1em"}}
@@ -73,4 +92,17 @@
                                [:li
                                 [:a {:href (i18n/author lang (:id p))
                                      :style link-style}
-                                 (:display-name p)]])))])))
+                                 (:display-name p)]
+                                ;; members and cited people share this list and both sign documents,
+                                ;; so say which is which: one has an account here and can answer for
+                                ;; what they wrote, the other is only ever credited by someone else
+                                (when-not (:member? p)
+                                  [:span {:title (i18n/t lang :authors/cited-hint)
+                                          :style {:margin-left "0.5em"
+                                                  :font-size "0.75em"
+                                                  :color "#8a8177"
+                                                  :border "1px solid #d8d2c8"
+                                                  :border-radius "0.8em"
+                                                  :padding "0.05em 0.5em"
+                                                  :vertical-align "0.1em"}}
+                                   (i18n/t lang :authors/cited)])])))])))

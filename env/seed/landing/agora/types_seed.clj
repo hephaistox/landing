@@ -79,17 +79,17 @@
     (jdbc/execute!
      db/ds
      ["INSERT INTO AGORA_DOCUMENT
-         (id, type, name, lang, major, minor, draft, content, computed, published_at)
-       VALUES (?, 'publication', ?, ?, 1, 0, 0, ?, ?, ?)"
+         (id, type, name, lang, major, minor, draft, content, computed, published_at, owner_id)
+       VALUES (?, 'publication', ?, ?, 1, 0, 0, ?, ?, ?, ?)"
       (str (UUID/randomUUID))
       pub-cid
       pub-lang
       (pr-str {:title "Vocabulaire des types"
                :status :closed
-               :owner-id owner-id
                :published-at published-at})
-      (pr-str (db-doc/computed [] author))
-      published-at])))
+      (pr-str (db-doc/build-computed [] author))
+      published-at
+      owner-id])))
 
 (defn- insert!
   "Insert one published `definition` KI directly, gathered in the `vocabulaire-des-types` publication:
@@ -99,8 +99,9 @@
   (jdbc/execute!
    db/ds
    ["INSERT INTO AGORA_DOCUMENT
-       (id, type, name, lang, major, minor, draft, content, computed, published_at, publication_id)
-     VALUES (?, 'ki', ?, ?, ?, 0, 0, ?, ?, ?, ?)"
+       (id, type, name, lang, major, minor, draft, content, computed, published_at, publication_id,
+        owner_id)
+     VALUES (?, 'ki', ?, ?, ?, 0, 0, ?, ?, ?, ?, ?)"
     (str (UUID/randomUUID))
     slug
     lang
@@ -109,18 +110,18 @@
              :title title
              :text statement
              :inputs []
-             :owner-id owner-id
              :published-at published-at})
-    (pr-str (db-doc/computed [] author))
+    (pr-str (db-doc/build-computed [] author))
     published-at
-    pub-cid]))
+    pub-cid
+    owner-id]))
 
 (defn seed!
   "Insert a `definition` KI for every epistemic kind that doesn't yet have one, owned by the
   (login-less) \"Agora\" person, then clear the read caches. Returns the `[slug lang]` pairs it
   created (empty on a no-op re-run)."
   []
-  (let [agora (auth/find-or-create-external! "Agora")
+  (let [agora (auth/author-profile auth/platform-id)
         now (now-iso)
         _ (ensure-publication! (:display-name agora) (:id agora) now)
         created (doall (for [{kw :id} dk/kinds

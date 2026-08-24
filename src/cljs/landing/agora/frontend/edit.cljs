@@ -195,7 +195,7 @@
                    (let [{:keys [type id kind]
                           :as form}
                          (::edit db)
-                         pub-id (get-in db [:agora/active-publication :id])]
+                         pub-id (get-in db [:agora/active-publication :name])]
                      {:db (update db ::edit assoc :saving? true :error nil)
                       ;; an edit produces a new version, gathered as a draft in the active
                       ;; publication (`:publication-id`, required by the write path)
@@ -231,7 +231,7 @@
    (let [{:keys [type show-kind? kind lang]
           :as form}
          (::new db)
-         pub-id (get-in db [:agora/active-publication :id])]
+         pub-id (get-in db [:agora/active-publication :name])]
      {:db (assoc-in db [::new :submitting?] true)
       ;; a create is a draft gathered by the active publication (`:publication-id`,
       ;; required by the write path)
@@ -330,7 +330,7 @@
                  ;; extract an appropriation, else an inference (see `dk/kind-consequence`)
                  :kind (dk/kind-consequence (:kind parent))
                  :lang (:lang parent)
-                 :publication-id (get-in db [:agora/active-publication :id])
+                 :publication-id (get-in db [:agora/active-publication :name])
                  :text
                  (str "[[" (or (:type parent) "ki") ":" (:name parent) "@" (:major parent) "]]")}
                 [::consequence-created]
@@ -452,7 +452,7 @@
                                           :kind :inference
                                           :lang (:lang this)
                                           :publication-id (get-in db
-                                                                  [:agora/active-publication :id])
+                                                                  [:agora/active-publication :name])
                                           :text ""}
                                          [::predecessor-created]
                                          [::predecessor-failed])}))))
@@ -471,7 +471,8 @@
                                        {:title (:title this)
                                         :text text
                                         :kind (:kind this)
-                                        :publication-id (get-in db [:agora/active-publication :id])}
+                                        :publication-id (get-in db
+                                                                [:agora/active-publication :name])}
                                        [::predecessor-wired]
                                        [::predecessor-failed])})))
 

@@ -8,17 +8,19 @@
   `type`/`lang` are DB strings here (`\"ki\"`, `\"fr\"`); the consistency rule keywords `type` at the
   read boundary because the domain (and the stored `:inputs`) work in keyword types."
   (:require
-   [auto-core.log                    :as core-log]
-   [clojure.edn                      :as edn]
-   [clojure.set                      :as set]
-   [landing.agora.auth               :as auth]
-   [landing.agora.db                 :as db]
-   [landing.agora.db.document        :as db-doc]
-   [landing.agora.document.cached-db :as cached-db]
-   [landing.agora.document.identity  :as di]
-   [landing.agora.document.kind      :as dk]
-   [next.jdbc                        :as jdbc]
-   [next.jdbc.result-set             :as rs]))
+   [auto-core.log                      :as core-log]
+   [clojure.edn                        :as edn]
+   [clojure.set                        :as set]
+   [landing.agora.auth                 :as auth]
+   [landing.agora.db                   :as db]
+   [landing.agora.db.document          :as db-doc]
+   [landing.agora.document.cached-db   :as cached-db]
+   [landing.agora.document.identity    :as di]
+   [landing.agora.document.kind        :as dk]
+   [landing.agora.document.publication :as publication]
+   [landing.agora.document.storage     :as ds]
+   [next.jdbc                          :as jdbc]
+   [next.jdbc.result-set               :as rs]))
 
 (def ^:private kebab {:builder-fn rs/as-unqualified-kebab-maps})
 (defn- q [& args] (apply jdbc/execute! args))
@@ -115,11 +117,67 @@
                   :dangling-successors (mapv :successor-id rows)}
            row (assoc :minor (:minor row) :title (:title (decode (:content row))))))))))
 
+(defn- byline-drift
+  "An issue entry when the byline `served` disagrees with the `stored` one, else nil. Takes a raw row
+  or a decoded document — the title sits inline on one and inside `content` on the other."
+  [{:keys [id type lang major minor content title]
+    doc-name :name}
+   stored
+   served]
+  (when (not= stored served)
+    {:id id
+     :type (keyword type)
+     :name doc-name
+     :lang (some-> lang
+                   name)
+     :major major
+     :minor minor
+     :title (or title (:title (decode content)))
+     :stale-byline {:served served
+                    :stored stored}}))
+
+(defn- stale-bylines
+  "Every version a cache still serves under a name its row no longer holds — `:stale-byline
+  {:served :stored}`.
+
+  The invariant: **the name a reader sees is the current name of the person the version is
+  attributed to.** Two steps stand between them, and this checks the second. The reconcile keeps a
+  row's derived `computed.:author` equal to that person's `display_name`; the caches must then keep
+  what they serve equal to the row. A rename or an erasure that repairs every row and leaves one
+  cache holding the old name is invisible to every other check here — the data is right and the page
+  is wrong.
+
+  Read through the serving path on purpose: a miss loads from the row and agrees, so only an entry
+  held under a superseded name is reported.
+
+  A document is served by id, so every version is checked against its own copy. A publication is
+  served by cid and resolves to its latest minor — the only version of it a reader is handed, and so
+  the only one there is anything to compare."
+  []
+  (->
+    (into
+     []
+     (keep (fn [row]
+             (byline-drift row
+                           (:author (decode (:computed row)))
+                           (:author (ds/fetch-id cached-db/document-cached-db (:id row))))))
+     (q
+      db/ds
+      ["SELECT id, type, name, lang, major, minor, content, computed FROM AGORA_DOCUMENT
+                  WHERE type <> 'publication'"]
+      kebab))
+    (into (keep (fn [{:keys [name author]
+                      :as doc}]
+                  (byline-drift doc author (:attributed-author (publication/fetch name)))))
+          (db-doc/latest-page {:type :publication
+                               :drafts? true}))))
+
 (defn consistency-issues
-  "Every version with a reference problem — dangling (`:broken`), self-reference (`:self`), or
-  successor-cache drift (`:dangling-successors`). Two scans (all versions, all live lineages) feed
-  the pure `ref-issues` rule; the successor-cache drift is appended. Each entry pins its `:id` so
-  the admin can deep-link to the exact version."
+  "Every version with a problem — a dangling reference (`:broken`), a self-reference (`:self`),
+  successor-cache drift (`:dangling-successors`), or a byline a cache serves stale
+  (`:stale-byline`). Two scans (all versions, all live lineages) feed the pure `ref-issues` rule;
+  the two cache drifts are appended. Each entry pins its `:id` so the admin can deep-link to the
+  exact version."
   []
   (let [existing (into #{}
                        (map (juxt (comp keyword :type) :name :major))
@@ -139,7 +197,8 @@
                                  :broken broken
                                  :self self)))))
               docs)
-        (into (successor-drift)))))
+        (into (successor-drift))
+        (into (stale-bylines)))))
 
 ;; --- derived-state maintenance --------------------------------------------
 
@@ -150,7 +209,7 @@
     :edge-inserts [tuple…]             ; expected reverse edges missing from AGORA_SUCCESSOR
     :edge-deletes [tuple…]}`           ; indexed edges no longer expected (stale)
   Writes nothing; the corpus is consistent when all three are empty. The expected blob is built
-  **whole** by `db-doc/computed` — the pins the content's inputs resolve to and the byline name of the
+  **whole** by `db-doc/build-computed` — the pins the content's inputs resolve to and the byline name of the
   person it is attributed to — so one comparison covers every derived field. Expected edges come from
   each **latest-published** version's inputs only. Tuples are DB-string form, matching the snapshot."
   [{:keys [versions edges people]}]
@@ -183,10 +242,11 @@
                               (:id (get latest-pub [type name lang major])))))
         computed-fixes
         (into []
-              (keep (fn [{:keys [id content computed publication-id]}]
-                      (let [expected (db-doc/computed
+              (keep (fn [{:keys [id content computed publication-id]
+                          :as version}]
+                      (let [expected (db-doc/build-computed
                                       (di/pin-all (:inputs content) (pin-latest-of publication-id))
-                                      (get people (dk/attributed-author-id content)))]
+                                      (get people (dk/attributed-author-id version)))]
                         (when (not= expected computed)
                           {:id id
                            :computed expected}))))
@@ -240,9 +300,10 @@
   [person-id]
   (let [nm (auth/display-name person-id)
         fixes (into []
-                    (keep (fn [{:keys [id content computed]}]
-                            (when (= person-id (dk/attributed-author-id content))
-                              (let [expected (db-doc/computed (:pins computed) nm)]
+                    (keep (fn [{:keys [id computed]
+                                :as version}]
+                            (when (= person-id (dk/attributed-author-id version))
+                              (let [expected (db-doc/build-computed (:pins computed) nm)]
                                 (when (not= expected computed)
                                   {:id id
                                    :computed expected})))))

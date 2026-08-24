@@ -7,6 +7,7 @@
    ["altcha"] ;; registers the <altcha-widget> web component (self-hosted PoW captcha)
    ["altcha/i18n/fr-fr"] ;; registers French widget strings ($altcha.i18n "fr-fr"); must load after "altcha"
    [clojure.string                    :as str]
+   [landing.agora.frontend.app-db     :as app-db]
    [landing.agora.frontend.i18n       :as i18n]
    [landing.agora.frontend.ui-commons :as ui]
    [re-frame.core                     :as rf]
@@ -59,12 +60,21 @@
                  (fn [{:keys [db]} [_ resp]]
                    ;; a real session carries a user `:id`; an id-less body (e.g. no session) is
                    ;; logged-out, not a `{}` "user" — `logged-in?`/owner checks key off `:id`.
-                   (let [user (let [u (:body resp)] (when (:id u) u))]
-                     {:db (assoc db ::user user)
-                      ;; adopt the account's saved interface-language preference, and drop any active
-                      ;; publication that isn't this user's (a value left over from another account)
+                   (let [user (let [u (:body resp)] (when (:id u) u))
+                         ;; the page has already read what the URL asked for, anonymously. That only
+                         ;; differs from what the session reads when a publication was active: the
+                         ;; server honours a publication scope for its owner alone, so those reads
+                         ;; came back unscoped. Then, and only then, start the context over.
+                         rescope? (and user (some? (:agora/active-publication db)))]
+                     {:db (cond-> db
+                            rescope? app-db/forget
+                            true (assoc ::user user))
+                      ;; adopt the account's saved interface-language preference
                       :fx [(when (:lang user) [:dispatch [:agora/adopt-lang (:lang user)]])
-                           [:dispatch [:landing.agora.frontend.publications/reconcile-active]]]})))
+                           [:dispatch
+                            (if rescope?
+                              [:agora/context-changed]
+                              [:landing.agora.frontend.publications/reconcile-active])]]})))
 
 (rf/reg-event-db ::open
                  (fn [db [_ mode]]
@@ -90,7 +100,7 @@
                  (fn [{:keys [db]} _]
                    (let [{:keys [mode email password altcha]} (::form db)
                          url (if (= mode :login) "/agora/api/auth/login" "/agora/api/auth/register")
-                         ;; no name is asked for: the account's public alias is generated
+                         ;; no name is asked for: the account's public display name is generated
                          ;; server-side, so nothing here can carry a civil identity
                          body (cond-> {:email email
                                        :password password}
@@ -100,11 +110,12 @@
 
 (rf/reg-event-fx ::auth-ok
                  (fn [{:keys [db]} [_ resp]]
+                   ;; a fresh login: forget what was read as the previous identity — the session now
+                   ;; reaching drafts the anonymous reads could not — then install the new user
                    {:db (-> db
-                            (assoc ::user (:body resp))
-                            (dissoc ::form ::menu?))
-                    ;; a fresh login: drop any active publication left by another account
-                    :dispatch [:landing.agora.frontend.publications/reconcile-active]}))
+                            app-db/forget
+                            (assoc ::user (:body resp)))
+                    :dispatch [:agora/context-changed]}))
 
 (rf/reg-event-db ::auth-failed
                  (fn [db [_ resp]]
@@ -114,45 +125,88 @@
                            {:submitting? false
                             :error (or (get-in resp [:body :error]) "Something went wrong")})))
 
-;; --- renaming the alias ----------------------------------------------------
+;; --- renaming the display name ----------------------------------------------------
 ;; The public name is rectifiable: the account holds the only copy, every byline is derived from it.
 ;; The form is held here, next to the user it edits, and the preferences page renders it.
 
-(rf/reg-sub ::alias-form (fn [db _] (::alias-form db)))
+(rf/reg-sub ::display-name-form (fn [db _] (::display-name-form db)))
 
-(rf/reg-event-db ::edit-alias
+(rf/reg-event-db ::edit-display-name
                  (fn [db _]
                    (assoc db
-                          ::alias-form
-                          {:alias (:display-name (::user db))
+                          ::display-name-form
+                          {:display-name (:display-name (::user db))
                            :error nil
                            :submitting? false})))
 
-(rf/reg-event-db ::close-alias-form (fn [db _] (dissoc db ::alias-form)))
-(rf/reg-event-db ::set-alias-text (fn [db [_ v]] (assoc-in db [::alias-form :alias] v)))
+(rf/reg-event-db ::close-display-name-form (fn [db _] (dissoc db ::display-name-form)))
+(rf/reg-event-db ::set-display-name-text
+                 (fn [db [_ v]] (assoc-in db [::display-name-form :display-name] v)))
 
-(rf/reg-event-fx ::submit-alias
+(rf/reg-event-fx ::submit-display-name
                  (fn [{:keys [db]} _]
-                   {:db (assoc-in db [::alias-form :submitting?] true)
+                   {:db (assoc-in db [::display-name-form :submitting?] true)
                     :fetch (json-req :post
-                                     "/agora/api/auth/alias"
-                                     {:alias (get-in db [::alias-form :alias])}
-                                     [::alias-ok]
-                                     [::alias-failed])}))
+                                     "/agora/api/auth/display-name"
+                                     {:display-name (get-in db [::display-name-form :display-name])}
+                                     [::display-name-ok]
+                                     [::display-name-failed])}))
 
-(rf/reg-event-fx ::alias-ok
+(rf/reg-event-fx ::display-name-ok
                  (fn [{:keys [db]} [_ resp]]
+                   ;; every copy held carries the old byline — drop them so the next page shows the
+                   ;; new name, as the server's caches were dropped on the rename
                    {:db (-> db
-                            (assoc ::user (:body resp))
-                            (dissoc ::alias-form))
-                    ;; every cached document carries the old byline — drop them so the next page
-                    ;; shows the new name, as the server's caches were dropped on the rename
-                    :dispatch [:agora/forget-documents]}))
+                            app-db/forget
+                            (assoc ::user (:body resp)))
+                    :dispatch [:agora/context-changed]}))
 
-(rf/reg-event-db ::alias-failed
+(rf/reg-event-db ::display-name-failed
                  (fn [db [_ resp]]
                    (update db
-                           ::alias-form
+                           ::display-name-form
+                           merge
+                           {:submitting? false
+                            :error (or (get-in resp [:body :error]) "failed")})))
+
+;; --- erasing the account ---------------------------------------------------
+;; De-linking, not deletion: the documents stay, their byline becomes anonymous. The typed display name is
+;; the re-confirmation the endpoint checks — irreversible, so a click alone is not enough.
+
+(rf/reg-sub ::erase-form (fn [db _] (::erase-form db)))
+
+(rf/reg-event-db ::open-erase-form
+                 (fn [db _]
+                   (assoc db
+                          ::erase-form
+                          {:confirm ""
+                           :error nil
+                           :submitting? false})))
+
+(rf/reg-event-db ::close-erase-form (fn [db _] (dissoc db ::erase-form)))
+(rf/reg-event-db ::set-erase-text (fn [db [_ v]] (assoc-in db [::erase-form :confirm] v)))
+
+(rf/reg-event-fx ::submit-erase
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [::erase-form :submitting?] true)
+                    :fetch (json-req :delete
+                                     "/agora/api/auth/me"
+                                     {:confirm (get-in db [::erase-form :confirm])}
+                                     [::erased]
+                                     [::erase-failed])}))
+
+(rf/reg-event-fx ::erased
+                 (fn [{:keys [db]} _]
+                   ;; the server dropped the session; leave nothing of the account behind — the
+                   ;; user, the active publication, and every copy still bylined with the old name
+                   {:db (app-db/forget db)
+                    :dispatch [:landing.agora.frontend.publications/clear-active]
+                    :agora/navigate (i18n/home (i18n/current db))}))
+
+(rf/reg-event-db ::erase-failed
+                 (fn [db [_ resp]]
+                   (update db
+                           ::erase-form
                            merge
                            {:submitting? false
                             :error (or (get-in resp [:body :error]) "failed")})))
@@ -167,15 +221,22 @@
                             :on-success [::logged-out]
                             :on-failure [::logged-out]}}))
 
+(def ^:private session-views
+  "Views a session is required for: the publication index and one publication (its page and its
+  graph), the admin screens, and the authoring forms. Logging out leaves them — the page holds what
+  was fetched as the logged-in identity, and it is no longer reachable to refresh it."
+  #{:publications :publication :publication-graph :admin :new :article-new})
+
 (rf/reg-event-fx ::logged-out
                  (fn [{:keys [db]} _]
-                   (cond-> {:db (dissoc db ::user ::menu?)
-                            ;; deselect the active publication on logout — it must not carry over to
-                            ;; the next account (or an anonymous session) on this browser
+                   ;; nothing read as the logged-in identity outlives the session: a read inside a
+                   ;; publication carries that publication's drafts, and a held copy is shown without
+                   ;; a refetch. `clear-active` deselects the active publication — it must not carry
+                   ;; over to the next account (or an anonymous session) on this browser — and starts
+                   ;; the context over.
+                   (cond-> {:db (app-db/forget db)
                             :dispatch [:landing.agora.frontend.publications/clear-active]}
-                     ;; a publication page (publication / its graph) is owner-only, so once logged out
-                     ;; leave it for the landing rather than sit on a now-inaccessible page
-                     (contains? #{:publication :publication-graph} (:kind (:view db)))
+                     (contains? session-views (:kind (:view db)))
                      (assoc :agora/navigate (i18n/home (i18n/current db))))))
 
 ;; ---------------------------------------------------------------------------
