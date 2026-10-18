@@ -88,6 +88,17 @@
         (is (= 404 (:status resp)) (str "refused: " (pr-str slug)))
         (is (nil? (get-in resp [:headers "Location"])) (str "no redirect for: " (pr-str slug)))))))
 
+(deftest agora2-redirect-route-test
+  (testing "defaults to fr"
+    (is (= "/agora2/fr/index.html"
+           (-> (get-route (sut/agora2-redirect-route "/agora2") {})
+               (get-in [:headers "Location"])))))
+  (testing "follows the browser language"
+    (is (= "/agora2/en/index.html"
+           (-> (get-route (sut/agora2-redirect-route "/agora2")
+                          {:headers {"accept-language" "en-US,en;q=0.9"}})
+               (get-in [:headers "Location"]))))))
+
 (deftest content-security-policy-test
   (let [prod (#'sut/content-security-policy :prod)
         dev (#'sut/content-security-policy :dev)]

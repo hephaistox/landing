@@ -22,6 +22,14 @@
                             {:status 302
                              :headers {"Location" (str "/" (pick-lang req) "/index.html")}})}}])
 
+(defn agora2-redirect-route
+  "Redirect `/agora2` to its language-specific static index page, the language picked as for `/`."
+  [prefix]
+  [prefix {:get {:handler (fn [req]
+                            {:status 302
+                             :headers {"Location"
+                                       (str "/agora2/" (pick-lang req) "/index.html")}})}}])
+
 (defn lang-page-redirect-route
   "Redirect a top-level static page (e.g. `/index.html`, `/404.html`) to its
   language-prefixed location."
@@ -70,22 +78,24 @@
 
 (defn router
   []
-  (rring/router [(ping-route "/ping")
-                 (root-redirect-route "/")
-                 (lang-page-redirect-route "/index.html")
-                 (lang-page-redirect-route "/404.html")
-                 (legacy-articles-route "/articles")
-                 ;; TEMPORAIRE — la page de diagnostic et ses deux endpoints sont retirés du
-                 ;; routeur le temps de décider s'ils passent derrière l'authentification
-                 ;; admin. Ils sont ouverts à tous et font faire au serveur des requêtes
-                 ;; sortantes ; la page n'a d'intérêt que pour nous. Décommenter ici et plus
-                 ;; bas (w3c-validate) pour les remettre.
-                 #_(admin-route "/all-kind-of-checks")
-                 (contact-route "/contact")
-                 #_(check-url-route "/check-url")
-                 (api-swagger "/api")
-                 ;; TEMPORAIRE — voir la note plus haut (page de diagnostic)
-                 #_(w3c-validate-route "/w3c-validate")]))
+  (rring/router
+   [(ping-route "/ping")
+    (root-redirect-route "/")
+    (agora2-redirect-route "/agora2")
+    (lang-page-redirect-route "/index.html")
+    (lang-page-redirect-route "/404.html")
+    (legacy-articles-route "/articles")
+    ;; TEMPORAIRE — la page de diagnostic et ses deux endpoints sont retirés du
+    ;; routeur le temps de décider s'ils passent derrière l'authentification
+    ;; admin. Ils sont ouverts à tous et font faire au serveur des requêtes
+    ;; sortantes ; la page n'a d'intérêt que pour nous. Décommenter ici et plus
+    ;; bas (w3c-validate) pour les remettre.
+    #_(admin-route "/all-kind-of-checks")
+    (contact-route "/contact")
+    #_(check-url-route "/check-url")
+    (api-swagger "/api")
+    ;; TEMPORAIRE — voir la note plus haut (page de diagnostic)
+    #_(w3c-validate-route "/w3c-validate")]))
 
 (defn- content-security-policy
   "What a page may load, given the running `env`. Everything we serve is same-origin, so the policy
