@@ -6,6 +6,7 @@
    [clojure.edn                       :as edn]
    [clojure.java.io                   :as io]
    [clojure.string]
+   [landing.endpoints.check-url       :refer [our-domain?]]
    [landing.pages.admin               :refer [w3c-validate-css w3c-validate-htmls]]
    [mount.core                        :refer [defstate]]
    [muuntaja.core                     :as m]
@@ -17,56 +18,44 @@
    [ring.middleware.keyword-params    :refer [wrap-keyword-params]]
    [ring.util.response                :as rr]))
 
-(defstate rate-limiter
-          :start (make-rate-limiter {:limit 40000
-                                     :window-ms 60000
-                                     :name "landing.endpoints.w3c-validation"
-                                     :cleanup-interval-ms 60000})
-          :stop (stop-rate-limit rate-limiter))
+(defstate
+ rate-limiter
+ "Per-IP throttle. Each request makes the W3C fetch one of our pages; the admin page
+          sends one per manifest page or CSS on load."
+ :start (make-rate-limiter {:limit 300
+                            :window-ms 60000
+                            :name "landing.endpoints.w3c-validation"
+                            :cleanup-interval-ms 60000})
+ :stop (stop-rate-limit rate-limiter))
 
 (def cache-bust-manifest
-  "Original-path -> fingerprinted-path map written into the jar by
-  `cache-bust/fingerprint-jar!` at deploy time. Absent in dev (no
-  fingerprinting), so resolving falls back to the original path."
+  "Original-path -> fingerprinted-path map written into the jar by `build.clj`.
+  Absent in dev (no fingerprinting), so resolving falls back to the original path."
   (delay (some-> (io/resource "cache_bust_manifest.edn")
                  slurp
                  edn/read-string)))
 
 (defn fingerprinted
-  "Resolve `path` to its fingerprinted name on la/prod, else return it unchanged."
+  "Resolve `path` to its fingerprinted name in a built jar, else return it unchanged."
   [path]
   (get @cache-bust-manifest path path))
 
 (defn w3c-validate-handler
   [request]
   (let [{:keys [css-id html-id domain]} (:query (:parameters request))]
-    (if-let [css (some-> css-id
-                         keyword
-                         (->> (get w3c-validate-css))
-                         fingerprinted)]
-      (let [curl-data (client/get "https://jigsaw.w3.org/css-validator/validator/"
-                                  {:max-redirects 2
-                                   :cookie-policy :none
-                                   :query-params {:uri (str domain "/" css)
-                                                  :profile "css3"
-                                                  :output "json"}
-                                   :socket-timeout 1000
-                                   :headers {:user-agent "Mozilla/5.0"
-                                             :accept "application/json, text/html"}
-                                   :connection-timeout 1000})]
-        {:status 200
-         :headers {}
-         :body {:status (:status curl-data)
-                :url (str domain "/" css)
-                :curl-data (:body curl-data)}})
-      (if-let [html (->> html-id
-                         keyword
-                         (get w3c-validate-htmls))]
-        (let [curl-data (client/get "https://validator.w3.org/nu/"
+    ;; `domain` is the only client-controlled part of what the W3C fetches: it must be ours
+    (if-not (our-domain? domain)
+      (rr/bad-request {:status 0})
+      (if-let [css (some-> css-id
+                           keyword
+                           (->> (get w3c-validate-css))
+                           fingerprinted)]
+        (let [curl-data (client/get "https://jigsaw.w3.org/css-validator/validator/"
                                     {:max-redirects 2
                                      :cookie-policy :none
-                                     :query-params {:doc (str domain "/" html)
-                                                    :out "json"}
+                                     :query-params {:uri (str domain "/" css)
+                                                    :profile "css3"
+                                                    :output "json"}
                                      :socket-timeout 1000
                                      :headers {:user-agent "Mozilla/5.0"
                                                :accept "application/json, text/html"}
@@ -74,9 +63,26 @@
           {:status 200
            :headers {}
            :body {:status (:status curl-data)
-                  :url (str domain "/" html)
+                  :url (str domain "/" css)
                   :curl-data (:body curl-data)}})
-        (rr/bad-request {:status 0})))))
+        (if-let [html (->> html-id
+                           keyword
+                           (get w3c-validate-htmls))]
+          (let [curl-data (client/get "https://validator.w3.org/nu/"
+                                      {:max-redirects 2
+                                       :cookie-policy :none
+                                       :query-params {:doc (str domain "/" html)
+                                                      :out "json"}
+                                       :socket-timeout 1000
+                                       :headers {:user-agent "Mozilla/5.0"
+                                                 :accept "application/json, text/html"}
+                                       :connection-timeout 1000})]
+            {:status 200
+             :headers {}
+             :body {:status (:status curl-data)
+                    :url (str domain "/" html)
+                    :curl-data (:body curl-data)}})
+          (rr/bad-request {:status 0}))))))
 
 (comment
   (w3c-validate-handler {:parameters {:query {:html-id "about"

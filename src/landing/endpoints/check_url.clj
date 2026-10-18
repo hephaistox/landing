@@ -50,7 +50,7 @@
   [url]
   (boolean (re-find #"^[a-zA-Z][a-zA-Z0-9+.\-]*:" (str url))))
 
-(defn- our-domain?
+(defn our-domain?
   "True when `domain` is an http(s) URL on one of `our-hosts`. Anything else — another host, or a
   scheme like `file:` — is refused rather than resolved."
   [domain]

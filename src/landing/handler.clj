@@ -3,14 +3,14 @@
   (:require
    [clojure.string                    :as str]
    [env]
-   #_[landing.endpoints.check-url :refer [check-url-route]]
+   [landing.endpoints.check-url       :refer [check-url-route]]
    [landing.endpoints.contact         :refer [contact-route]]
    [landing.endpoints.default-handler :refer [default-handler not-found-for-lang]]
-   #_[landing.endpoints.html.admin-be :refer [admin-route]]
+   [landing.endpoints.html.admin-be   :refer [admin-route]]
    [landing.endpoints.ping            :refer [ping-route]]
    [landing.endpoints.resource        :refer [resource-handler]]
    [landing.endpoints.swagger         :refer [api-swagger]]
-   #_[landing.endpoints.w3c-validation :refer [w3c-validate-route]]
+   [landing.endpoints.w3c-validation  :refer [w3c-validate-route]]
    [landing.language                  :refer [pick-lang]]
    [reitit.ring                       :as rring]))
 
@@ -78,24 +78,17 @@
 
 (defn router
   []
-  (rring/router
-   [(ping-route "/ping")
-    (root-redirect-route "/")
-    (agora2-redirect-route "/agora2")
-    (lang-page-redirect-route "/index.html")
-    (lang-page-redirect-route "/404.html")
-    (legacy-articles-route "/articles")
-    ;; TEMPORAIRE — la page de diagnostic et ses deux endpoints sont retirés du
-    ;; routeur le temps de décider s'ils passent derrière l'authentification
-    ;; admin. Ils sont ouverts à tous et font faire au serveur des requêtes
-    ;; sortantes ; la page n'a d'intérêt que pour nous. Décommenter ici et plus
-    ;; bas (w3c-validate) pour les remettre.
-    #_(admin-route "/all-kind-of-checks")
-    (contact-route "/contact")
-    #_(check-url-route "/check-url")
-    (api-swagger "/api")
-    ;; TEMPORAIRE — voir la note plus haut (page de diagnostic)
-    #_(w3c-validate-route "/w3c-validate")]))
+  (rring/router [(ping-route "/ping")
+                 (root-redirect-route "/")
+                 (agora2-redirect-route "/agora2")
+                 (lang-page-redirect-route "/index.html")
+                 (lang-page-redirect-route "/404.html")
+                 (legacy-articles-route "/articles")
+                 (admin-route "/all-kind-of-checks")
+                 (contact-route "/contact")
+                 (check-url-route "/check-url")
+                 (api-swagger "/api")
+                 (w3c-validate-route "/w3c-validate")]))
 
 (defn- content-security-policy
   "What a page may load, given the running `env`. Everything we serve is same-origin, so the policy
