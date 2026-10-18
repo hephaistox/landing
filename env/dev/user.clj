@@ -5,25 +5,18 @@
 
 ::l/keep
 
-(defn start
-  "Start the app's mount states — the web server and the Agora connection pool."
-  []
-  (mount/start))
+(defn start "Start the app's mount states." [] (mount/start))
 
 (defn stop
-  "Stop them, closing the pool and releasing the port.
+  "Stop them, releasing the port.
 
   What a namespace reload must call **first**. `tools.namespace/refresh` removes a namespace before
-  reloading it, so the var holding the running HikariCP pool disappears without `:stop` ever running:
-  the pool is never closed, its housekeeping thread keeps it alive, and the reloaded `user` starts a
-  second one. The addon caps at five connections across dev/la/prod, so a few refreshes are enough to
-  starve it — and a failing `/me` reads on screen as being logged out."
+  reloading it, so a running server would never see its `:stop` and would keep the port."
   []
   (mount/stop))
 
 ;; Reload scope, when `tools.namespace` is on the classpath — CIDER brings it, a plain `clj` run does
-;; not, hence the guard. Without it a refresh walks every directory on the classpath, `env/seed` and
-;; `test` included: slower, and it evaluates seed namespaces that have no business being reloaded.
+;; not, hence the guard. Without it a refresh walks every directory on the classpath, `test` included.
 (try (require 'clojure.tools.namespace.repl)
      ((resolve 'clojure.tools.namespace.repl/set-refresh-dirs) "src" "env/dev")
      (catch Throwable _ nil))

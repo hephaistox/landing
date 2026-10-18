@@ -1,10 +1,9 @@
 (ns landing.language
   "Canonical language / locale metadata + request-language detection, shared by the
-  backend and both frontends (cljc). Everything about *which* languages exist, their
+  backend and the admin frontend (cljc). Everything about *which* languages exist, their
   order, human labels and OpenGraph locales is defined here **once** — add a language
-  to `languages` and routing, the switcher, SEO and detection all follow. UI string
-  translations (the Agora dictionary) stay in landing.agora.frontend.i18n; this
-  namespace owns language identity/metadata, not the translated copy.
+  to `languages` and routing, the switcher, SEO and detection all follow. This
+  namespace owns language identity/metadata, not translated copy.
 
   `default-language` (a keyword) is consumed by the `wrap-add-language` middleware
   (auto-web). The string helpers (`default-lang`, `supported-langs`, `pick-lang`, …)

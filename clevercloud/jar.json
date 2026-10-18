@@ -1,0 +1,5 @@
+{
+  "deploy": {
+    "jarName": "target/landing.jar"
+  }
+}

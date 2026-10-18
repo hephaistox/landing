@@ -26,10 +26,8 @@ bb lint              # Lint with clj-kondo
 bb bp                # Before-push check: format, lint, and all tests
 
 # Building
-bb prod-local        # Build production and run locally
-bb uberjar           # Build uberjar to target/uberjar/landing.jar
-bb la                # Build and push to local acceptance
-bb prod              # Build and push to production
+bb uberjar           # Build target/landing.jar exactly as Clever Cloud does
+bb prod-local        # Same build, then run the jar locally
 
 # Maintenance
 bb clean             # Remove build artifacts
@@ -80,48 +78,9 @@ not our own code).
 | static files                   | `endpoints.resource/resource-handler`                         | Serves `resources/public/**` with env-aware `Cache-Control` (see Cache-busting).    |
 | `<fallback>`                   | `endpoints.default-handler` + `handler/lang-fallback-handler` | 404 / 500 / not-acceptable / method-not-allowed, language-resolved.                 |
 
-**Agora (`/agora`)** — HTML shells are served by `agora.endpoints.shell`; the JSON
-API under `/agora/api` is the SPA's backend.
-
-| Route                                                                                                           | Handler                                                                                      | Why it exists                                                                                                                                                                                                                    |
-|-----------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `GET /agora`                                                                                                    | `handler/agora-lang-redirect-route`                                                          | Redirect bare `/agora` → `/agora/<lang>` (the home page; lang from cookie → Accept-Language → default).                                                                                                                          |
-| `GET /agora/sitemap.xml`                                                                                        | `shell/sitemap-route`                                                                        | Dynamic sitemap of every KI **and article** permalink + the home page (SEO). Excludes the `noindex` discover/articles feeds.                                                                                                     |
-| `GET /agora/:lang/{ki,article}/:name/:major`                                                                    | `shell/{ki,article}-page-route`                                                              | Public permalink shell — server-rendered SEO head **+ a static content body** (prose with citation links, input/successor edges, references) that the SPA replaces on mount, so crawlers see the content and can walk the graph. |
-| `GET /agora/:lang/author/:id`                                                                                   | `shell/author-page-route`                                                                    | Public author **hub** — SEO head (schema.org Person) + a server-rendered author→documents link list (indexable; a crawl entry to a person's whole output).                                                                       |
-| `GET /agora/:lang/discover`, `/preferences`, `/articles`                                                        | `shell/public-shell-route`                                                                   | Public shells, **`noindex`** — rotating feeds / a settings page; the sitemap enumerates the corpus and the home page is the indexable hub, so these don't compete for crawl budget (OpenGraph kept for social unfurls).          |
-| `GET /agora/:lang/{new,ki/:id,article/:id,admin}`                                                               | `shell/app-shell-route`                                                                      | Authoring/app shells (`noindex`; not canonical content).                                                                                                                                                                         |
-| `/agora/api/auth/{register,login,logout,me,lang,alias,google,google/callback}`                                  | `agora.endpoints.auth`                                                                       | Accounts + session (email/password + Google OAuth), the language preference, renaming one's public alias, and erasing the account (`DELETE /me` — reattributes everything to the shared anonymous person, then deletes the row).                                                                    |
-| `/agora/api/admin/{tnrs,issues,drop-tnr,compact-tnr,rebuild}`                                                   | `agora.endpoints.admin`                                                                      | Maintenance + consistency scan + successor-index rebuild; **owner-only**.                                                                                                                                                        |
-| `/agora/api/documents/:type` + `/:name/:lang/:major`, `/:id` (GET/POST/DELETE), `/:id/versions`                 | `endpoints.document` (`document-routes`, **one generic set, the type is the path wildcard**) | The whole document surface: list/search, create, by-permalink, by-id (read / edit-new-minor / delete-draft), version list. Every `type` (`ki`, `article`, `work`, `extract`, …) shares this engine.                              |
-| `GET /agora/api/author/:id`                                                                                     | `agora.endpoints.author`                                                                     | Public author profile: card + the person's documents + last activity.                                                                                                                                                            |
-| `GET\|POST /agora/api/people`                                                                                   | `agora.endpoints.people`                                                                     | Search people (author picker) / create a login-less external person.                                                                                                                                                             |
-| `GET\|POST /agora/api/publication` + `GET\|PUT\|DELETE /:id`, `POST /:id/publish`, `GET /:id/{documents,graph}` | `agora.endpoints.publication`                                                                | Publications (`type="publication"` documents gathering a user's drafts): open / list / fetch / rename / delete; publish-all-drafts (close); its drafts as cards; its dependency graph.                                           |
-
-**Why the look-alike routes are actually distinct.** Several routes touch the same
-concept but answer different questions — the distinction is the reason they exist:
-
-- **The three HTML shells serve the *same* SPA bundle but inject a different
-  `<head>`**, which is the whole point — the head decides how crawlers/unfurlers
-  treat the URL:
-  - `ki-page` → per-KI rich metadata (title/description/OpenGraph/schema.org
-    `Article` with `isBasedOn` edges) so each permalink is independently indexable
-    and shareable.
-  - `public-shell` → generic site metadata for the always-public, indexable pages
-    (discover, preferences) that have no single KI to describe.
-  - `app-shell` → `robots noindex`: authoring/app screens (new, edit-by-id, admin)
-    must never compete with a canonical permalink in search.
-- **HTML shell vs JSON API for the same identity.** `/agora/:lang/ki/:name/:major`
-  (`ki-page`) returns a crawlable *page*; `/agora/api/documents/ki/:name/:lang/:major`
-  returns the *data* the SPA fetches to render it. Browser/crawler vs app.
-- **Three ways to read a KI**, because each answers a different question:
-  - by-major (`/agora/api/documents/ki/:name/:lang/:major`) — "the current
-    (latest-minor) version of this permanent identity" → what a shared permalink
-    resolves to.
-  - by-id (`/agora/api/documents/ki/:id`) — "this *exact* version" → following
-    version/lineage links.
-  - collection (`GET /agora/api/documents/ki?q=`) — "which KIs match this text" →
-    search / picking an input.
+**Agora (`/agora2`)** — static HTML/CSS only, under `resources/public/agora2/{fr,en}/`,
+served by the static-file handler. It is self-contained: every link and asset stays inside
+`agora2/` (or is fully external). It never points at the rest of the site.
 
 Notes:
 - The branded **500 page** is produced by `wrap-exception-handling` (auto-web lib)
@@ -158,9 +117,7 @@ The backend's role is: serve static resources, host the REST API (`/contact`, `/
 
 ### Cache-busting (asset fingerprinting)
 
-CSS/JS are served `Cache-Control: max-age=31536000, immutable` (`landing.endpoints.resource`), so returning visitors would otherwise keep stale files for a year after a deploy. `scripts/cache_bust.clj` solves this **on the built jar, never the source tree**. `bb la` / `bb prod` call `cache-bust/deploy!`, which: (1) runs the auto-build `build` step (shadow release + uberjar, no push), (2) opens the resulting `target/{la,prod}/landing.jar` via Java's zip filesystem and renames each referenced asset to embed an 8-char SHA-256 of its contents (`custom.css` → `custom.34f0a84f.css`), rewriting every matching link in the bundled `public/**.html`, then (3) amends the build's commit and `git push --force clever master`. Only changed files get a new hash, so unchanged assets stay cached. Idempotent (already-fingerprinted files are skipped) and the working tree is never modified.
-
-**Scope:** referenced CSS/JS only — `public/css/*.css`, `public/fontawesome/css/*.css`, `public/js/*.js`, and `public/js/compiled/app-admin.js` (fingerprinted too, since shadow has already built it into the jar by then). Unreferenced files (e.g. the unused fontawesome `*.min.css` variants) are left alone. Fonts/images referenced from inside CSS via relative `url(...)` are unaffected because fingerprinting keeps each file's directory and only changes the basename.
+CSS/JS are served `Cache-Control: max-age=31536000, immutable` (`landing.endpoints.resource`), so returning visitors would otherwise keep stale files for a year after a deploy. `build.clj` fingerprints them **in `target/classes`, never the source tree**: each CSS/JS referenced by a page's `href`/`src` (resolved against the page location and its `<base href>`) is renamed after an 8-char SHA-256 of its content (`custom.css` → `custom.34f0a84f.css`), and the pages are rewritten. Only changed files get a new hash, so unchanged assets stay cached. The rename map goes to `cache_bust_manifest.edn` (read by the w3c-validate handler) and into the admin page's `cache-bust-manifest` script. Fonts/images referenced from inside CSS keep working because only the basename changes.
 
 ### Per-widget JS convention
 
@@ -190,3 +147,9 @@ bb cljs-node-test all -v   # Verbose ClojureScript tests
 ## CI/CD
 
 GitHub Actions runs on every push: lint, format check, and `bb gha` (clj + cljs tests).
+
+Deployment is Clever Cloud's own build. The Clever app ("Java + JAR") is linked to the GitHub repo and
+redeploys on each push of the tracked branch. `CC_PRE_BUILD_HOOK=bash clevercloud/build.sh` installs
+the Clojure CLI (and Node.js when missing) in `target-tools/`, releases `app-admin` with shadow-cljs,
+then runs `clojure -T:build uber`. `clevercloud/jar.json` names the jar to start
+(`target/landing.jar`).

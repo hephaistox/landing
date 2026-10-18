@@ -12,10 +12,8 @@ This is the [[Hephaistox][www.hephaistox.fr]] website.
 ** Landing
 This website serve hephaistox landing.
 
-** Agora 
-The agora sub domain is not exposed under sitemap for now, crawlers don't see it, no ads are made.
-
-The design is still in progress, the technology, the concept is new, difficult to make happen without try and errors. 
+** Agora
+Agora is being rebuilt, starting with static pages under =resources/public/agora2/=. They are not in the sitemap.
 
 * Launch
 ** Locally dev

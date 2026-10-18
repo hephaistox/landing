@@ -1,4 +1,3 @@
-{:lint-as {landing.agora.cache/defcache clj-kondo.lint-as/def-catch-all
-           day8.re-frame.tracing/fn-traced clojure.core/fn
+{:lint-as {day8.re-frame.tracing/fn-traced clojure.core/fn
            mount.core/defstate clojure.core/def
            reagent.core/with-let clojure.core/let}}

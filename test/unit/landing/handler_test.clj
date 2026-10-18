@@ -98,13 +98,10 @@
       (is (str/includes? dev "'unsafe-eval'")))
     (testing "both keep the directives the app actually needs"
       (doseq [policy [prod dev]]
-        (is (str/includes? policy "worker-src 'self' blob:") "the ALTCHA proof-of-work worker")
-        (is (str/includes? policy "img-src 'self' data: https:") "OAuth avatars")
         (is (str/includes? policy "frame-ancestors 'none'"))
         (is (str/includes? policy "object-src 'none'"))
-        ;; inline *scripts* are never blanket-allowed: the one we ship is admitted by its hash
-        (is (not (str/includes? policy "script-src 'self' 'unsafe-inline'")))
-        (is (str/includes? policy "sha256-"))))))
+        ;; inline scripts are never allowed
+        (is (not (re-find #"script-src[^;]*'unsafe-inline'" policy)))))))
 
 (deftest lang-fallback-handler-test
   (testing "Missing /fr/... returns a real 404 in French"

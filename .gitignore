@@ -32,3 +32,6 @@ resources/public/js/compiled
 ### Claude
 logs/
 tasks.md
+
+### Clever Cloud build tools
+target-tools/

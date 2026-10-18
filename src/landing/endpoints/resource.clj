@@ -22,7 +22,7 @@
   `wrap-not-modified` that costs a tiny `304` when the page is unchanged.
 
   In :dev the immutable rule is dropped: dev assets are NOT fingerprinted (shadow
-  writes a stable `agora.js`), so `immutable` would pin a stale bundle in the
+  writes a stable `app-admin.js`), so `immutable` would pin a stale bundle in the
   browser and every code change would need a hard refresh. Dev serves them
   `no-cache` instead, revalidating cheaply via `wrap-not-modified`."
   [uri]
