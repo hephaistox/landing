@@ -1,0 +1,306 @@
+;; Use case: "My car is fast", the example of the agora home page.
+;;
+;; An author builds an argument edition after edition. Each edition is a new minor
+;; version of the article `voiture-rapide`, published in its own publication, and cites
+;; one more document than the previous one:
+;;   1.0 - the bare claim
+;;   1.1 - + `ex-rapide`    (definition)
+;;   1.2 - + `ex-chrono`    (measurable fact)
+;;   1.3 - + `ex-induction` (induction, which itself cites `ex-deduction`)
+;; The cited documents are published beforehand, in `exemples-landing`. Every document exists in fr and en.
+;;
+;; Data copied from the prod database (AGORA_DOCUMENT), 2026-10-18.
+;!zprint {:map {:sort? false}}
+{:publications
+ [{:id "dddddddd-0000-0000-0000-000001050000"
+   :type :publication
+   :name "exemples-landing"
+   :title "Exemples pédagogiques"
+   :status :closed
+   :published-at "2026-08-28T12:39:01Z"
+   :owner {:id "00000000-0000-0000-0000-000000000001"
+           :name "Agora"}
+   :documents
+   [{:id "dddddddd-0000-0000-0000-000010010100"
+     :type :definition
+     :name "ex-rapide"
+     :lang :fr
+     :major 1
+     :minor 0
+     :draft false
+     :title "Rapide"
+     :text "atteindre 100 km/h en moins de 5 secondes."
+     :inputs []
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000010010200"
+     :type :definition
+     :name "ex-rapide"
+     :lang :en
+     :major 1
+     :minor 0
+     :draft false
+     :title "Fast"
+     :text "reaching 100 km/h in under 5 seconds."
+     :inputs []
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000010020100"
+     :type :measurable-fact
+     :name "ex-chrono"
+     :lang :fr
+     :major 1
+     :minor 0
+     :draft false
+     :title "Le 0 à 100 mesuré"
+     :text "Cette voiture atteint 100 km/h en 4,2 secondes."
+     :inputs []
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000010020200"
+     :type :measurable-fact
+     :name "ex-chrono"
+     :lang :en
+     :major 1
+     :minor 0
+     :draft false
+     :title "The measured 0-to-100"
+     :text "This car reaches 100 km/h in 4.2 seconds."
+     :inputs []
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000010030100"
+     :type :deduction
+     :name "ex-deduction"
+     :lang :fr
+     :major 1
+     :minor 0
+     :draft false
+     :title "Cette voiture est rapide"
+     :text
+     "Elle atteint 100 km/h en 4,2 s ([[measurable-fact:ex-chrono:fr@1|le chrono]]) et « rapide » désigne moins de 5 s ([[definition:ex-rapide:fr@1|la définition]]) — donc elle est rapide."
+     :inputs [{:type :measurable-fact
+               :name "ex-chrono"
+               :lang :fr
+               :major 1}
+              {:type :definition
+               :name "ex-rapide"
+               :lang :fr
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000010030200"
+     :type :deduction
+     :name "ex-deduction"
+     :lang :en
+     :major 1
+     :minor 0
+     :draft false
+     :title "This car is fast"
+     :text
+     "It reaches 100 km/h in 4.2 s ([[measurable-fact:ex-chrono:en@1|the timing]]) and « fast » means under 5 s ([[definition:ex-rapide:en@1|the definition]]) — so it is fast."
+     :inputs [{:type :measurable-fact
+               :name "ex-chrono"
+               :lang :en
+               :major 1}
+              {:type :definition
+               :name "ex-rapide"
+               :lang :en
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000010040100"
+     :type :induction
+     :name "ex-induction"
+     :lang :fr
+     :major 1
+     :minor 0
+     :draft false
+     :title "Ce modèle est rapide"
+     :text
+     "Trois exemplaires testés étaient rapides (dont [[deduction:ex-deduction:fr@1|celui-ci]]) — donc le modèle est rapide."
+     :inputs [{:type :deduction
+               :name "ex-deduction"
+               :lang :fr
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000010040200"
+     :type :induction
+     :name "ex-induction"
+     :lang :en
+     :major 1
+     :minor 0
+     :draft false
+     :title "This model is fast"
+     :text
+     "Three tested units were fast (including [[deduction:ex-deduction:en@1|this one]]) — so the model is fast."
+     :inputs [{:type :deduction
+               :name "ex-deduction"
+               :lang :en
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}]}
+  {:id "dddddddd-0000-0000-0000-000001010000"
+   :type :publication
+   :name "exemple-pedagogique-1"
+   :title "Exemple pédagogique 1"
+   :status :closed
+   :published-at "2026-08-28T12:39:01Z"
+   :owner {:id "00000000-0000-0000-0000-000000000001"
+           :name "Agora"}
+   :documents [{:id "dddddddd-0000-0000-0000-000020010100"
+                :type :article
+                :name "voiture-rapide"
+                :lang :fr
+                :major 1
+                :minor 0
+                :draft false
+                :title "Ma voiture est rapide"
+                :text "Ma voiture est rapide."
+                :inputs []
+                :published-at "2026-08-28T12:39:01Z"}
+               {:id "dddddddd-0000-0000-0000-000020010200"
+                :type :article
+                :name "voiture-rapide"
+                :lang :en
+                :major 1
+                :minor 0
+                :draft false
+                :title "My car is fast"
+                :text "My car is fast."
+                :inputs []
+                :published-at "2026-08-28T12:39:01Z"}]}
+  {:id "dddddddd-0000-0000-0000-000001020000"
+   :type :publication
+   :name "exemple-pedagogique-2"
+   :title "Exemple pédagogique 2"
+   :status :closed
+   :published-at "2026-08-28T12:39:01Z"
+   :owner {:id "00000000-0000-0000-0000-000000000001"
+           :name "Agora"}
+   :documents
+   [{:id "dddddddd-0000-0000-0000-000020010101"
+     :type :article
+     :name "voiture-rapide"
+     :lang :fr
+     :major 1
+     :minor 1
+     :draft false
+     :title "Ma voiture est rapide"
+     :text
+     "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:ex-rapide:fr@1|définition]])."
+     :inputs [{:type :definition
+               :name "ex-rapide"
+               :lang :fr
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000020010201"
+     :type :article
+     :name "voiture-rapide"
+     :lang :en
+     :major 1
+     :minor 1
+     :draft false
+     :title "My car is fast"
+     :text
+     "My car is fast. By « fast » I mean reaching 100 km/h in under 5 seconds ([[definition:ex-rapide:en@1|definition]])."
+     :inputs [{:type :definition
+               :name "ex-rapide"
+               :lang :en
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}]}
+  {:id "dddddddd-0000-0000-0000-000001030000"
+   :type :publication
+   :name "exemple-pedagogique-3"
+   :title "Exemple pédagogique 3"
+   :status :closed
+   :published-at "2026-08-28T12:39:01Z"
+   :owner {:id "00000000-0000-0000-0000-000000000001"
+           :name "Agora"}
+   :documents
+   [{:id "dddddddd-0000-0000-0000-000020010102"
+     :type :article
+     :name "voiture-rapide"
+     :lang :fr
+     :major 1
+     :minor 2
+     :draft false
+     :title "Ma voiture est rapide"
+     :text
+     "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:ex-rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:ex-chrono:fr@1|le chrono]]) — donc elle est rapide."
+     :inputs [{:type :definition
+               :name "ex-rapide"
+               :lang :fr
+               :major 1}
+              {:type :measurable-fact
+               :name "ex-chrono"
+               :lang :fr
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000020010202"
+     :type :article
+     :name "voiture-rapide"
+     :lang :en
+     :major 1
+     :minor 2
+     :draft false
+     :title "My car is fast"
+     :text
+     "My car is fast. By « fast » I mean reaching 100 km/h in under 5 seconds ([[definition:ex-rapide:en@1|definition]]). It does it in 4.2 s ([[measurable-fact:ex-chrono:en@1|the timing]]) — so it is fast."
+     :inputs [{:type :definition
+               :name "ex-rapide"
+               :lang :en
+               :major 1}
+              {:type :measurable-fact
+               :name "ex-chrono"
+               :lang :en
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}]}
+  {:id "dddddddd-0000-0000-0000-000001040000"
+   :type :publication
+   :name "exemple-pedagogique-4"
+   :title "Exemple pédagogique 4"
+   :status :closed
+   :published-at "2026-08-28T12:39:01Z"
+   :owner {:id "00000000-0000-0000-0000-000000000001"
+           :name "Agora"}
+   :documents
+   [{:id "dddddddd-0000-0000-0000-000020010103"
+     :type :article
+     :name "voiture-rapide"
+     :lang :fr
+     :major 1
+     :minor 3
+     :draft false
+     :title "Ma voiture est rapide"
+     :text
+     "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:ex-rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:ex-chrono:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ex-induction:fr@1|généralisation]])."
+     :inputs [{:type :definition
+               :name "ex-rapide"
+               :lang :fr
+               :major 1}
+              {:type :measurable-fact
+               :name "ex-chrono"
+               :lang :fr
+               :major 1}
+              {:type :induction
+               :name "ex-induction"
+               :lang :fr
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}
+    {:id "dddddddd-0000-0000-0000-000020010203"
+     :type :article
+     :name "voiture-rapide"
+     :lang :en
+     :major 1
+     :minor 3
+     :draft false
+     :title "My car is fast"
+     :text
+     "My car is fast. By « fast » I mean reaching 100 km/h in under 5 seconds ([[definition:ex-rapide:en@1|definition]]). It does it in 4.2 s ([[measurable-fact:ex-chrono:en@1|the timing]]) — so it is fast. And it's not a one-off: several tested units were fast too, so the whole model is fast ([[induction:ex-induction:en@1|generalization]])."
+     :inputs [{:type :definition
+               :name "ex-rapide"
+               :lang :en
+               :major 1}
+              {:type :measurable-fact
+               :name "ex-chrono"
+               :lang :en
+               :major 1}
+              {:type :induction
+               :name "ex-induction"
+               :lang :en
+               :major 1}]
+     :published-at "2026-08-28T12:39:01Z"}]}]}

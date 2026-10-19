@@ -1,0 +1,76 @@
+;; Use case: "Groupes et individus", a topic started twice.
+;;
+;; Two open publications share the title. In the first, an author publishes the definition
+;; "Groupe" and drafts a fact and a deduction, the fact still empty. In the second, another
+;; account drafts an article on the same topic; its text stops mid-sentence and cites nothing.
+;; Everything is in fr.
+;;
+;; Data copied from the prod database (AGORA_DOCUMENT), 2026-10-18.
+;!zprint {:map {:sort? false}}
+{:publications
+ [{:id "dcb99e24-7d12-4c4f-926a-81463ae38074"
+   :type :publication
+   :name "uMGemqhcp8"
+   :title "Groupes et individus"
+   :status :open
+   :published-at "2026-08-14T05:57:39Z"
+   :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+           :name "Hephaistox"}
+   :documents
+   [{:id "584332d2-d281-4bd8-8626-4f0a0570ab40"
+     :type :definition
+     :name "hT5A3WClsI"
+     :lang :fr
+     :major 1
+     :minor 2
+     :draft false
+     :title "Groupe"
+     :text
+     "un ensemble d'individus ou d'objets possédant des caractéristiques communes ou rassemblés dans le même objectif. Selon les domaines, il peut faire référence à :\n- Armée\n- Arts\n- Économie\n- Sciences exactes\n- Sciences humaines\n- Sciences naturelles\n- Sport\n- Technologie"
+     :inputs []
+     :published-at "2026-07-12T10:27:35Z"}
+    {:id "bb276dde-e2fb-4d08-ba0f-25e99ceaad0e"
+     :type :measurable-fact
+     :name "8Ov0I5Rdb1"
+     :lang :fr
+     :major 1
+     :minor nil
+     :draft true
+     :title "Les atomes du corps changent"
+     :text ""
+     :inputs []
+     :published-at "2026-08-15T15:50:36Z"}
+    {:id "503174c3-1b0e-4081-b2b5-d69288b0c7cc"
+     :type :deduction
+     :name "ePPwRqz4Ey"
+     :lang :fr
+     :major 1
+     :minor 0
+     :draft true
+     :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+              :name "Hephaistox"}
+     :title "Une entité n'est pas la matière, l'objet physique qui le constitue"
+     :text "Puisque tous les atomes du corps changent, il n'y a pas de raisons que de changer le ."
+     :inputs []
+     :published-at "2026-08-15T15:50:41Z"}]}
+  {:id "bb31ccce-f173-4e5f-a168-d8815053c4c3"
+   :type :publication
+   :name "uuem9XClAz"
+   :title "Groupes et individus"
+   :status :open
+   :published-at "2026-08-18T06:48:38Z"
+   :owner {:id "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"
+           :name "Hephaistox2"}
+   :documents
+   [{:id "a4f89cc7-f94d-4082-87ca-0067ee1cfb6d"
+     :type :article
+     :name "ZsxJjlIrsI"
+     :lang :fr
+     :major 1
+     :minor nil
+     :draft true
+     :title "Groupes et individus"
+     :text
+     "Sans le savoir, vous utilisez la notion de groupe tous les jours, je dirais même tous les instants !! C'est une notion qui nous est essentielle pour  appréhender le monde.\n\nUn groupe vous permet de ne pas devenir fou quand vous rentrez dans une forêt par exemple. Il serait beaucoup trop lourd pour nous de considérer chaque arbre, son histoire, sa taille, son nombre de feuilles, sa forme.... Chaque arbre est ce que j'appelle ici un individu, cela permet "
+     :inputs []
+     :published-at "2026-08-18T07:10:27Z"}]}]}
