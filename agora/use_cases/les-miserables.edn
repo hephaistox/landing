@@ -1,16 +1,19 @@
 ;; Use case: "Les Misérables", extracts of a work.
 ;;
-;; The work is a document of type :work, credited to its author (Victor Hugo) rather than to the
-;; contributor who records it, with its edition (:editor, :year, :url). Each extract quotes
-;; a passage, cites the work and locates the passage in it (:locator). One closed
-;; publication, in fr.
+;; The work is a document of type :work, with its edition (:editor, :year, :url). Its
+;; author, Victor Hugo, is credited on the document itself (:author). That comes in addition
+;; to the owner, the user who records the work and answers for it (Hephaistox): the owner is
+;; given, as always, by the publication (:owner). Each extract quotes a passage, cites the
+;; work and locates the passage in it (:locator). One closed publication, in fr.
 ;;
 ;; Data copied from the prod database (AGORA_DOCUMENT, AGORA_PERSON), 2026-10-18.
 ;!zprint {:map {:sort? false}}
 {:publications
  [{:id "66689470-49df-433f-965f-14a0a6f56bbd"
    :type :publication
-   :name "0wXQtVCr9Y"
+   :name "exemple-les-miserables"
+   :lang :fr
+   :major 1
    :title "Exemple les misérables"
    :status :closed
    :published-at "2026-08-15T14:16:31Z"
@@ -19,11 +22,10 @@
    :documents
    [{:id "465f927d-18bd-48be-ba18-bf41714ed69c"
      :type :work
-     :name "iBc3vkpQ0J"
+     :name "les-miserables"
      :lang :fr
      :major 1
      :minor 0
-     :draft false
      :author {:id "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
               :name "Victor hugo"}
      :title "Les misérables"
@@ -35,38 +37,36 @@
      :published-at "2026-08-15T12:07:04Z"}
     {:id "eb979614-f127-4aa0-a61e-2229b712898e"
      :type :extract
-     :name "FdorzbUIBo"
+     :name "cosette-est-exploitee"
      :lang :fr
      :major 1
      :minor 0
-     :draft false
      :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
               :name "Hephaistox"}
      :title "Cosette est exploitée"
      :text
-     "[[work:iBc3vkpQ0J@1]]\nD'année en année, l'enfant grandit, et sa misère aussi. Tant que Cosette fut toute petite, elle fut le souffre-douleur des deux autres enfants ; dès qu'elle se mit à se développer un peu, c'est-à-dire avant même qu'elle eût cinq ans, elle devint la servante de la maison\n"
+     "[[work:les-miserables:fr@1]]\nD'année en année, l'enfant grandit, et sa misère aussi. Tant que Cosette fut toute petite, elle fut le souffre-douleur des deux autres enfants ; dès qu'elle se mit à se développer un peu, c'est-à-dire avant même qu'elle eût cinq ans, elle devint la servante de la maison\n"
      :locator
      "Tome I « Fantine », Livre quatrième « Confier, c'est quelquefois livrer », chapitre III « L'Alouette »."
      :inputs [{:type :work
-               :name "iBc3vkpQ0J"
+               :name "les-miserables"
                :lang :fr
                :major 1}]
      :published-at "2026-08-15T12:41:54Z"}
     {:id "9bca8c01-56fc-40c2-9b5d-fd213593ca96"
      :type :extract
-     :name "QN0SNJwuXH"
+     :name "les-thenardiers-sont-mechants"
      :lang :fr
      :major 1
      :minor 0
-     :draft false
      :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
               :name "Hephaistox"}
      :title "Les Thénardiers sont méchants"
      :text
-     "[[work:iBc3vkpQ0J@1]]\nCes êtres (ndtr - les thénardiers) appartenaient à cette classe bâtarde composée de gens grossiers parvenus et de gens intelligents déchus, qui est entre la classe dite moyenne et la classe dite inférieure, et qui combine quelques-uns des défauts de la seconde avec presque tous les vices de la première, sans avoir le généreux élan de l'ouvrier ni l'ordre honnête du bourgeois. "
+     "[[work:les-miserables:fr@1]]\nCes êtres (ndtr - les thénardiers) appartenaient à cette classe bâtarde composée de gens grossiers parvenus et de gens intelligents déchus, qui est entre la classe dite moyenne et la classe dite inférieure, et qui combine quelques-uns des défauts de la seconde avec presque tous les vices de la première, sans avoir le généreux élan de l'ouvrier ni l'ordre honnête du bourgeois. "
      :locator "Tome I, Livre 4, chapitre II « Première esquisse de deux figures louches »"
      :inputs [{:type :work
-               :name "iBc3vkpQ0J"
+               :name "les-miserables"
                :lang :fr
                :major 1}]
      :published-at "2026-08-15T14:06:36Z"}]}]}

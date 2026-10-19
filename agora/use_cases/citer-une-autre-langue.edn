@@ -1,0 +1,114 @@
+;; Scenario: citing a document in another language.
+;;
+;; "Nudge" is defined in en only. A French article cites it as it is, without waiting for a
+;; French version. The en publication must be closed first: a draft is never cited from
+;; another publication.
+;;
+;!zprint {:map {:sort? false}}
+{:steps
+ [{:step 1
+   :description "Hephaistox2 ouvre une publication en avec la définition « Nudge »."
+   :publications
+   [{:id "2eaa71e3-db30-4d01-9852-df0a7812d30e"
+     :type :publication
+     :name "behavioural-economics"
+     :lang :en
+     :major 1
+     :title "Behavioural economics"
+     :status :open
+     :published-at "2026-10-21T09:00:00Z"
+     :owner {:id "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"
+             :name "Hephaistox2"}
+     :documents
+     [{:id "762c88a5-0c34-430f-b23f-154223cf9c0e"
+       :type :definition
+       :name "nudge"
+       :lang :en
+       :major 1
+       :minor nil
+       :title "Nudge"
+       :text
+       "a change in the way choices are presented that steers people's behaviour, without forbidding any option or changing their incentives."
+       :inputs []
+       :published-at "2026-10-21T09:00:00Z"}]}]}
+  {:step 2
+   :description "Il la publie : « Nudge » devient 1.0, en anglais."
+   :publications
+   [{:id "2eaa71e3-db30-4d01-9852-df0a7812d30e"
+     :type :publication
+     :name "behavioural-economics"
+     :lang :en
+     :major 1
+     :title "Behavioural economics"
+     :status :closed
+     :published-at "2026-10-22T09:00:00Z"
+     :owner {:id "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"
+             :name "Hephaistox2"}
+     :documents
+     [{:id "762c88a5-0c34-430f-b23f-154223cf9c0e"
+       :type :definition
+       :name "nudge"
+       :lang :en
+       :major 1
+       :minor 0
+       :title "Nudge"
+       :text
+       "a change in the way choices are presented that steers people's behaviour, without forbidding any option or changing their incentives."
+       :inputs []
+       :published-at "2026-10-22T09:00:00Z"}]}]}
+  {:step 3
+   :description "Hephaistox ouvre une publication fr ; son article cite « Nudge » en anglais."
+   :publications
+   [{:id "d47cba7a-9b38-4126-9c4c-7247fafa1cb6"
+     :type :publication
+     :name "les-petits-coups-de-pouce"
+     :lang :fr
+     :major 1
+     :title "Les petits coups de pouce"
+     :status :open
+     :published-at "2026-10-23T09:00:00Z"
+     :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :name "Hephaistox"}
+     :documents
+     [{:id "92803def-efff-43e1-a834-0bd1fb166dc2"
+       :type :article
+       :name "les-petits-coups-de-pouce"
+       :lang :fr
+       :major 1
+       :minor nil
+       :title "Les petits coups de pouce"
+       :text
+       "Placer les fruits à hauteur des yeux à la cantine est un [[definition:nudge:en@1|nudge]] : personne n'est obligé, mais le choix change."
+       :inputs [{:type :definition
+                 :name "nudge"
+                 :lang :en
+                 :major 1}]
+       :published-at "2026-10-23T09:00:00Z"}]}]}
+  {:step 4
+   :description "Il la publie : l'article devient 1.0 et cite toujours nudge:en@1."
+   :publications
+   [{:id "d47cba7a-9b38-4126-9c4c-7247fafa1cb6"
+     :type :publication
+     :name "les-petits-coups-de-pouce"
+     :lang :fr
+     :major 1
+     :title "Les petits coups de pouce"
+     :status :closed
+     :published-at "2026-10-24T09:00:00Z"
+     :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :name "Hephaistox"}
+     :documents
+     [{:id "92803def-efff-43e1-a834-0bd1fb166dc2"
+       :type :article
+       :name "les-petits-coups-de-pouce"
+       :lang :fr
+       :major 1
+       :minor 0
+       :title "Les petits coups de pouce"
+       :text
+       "Placer les fruits à hauteur des yeux à la cantine est un [[definition:nudge:en@1|nudge]] : personne n'est obligé, mais le choix change."
+       :inputs [{:type :definition
+                 :name "nudge"
+                 :lang :en
+                 :major 1}]
+       :published-at "2026-10-24T09:00:00Z"}]}]}]}

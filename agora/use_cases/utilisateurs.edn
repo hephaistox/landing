@@ -1,0 +1,8 @@
+;; Users: the persons of `personnes.edn` that have an account. Only what the account adds:
+;; how they log in. No name (it is the person's), no email, no password.
+;;
+;; Data copied from the prod database (AGORA_USER), 2026-10-19.
+{:users [{:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+          :provider :google}
+         {:id "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"
+          :provider :google}]}

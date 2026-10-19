@@ -1,0 +1,68 @@
+;; Scenario: a translation published long after the original.
+;;
+;; The work "Les misérables" was published in fr in August. Its en version comes in its own
+;; publication, of the same name, two months later. The extracts are not translated: they
+;; quote the French edition word for word. Starts from the use case `les-miserables.edn`.
+;;
+;!zprint {:map {:sort? false}}
+{:steps
+ [{:step 1
+   :description
+   "Ouvrir la version en de la publication « Exemple les misérables », avec la description en anglais de l'œuvre."
+   :publications
+   [{:id "3543b5b6-7d1a-4f64-8e71-86600d229371"
+     :type :publication
+     :name "exemple-les-miserables"
+     :lang :en
+     :major 1
+     :title "Les Misérables example"
+     :status :open
+     :published-at "2026-10-21T09:00:00Z"
+     :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :name "Hephaistox"}
+     :documents
+     [{:id "0966902b-d276-4034-a2ed-6479e6453fd8"
+       :type :work
+       :name "les-miserables"
+       :lang :en
+       :major 1
+       :minor nil
+       :author {:id "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+                :name "Victor hugo"}
+       :title "Les Misérables"
+       :text nil
+       :editor "Albert Lacroix et Cie"
+       :year "1962"
+       :url "https://ia801609.us.archive.org/10/items/bub_gb_Oo0NAAAAQAAJ/bub_gb_Oo0NAAAAQAAJ.pdf"
+       :inputs []
+       :published-at "2026-10-21T09:00:00Z"}]}]}
+  {:step 2
+   :description
+   "La publier : l'œuvre existe maintenant en en, en 1.0, sans toucher à la version fr."
+   :publications
+   [{:id "3543b5b6-7d1a-4f64-8e71-86600d229371"
+     :type :publication
+     :name "exemple-les-miserables"
+     :lang :en
+     :major 1
+     :title "Les Misérables example"
+     :status :closed
+     :published-at "2026-10-22T09:00:00Z"
+     :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :name "Hephaistox"}
+     :documents
+     [{:id "0966902b-d276-4034-a2ed-6479e6453fd8"
+       :type :work
+       :name "les-miserables"
+       :lang :en
+       :major 1
+       :minor 0
+       :author {:id "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+                :name "Victor hugo"}
+       :title "Les Misérables"
+       :text nil
+       :editor "Albert Lacroix et Cie"
+       :year "1962"
+       :url "https://ia801609.us.archive.org/10/items/bub_gb_Oo0NAAAAQAAJ/bub_gb_Oo0NAAAAQAAJ.pdf"
+       :inputs []
+       :published-at "2026-10-22T09:00:00Z"}]}]}]}

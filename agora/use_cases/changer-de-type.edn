@@ -1,0 +1,100 @@
+;; Scenario: what was a belief becomes a measurable fact.
+;;
+;; The type is part of the identity: the belief is not turned into a fact. A new document of
+;; type :measurable-fact is written; it may keep the same name, since its type differs. The
+;; belief stays published as it was.
+;;
+;!zprint {:map {:sort? false}}
+{:steps
+ [{:step 1
+   :description "Hephaistox ouvre une publication avec une croyance : « Ce modèle consomme peu »."
+   :publications [{:id "b06a3a21-5c83-452e-8d40-4f179825ee99"
+                   :type :publication
+                   :name "la-consommation"
+                   :lang :fr
+                   :major 1
+                   :title "La consommation"
+                   :status :open
+                   :published-at "2026-10-21T09:00:00Z"
+                   :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                           :name "Hephaistox"}
+                   :documents [{:id "2015d450-59d3-414e-a840-3e10193dc144"
+                                :type :belief
+                                :name "ce-modele-consomme-peu"
+                                :lang :fr
+                                :major 1
+                                :minor nil
+                                :title "Ce modèle consomme peu"
+                                :text "ce modèle consomme peu."
+                                :inputs []
+                                :published-at "2026-10-21T09:00:00Z"}]}]}
+  {:step 2
+   :description "Il la publie : la croyance devient 1.0."
+   :publications [{:id "b06a3a21-5c83-452e-8d40-4f179825ee99"
+                   :type :publication
+                   :name "la-consommation"
+                   :lang :fr
+                   :major 1
+                   :title "La consommation"
+                   :status :closed
+                   :published-at "2026-10-22T09:00:00Z"
+                   :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                           :name "Hephaistox"}
+                   :documents [{:id "2015d450-59d3-414e-a840-3e10193dc144"
+                                :type :belief
+                                :name "ce-modele-consomme-peu"
+                                :lang :fr
+                                :major 1
+                                :minor 0
+                                :title "Ce modèle consomme peu"
+                                :text "ce modèle consomme peu."
+                                :inputs []
+                                :published-at "2026-10-22T09:00:00Z"}]}]}
+  {:step 3
+   :description
+   "Une mesure est disponible : il reprend le sujet (majeure 2) avec un fait mesurable du même nom."
+   :publications [{:id "514bca08-cdfd-4ffa-b9e8-f6c00e24cb28"
+                   :type :publication
+                   :name "la-consommation"
+                   :lang :fr
+                   :major 2
+                   :title "La consommation"
+                   :status :open
+                   :published-at "2026-10-25T09:00:00Z"
+                   :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                           :name "Hephaistox"}
+                   :documents [{:id "12446452-5546-4970-a644-4654f1d14c22"
+                                :type :measurable-fact
+                                :name "ce-modele-consomme-peu"
+                                :lang :fr
+                                :major 1
+                                :minor nil
+                                :title "Ce modèle consomme peu"
+                                :text
+                                "Ce modèle consomme 4,5 l/100 km sur le cycle d'homologation WLTP."
+                                :inputs []
+                                :published-at "2026-10-25T09:00:00Z"}]}]}
+  {:step 4
+   :description
+   "Il la publie : le fait mesurable devient 1.0. La croyance existe toujours : ce sont deux documents."
+   :publications [{:id "514bca08-cdfd-4ffa-b9e8-f6c00e24cb28"
+                   :type :publication
+                   :name "la-consommation"
+                   :lang :fr
+                   :major 2
+                   :title "La consommation"
+                   :status :closed
+                   :published-at "2026-10-26T09:00:00Z"
+                   :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                           :name "Hephaistox"}
+                   :documents [{:id "12446452-5546-4970-a644-4654f1d14c22"
+                                :type :measurable-fact
+                                :name "ce-modele-consomme-peu"
+                                :lang :fr
+                                :major 1
+                                :minor 0
+                                :title "Ce modèle consomme peu"
+                                :text
+                                "Ce modèle consomme 4,5 l/100 km sur le cycle d'homologation WLTP."
+                                :inputs []
+                                :published-at "2026-10-26T09:00:00Z"}]}]}]}

@@ -10,7 +10,9 @@
 {:publications
  [{:id "86c19eb7-df81-4705-942a-7570667fcd25"
    :type :publication
-   :name "bhEq1Q4Ggh"
+   :name "la-methode-scientifique"
+   :lang :fr
+   :major 1
    :title "La méthode scientifique"
    :status :open
    :published-at "2026-08-16T09:59:26Z"
@@ -19,11 +21,10 @@
    :documents
    [{:id "a526a25d-c823-4295-a8b4-0e6514d3768a"
      :type :definition
-     :name "OGk9V32fTZ"
+     :name "enonce-universel"
      :lang :fr
      :major 1
      :minor nil
-     :draft true
      :title "Énoncé universel"
      :text
      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe. On dit universel car cette classe doit être sans borne sur leur nombre ni sur leur localisation dans l'espace et le temps."
@@ -31,26 +32,21 @@
      :published-at "2026-08-18T06:06:03Z"}
     {:id "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
      :type :definition
-     :name "ZikZDC9dAR"
+     :name "enonce-singulier"
      :lang :fr
      :major 1
      :minor nil
-     :draft true
      :title "Énoncé singulier"
      :text
-     "un énoncé portant sur un individu ou un événement déterminé, situé dans l'espace et le temps\n\nCe qui le distingue. Là où l'[[definition:OGk9V32fTZ:fr@1]] porte sur une classe non bornée, l'énoncé singulier désigne un cas identifiable. C'est cette localisation qui le rend décidable par l'observation : on peut aller voir.\n\nContraste. Un énoncé peut porter sur plusieurs individus sans cesser d'être singulier, dès lors que la classe est close et recensable. « Les trois cygnes de cet étang ce matin sont blancs » reste singulier ; il équivaut à une conjonction finie d'énoncés singuliers."
-     :inputs [{:type :definition
-               :name "OGk9V32fTZ"
-               :lang :fr
-               :major 1}]
+     "un énoncé portant sur un individu ou un événement déterminé, situé dans l'espace et le temps\n\nCe qui le distingue. Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a]] porte sur une classe non bornée, l'énoncé singulier désigne un cas identifiable. C'est cette localisation qui le rend décidable par l'observation : on peut aller voir.\n\nContraste. Un énoncé peut porter sur plusieurs individus sans cesser d'être singulier, dès lors que la classe est close et recensable. « Les trois cygnes de cet étang ce matin sont blancs » reste singulier ; il équivaut à une conjonction finie d'énoncés singuliers."
+     :inputs [{:id "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
      :published-at "2026-08-16T06:52:13Z"}
     {:id "f08c9e23-ca6b-4670-9e28-91a0510801ad"
      :type :definition
-     :name "fQDenNi3DG"
+     :name "enonce-de-base"
      :lang :fr
      :major 1
      :minor nil
-     :draft true
      :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
               :name "Hephaistox"}
      :title "Énoncé de base"
@@ -60,86 +56,63 @@
      :published-at "2026-08-18T06:32:03Z"}
     {:id "fb7d7d5c-460d-4bf3-a402-ebac2b889fc5"
      :type :definition
-     :name "gqpJY5vy0P"
+     :name "induction"
      :lang :fr
      :major 1
      :minor nil
-     :draft true
      :title "Induction"
      :text
-     "une inférence concluant d'un ensemble fini d'[[definition:ZikZDC9dAR:fr@1]] à un [[definition:OGk9V32fTZ:fr@1]].\n\nCe qui la caractérise. La conclusion excède les prémisses : elle affirme quelque chose sur des cas dont aucune prémisse ne parle. C'est pourquoi elle n'est pas déductive — les prémisses peuvent être vraies et la conclusion fausse sans contradiction.\n\nRemarque. Induction ne signifie pas ici « raisonnement du particulier au général » au sens large, ni la découverte d'une hypothèse par observation. Le terme désigne strictement une forme d'inférence et la prétention qui l'accompagne : que les prémisses établissent la conclusion."
-     :inputs [{:type :definition
-               :name "ZikZDC9dAR"
-               :lang :fr
-               :major 1}
-              {:type :definition
-               :name "OGk9V32fTZ"
-               :lang :fr
-               :major 1}]
+     "une inférence concluant d'un ensemble fini d'[[id:b94e19e4-6542-4edb-bd56-0d33fa3dc391]] à un [[id:a526a25d-c823-4295-a8b4-0e6514d3768a]].\n\nCe qui la caractérise. La conclusion excède les prémisses : elle affirme quelque chose sur des cas dont aucune prémisse ne parle. C'est pourquoi elle n'est pas déductive — les prémisses peuvent être vraies et la conclusion fausse sans contradiction.\n\nRemarque. Induction ne signifie pas ici « raisonnement du particulier au général » au sens large, ni la découverte d'une hypothèse par observation. Le terme désigne strictement une forme d'inférence et la prétention qui l'accompagne : que les prémisses établissent la conclusion."
+     :inputs [{:id "b94e19e4-6542-4edb-bd56-0d33fa3dc391"}
+              {:id "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
      :published-at "2026-08-16T06:54:47Z"}
     {:id "da9204db-7112-47f6-9cb4-6b60f2a582e6"
      :type :illustration
-     :name "LzU8mfZK1L"
+     :name "enonce-universel"
      :lang :fr
      :major 1
      :minor nil
-     :draft true
      :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
               :name "Hephaistox"}
      :title "Énoncé universel"
      :text
      "Cet énoncé n'est borné ni dans le temps — elle inclut ceux qui ont vécu et ceux qui vivront — ni dans l'espace.\n\nRemarque. C'est l'absence de borne qui fait le travail, non la présence du mot « tous ». Un énoncé peut porter sur une classe illimitée sans quantificateur explicite — « le cuivre conduit l'électricité » vaut pour tout échantillon de cuivre, partout, toujours."
-     :inputs [{:type :definition
-               :name "OGk9V32fTZ"
-               :lang :fr
-               :major 1}]
+     :inputs [{:id "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
      :published-at "2026-08-18T06:14:00Z"}
     {:id "8fb49111-a45f-470b-bf12-fadc0534ea9d"
      :type :illustration
-     :name "VBi6KFgwOE"
+     :name "enonce-de-base"
      :lang :fr
      :major 1
      :minor nil
-     :draft true
      :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
               :name "Hephaistox"}
      :title "Énoncé de base"
      :text
      "Il y a un cygne noir dans le parc de Perth le 3 mai 1697.\n\nIl suffit d'etre là, d'avoir des photos, des témoins, c'est vérifiable"
-     :inputs [{:type :definition
-               :name "fQDenNi3DG"
-               :lang :fr
-               :major 1}]
+     :inputs [{:id "f08c9e23-ca6b-4670-9e28-91a0510801ad"}]
      :published-at "2026-08-18T06:33:21Z"}
     {:id "a5f3f675-add0-4ee2-b854-128be35da99d"
      :type :counter-example
-     :name "3QkFbLK9FD"
+     :name "enonce-non-universel"
      :lang :fr
      :major 1
      :minor nil
-     :draft true
      :title "Énoncé non universel "
      :text
      "Ce matin, tous les cygnes du lac saint-Clément sont blancs.\n\nCette phrase est localisée dans le temps et dans l'espace, l'un des deux aurait suffit à la rendre non universelle"
-     :inputs [{:type :definition
-               :name "OGk9V32fTZ"
-               :lang :fr
-               :major 1}]
+     :inputs [{:id "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
      :published-at "2026-08-18T06:29:55Z"}
     {:id "5d9aebb3-0675-4ac9-9341-ab7e97a7966c"
      :type :counter-example
-     :name "iUfFtmRXFX"
+     :name "enonce-pas-de-base"
      :lang :fr
      :major 1
      :minor nil
-     :draft true
      :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
               :name "Hephaistox"}
      :title "Énoncé pas de base"
      :text
      "Il n'y a pas de cygne noir.\n\nRien n'y est localisé, donc aucun observateur ne peut se prononcer."
-     :inputs [{:type :definition
-               :name "fQDenNi3DG"
-               :lang :fr
-               :major 1}]
+     :inputs [{:id "f08c9e23-ca6b-4670-9e28-91a0510801ad"}]
      :published-at "2026-08-18T06:33:45Z"}]}]}

@@ -1,0 +1,11 @@
+;; Every person the use cases name, with or without an account.
+;;
+;; Data copied from the prod database (AGORA_PERSON), 2026-10-19.
+{:persons [{:id "00000000-0000-0000-0000-000000000001"
+            :name "Agora"}
+           {:id "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+            :name "Victor hugo"}
+           {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+            :name "Hephaistox"}
+           {:id "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"
+            :name "Hephaistox2"}]}
