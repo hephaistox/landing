@@ -1,8 +1,9 @@
 ;; Use case: deleting a draft.
 ;;
-;; The owner of a draft deletes it from an open publication: it was never published. It is
-;; refused while another draft cites it by its id, and nobody deletes the draft of
-;; another, the owner of the publication included.
+;; The owner of a draft, or of the publication, deletes it from an open publication: it was
+;; never published. The owner of the publication has priority, so no contributor blocks
+;; it; a contributor deletes only their own drafts. Refused while another draft cites it
+;; by its id.
 ;!zprint {:map {:sort? false}}
 [;; ********************************************************************************
  {:description "Raphaël deletes his draft « Énoncé singulier »."
@@ -199,7 +200,7 @@
   :output {:description "Refused: deleting it would break the citation of another draft."
            :error {:reason :draft-cited}}}
  ;; ********************************************************************************
- {:description "Hephaistox, owner of the publication, tries to delete the draft of Raphaël."
+ {:description "Hephaistox, owner of the publication, deletes the draft of Raphaël."
   :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
   :action agora.action.delete-draft/delete-draft
   :input
@@ -252,7 +253,78 @@
   :parameter {:description "The publication, and the draft."
               :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
                      :draft {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"}}}
-  :output {:description "Refused: only its owner deletes a draft."
+  :output
+  {:description
+   "The owner of the publication has priority: the draft is deleted, so no contributor blocks the publication."
+   :changed
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Raphaël, a contributor, tries to delete the draft of Hephaistox."
+  :by {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+  :action agora.action.delete-draft/delete-draft
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds « Énoncé universel », of Hephaistox."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the draft."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :draft {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}}}
+  :output {:description "Refused: a contributor deletes only their own drafts."
            :error {:reason :not-the-owner}}}
  ;; ********************************************************************************
  {:description "Someone not logged in tries to delete a draft."
