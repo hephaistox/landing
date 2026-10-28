@@ -1,0 +1,439 @@
+;; Use case: revoking a contributor.
+;;
+;; The owner of an open publication stops a contributor writing in it. Refused while the
+;; contributor still has drafts there: they delete them first.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox revokes Raphaël, who has no draft in the publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds only « Énoncé universel », of Hephaistox."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output
+  {:description "Raphaël is no longer a contributor."
+   :changed
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to revoke Raphaël, who still has his draft « Énoncé singulier »."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds « Énoncé universel » of Hephaistox and « Énoncé singulier » of Raphaël, which cites it by its id."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}
+       {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+        :type :definition
+        :name "enonce-singulier"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+        :content
+        {:title "Énoncé singulier"
+         :text
+         "un énoncé portant sur un individu déterminé. Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a|énoncé universel]] porte sur une classe, il désigne un cas."
+         :inputs [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
+         :published-at #inst "2026-08-18T07:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: Raphaël first deletes his drafts."
+           :error {:reason :has-drafts}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to revoke Agora, who was never invited."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds only « Énoncé universel », of Hephaistox."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "00000000-0000-0000-0000-000000000001"}}}
+  :output {:description "Refused: Agora is not a contributor."
+           :error {:reason :not-invited}}}
+ ;; ********************************************************************************
+ {:description "Raphaël tries to revoke himself."
+  :by {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds only « Énoncé universel », of Hephaistox."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: only the owner revokes."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in tries to revoke a contributor."
+  :by :anonymous
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds only « Énoncé universel », of Hephaistox."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) tries to revoke a contributor."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds only « Énoncé universel », of Hephaistox."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to revoke a contributor of a publication that does not exist."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds only « Énoncé universel », of Hephaistox."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: no publication has this id."
+           :error {:reason :unknown-publication}}}
+ ;; ********************************************************************************
+ {:description "Agora tries to revoke a contributor of its published vocabulary."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor; it holds only « Énoncé universel », of Hephaistox."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: a published publication is frozen."
+           :error {:reason :publication-closed}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to revoke Raphaël from a canceled publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.revoke-contributor/revoke-contributor
+  :input
+  {:description
+   "« La méthode scientifique » is canceled, keeping « Énoncé universel »; Raphaël is a contributor."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :canceled
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and the contributor."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: a canceled publication is frozen."
+           :error {:reason :publication-canceled}}}]
