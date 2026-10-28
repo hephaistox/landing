@@ -1,9 +1,7 @@
 (ns agora.use-case
   "Reads the agora use cases, one EDN file each, in `agora/use_cases`.
-  Every file is a chronological vector of publications and objections. The snapshots, in
-  that directory, make the state each scenario of `scenarios/` starts from. In a scenario,
-  each element is a step: it creates a publication or an objection, or replaces the one of
-  the same `:id`."
+  A snapshot is a chronological vector of publications and objections. The action use
+  cases, in `actions/`, start from snapshots (`agora.action-case`)."
   (:require
    [clojure.edn     :as edn]
    [clojure.java.io :as io]
@@ -37,15 +35,8 @@
   (let [f (io/file dir file)]
     (when (.isFile f) (let [content (read-file file)] (when (vector? content) content)))))
 
-(defn scenarios
-  "Every scenario: `{:file :content}`, its content a vector of steps."
-  []
-  (for [f (files (str dir "/scenarios"))]
-    {:file f
-     :content (read-file (str "scenarios/" f))}))
-
 (defn initial-publications
-  "The publications of every snapshot, the state scenarios start from."
+  "The publications of every snapshot."
   []
   (publications (mapcat :content (snapshots))))
 

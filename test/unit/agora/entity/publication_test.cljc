@@ -81,11 +81,6 @@
 (deftest named-persons-test
   (is (= #{agora reader} (set (sut/named-persons [(assoc published :contributors [reader])])))))
 
-(deftest save-test
-  (let [renamed (assoc-in published [:content :title] "Autre")]
-    (is (= [open renamed] (sut/save [published open] [renamed])) "replaced, by :id")
-    (is (= [published open] (sut/save [published] [open])) "created")))
-
 (deftest publish-test
   (let [p (sut/publish open [published open] #inst "2026-03-01T00:00:00Z")
         [rapide universel singulier] (:documents p)]
@@ -208,27 +203,3 @@
     (testing "a contributor without an account"
       (is ((check [(assoc published :contributors [reader])] persons (take 1 users))
            :publication/contributors)))))
-
-(deftest transition-rules-test
-  (let [check (fn [before changed] (set (map :rule (sut/transition-violations before changed))))]
-    (is (empty? (check [published open]
-                       [(sut/publish open [published open] #inst "2026-03-01T00:00:00Z")])))
-    (is (empty? (check [published open] [(assoc-in open [:content :title] "Encore ouverte")]))
-        "an open publication changes freely")
-    (testing "a closed publication changed"
-      (is ((check [published] [(assoc-in published [:content :title] "Autre")])
-           :publication/frozen)))
-    (testing "a canceled publication changed"
-      (let [canceled (assoc open :status :canceled)]
-        (is ((check [canceled] [(assoc-in canceled [:content :title] "Autre")])
-             :publication/frozen))))
-    (testing "a timestamp added to a published version"
-      (is (empty? (check [published]
-                         [(assoc-in published
-                           [:documents 0 :timestamp]
-                           {:hash "x"
-                            :requested-at #inst "2026-10-27T09:00:00Z"
-                            :status :pending})]))))
-    (testing "a document moved to another publication"
-      (is ((check [published open] [(update open :documents conj (first (:documents published)))])
-           :publication/no-move)))))

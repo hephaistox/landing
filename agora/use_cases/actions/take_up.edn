@@ -1,0 +1,266 @@
+;; Use case: taking up a publication.
+;;
+;; The owner of a publication opens a new major, on the same topic: same name and
+;; language, open, empty, with no contributor. Any major may be taken up: the new one comes
+;; after the latest major. Only when no major is open; the former majors stay as they were.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Agora takes up « Exemple pédagogique 4 » with a new definition, « très rapide »."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the new major, the publication taken up, and what the new major says."
+   :data {:publication {:id #uuid "dddddddd-0000-0000-0000-000001040000"}
+          :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+          :content {:title "Exemple pédagogique 4"
+                    :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                    :published-at #inst "2026-10-22T09:00:00.000-00:00"}}}
+  :output
+  {:description "Its major 2, open and empty, with no contributor; the major 1 stays as it was."
+   :created {:publications
+             [{:id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+               :type :publication
+               :name "exemple-pedagogique-4"
+               :lang :fr
+               :major 2
+               :status :open
+               :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+               :contributors []
+               :documents []
+               :content {:title "Exemple pédagogique 4"
+                         :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Agora takes up « Exemple pédagogique 5 », canceled."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published. « Exemple pédagogique 5 » is canceled."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+                                :type :publication
+                                :name "exemple-pedagogique-5"
+                                :lang :fr
+                                :major 1
+                                :status :canceled
+                                :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                                :contributors []
+                                :documents []
+                                :content {:title "Exemple pédagogique 5"
+                                          :text "Répond : et le modèle en général ?"
+                                          :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The id of the new major, the publication taken up, and what the new major says."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+                     :content {:title "Exemple pédagogique 5"
+                               :text "Répond : et le modèle en général ?"
+                               :published-at #inst "2026-10-28T11:00:00.000-00:00"}}}
+  :output
+  {:description "A canceled major may be taken up too."
+   :created {:publications [{:id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+                             :type :publication
+                             :name "exemple-pedagogique-5"
+                             :lang :fr
+                             :major 2
+                             :status :open
+                             :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                             :contributors []
+                             :documents []
+                             :content {:title "Exemple pédagogique 5"
+                                       :text "Répond : et le modèle en général ?"
+                                       :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Agora takes up « Exemple pédagogique 5 », still open."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published. « Exemple pédagogique 5 » is open."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+                                :type :publication
+                                :name "exemple-pedagogique-5"
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                                :contributors []
+                                :documents []
+                                :content {:title "Exemple pédagogique 5"
+                                          :text "Répond : et le modèle en général ?"
+                                          :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The id of the new major, the publication taken up, and what the new major says."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+                     :content {:title "Exemple pédagogique 5"
+                               :text "Répond : et le modèle en général ?"
+                               :published-at #inst "2026-10-28T11:00:00.000-00:00"}}}
+  :output {:description "Refused: two majors of a publication are never open at the same time."
+           :error {:reason :publication-open}}}
+ ;; ********************************************************************************
+ {:description
+  "Agora takes up the major 1 of « Exemple pédagogique 4 », though its major 2 exists, closed."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published. Its major 2 is closed."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository {:publications
+                [{:id #uuid "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"
+                  :type :publication
+                  :name "exemple-pedagogique-4"
+                  :lang :fr
+                  :major 2
+                  :status :closed
+                  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                  :contributors []
+                  :documents []
+                  :content {:title "Exemple pédagogique 4"
+                            :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                            :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}
+  :parameter
+  {:description "The id of the new major, the publication taken up, and what the new major says."
+   :data {:publication {:id #uuid "dddddddd-0000-0000-0000-000001040000"}
+          :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+          :content {:title "Exemple pédagogique 4"
+                    :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                    :published-at #inst "2026-10-22T09:00:00.000-00:00"}}}
+  :output
+  {:description "The major 3: after the latest major, not after the one taken up."
+   :created {:publications
+             [{:id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+               :type :publication
+               :name "exemple-pedagogique-4"
+               :lang :fr
+               :major 3
+               :status :open
+               :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+               :contributors []
+               :documents []
+               :content {:title "Exemple pédagogique 4"
+                         :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Agora takes up the major 1 of « Exemple pédagogique 4 », though its major 2 is open."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published. Its major 2 is open."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository {:publications
+                [{:id #uuid "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"
+                  :type :publication
+                  :name "exemple-pedagogique-4"
+                  :lang :fr
+                  :major 2
+                  :status :open
+                  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                  :contributors []
+                  :documents []
+                  :content {:title "Exemple pédagogique 4"
+                            :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                            :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}
+  :parameter
+  {:description "The id of the new major, the publication taken up, and what the new major says."
+   :data {:publication {:id #uuid "dddddddd-0000-0000-0000-000001040000"}
+          :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+          :content {:title "Exemple pédagogique 4"
+                    :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                    :published-at #inst "2026-10-22T09:00:00.000-00:00"}}}
+  :output {:description "Refused: two majors of a publication are never open at the same time."
+           :error {:reason :publication-open}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox takes up the publication of Agora."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the new major, the publication taken up, and what the new major says."
+   :data {:publication {:id #uuid "dddddddd-0000-0000-0000-000001040000"}
+          :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+          :content {:title "Exemple pédagogique 4"
+                    :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                    :published-at #inst "2026-10-22T09:00:00.000-00:00"}}}
+  :output {:description "Refused: only its owner takes up a publication."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in takes up a publication."
+  :by :anonymous
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the new major, the publication taken up, and what the new major says."
+   :data {:publication {:id #uuid "dddddddd-0000-0000-0000-000001040000"}
+          :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+          :content {:title "Exemple pédagogique 4"
+                    :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                    :published-at #inst "2026-10-22T09:00:00.000-00:00"}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) takes up a publication."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the new major, the publication taken up, and what the new major says."
+   :data {:publication {:id #uuid "dddddddd-0000-0000-0000-000001040000"}
+          :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+          :content {:title "Exemple pédagogique 4"
+                    :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                    :published-at #inst "2026-10-22T09:00:00.000-00:00"}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Agora takes up a publication with the id of an existing one."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the new major, the publication taken up, and what the new major says."
+   :data {:publication {:id #uuid "dddddddd-0000-0000-0000-000001040000"}
+          :id #uuid "dddddddd-0000-0000-0000-000001040000"
+          :content {:title "Exemple pédagogique 4"
+                    :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                    :published-at #inst "2026-10-22T09:00:00.000-00:00"}}}
+  :output {:description "Refused: the id is taken."
+           :error {:reason :id-taken}}}
+ ;; ********************************************************************************
+ {:description "Agora takes up a publication that does not exist."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.take-up/take-up
+  :input
+  {:description
+   "The story of the home page: « Exemple pédagogique 4 », owned by Agora, is closed in its major 1. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the new major, the publication taken up, and what the new major says."
+   :data {:publication {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+          :id #uuid "c9aa223c-e156-43f1-8be6-a705c61f800d"
+          :content {:title "Exemple pédagogique 4"
+                    :text "Reprend le sujet avec une nouvelle définition : « très rapide »."
+                    :published-at #inst "2026-10-22T09:00:00.000-00:00"}}}
+  :output {:description "Refused: no publication has this id."
+           :error {:reason :unknown-publication}}}]

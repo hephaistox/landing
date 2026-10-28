@@ -160,16 +160,6 @@
                                     :major 1}])])
          :objection/reason))))
 
-(deftest transition-rules-test
-  (let [check (fn [objections changed]
-                (set (map
-                      :rule
-                      (sut/transition-violations [edition-1 edition-2] objections [] changed))))]
-    (is (empty? (check [(assoc objection :status :draft)] [objection])) "a draft gets closed")
-    (testing "a closed objection changed"
-      (is ((check [objection] [(assoc-in objection [:content :text] "Autre")])
-           :objection/frozen)))))
-
 (deftest publish-test
   (let [open (assoc edition-2
                     :status :open

@@ -1,8 +1,8 @@
 ;; Use case: reacting.
 ;;
-;; The author of a closed objection reacts to the change that answered it: the next major
-;; of the objection, on a later version of the same document, pending again. Only on the
-;; latest major, and only once it is answered.
+;; The author of an objection reacts to the change that answered it: a new major of the
+;; objection, after its latest, pending again, on a version later than the one the latest
+;; major contests. From any major, but only once no major is pending.
 ;!zprint {:map {:sort? false}}
 [;; ********************************************************************************
  {:description
@@ -61,7 +61,172 @@
            :error {:reason :not-the-owner}}}
  ;; ********************************************************************************
  {:description
-  "Hephaistox2 reacts to the major 1 of « Et le modèle en général ? », though its major 2 exists."
+  "Hephaistox2 reacts from the major 1 of « Et le modèle en général ? », once its major 2 is answered."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page; Agora published « Exemple pédagogique 5 », the article 1.4, answering the major 2 of « Et le modèle en général ? », now closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:objections
+    [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"
+      :type :objection
+      :name "et-le-modele-en-general"
+      :lang :fr
+      :major 2
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+      :content
+      {:reason :omission
+       :title "Et le modèle en général ?"
+       :text
+       "Passer de ta voiture à tout le modèle est un saut : combien d'exemplaires as-tu testés, et comment les as-tu choisis ?"
+       :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+    :publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :minor 4
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T12:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T12:00:00.000-00:00"}
+      :answers [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}]
+      :contributors []}]}}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "9a1c5e33-7d2f-4b8a-b1c4-3e6f8a2d5c33"}
+          :version {:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output
+  {:description
+   "The major 3: after the latest major, not after the one reacted to; on the article 1.4, later than the 1.3 the major 2 contested."
+   :created {:objections [{:id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+                           :type :objection
+                           :name "et-le-modele-en-general"
+                           :lang :fr
+                           :major 3
+                           :status :draft
+                           :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                           :documents [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"}]
+                           :content
+                           {:reason :omission
+                            :title "Que veut dire « rapide » ?"
+                            :text
+                            "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                            :published-at #inst "2026-10-28T10:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox2 reacts from the major 1 of « Et le modèle en général ? », on the article 1.3 the major 2 already contests."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page; Agora published « Exemple pédagogique 5 », the article 1.4, answering the major 2 of « Et le modèle en général ? », now closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:objections
+    [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"
+      :type :objection
+      :name "et-le-modele-en-general"
+      :lang :fr
+      :major 2
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+      :content
+      {:reason :omission
+       :title "Et le modèle en général ?"
+       :text
+       "Passer de ta voiture à tout le modèle est un saut : combien d'exemplaires as-tu testés, et comment les as-tu choisis ?"
+       :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+    :publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :minor 4
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T12:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T12:00:00.000-00:00"}
+      :answers [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}]
+      :contributors []}]}}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "9a1c5e33-7d2f-4b8a-b1c4-3e6f8a2d5c33"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010103"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: a reaction contests a version later than the latest major did."
+           :error {:reason :not-newer}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox2 reacts from the major 1 of « Et le modèle en général ? » while its major 2 awaits its answer."
   :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
   :action agora.action.react/react
   :input
@@ -78,28 +243,7 @@
                     :title "Que veut dire « rapide » ?"
                     :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
                     :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
-  :output {:description "Refused: one reacts to the latest major."
-           :error {:reason :not-latest}}}
- ;; ********************************************************************************
- {:description
-  "Hephaistox2 reacts to « Et le modèle en général ? » while its major 2 awaits its answer."
-  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
-  :action agora.action.react/react
-  :input
-  {:description
-   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
-   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
-  :parameter
-  {:description
-   "The id of the new major, the objection, the newer version, and what the reaction says."
-   :data {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
-          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
-          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
-          :content {:reason :omission
-                    :title "Que veut dire « rapide » ?"
-                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
-                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
-  :output {:description "Refused: the objection still awaits its answer."
+  :output {:description "Refused: a major of the objection still awaits its answer."
            :error {:reason :objection-pending}}}
  ;; ********************************************************************************
  {:description "Hephaistox2 reacts on the article 1.0, the version he already contested."

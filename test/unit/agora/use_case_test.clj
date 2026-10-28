@@ -1,13 +1,12 @@
 (ns agora.use-case-test
   (:require
-   [agora.entity.objection   :as objection]
-   [agora.entity.publication :as publication]
-   [agora.use-case           :as use-case]
-   [agora.value.lang         :as lang]
-   [agora.value.name         :as name]
-   [agora.value.type         :as type]
-   [clojure.string           :as str]
-   [clojure.test             :refer [deftest is testing]]))
+   [agora.entity.objection :as objection]
+   [agora.use-case         :as use-case]
+   [agora.value.lang       :as lang]
+   [agora.value.name       :as name]
+   [agora.value.type       :as type]
+   [clojure.string         :as str]
+   [clojure.test           :refer [deftest is testing]]))
 
 (defn- report
   "Short form of `violations`, for failure messages."
@@ -27,27 +26,6 @@
 
 (deftest snapshots-follow-the-rules-test
   (is (empty? (report (violations (use-case/initial-publications))))))
-
-(deftest scenarios-follow-the-rules-test
-  (doseq [{:keys [file content]} (use-case/scenarios)]
-    (reduce (fn [[publications objections] [i step]]
-              (testing (str file
-                            " step " (inc i)
-                            " : " (-> step
-                                      :content
-                                      :text))
-                (let [changed-publications (use-case/publications [step])
-                      changed-objections (use-case/objections [step])
-                      after [(publication/save publications changed-publications)
-                             (objection/save objections changed-objections)]]
-                  (is (empty? (report (objection/transition-violations publications
-                                                                       objections
-                                                                       changed-publications
-                                                                       changed-objections))))
-                  (is (empty? (report (apply violations after))))
-                  after)))
-            [(use-case/initial-publications) (use-case/initial-objections)]
-            (map-indexed vector content))))
 
 ;; Each rule must catch a broken use case.
 
@@ -93,16 +71,6 @@
                               (fn [d] (if (= 3 (:minor d)) (assoc d :minor 4) d))))
          :identity/minors))))
 
-(deftest transitions-catch-broken-publishing-test
-  (let [before (use-case/initial-publications)
-        open (first (filter #(= "la-methode-scientifique" (:name %)) before))
-        published (publication/publish open before #inst "2026-10-20T09:00:00Z")
-        rules #(set (map :rule (publication/transition-violations before [%])))]
-    (is (empty? (rules published)))
-    (testing "a closed publication changed"
-      (let [closed (first (filter publication/closed? before))]
-        (is ((rules (assoc-in closed [:content :title] "autre")) :publication/frozen))))))
-
 (deftest persons-and-users-follow-the-rules-test
   (let [publications (use-case/initial-publications)
         persons (use-case/persons)
@@ -129,24 +97,12 @@
     (testing "a contributor without an account"
       (is ((rules persons (vec (rest users))) :publication/contributors)))))
 
-(defn- all-states
-  "The initial publications, then the publications after each step of each scenario."
-  []
-  (let [initial (use-case/initial-publications)]
-    (cons initial
-          (for [{:keys [content]} (use-case/scenarios)
-                state (reductions (fn [before step]
-                                    (publication/save before (use-case/publications [step])))
-                                  initial
-                                  content)]
-            state))))
-
 (deftest names-come-from-titles-test
   ;; a name differs from its title only when the name drawn from it was already taken
-  (let [versions
-        (distinct
-         (concat (for [state (all-states) p state x (cons p (:documents p))] (dissoc x :documents))
-                 (use-case/initial-objections)))]
+  (let [versions (distinct (concat (for [p (use-case/initial-publications)
+                                         x (cons p (:documents p))]
+                                     (dissoc x :documents))
+                                   (use-case/initial-objections)))]
     (doseq [[[t n] xs] (group-by (juxt :type :name) versions)
             :when (not (type/description? {:name n}))
             :let [first-title (-> (sort-by (comp :published-at :content) xs)

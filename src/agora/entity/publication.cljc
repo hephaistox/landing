@@ -212,11 +212,6 @@ Once published, that link becomes `[[definition:enonce-universel:fr@1]]`.
           (keep :owner (documents publications))
           (keep :author (documents publications))))
 
-(defn save
-  "`publications` with each of `changed` created, or replacing the one of the same `:id`."
-  [publications changed]
-  (let [ids (set (map :id changed))] (into (vec (remove #(ids (:id %)) publications)) changed)))
-
 (defn publish
   "`publication` closed at `at`: each draft gets the next minor of its major, among the
   documents already published in `publications`, and every citation and link by `:id`
@@ -385,32 +380,3 @@ Once published, that link becomes `[[definition:enonce-universel:fr@1]]`.
                                  timestamp/rules)
                          docs)
             (apply-rules rules publications))))
-
-(def transition-rules
-  "Rules on `publications` before `changed` are saved."
-  [{:id :publication/frozen
-    :description
-    "a closed or canceled publication never changes, but for the timestamps of its versions"
-    :check (fn [publications changed]
-             (let [before (into {} (map (fn [x] [(:id x) x])) publications)
-                   frozen (fn [p] (update p :documents (partial mapv #(dissoc % :timestamp))))]
-               (for [p changed
-                     :let [old (before (:id p))]
-                     :when (and (or (closed? old) (canceled? old)) (not= (frozen old) (frozen p)))]
-                 {:rule :publication/frozen
-                  :subject p})))}
-   {:id :publication/no-move
-    :description "a document never leaves its publication"
-    :check (fn [publications changed]
-             (let [after (save publications changed)
-                   home (fn [ps] (into {} (for [p ps d (:documents p)] [(:id d) (:id p)])))
-                   home-after (home after)]
-               (for [[id pid] (home publications)
-                     :when (not= pid (home-after id))]
-                 {:rule :publication/no-move
-                  :subject {:id id}})))}])
-
-(defn transition-violations
-  "Every rule broken when `changed` publications are saved into `publications`."
-  [publications changed]
-  (mapcat #((:check %) publications changed) transition-rules))

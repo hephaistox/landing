@@ -1,9 +1,10 @@
 (ns agora.action.react
   "Reacting: the author of a closed objection reacts to the change that answered it.
 
-They open the next major of the objection, on a newer version of the document: same name,
-same language, pending again. A major is opened only once the previous one is closed: the
-answer came first.
+They open a new major of the objection: same name, same language, pending again. They may
+react from any major: the new one comes after the latest major of the objection, not after
+the one reacted to. It contests a version later than the one the latest major contested.
+It is opened only when no major of the objection is pending: the answer came first.
 
 An action takes the repository, who acts (`by`) and its parameters, and returns its
 changes. Its `:parameters` metadata is the grammar of its parameters."
@@ -28,17 +29,17 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
    [:content objection/content-schema]])
 
 (defn react
-  "The author of the closed `objection` opens its next major, on the newer `version`.
+  "The author of `objection` opens a new major of it, after its latest, on the newer
+  `version`.
   Refuses with:
 
   - `:not-logged-in`, `:unknown-user`: who acts is no user;
   - `:id-taken`: something already has the new major's `:id`;
   - `:unknown-objection`: no objection has this `:id`;
   - `:not-the-owner`: who acts did not write the objection;
-  - `:not-latest`: a later major of the objection exists;
-  - `:objection-pending`: the objection still awaits its answer;
+  - `:objection-pending`: a major of the objection still awaits its answer;
   - `:unknown-version`: no published version has this `:id`;
-  - `:not-newer`: the version is not a later version of the document contested;
+  - `:not-newer`: the version is not later than the one the latest major contests;
   - `:unknown-reason`: the type of the version predefines no objection with this `:reason`;
   - `:invalid-backing`: a citation backing it is of a type the reason does not admit;
   - `:rules-broken`: the reaction breaks a rule."
@@ -55,14 +56,13 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
         _ (when-not o (action/refuse! :unknown-objection (:objection parameters)))
         _ (when-not (= (:owner o) {:id (:id user)})
             (action/refuse! :not-the-owner (:objection parameters)))
-        _ (when (some #(and (= ((juxt :name :lang) o) ((juxt :name :lang) %))
-                            (> (:major %) (:major o)))
-                      objections)
-            (action/refuse! :not-latest (:objection parameters)))
-        _ (when (objection/draft? o) (action/refuse! :objection-pending (:objection parameters)))
+        majors (filter #(= ((juxt :name :lang) o) ((juxt :name :lang) %)) objections)
+        latest (apply max-key :major majors)
+        _ (when (some objection/draft? majors)
+            (action/refuse! :objection-pending (:objection parameters)))
         v (publication/published-version publications version)
         _ (when-not v (action/refuse! :unknown-version version))
-        target (publication/published-version publications (first (:documents o)))
+        target (publication/published-version publications (first (:documents latest)))
         _ (when-not (objection/newer? target v) (action/refuse! :not-newer version))
         reason (type/objection-of (:type v) (:reason content))]
     (when-not reason (action/refuse! :unknown-reason (select-keys content [:reason])))
@@ -71,7 +71,7 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
     (action/check-rules! repository
                          {:created {:objections [(assoc o
                                                         :id id
-                                                        :major (inc (:major o))
+                                                        :major (inc (:major latest))
                                                         :status :draft
                                                         :documents [{:id (:id v)}]
                                                         :content content)]}})))

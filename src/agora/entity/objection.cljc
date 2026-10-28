@@ -128,11 +128,6 @@ from one car to the whole model is a leap.
   [publications objection]
   (filter (fn [p] (some #(= (:id objection) (:id %)) (:answers p))) publications))
 
-(defn save
-  "`objections` with each of `changed` created, or replacing the one of the same `:id`."
-  [objections changed]
-  (publication/save objections changed))
-
 (defn publish
   "`publication` published at `at`, with every objection it answers closed.
   Returns `{:publication :objections}`, the objections being only those it closes."
@@ -272,21 +267,3 @@ from one car to the whole model is a leap.
   [publications objections persons users]
   (concat (publication/violations publications persons users)
           (mapcat #((:check %) publications objections users) rules)))
-
-(def transition-rules
-  "Rules on `objections` before `changed` are saved."
-  [{:id :objection/frozen
-    :description "a closed objection never changes"
-    :check (fn [objections changed]
-             (let [before (into {} (map (fn [o] [(:id o) o])) objections)]
-               (for [o changed
-                     :let [old (before (:id o))]
-                     :when (and (closed? old) (not= old o))]
-                 {:rule :objection/frozen
-                  :subject o})))}])
-
-(defn transition-violations
-  "Every rule broken when `changed-publications` and `changed-objections` are saved."
-  [publications objections changed-publications changed-objections]
-  (concat (publication/transition-violations publications changed-publications)
-          (mapcat #((:check %) objections changed-objections) transition-rules)))
