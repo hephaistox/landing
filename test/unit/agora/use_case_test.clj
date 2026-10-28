@@ -1,11 +1,13 @@
 (ns agora.use-case-test
   (:require
-   [agora.name        :as name]
-   [agora.publication :as publication]
-   [agora.type        :as type]
-   [agora.use-case    :as use-case]
-   [clojure.string    :as str]
-   [clojure.test      :refer [deftest is testing]]))
+   [agora.entity.objection   :as objection]
+   [agora.entity.publication :as publication]
+   [agora.use-case           :as use-case]
+   [agora.value.lang         :as lang]
+   [agora.value.name         :as name]
+   [agora.value.type         :as type]
+   [clojure.string           :as str]
+   [clojure.test             :refer [deftest is testing]]))
 
 (defn- report
   "Short form of `violations`, for failure messages."
@@ -16,23 +18,36 @@
        violations))
 
 (defn- violations
-  "Rules broken by `publications`, with the persons and users of the use cases."
-  ([publications] (violations publications (use-case/persons) (use-case/users)))
-  ([publications persons users] (publication/violations publications persons users)))
+  "Rules broken by `publications`, with the objections, persons and users of the use cases."
+  ([publications] (violations publications (use-case/initial-objections)))
+  ([publications objections]
+   (violations publications objections (use-case/persons) (use-case/users)))
+  ([publications objections persons users]
+   (objection/violations publications objections persons users)))
 
 (deftest snapshots-follow-the-rules-test
   (is (empty? (report (violations (use-case/initial-publications))))))
 
 (deftest scenarios-follow-the-rules-test
-  (doseq [{:keys [file steps]} (use-case/scenarios)]
-    (reduce (fn [before {:keys [step publications]}]
-              (testing (str file " step " step)
-                (is (empty? (report (publication/transition-violations before publications))))
-                (let [after (publication/save before publications)]
-                  (is (empty? (report (violations after))))
+  (doseq [{:keys [file content]} (use-case/scenarios)]
+    (reduce (fn [[publications objections] [i step]]
+              (testing (str file
+                            " step " (inc i)
+                            " : " (-> step
+                                      :content
+                                      :text))
+                (let [changed-publications (use-case/publications [step])
+                      changed-objections (use-case/objections [step])
+                      after [(publication/save publications changed-publications)
+                             (objection/save objections changed-objections)]]
+                  (is (empty? (report (objection/transition-violations publications
+                                                                       objections
+                                                                       changed-publications
+                                                                       changed-objections))))
+                  (is (empty? (report (apply violations after))))
                   after)))
-            (use-case/initial-publications)
-            steps)))
+            [(use-case/initial-publications) (use-case/initial-objections)]
+            (map-indexed vector content))))
 
 ;; Each rule must catch a broken use case.
 
@@ -56,11 +71,13 @@
     (is ((broken #(update-doc % "les-miserables" :fr (fn [d] (assoc d :type :oeuvre))))
          :type/known)))
   (testing "a link without its language"
-    (is ((broken #(update-doc
-                   %
-                   "cosette-est-exploitee"
-                   :fr
-                   (fn [d] (update d :text str/replace "les-miserables:fr@1" "les-miserables@1"))))
+    (is ((broken
+          #(update-doc
+            %
+            "cosette-est-exploitee"
+            :fr
+            (fn [d]
+              (update-in d [:content :text] str/replace "les-miserables:fr@1" "les-miserables@1"))))
          :citation/links)))
   (testing "a negative minor"
     (is ((broken #(update-doc % "rapide" :fr (fn [d] (if (:minor d) (assoc d :minor -1) d))))
@@ -79,35 +96,35 @@
 (deftest transitions-catch-broken-publishing-test
   (let [before (use-case/initial-publications)
         open (first (filter #(= "la-methode-scientifique" (:name %)) before))
-        published (publication/publish open before "2026-10-20T09:00:00Z")
+        published (publication/publish open before #inst "2026-10-20T09:00:00Z")
         rules #(set (map :rule (publication/transition-violations before [%])))]
     (is (empty? (rules published)))
-    (testing "a wrong minor"
-      (is ((rules (update-in published [:documents 0 :minor] inc)) :publication/publish)))
     (testing "a closed publication changed"
       (let [closed (first (filter publication/closed? before))]
-        (is ((rules (assoc closed :title "autre")) :publication/frozen))))))
+        (is ((rules (assoc-in closed [:content :title] "autre")) :publication/frozen))))))
 
 (deftest persons-and-users-follow-the-rules-test
   (let [publications (use-case/initial-publications)
         persons (use-case/persons)
         users (use-case/users)
-        rules #(set (map :rule (violations publications %1 %2)))]
-    (testing "a person known under another name"
-      (is ((rules (mapv #(update % :name str "!") persons) users) :publication/persons)))
+        rules #(set (map :rule (violations publications (use-case/initial-objections) %1 %2)))]
+    (testing "a named person missing from the persons"
+      (is ((rules (vec (rest persons)) users) :publication/persons)))
     (testing "two users whose names differ only by case and accents"
       (is ((rules (conj persons
-                        {:id "x"
+                        {:id #uuid "00000000-0000-4000-8000-000000000001"
                          :name "HÉPHAISTOX"})
                   (conj users
-                        {:id "x"
-                         :provider :google}))
+                        {:id #uuid "00000000-0000-4000-8000-000000000001"
+                         :provider :google
+                         :provider-id "google-x"}))
            :user/unique-name)))
     (testing "a user who is not a person"
       (is ((rules persons
                   (conj users
-                        {:id "y"
-                         :provider :google}))
+                        {:id #uuid "00000000-0000-4000-8000-000000000002"
+                         :provider :google
+                         :provider-id "google-y"}))
            :user/is-a-person)))
     (testing "a contributor without an account"
       (is ((rules persons (vec (rest users))) :publication/contributors)))))
@@ -117,24 +134,98 @@
   []
   (let [initial (use-case/initial-publications)]
     (cons initial
-          (for [{:keys [steps]} (use-case/scenarios)
-                state (reductions (fn [before {:keys [publications]}]
-                                    (publication/save before publications))
+          (for [{:keys [content]} (use-case/scenarios)
+                state (reductions (fn [before step]
+                                    (publication/save before (use-case/publications [step])))
                                   initial
-                                  steps)]
+                                  content)]
             state))))
 
 (deftest names-come-from-titles-test
   ;; a name differs from its title only when the name drawn from it was already taken
   (let [versions
         (distinct
-         (for [state (all-states) p state x (cons p (:documents p))] (dissoc x :documents)))]
+         (concat (for [state (all-states) p state x (cons p (:documents p))] (dissoc x :documents))
+                 (use-case/initial-objections)))]
     (doseq [[[t n] xs] (group-by (juxt :type :name) versions)
             :when (not (type/description? {:name n}))
-            :let [first-title (:title (first (sort-by :published-at xs)))
+            :let [first-title (-> (sort-by (comp :published-at :content) xs)
+                                  first
+                                  :content
+                                  :title)
                   drawn (name/from-title first-title)
                   taken? (some #(and (= t (:type %))
                                      (= drawn (:name %))
                                      (some #{(:lang %)} (map :lang xs)))
                                versions)]]
       (is (or (= drawn n) taken?) (str t " " n " : « " first-title " »")))))
+
+(deftest objections-follow-the-rules-test
+  (let [publications (use-case/initial-publications)
+        objections (use-case/initial-objections)
+        rules #(set (map :rule (violations %1 %2)))
+        update-objection (fn [os n major f]
+                           (mapv #(if (and (= n (:name %)) (= major (:major %))) (f %) %) os))]
+    (is (empty? (rules publications objections)))
+    (testing "an objection in another language than its target"
+      (is ((rules publications
+                  (update-objection objections "que-veut-dire-rapide" 1 #(assoc % :lang :en)))
+           :objection/target)))
+    (testing "an objection on a draft"
+      (is ((rules publications
+                  (update-objection
+                   objections
+                   "que-veut-dire-rapide"
+                   1
+                   (fn [o]
+                     (assoc o
+                            :documents
+                            [{:id (:id (first (filter #(= "enonce-universel" (:name %))
+                                                      (mapcat :documents publications))))}]))))
+           :objection/target)))
+    (testing "an objection on an unknown version"
+      (is ((rules publications
+                  (update-objection
+                   objections
+                   "que-veut-dire-rapide"
+                   1
+                   #(assoc % :documents [{:id #uuid "00000000-0000-4000-8000-000000000001"}])))
+           :objection/target)))
+    (testing "an objection on two documents"
+      (is ((rules publications
+                  (update-objection objections
+                                    "que-veut-dire-rapide"
+                                    1
+                                    #(update % :documents conj (first (:documents %)))))
+           :objection/shape)))
+    (testing "an answered objection still a draft"
+      (is ((rules publications
+                  (update-objection objections "que-veut-dire-rapide" 1 #(assoc % :status :draft)))
+           :objection/status)))
+    (testing "a new major while the previous one is still a draft"
+      (is ((rules
+            publications
+            (update-objection objections "et-le-modele-en-general" 1 #(assoc % :status :draft)))
+           :objection/identity)))
+    (testing "an objection made without an account"
+      (is ((rules publications
+                  (update-objection
+                   objections
+                   "que-veut-dire-rapide"
+                   1
+                   #(assoc % :owner {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"})))
+           :objection/owner)))
+    (testing "an answer that does not change the document"
+      (is ((rules (mapv #(if (= "exemple-pedagogique-2" (:name %)) (assoc % :documents []) %)
+                        publications)
+                  objections)
+           :objection/answer)))))
+
+(deftest vocabulary-describes-every-type-test
+  (let [published (filter #(some? (:minor %)) (mapcat :documents (use-case/initial-publications)))]
+    (doseq [t type/types
+            l lang/langs]
+      (is (some
+           #(and (= (type/description-name t) (:name %)) (= l (:lang %)) (= :definition (:type %)))
+           published)
+          (str t " " l)))))

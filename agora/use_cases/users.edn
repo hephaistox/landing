@@ -1,0 +1,14 @@
+;; Users: the persons of `persons.edn` that have an account. Only what the account adds:
+;; how they log in, and the id of the account there (:provider-id): Google's, or a login. No name (it is
+;; the person's), no email, no password. The provider ids are fictional, not copied from prod.
+;;
+;; Data copied from the prod database (AGORA_USER), 2026-10-19.
+{:users [{:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+          :provider :google
+          :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+         {:id #uuid "00000000-0000-0000-0000-000000000001"
+          :provider :password
+          :provider-id "agora"}
+         {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"
+          :provider :google
+          :provider-id "google-8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}]}

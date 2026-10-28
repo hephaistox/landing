@@ -1,0 +1,1090 @@
+;; Use case: writing a draft.
+;;
+;; The owner of an open publication, or a contributor, adds a draft to it. The draft takes
+;; the language of the publication, has no minor, and is owned by who writes it. Drafts of
+;; the same publication cite each other by :id. Nobody else writes in it, nor in a published
+;; one; an :id is never reused; a publication holds one version of a document; a new
+;; document starts at major 1; a draft breaks no rule.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox writes the definition « Énoncé universel » in his publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open and empty, with Raphaël as contributor; the type vocabulary is published."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description
+   "The publication, and the draft: its id, type, name, major, title, text, citations and date."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output
+  {:description "The publication holds the draft: in French, no minor, owned by Hephaistox."
+   :changed
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Raphaël, a contributor, writes « Énoncé singulier », citing the draft « Énoncé universel » by its id."
+  :by {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "« La méthode scientifique » holds the draft « Énoncé universel »; Raphaël is a contributor."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description
+   "A definition citing another draft of the publication by its :id, in its text and its citations."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+     :type :definition
+     :name "enonce-singulier"
+     :major 1
+     :content
+     {:title "Énoncé singulier"
+      :text
+      "un énoncé portant sur un individu ou un événement déterminé. Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a]] porte sur une classe non bornée, il désigne un cas identifiable."
+      :inputs [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
+      :published-at #inst "2026-08-18T07:00:00.000-00:00"}}}}
+  :output
+  {:description "The publication holds both drafts; Raphaël owns his."
+   :changed
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}
+       {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+        :type :definition
+        :name "enonce-singulier"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+        :content
+        {:title "Énoncé singulier"
+         :text
+         "un énoncé portant sur un individu ou un événement déterminé. Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a]] porte sur une classe non bornée, il désigne un cas identifiable."
+         :inputs [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
+         :published-at #inst "2026-08-18T07:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in tries to write a draft."
+  :by :anonymous
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open and empty, with Raphaël as contributor; the type vocabulary is published."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "A draft like any other."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) tries to write a draft."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open and empty, with Raphaël as contributor; the type vocabulary is published. No user has the id of who acts."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "A draft like any other."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to write a draft in a publication that does not exist."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open and empty, with Raphaël as contributor; the type vocabulary is published."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "An id no publication has."
+   :data
+   {:publication {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+    :draft
+    {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: no publication has this id."
+           :error {:reason :unknown-publication}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to write a draft in a published publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open and empty, with Raphaël as contributor; the type vocabulary is published."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The type vocabulary, closed."
+   :data
+   {:publication {:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"}
+    :draft
+    {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: a published publication is frozen."
+           :error {:reason :publication-closed}}}
+ ;; ********************************************************************************
+ {:description "Han solo, a user not invited, tries to write a draft in Hephaistox's publication."
+  :by {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open and empty, with Raphaël as contributor; the type vocabulary is published. Han solo is neither its owner nor a contributor."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "A draft like any other."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: only the owner and the contributors write in a publication."
+           :error {:reason :not-a-contributor}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to write a draft with the id of an existing document."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open and empty, with Raphaël as contributor; the type vocabulary is published."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The draft has the :id of « type-definition »."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: the id is taken."
+           :error {:reason :id-taken}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox tries to write « Énoncé universel » a second time in the same publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "« La méthode scientifique » holds the draft « Énoncé universel »; Raphaël is a contributor."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "A new id, but the same document: type, name, language and major."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "c41e8a2f-95b3-4d76-a0e8-1f7b3c9d2e58"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: a publication holds one version of a document."
+           :error {:reason :already-in-publication}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to write a new document directly in its major 2."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open and empty, with Raphaël as contributor; the type vocabulary is published."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "A document nobody wrote yet, in major 2."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+     :type :definition
+     :name "enonce-universel"
+     :major 2
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: a new document starts at major 1."
+           :error {:reason :invalid-major}}}
+ ;; ********************************************************************************
+ {:description "Raphaël tries to write a draft whose text links a document it does not cite."
+  :by {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "« La méthode scientifique » holds the draft « Énoncé universel »; Raphaël is a contributor."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "« Énoncé singulier », its link to « Énoncé universel » missing from its citations."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+     :type :definition
+     :name "enonce-singulier"
+     :major 1
+     :content
+     {:title "Énoncé singulier"
+      :text
+      "un énoncé portant sur un individu ou un événement déterminé. Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a]] porte sur une classe non bornée, il désigne un cas identifiable."
+      :inputs []
+      :published-at #inst "2026-08-18T07:00:00.000-00:00"}}}}
+  :output {:description "Refused: every link is a citation."
+           :error {:reason :rules-broken}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to write a draft in a canceled publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description "« La méthode scientifique » is canceled, keeping its two drafts."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}]
+    :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}]
+    :publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :canceled
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-08-18T06:06:03.000-00:00"}}
+       {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+        :type :definition
+        :name "enonce-singulier"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+        :content {:title "Énoncé singulier"
+                  :text "un énoncé portant sur un individu ou un événement déterminé."
+                  :inputs []
+                  :published-at #inst "2026-08-18T07:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "A draft like any other."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :draft
+    {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+     :type :definition
+     :name "enonce-universel"
+     :major 1
+     :content
+     {:title "Énoncé universel"
+      :text
+      "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+      :inputs []
+      :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
+  :output {:description "Refused: a canceled publication is frozen."
+           :error {:reason :publication-canceled}}}]

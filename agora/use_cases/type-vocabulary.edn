@@ -1,0 +1,400 @@
+;; Use case: the vocabulary of types.
+;;
+;; Every type a document can have (definition, deduction, belief…) is itself defined by a
+;; document of type :definition, named `type-<type>`. A badge showing a type points at it.
+;; The closed publication `vocabulaire-des-types` holds them, in one version per language.
+;; In prod it had no language: the fr version keeps its id; the en version gets a new id and
+;; an English title. `type-publication` and `type-objection` are not copied from prod.
+;;
+;; Data copied from the prod database (AGORA_DOCUMENT), 2026-10-18.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+  :type :publication
+  :name "vocabulaire-des-types"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :documents
+  [{:id #uuid "02cdebea-1e70-41a3-9392-8ea8549dafba"
+    :type :definition
+    :name "type-article"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Article"
+     :text
+     "un article qui expose et relie les énoncés du graphe en une prose lisible — une porte d'entrée qui rend le raisonnement intelligible pour un nouveau venu, informant et expliquant plutôt qu'exhortant ou appelant à agir.\n\nOn ne la conteste pas comme une étape de raisonnement isolée : une explication repose sur les énoncés qu'elle cite, et c'est à ceux-ci qu'on adresse un désaccord ; l'article lui-même peut néanmoins être discuté pour sa clarté, son équilibre ou ses omissions."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "badd7c1b-a01b-4ade-9432-d492bb073f3b"
+    :type :definition
+    :name "type-assumption"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Supposition"
+     :text
+     "un fondement déclaré à titre provisoire : une supposition admise pour les besoins du raisonnement, sans prétendre qu'elle soit vraie.\n\nOn ne la réfute pas directement : on la relâche ou on lui substitue une supposition différente, puis on observe comment les conclusions qui en dépendent s'en trouvent affectées."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "6e662544-ac49-4ebe-b29b-53ceade1fcbd"
+    :type :definition
+    :name "type-belief"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Croyance"
+     :text
+     "un fondement que l'on tient pour acquis et que l'on assume, quel qu'en soit le registre — personnel, philosophique, civique ou formel.\n\nOn ne la réfute pas par contre-exemple : une croyance ne se conteste que par une croyance incompatible, et la plateforme conserve les variantes rivales avec leur histoire d'objections plutôt que d'imposer une résolution qui n'existe pas."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "154a3cc2-71dc-4fc1-8d37-3c7cd820c6a4"
+    :type :definition
+    :name "type-counter-example"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Contre-exemple"
+     :text
+     "un cas unique qui réfute une affirmation générale en la contredisant : si un énoncé affirme « tous les X sont Y », un seul X qui n'est pas Y la montre fausse — ou du moins pas assez précise. Il vise un autre énoncé et lui retire sa généralité.\n\nOn le conteste lui-même de deux façons : le cas est-il réel (Einstein est-il vraiment intelligent ?) et relève-t-il bien de l'affirmation (Einstein fait-il partie de « tous les gens » ?). Un bon contre-exemple oblige la cible à se restreindre, se nuancer, ou être retirée."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "a606a437-28e3-4a43-8193-5cfacc0f44d8"
+    :type :definition
+    :name "type-deduction"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Déduction"
+     :text
+     "un pas déductif : à partir d'entrées tenues pour vraies, la conclusion suit *nécessairement*.\n\nLes seuls reproches recevables sont l'invalidité de la forme ou l'équivoque sur un terme — on ne peut pas accepter les prémisses et la forme puis refuser la conclusion."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+    :type :definition
+    :name "type-definition"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Définition"
+     :text
+     "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient.\n\nUne définition ne se conteste pas en elle-même : on lui oppose une autre définition du même mot. Le graphe fait alors apparaître l'ambiguïté — plusieurs définitions concurrentes pour un terme — au lieu de trancher."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "f4a4b348-a6c6-4ad4-b9c4-9449b5c8f67f"
+    :type :definition
+    :name "type-extract"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Extrait"
+     :text
+     "un passage tiré mot pour mot d'une œuvre à un endroit précis (page, chapitre, verset) : il cite l'unique œuvre dont il provient et fixe le locator, afin que les appropriations qui s'appuient dessus renvoient exactement à ce qui a été dit.\n\nOn le conteste sur la fidélité : le passage est-il transcrit fidèlement, à l'endroit indiqué, dans l'édition citée."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "13e8a6c9-f63c-4137-8988-2fa9e5becf3f"
+    :type :definition
+    :name "type-illustration"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Illustration"
+     :text
+     "un exemple concret qui rend une autre affirmation vivante — il montre un cas, il ne démontre rien : aucun raisonnement n'en dépend et rien n'en découle.\n\nOn ne la conteste pas comme un raisonnement : une illustration est pertinente ou non, représentative ou trompeuse, mais elle ne prouve rien en soi — on discute si elle illustre vraiment l'affirmation, non si elle est « valide »."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "13756378-9abf-4ec6-88b9-9b9a7f0b290e"
+    :type :definition
+    :name "type-induction"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Induction"
+     :text
+     "un pas ampliatif : la conclusion va *au-delà* de ce que les entrées garantissent strictement.\n\nOn peut accepter les prémisses, accepter la forme, et trouver le saut trop large — ici la contestation porte sur le saut lui-même, une appréciation, non sur la validité formelle."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "f14266ee-8248-4a7f-8105-eeae31043712"
+    :type :definition
+    :name "type-measurable-fact"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Fait mesurable"
+     :text
+     "un fondement empirique : un énoncé tranché par une mesure ou une observation reproductible, valable indépendamment de qui l'affirme.\n\nOn ne le conteste pas par le raisonnement mais sur la mesure elle-même — le protocole, l'instrument, sa reproductibilité — ou en produisant une mesure qui le contredit."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "d823efbf-6055-403f-a395-e76f2d63dbb2"
+    :type :definition
+    :name "type-objection"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Objection"
+     :text
+     "un document qui conteste une version précise d'un autre document, dans sa langue, et demande à son propriétaire de le modifier.\n\nUne objection ne se conteste pas : elle est close quand le propriétaire publie une modification qui y répond. Son auteur peut alors réagir à cette modification en ouvrant la version suivante de son objection."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "df792706-2983-476e-b1e2-4d8aced307c1"
+    :type :definition
+    :name "type-prediction"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Prédiction"
+     :text
+     "un savoir vérifiable dont la vérité sera tranchée par un événement observable, éventuellement futur.\n\nAvant résolution, les objections portent sur la solidité du raisonnement ; à la résolution, la réalité tranche et le débat se clôt — confirmé ou réfuté, quelle que soit la confiance de la communauté."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "92165261-c7d5-4dba-8fa9-fba97b7e8f9e"
+    :type :definition
+    :name "type-publication"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Publication"
+     :text
+     "un regroupement de documents d'une même langue, préparés ensemble puis publiés d'un coup ; elle reste pour toujours la publication d'origine de chaque version qu'elle publie.\n\nUne publication ne se conteste pas : elle n'affirme rien par elle-même. Ce qui se tient ensemble est porté par les documents qui se citent, et c'est à eux qu'on adresse un désaccord. Pour corriger un document publié, son auteur en publie une nouvelle version dans une nouvelle publication."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "138de191-8e0d-4769-81c0-6acd414449c5"
+    :type :definition
+    :name "type-work"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Œuvre"
+     :text
+     "un document externe cité comme provenance bibliographique — livre, article, dictionnaire, page… — partagé (titre, auteur, année, éditeur, URL) et réutilisé par chaque passage qui en est tiré.\n\nOn ne la conteste pas comme un raisonnement : on peut en discuter l'exactitude, l'édition retenue ou l'attribution, mais l'œuvre elle-même reste une provenance partagée."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+  :content {:title "Vocabulaire des types"
+            :text "Décrit chaque type de document : son sens, et comment on le conteste."
+            :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "fc6cd05a-cca2-40e2-a95c-e0c91e1f88be"
+  :type :publication
+  :name "vocabulaire-des-types"
+  :lang :en
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :documents
+  [{:id #uuid "cd3a8dcd-e56c-4202-951d-dfcddbae6de2"
+    :type :definition
+    :name "type-article"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Article"
+     :text
+     "an article that lays out and links the graph's claims into readable prose — an entry point that makes the reasoning legible for a newcomer, informing and explaining rather than advocating or calling to act.\n\nIt is not challenged like a single reasoning step: an explainer rests on the claims it cites, so a disagreement is taken up with those; the article itself can still be discussed for its clarity, balance or what it leaves out."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "755100a6-034b-4de4-9711-23d981cf2ff4"
+    :type :definition
+    :name "type-assumption"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Assumption"
+     :text
+     "a foundation declared provisionally: a supposition granted for the sake of the reasoning, without claiming it is true.\n\nIt is not refuted directly: you relax it or swap in a different supposition, then watch how the conclusions that depend on it are affected."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "ac1c3dbf-3327-41e8-b5b7-6695b601e0f7"
+    :type :definition
+    :name "type-belief"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Belief"
+     :text
+     "a foundation you hold as given and stand by, whatever the register — personal, philosophical, civic or formal.\n\nIt is not refuted by counterexample: a belief is contested only by an incompatible belief, and the platform keeps the rival variants with their objection histories rather than forcing a resolution that does not exist."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "93190138-f346-4faa-b2f4-e64b2aaecb14"
+    :type :definition
+    :name "type-counter-example"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Counter-example"
+     :text
+     "a single instance that refutes a general claim by contradicting it: if a claim asserts 'all X are Y', one X that is not Y shows it false — or at least not precise enough. It targets another claim and withdraws its generality.\n\nIt is itself challenged on two grounds: whether the instance is real (is Einstein actually smart?) and whether it truly falls under the claim (is Einstein one of 'all people'?). A sound counter-example forces the target to narrow, qualify, or be withdrawn."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "3a0f4c86-7091-4be3-90c4-6504493d5451"
+    :type :definition
+    :name "type-deduction"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Deduction"
+     :text
+     "a deductive step: from inputs held to be true, the conclusion follows *necessarily*.\n\nThe only admissible challenges are that the form is invalid, or that a term is used equivocally — you cannot accept the premises and the form and yet refuse the conclusion."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "291a803c-e180-439d-bfd6-1818cb06da82"
+    :type :definition
+    :name "type-definition"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Definition"
+     :text
+     "a semantic contract that fixes the meaning of a term in the graph; the key terms of other statements link to it.\n\nA definition is not contested in itself: you set a different definition of the same word against it. The graph then surfaces the ambiguity — several competing definitions for one term — instead of deciding."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "fb385b44-99a3-4314-b9e0-ab0316ee2e25"
+    :type :definition
+    :name "type-extract"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Extract"
+     :text
+     "a passage drawn verbatim from a work at a precise location (page, chapter, verse): it cites the one work it comes from and pins the locator, so the appropriations built on it can point back to exactly what was said.\n\nIt is contested on fidelity: whether the passage is transcribed accurately, at the stated location, in the edition cited."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "86cb547d-b995-4be6-98bc-2d7ac1f259e2"
+    :type :definition
+    :name "type-illustration"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Illustration"
+     :text
+     "a concrete example that makes another claim vivid — it shows an instance, it does not derive anything: no reasoning depends on it and nothing follows from it.\n\nIt is not challenged as reasoning: an illustration is apt or inapt, representative or misleading, but it proves nothing on its own — one disputes whether it truly exemplifies the claim, not whether it is 'valid'."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "bd3ee4d9-9f71-4ace-82ca-e5402f47e952"
+    :type :definition
+    :name "type-induction"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Induction"
+     :text
+     "an ampliative step: the conclusion goes *beyond* what the inputs strictly guarantee.\n\nYou may accept the premises, accept the form, and still find the leap too wide — here the challenge is a judgment on the leap itself, not a matter of formal validity."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "3730889c-868c-4311-9f45-6c0db053742e"
+    :type :definition
+    :name "type-measurable-fact"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Measurable fact"
+     :text
+     "an empirical foundation: a statement settled by a reproducible measurement or observation, holding independently of who asserts it.\n\nIt is not contested by reasoning but on the measurement itself — the protocol, the instrument, its reproducibility — or by producing a measurement that contradicts it."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "79f548ad-21b1-428b-b8a1-aeac3ca82698"
+    :type :definition
+    :name "type-objection"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Objection"
+     :text
+     "a document that challenges one precise version of another document, in its language, and asks its owner to change it.\n\nAn objection is not challenged: it is closed when the owner publishes a change that answers it. Its author may then react to that change by opening the next version of the objection."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "004756b2-9f88-4b54-ba9a-00af660a5abb"
+    :type :definition
+    :name "type-prediction"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Prediction"
+     :text
+     "verifiable knowledge whose truth will be settled by an observable event, possibly in the future.\n\nBefore resolution, objections bear on the soundness of the reasoning; at resolution, reality decides and the debate closes — confirmed or refuted, whatever the community's confidence."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "70c753b1-467b-4504-a5ab-6099eeed3d8a"
+    :type :definition
+    :name "type-publication"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Publication"
+     :text
+     "a set of documents in one language, prepared together and then published at once; it remains for good the publication each version it publishes comes from.\n\nA publication is not challenged: it asserts nothing by itself. What holds together is carried by the documents that cite each other, and a disagreement is taken up with them. To correct a published document, its author publishes a new version of it in a new publication."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+   {:id #uuid "391106f6-41a5-489a-a11d-6e0f3a87c34c"
+    :type :definition
+    :name "type-work"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Work"
+     :text
+     "an external document cited as bibliographic provenance — a book, article, dictionary, page… — shared (title, author, year, editor, URL) and reused by every passage drawn from it.\n\nIt is not contested like a piece of reasoning: you can discuss its accuracy, the edition chosen, or the attribution, but the work itself remains a shared provenance."
+     :inputs []
+     :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+  :content {:title "Type vocabulary"
+            :text "Describes every type of document: what it means, and how it is challenged."
+            :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]

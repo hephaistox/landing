@@ -8,65 +8,69 @@
 ;;
 ;; Data copied from the prod database (AGORA_DOCUMENT, AGORA_PERSON), 2026-10-18.
 ;!zprint {:map {:sort? false}}
-{:publications
- [{:id "66689470-49df-433f-965f-14a0a6f56bbd"
-   :type :publication
-   :name "exemple-les-miserables"
-   :lang :fr
-   :major 1
-   :title "Exemple les misérables"
-   :status :closed
-   :published-at "2026-08-15T14:16:31Z"
-   :owner {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
-           :name "Hephaistox"}
-   :documents
-   [{:id "465f927d-18bd-48be-ba18-bf41714ed69c"
-     :type :work
-     :name "les-miserables"
-     :lang :fr
-     :major 1
-     :minor 0
-     :author {:id "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
-              :name "Victor hugo"}
-     :title "Les misérables"
+[;; ********************************************************************************
+ {:id #uuid "66689470-49df-433f-965f-14a0a6f56bbd"
+  :type :publication
+  :name "exemple-les-miserables"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :contributors []
+  :documents
+  [{:id #uuid "465f927d-18bd-48be-ba18-bf41714ed69c"
+    :type :work
+    :name "les-miserables"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+    :author {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"}
+    :content
+    {:title "Les misérables"
      :text nil
-     :editor "Albert Lacroix et Cie"
-     :year "1962"
-     :url "https://ia801609.us.archive.org/10/items/bub_gb_Oo0NAAAAQAAJ/bub_gb_Oo0NAAAAQAAJ.pdf"
      :inputs []
-     :published-at "2026-08-15T12:07:04Z"}
-    {:id "eb979614-f127-4aa0-a61e-2229b712898e"
-     :type :extract
-     :name "cosette-est-exploitee"
-     :lang :fr
-     :major 1
-     :minor 0
-     :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
-              :name "Hephaistox"}
-     :title "Cosette est exploitée"
+     :published-at #inst "2026-08-15T12:07:04.000-00:00"
+     :editor "Albert Lacroix et Cie"
+     :year 1862
+     :url "https://ia801609.us.archive.org/10/items/bub_gb_Oo0NAAAAQAAJ/bub_gb_Oo0NAAAAQAAJ.pdf"}}
+   {:id #uuid "eb979614-f127-4aa0-a61e-2229b712898e"
+    :type :extract
+    :name "cosette-est-exploitee"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+    :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+    :content
+    {:title "Cosette est exploitée"
      :text
      "[[work:les-miserables:fr@1]]\nD'année en année, l'enfant grandit, et sa misère aussi. Tant que Cosette fut toute petite, elle fut le souffre-douleur des deux autres enfants ; dès qu'elle se mit à se développer un peu, c'est-à-dire avant même qu'elle eût cinq ans, elle devint la servante de la maison\n"
-     :locator
-     "Tome I « Fantine », Livre quatrième « Confier, c'est quelquefois livrer », chapitre III « L'Alouette »."
      :inputs [{:type :work
                :name "les-miserables"
                :lang :fr
                :major 1}]
-     :published-at "2026-08-15T12:41:54Z"}
-    {:id "9bca8c01-56fc-40c2-9b5d-fd213593ca96"
-     :type :extract
-     :name "les-thenardiers-sont-mechants"
-     :lang :fr
-     :major 1
-     :minor 0
-     :author {:id "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
-              :name "Hephaistox"}
-     :title "Les Thénardiers sont méchants"
+     :published-at #inst "2026-08-15T12:41:54.000-00:00"
+     :locator
+     "Tome I « Fantine », Livre quatrième « Confier, c'est quelquefois livrer », chapitre III « L'Alouette »."}}
+   {:id #uuid "9bca8c01-56fc-40c2-9b5d-fd213593ca96"
+    :type :extract
+    :name "les-thenardiers-sont-mechants"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+    :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+    :content
+    {:title "Les Thénardiers sont méchants"
      :text
      "[[work:les-miserables:fr@1]]\nCes êtres (ndtr - les thénardiers) appartenaient à cette classe bâtarde composée de gens grossiers parvenus et de gens intelligents déchus, qui est entre la classe dite moyenne et la classe dite inférieure, et qui combine quelques-uns des défauts de la seconde avec presque tous les vices de la première, sans avoir le généreux élan de l'ouvrier ni l'ordre honnête du bourgeois. "
-     :locator "Tome I, Livre 4, chapitre II « Première esquisse de deux figures louches »"
      :inputs [{:type :work
                :name "les-miserables"
                :lang :fr
                :major 1}]
-     :published-at "2026-08-15T14:06:36Z"}]}]}
+     :published-at #inst "2026-08-15T14:06:36.000-00:00"
+     :locator "Tome I, Livre 4, chapitre II « Première esquisse de deux figures louches »"}}]
+  :content {:title "Exemple les misérables"
+            :text "Enregistre « Les misérables » et en cite deux passages."
+            :published-at #inst "2026-08-15T14:16:31.000-00:00"}}]

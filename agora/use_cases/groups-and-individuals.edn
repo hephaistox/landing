@@ -1,0 +1,72 @@
+;; Use case: "Groupes et individus", a topic started twice.
+;;
+;; The open publication `groupes-et-individus` gathers drafts by two accounts. Its owner
+;; drafts the definition "Groupe", a fact and a deduction, the fact still empty. Another
+;; account drafts an article on the same topic; its text stops mid-sentence and cites
+;; nothing. Every document names its :owner; the article's is not the publication's, so the
+;; publication lists that account in :contributors (prod recorded no invitation). In prod
+;; the article sat in a second open publication of the same title: merged here, since a new
+;; major only starts once the previous one is closed. Everything is in fr. Owners set by
+;; hand, not as in prod: the publication belongs to Agora, the article to Hephaistox.
+;;
+;; Data copied from the prod database (AGORA_DOCUMENT), 2026-10-18.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:id #uuid "dcb99e24-7d12-4c4f-926a-81463ae38074"
+  :type :publication
+  :name "groupes-et-individus"
+  :lang :fr
+  :major 1
+  :status :open
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors [{:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}]
+  :documents
+  [{:id #uuid "584332d2-d281-4bd8-8626-4f0a0570ab40"
+    :type :definition
+    :name "groupe"
+    :lang :fr
+    :major 1
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Groupe"
+     :text
+     "un ensemble d'individus ou d'objets possédant des caractéristiques communes ou rassemblés dans le même objectif. Selon les domaines, il peut faire référence à :\n- Armée\n- Arts\n- Économie\n- Sciences exactes\n- Sciences humaines\n- Sciences naturelles\n- Sport\n- Technologie"
+     :inputs []
+     :published-at #inst "2026-07-12T10:27:35.000-00:00"}}
+   {:id #uuid "bb276dde-e2fb-4d08-ba0f-25e99ceaad0e"
+    :type :measurable-fact
+    :name "les-atomes-du-corps-changent"
+    :lang :fr
+    :major 1
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content {:title "Les atomes du corps changent"
+              :text ""
+              :inputs []
+              :published-at #inst "2026-08-15T15:50:36.000-00:00"}}
+   {:id #uuid "503174c3-1b0e-4081-b2b5-d69288b0c7cc"
+    :type :deduction
+    :name "une-entite-n-est-pas-la-matiere-l-objet-physique-qui-le-constitue"
+    :lang :fr
+    :major 1
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+    :content
+    {:title "Une entité n'est pas la matière, l'objet physique qui le constitue"
+     :text "Puisque tous les atomes du corps changent, il n'y a pas de raisons que de changer le ."
+     :inputs [{:id #uuid "bb276dde-e2fb-4d08-ba0f-25e99ceaad0e"}]
+     :published-at #inst "2026-08-15T15:50:41.000-00:00"}}
+   {:id #uuid "a4f89cc7-f94d-4082-87ca-0067ee1cfb6d"
+    :type :article
+    :name "groupes-et-individus"
+    :lang :fr
+    :major 1
+    :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+    :content
+    {:title "Groupes et individus"
+     :text
+     "Sans le savoir, vous utilisez la notion de groupe tous les jours, je dirais même tous les instants !! C'est une notion qui nous est essentielle pour  appréhender le monde.\n\nUn groupe vous permet de ne pas devenir fou quand vous rentrez dans une forêt par exemple. Il serait beaucoup trop lourd pour nous de considérer chaque arbre, son histoire, sa taille, son nombre de feuilles, sa forme.... Chaque arbre est ce que j'appelle ici un individu, cela permet "
+     :inputs []
+     :published-at #inst "2026-08-18T07:10:27.000-00:00"}}]
+  :content {:title "Groupes et individus"
+            :text "Commence à définir ce qu'est un groupe, et ce qui le distingue de ses individus."
+            :published-at #inst "2026-08-14T05:57:39.000-00:00"}}]

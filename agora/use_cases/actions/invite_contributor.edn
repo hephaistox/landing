@@ -1,0 +1,758 @@
+;; Use case: inviting a contributor.
+;;
+;; The owner of an open publication invites a user to write in it: the user joins its
+;; :contributors, by :id. The invitation holds for this publication only. Only the owner
+;; invites, only a user may be invited, and nobody is invited twice, the owner included.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox invites Raphaël to write in his publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open, without contributor; Raphaël and Han solo are users, Victor Hugo a person without an account."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and Raphaël."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output
+  {:description "Raphaël is its contributor."
+   :changed {:publications [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                             :type :publication
+                             :name "la-methode-scientifique"
+                             :lang :fr
+                             :major 1
+                             :status :open
+                             :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                             :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                             :documents []
+                             :content {:title "La méthode scientifique"
+                                       :text "Pose le vocabulaire de la méthode de Popper."
+                                       :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox invites Han solo too."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description "Hephaistox owns « La méthode scientifique », open; Raphaël is its contributor."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The publication, and Han solo."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}}}
+  :output
+  {:description "Raphaël and Han solo are its contributors."
+   :changed {:publications [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                             :type :publication
+                             :name "la-methode-scientifique"
+                             :lang :fr
+                             :major 1
+                             :status :open
+                             :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                             :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+                                            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+                             :documents []
+                             :content {:title "La méthode scientifique"
+                                       :text "Pose le vocabulaire de la méthode de Popper."
+                                       :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in tries to invite a contributor."
+  :by :anonymous
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open, without contributor; Raphaël and Han solo are users, Victor Hugo a person without an account."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "Raphaël."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) tries to invite a contributor."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open, without contributor; Raphaël and Han solo are users, Victor Hugo a person without an account. No user has the id of who acts."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "Raphaël."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to invite to a publication that does not exist."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open, without contributor; Raphaël and Han solo are users, Victor Hugo a person without an account."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "An id no publication has."
+              :data {:publication {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: no publication has this id."
+           :error {:reason :unknown-publication}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to invite to a published publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open, without contributor; Raphaël and Han solo are users, Victor Hugo a person without an account."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "The type vocabulary, closed."
+              :data {:publication {:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: a published publication is frozen."
+           :error {:reason :publication-closed}}}
+ ;; ********************************************************************************
+ {:description "Raphaël, a contributor, tries to invite Han solo."
+  :by {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description "Hephaistox owns « La méthode scientifique », open; Raphaël is its contributor."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "Han solo."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}}}
+  :output {:description "Refused: only the owner invites."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to invite Victor Hugo, who has no account."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open, without contributor; Raphaël and Han solo are users, Victor Hugo a person without an account."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "Victor Hugo."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"}}}
+  :output {:description "Refused: a contributor is a user."
+           :error {:reason :not-a-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox invites Raphaël a second time."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description "Hephaistox owns « La méthode scientifique », open; Raphaël is its contributor."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "Raphaël."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}}}
+  :output {:description "Refused: Raphaël already writes in it."
+           :error {:reason :already-a-writer}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to invite himself."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.invite-contributor/invite-contributor
+  :input
+  {:description
+   "Hephaistox owns « La méthode scientifique », open, without contributor; Raphaël and Han solo are users, Victor Hugo a person without an account."
+   :repository
+   {:persons [{:id #uuid "00000000-0000-0000-0000-000000000001"
+               :name "Agora"}
+              {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+               :name "Hephaistox"}
+              {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+               :name "Raphaël"}
+              {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+               :name "Han solo"}
+              {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+               :name "Victor Hugo"}]
+    :users [{:id #uuid "00000000-0000-0000-0000-000000000001"
+             :provider :password
+             :provider-id "agora"}
+            {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+             :provider :google
+             :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+            {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+             :provider :password
+             :provider-id "raphael"}
+            {:id #uuid "05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"
+             :provider :google
+             :provider-id "google-05ca77b3-1355-4f39-b59c-6ea1dbb5ffff"}]
+    :publications
+    [{:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "1015025a-5211-4825-a0cf-7870758221f5"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient."
+         :inputs []
+         :published-at #inst "2026-08-15T12:14:21.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Décrit chaque type de document : son sens, et comment on le conteste."
+                :published-at #inst "2026-08-15T12:14:21.000-00:00"}}
+     {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents []
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter {:description "Hephaistox."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :contributor {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}}}
+  :output {:description "Refused: the owner already writes in it."
+           :error {:reason :already-a-writer}}}]

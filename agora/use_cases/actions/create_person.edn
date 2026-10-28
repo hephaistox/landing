@@ -1,0 +1,66 @@
+;; Use case: creating a person.
+;;
+;; A logged-in user records persons without an account, to credit works to them. Creating a
+;; person adds only that person: no account. Two persons without an account may share a name.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox creates Victor Hugo, to credit him a work."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.create-person/create-person
+  :input {:description "Hephaistox has signed up."
+          :repository {:persons [{:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                                  :name "Hephaistox"}]
+                       :users [{:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                                :provider :google
+                                :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}]}}
+  :parameter {:description "The person: an id and a display name."
+              :data {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+                     :name "Victor Hugo"}}
+  :output {:description "A person, and no account."
+           :created {:persons [{:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+                                :name "Victor Hugo"}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox creates another Victor Hugo, a namesake."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.create-person/create-person
+  :input {:description "Victor Hugo already exists."
+          :repository {:persons [{:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                                  :name "Hephaistox"}
+                                 {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"
+                                  :name "Victor Hugo"}]
+                       :users [{:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                                :provider :google
+                                :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}]}}
+  :parameter {:description "Another person, with the same display name."
+              :data {:id #uuid "7a1f3c22-0b4e-4d8a-9c55-2e6f8d1b3a90"
+                     :name "Victor Hugo"}}
+  :output {:description
+           "A second person named Victor Hugo: persons without an account may share a name."
+           :created {:persons [{:id #uuid "7a1f3c22-0b4e-4d8a-9c55-2e6f8d1b3a90"
+                                :name "Victor Hugo"}]}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in tries to create a person."
+  :by :anonymous
+  :action agora.action.create-person/create-person
+  :input {:description "Nobody is logged in."
+          :repository {}}
+  :parameter {:description "A person to credit."
+              :data {:id #uuid "4c8d2e1f-5a6b-4c7d-9e0f-1a2b3c4d5e6f"
+                     :name "Émile Zola"}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) tries to create a person."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.create-person/create-person
+  :input {:description "Hephaistox has signed up; no user has the id of who acts."
+          :repository {:persons [{:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                                  :name "Hephaistox"}]
+                       :users [{:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"
+                                :provider :google
+                                :provider-id "google-61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}]}}
+  :parameter {:description "A person to credit."
+              :data {:id #uuid "4c8d2e1f-5a6b-4c7d-9e0f-1a2b3c4d5e6f"
+                     :name "Émile Zola"}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}]

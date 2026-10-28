@@ -1,0 +1,821 @@
+;; Use case: recording a timestamp.
+;;
+;; The owner of the version writes the proof OpenTimestamps returned on its timestamp:
+;; incomplete from the calendars, then complete once anchored in Bitcoin. The status only
+;; moves forward. The proofs here are fictional.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox records the proof from the OpenTimestamps calendars."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published. « Les ventes de 2030 » has a pending timestamp."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :status :pending
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                     :status :incomplete}}
+  :output
+  {:description "The timestamp holds an incomplete proof."
+   :changed
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                    :status :incomplete
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Once anchored in a Bitcoin block, Hephaistox records the complete proof."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published. The timestamp of « Les ventes de 2030 » holds an incomplete proof."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                    :status :incomplete
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIBQCIlg1z2QEDocAP"
+                     :status :complete}}
+  :output
+  {:description "The timestamp holds the complete proof."
+   :changed
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIBQCIlg1z2QEDocAP"
+                    :status :complete
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox records the complete proof directly, from pending."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published. « Les ventes de 2030 » has a pending timestamp."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :status :pending
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIBQCIlg1z2QEDocAP"
+                     :status :complete}}
+  :output
+  {:description "The timestamp holds the complete proof."
+   :changed
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIBQCIlg1z2QEDocAP"
+                    :status :complete
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in records a proof."
+  :by :anonymous
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published. « Les ventes de 2030 » has a pending timestamp."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :status :pending
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                     :status :incomplete}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) records a proof."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published. « Les ventes de 2030 » has a pending timestamp."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :status :pending
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                     :status :incomplete}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox records a proof for a version that does not exist."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published. « Les ventes de 2030 » has a pending timestamp."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :status :pending
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                     :status :incomplete}}
+  :output {:description "Refused: no published version has this id."
+           :error {:reason :unknown-version}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox records a proof for a version never timestamped."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+                   :type :prediction
+                   :name "ventes-2030"
+                   :lang :fr
+                   :major 1
+                   :minor 0
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2030"
+                    :text
+                    "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+                  {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+                   :type :article
+                   :name "la-voiture-electrique"
+                   :lang :fr
+                   :major 1
+                   :minor 0
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "La voiture électrique"
+                             :text "Un article sur la voiture électrique."
+                             :inputs []
+                             :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                     :status :incomplete}}
+  :output {:description "Refused: nothing to record, the version has no timestamp."
+           :error {:reason :not-timestamped}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 records a proof on the prediction of Hephaistox."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published. « Les ventes de 2030 » has a pending timestamp."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :status :pending
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                     :status :incomplete}}
+  :output {:description "Refused: only the owner of a version records its proof."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox records an incomplete proof on a complete timestamp."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.record-timestamp/record-timestamp
+  :input
+  {:description
+   "« La voiture électrique » is published by Hephaistox: the prediction « Les ventes de 2030 » and an article; « Les ventes de 2035 » is still a draft; the type vocabulary is published. The timestamp of « Les ventes de 2030 » is complete."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :name "ventes-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:requested-at #inst "2026-10-27T09:00:00.000-00:00"
+                    :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIBQCIlg1z2QEDocAP"
+                    :status :complete
+                    :hash "ddaaf1f504b8ef24257ec5e7b0a9d37a99f94f72a6be81ae0a8ba8708fb1dfe8"}}
+       {:id #uuid "f8b2d4e6-3c5a-4b79-8d1f-2a4b6c8e0f3d"
+        :type :article
+        :name "la-voiture-electrique"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "La voiture électrique"
+                  :text "Un article sur la voiture électrique."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :name "les-ventes-de-2035"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :name "ventes-2035"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]}}
+  :parameter {:description
+              "The version, the proof OpenTimestamps returned, in base64, and its status."
+              :data {:version {:id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"}
+                     :proof "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI"
+                     :status :incomplete}}
+  :output {:description "Refused: a status only moves forward."
+           :error {:reason :status-not-advancing}}}]

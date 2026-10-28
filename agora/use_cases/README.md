@@ -1,83 +1,120 @@
-# Cas d'usage d'agora
+# Agora use cases
 
-Un fichier EDN par cas d'usage. Les concepts sont définis dans les docstrings des namespaces `src/agora/*.cljc`.
+One EDN file per use case. The concepts are defined in the docstrings of the namespaces of
+`src/agora/`.
 
-Il y a deux formes de fichiers :
+There are four kinds of files:
 
-- **un état** (`:publications`) : une photo des publications et de leurs documents, tirée de la base de prod ;
-- **les personnes** (`personnes.edn`) et **les utilisateurs** (`utilisateurs.edn`) : toutes
-  les personnes nommées par les cas d'usage, et le compte de celles qui en ont un ;
-- **un scénario** (`:steps`) : une suite d'étapes. Chaque étape crée ou remplace des publications, identifiées par leur `:id`. Un scénario part des états, sans les modifier.
+- **a snapshot**: a vector of publications and objections, in chronological order, taken
+  from the prod database. Each map says what it is by its `:type`;
+- **the persons** (`persons.edn`) and **the users** (`users.edn`): every person
+  the use cases name, and the account of those who have one;
+- **a scenario**, in `scenarios/`: an ordered vector too, but each element is a step. It
+  creates a publication or an objection, or replaces the one with the same `:id`: a
+  publication being published first appears open, then closed. Its text says what the
+  step does. A scenario starts from the snapshots, without changing them;
+- **an action use case**, in `actions/`: a vector of steps, each running one action of the
+  domain (`src/agora/action/`). A step says who acts (`:by`) and which action
+  (`:action`), then its `:input` (the repository it starts from), its `:parameter` (the
+  data of the action) and its `:output` (what it creates or changes, or the refusal it
+  expects: `:error {:reason …}`), each with a `:description`. Each step starts from its own
+  input: a literal `:repository`, or `:snapshots` (with `persons.edn` and `users.edn`), then
+  `:repository` on top, whose entities replace those of the same `:id`.
 
-## Vérification
+## Checks
 
-Le domaine est dans `src/agora/`, un namespace par concept. Chaque concept porte ses règles. `agora.publication/violations` les applique toutes à un ensemble de publications, et `agora.publication/transition-violations` contrôle le passage d'un état au suivant.
+The domain is in `src/agora/`, one namespace per concept. Each concept holds its rules.
+`agora.repository/violations` applies them all to a repository, and
+`agora.entity.objection/transition-violations` checks the move from one state to the next.
 
-Le test `test/unit/agora/use_case_test.clj` lit les cas (`agora.use-case`), vérifie les états, puis rejoue chaque scénario. Après chaque étape, il contrôle l'état obtenu et le passage depuis l'étape précédente.
+- `test/unit/agora/use_case_test.clj` reads the snapshots and scenarios
+  (`agora.use-case`), checks the snapshots, then replays each scenario. After each step, it
+  checks the state reached and the move from the previous step.
+- `test/unit/agora/action_test.clj` runs the action use cases (`agora.action-case`). It
+  first splits the valid steps from the invalid ones, as structured errors, then runs the
+  valid ones and compares what each created or changed with its `:output`.
+- `test/unit/agora/entity/*_test.cljc` and `test/unit/agora/value/*_test.cljc` test each concept of the domain, in Clojure and
+  ClojureScript.
 
-| règle                                | concept     | ce qui est vérifié                                                                     |
-|--------------------------------------|-------------|----------------------------------------------------------------------------------------|
-| `:person/shape`, `:person/unique-id` | personne    | une personne est `{:id :name}` ; un `:id` ne désigne qu'une personne                   |
-| `:user/shape`                        | utilisateur | un utilisateur est `{:id :provider}`, `:provider` `:google` ou `:password`             |
-| `:user/is-a-person`                  | utilisateur | un utilisateur est une personne : son `:id` est dans `personnes.edn`                   |
-| `:user/unique-name`                  | utilisateur | le nom d'un utilisateur est unique parmi les utilisateurs, sans majuscules ni accents  |
-| `:lang/known`                        | langue      | langue `:fr` ou `:en`, pour les documents et les citations                             |
-| `:document/title-and-date`           | document    | chaque document a un titre et une date                                                 |
-| `:type/known`                        | type        | le type est pris dans la liste fermée ; plus de `:kind`                                |
-| `:type/described`                    | type        | chaque type est décrit par `type-<type>`, en fr et en en                               |
-| `:type/text`                         | type        | une œuvre a un auteur crédité ; tout autre document a un texte                         |
-| `:version/minor`                     | version     | une mineure est absente (brouillon) ou entière ≥ 0                                     |
-| `:version/described-types-published` | version     | les descriptions de types sont publiées                                                |
-| `:identity/unique`                   | identité    | identité unique parmi les versions publiées ; `:id` unique                             |
-| `:identity/minors`                   | identité    | les mineures publiées d'une majeure vont de 0 à n, sans trou                           |
-| `:identity/frozen`                   | identité    | un document publié ne change plus (transition)                                         |
-| `:citation/shape`                    | citation    | une citation est une référence ou un `{:id}`                                           |
-| `:citation/links`                    | citation    | liens complets (`type:nom:langue@majeure` ou `id:…`), et chaque lien est une citation  |
-| `:citation/published-before`         | citation    | on ne cite par référence que ce qui était déjà publié                                  |
-| `:citation/extract`                  | citation    | un extrait cite une seule œuvre                                                        |
-| `:publication/shape`                 | publication | type `:publication`, une langue, une majeure, un statut, ni mineure ni brouillon       |
-| `:publication/identity`              | publication | identité (nom, langue, majeure) unique ; `:id` unique parmi publications et documents  |
-| `:publication/content`               | publication | que des documents de sa langue, jamais une publication                                 |
-| `:publication/status`                | publication | ouverte ⇒ brouillons ; close ⇒ versions publiées                                       |
-| `:publication/majors`                | publication | majeures 1..n ; nouvelle majeure seulement après une majeure close                     |
-| `:publication/one-version`           | publication | deux versions d'un même document ne sont jamais dans la même publication               |
-| `:publication/owner`                 | publication | `:owner` d'un document seulement s'il diffère, et alors contributeur invité            |
-| `:publication/persons`               | publication | toute personne nommée existe dans `personnes.edn`, sous le même nom                    |
-| `:publication/contributors`          | publication | un contributeur invité est un utilisateur                                              |
-| `:publication/citations`             | publication | on cite du publié par référence, ou un brouillon de la même publication par `:id`      |
-| `:publication/frozen`                | publication | une publication close ne change plus (transition)                                      |
-| `:publication/no-move`               | publication | un document ne quitte jamais sa publication (transition)                               |
-| `:publication/publish`               | publication | publier attribue la mineure suivante et convertit les citations par `:id` (transition) |
+| rule                                 | concept     | what is checked                                                                                                                                                                                                                                              |
+|--------------------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `:repository/shape`                  | repository  | a repository holds only persons, users, publications and objections, each as a vector                                                                                                                                                                        |
+| `:person/shape`, `:person/unique-id` | person      | a person is `{:id :name}`; an `:id` designates one person only                                                                                                                                                                                               |
+| `:user/shape`                        | user        | a user is `{:id :provider :provider-id}`, `:provider` `:google` or `:password`; the `:provider-id` is the id at Google, or the login                                                                                                                         |
+| `:user/is-a-person`                  | user        | a user is a person: its `:id` is in `persons.edn`                                                                                                                                                                                                            |
+| `:user/unique-provider-id`           | user        | an account at a provider (Google id or login) opens one user only                                                                                                                                                                                            |
+| `:user/unique-name`                  | user        | a user's name is unique among users, regardless of case and accents                                                                                                                                                                                          |
+| `:lang/known`                        | language    | language `:fr` or `:en`, for documents and citations                                                                                                                                                                                                         |
+| `:document/shape`                    | document    | a document follows its grammar: id, identity, owner, author, its `:content` (title, text, citations, publication date) and its timestamp, with a proof exactly when not pending                                                                              |
+| `:type/known`                        | type        | the type is taken from the closed list; no more `:kind`                                                                                                                                                                                                      |
+| `:type/described`                    | type        | every type a document uses is described by `type-<type>`, in the document's language; the whole vocabulary is checked on `type-vocabulary.edn`                                                                                                               |
+| `:type/text`                         | type        | a work has a credited author; any other document has a text                                                                                                                                                                                                  |
+| `:version/minor`                     | version     | a minor is absent (a draft has no `:minor` key) or an integer ≥ 0                                                                                                                                                                                            |
+| `:version/described-types-published` | version     | type descriptions are published                                                                                                                                                                                                                              |
+| `:identity/unique`                   | identity    | the identity is unique among published versions; the `:id` is unique                                                                                                                                                                                         |
+| `:identity/minors`                   | identity    | the published minors of a major go from 0 to n, without gap                                                                                                                                                                                                  |
+| `:citation/shape`                    | citation    | a citation is an `{:id}`, or a tnlr following its grammar                                                                                                                                                                                                    |
+| `:citation/links`                    | citation    | complete links (`type:name:language@major` or `id:…`), and every link is a citation                                                                                                                                                                          |
+| `:citation/published-before`         | citation    | a citation by tnlr only cites what was already published                                                                                                                                                                                                     |
+| `:citation/inputs`                   | citation    | a document cites as its type says: nothing, at least one document, or exactly one work for an extract                                                                                                                                                        |
+| `:publication/shape`                 | publication | a publication follows its grammar: type `:publication`, a text describing the change, a language, a major and no minor, a status, an owner, its contributors (possibly none), its documents (each following the document grammar), the objections it answers |
+| `:publication/identity`              | publication | the identity (name, language, major) is unique; the `:id` is unique among publications and documents                                                                                                                                                         |
+| `:publication/content`               | publication | only documents of its language, never a publication                                                                                                                                                                                                          |
+| `:publication/status`                | publication | open or canceled ⇒ drafts; closed ⇒ published versions |
+| `:publication/majors`                | publication | majors go 1..n; a new major only after a closed one                                                                                                                                                                                                          |
+| `:publication/one-version`           | publication | two versions of a document are never in the same publication                                                                                                                                                                                                 |
+| `:publication/owner`                 | publication | a publication and each of its documents are owned by a user; a document's owner is the publication's, or an invited contributor                                                                                                                              |
+| `:publication/persons`               | publication | every named person (owner, author, contributor, each `{:id}`) is in `persons.edn`                                                                                                                                                                            |
+| `:publication/contributors`          | publication | an invited contributor is a user                                                                                                                                                                                                                             |
+| `:publication/citations`             | publication | published versions are cited by tnlr, a draft of the same publication by `:id`                                                                                                                                                                               |
+| `:publication/frozen`                | publication | a closed or canceled publication never changes, but for the timestamps of its versions (transition)                                                                                                                                                          |
+| `:publication/no-move`               | publication | a document never leaves its publication (transition)                                                                                                                                                                                                         |
+| `:objection/shape`                   | objection   | an objection follows its grammar: type `:objection`, a language, a major and no minor, a title, a text, a `:reason`, a status `:draft` or `:closed`, an owner `{:id}`, a single `{:id}` targeted, its backing citations                                      |
+| `:objection/owner`                   | objection   | the author of an objection is a user                                                                                                                                                                                                                         |
+| `:objection/target`                  | objection   | its `:id` designates a published version, in its language                                                                                                                                                                                                    |
+| `:objection/reason`                  | objection   | it invokes an objection its target's type predefines (`:reason`), and cites only documents of the types that may back it                                                                                                                                     |
+| `:objection/identity`                | objection   | majors go 1..n; a new major only after a closed one                                                                                                                                                                                                          |
+| `:objection/answer`                  | objection   | it is answered by a publication of the targeted document's owner, which changes it                                                                                                                                                                           |
+| `:objection/status`                  | objection   | an objection is closed exactly when a closed publication answers it                                                                                                                                                                                          |
+| `:objection/frozen`                  | objection   | a closed objection never changes (transition)                                                                                                                                                                                                                |
+| `:timestamp/version`                 | timestamp   | only a published version, of a type that allows it (a prediction), has a timestamp                                                                                                                                                                           |
+| `:timestamp/hash`                    | timestamp   | its hash is the hash of its version (identity, owner id, content): a published version changed afterwards is detected                                                                                                                                        |
 
-## Les cas
+## The cases
 
-### États tirés de la prod
+### Snapshots taken from prod
 
-| cas                         | ce qu'il vérifie                                                                                                                |
-|-----------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `voiture-rapide.edn`        | versions mineures d'un article, une publication par étape, citations et liens, fr et en                                         |
-| `vocabulaire-des-types.edn` | chaque type décrit par `type-<type>` ; une publication close ne reçoit plus de document (`type-publication` est dans une autre) |
-| `methode-scientifique.edn`  | publication ouverte, brouillons qui se citent par `:id`                                                                         |
-| `groupes-et-individus.edn`  | contributeur invité ; un document dont le propriétaire n'est pas celui de la publication                                        |
-| `les-miserables.edn`        | œuvre créditée à un auteur sans compte, extraits et leur emplacement                                                            |
+| case                         | what it checks                                                                                                                                                                                                             |
+|------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `my-car-is-fast.edn`         | the story of the home page: one publication per edition, with the statement it brings; between two editions, the objection of an active reader, answered by the next edition; last his reaction, still a draft; fr then en |
+| `type-vocabulary.edn`        | every type described by `type-<type>`, in a single publication, in fr and en                                                                                                                                               |
+| `scientific-method.edn`      | an open publication, drafts citing each other by `:id`                                                                                                                                                                     |
+| `groups-and-individuals.edn` | an invited contributor; a document whose owner is not the publication's                                                                                                                                                    |
+| `les-miserables.edn`         | a work credited to an author without an account, extracts and where they are                                                                                                                                               |
 
-### Scénarios
+### Scenarios, in `scenarios/`
 
-| cas                                   | ce qu'il vérifie                                                                                                           | règles                                                                    |
-|---------------------------------------|----------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|
-| `publier-la-methode-scientifique.edn` | publier une publication : mineures attribuées, citations et liens par `:id` convertis en références                        | `:publication/publish`, `:publication/status`, `:publication/citations`   |
-| `corriger-une-definition.edn`         | corriger un document publié par une nouvelle publication : précision en mineure (1.1), changement cassant en majeure (2.0) | `:identity/frozen`, `:publication/publish`, `:identity/minors`            |
-| `mineures-concurrentes.edn`           | deux brouillons d'un même document dans deux publications : la mineure suit l'ordre de publication, pas d'ouverture        | `:publication/publish`, `:identity/unique`, `:identity/minors`            |
-| `reprendre-une-publication.edn`       | nouvelle majeure d'une publication close                                                                                   | `:publication/majors`, `:publication/frozen`                              |
-| `traduction-differee.edn`             | une langue publiée deux mois après l'autre, sous le même nom ; les extraits ne se traduisent pas                           | `:publication/content`, `:publication/frozen`                             |
-| `citer-une-autre-langue.edn`          | un article fr cite une définition en ; le brouillon en doit être publié avant d'être cité                                  | `:publication/citations`, `:citation/published-before`, `:citation/links` |
-| `changer-de-type.edn`                 | une croyance ne devient pas un fait mesurable : c'est un nouveau document, du même nom                                     | `:identity/unique`, `:type/known`                                         |
-| `fondements-et-prediction.edn`        | supposition, croyance, prédiction, puis une mesure et une déduction qui la réfutent                                        | `:type/known`, `:publication/citations`, `:publication/publish`           |
-| `changer-un-titre.edn`                | une nouvelle mineure change le titre, le nom reste                                                                         | `:publication/publish`, `:identity/minors`                                |
-| `contester.edn`                       | une définition concurrente de « Rapide », une mesure qui contredit le chrono                                               | `:type/known`, `:identity/unique`                                         |
+| case                                | what it checks                                                                                                         | rules                                                                     |
+|-------------------------------------|------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|
+| `take-up-a-publication.edn`         | a new major of a closed publication                                                                                    | `:publication/majors`, `:publication/frozen`                              |
 
-### Ce qui n'est pas encore couvert
+### Action use cases, in `actions/`
 
-| sujet                                       | pourquoi                                                                |
-|---------------------------------------------|-------------------------------------------------------------------------|
-| lier une contestation à ce qu'elle conteste | question ouverte : citer veut dire « s'appuyer sur », pas « contester » |
+| case                     | what it checks                                                                                                                                                                                                                                                                                                                                                                                                                                       | action                                               |
+|--------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
+| `sign-up.edn`            | someone without an account signs up, with Google or a password: a person and its user; other data untouched; refused when logged in, or again with the same account (Google id or login)                                                                                                                                                                                                                                                             | `agora.action.sign-up/sign-up`                       |
+| `create-person.edn`      | a logged-in user creates a person without an account, to credit a work; a namesake is allowed; refused when not logged in or for an unknown user                                                                                                                                                                                                                                                                                                     | `agora.action.create-person/create-person`           |
+| `open-publication.edn`   | a logged-in user opens a publication (major 1, no document); refused when not logged in, for an unknown user, a taken `:id`, or when the name is taken in that language, even by a canceled publication; the same name in another language is allowed. Replaces no scenario yet                                                                                                                                                                                                      | `agora.action.open-publication/open-publication`     |
+| `write-draft.edn`        | the owner or a contributor writes a draft in an open publication: its language, no minor, owned by who writes it; drafts cite each other by `:id`. Refused for an anonymous or unknown user, an unknown or closed publication, a user not invited, a taken `:id`, a second version in the publication, a wrong major, a broken rule                                                                                                                  | `agora.action.write-draft/write-draft`               |
+| `edit-draft.edn`         | the owner of a draft replaces what it says (title, text, citations); its identity and owner stay. Refused for an anonymous or unknown user, an unknown or closed publication, an unknown draft, anyone but its owner (the publication's owner included), a broken rule                                                                                                                                                                               | `agora.action.edit-draft/edit-draft`                 |
+| `invite-contributor.edn` | the owner of an open publication invites a user, who joins its `:contributors`. Refused for an anonymous or unknown user, an unknown or closed publication, who is not the owner, a person without an account, someone who already writes in it                                                                                                                                                                                                      | `agora.action.invite-contributor/invite-contributor` |
+| `publish.edn`            | the owner publishes an open publication: each draft gets its minor, citations by `:id` become citations by tnlr; minors follow the order of publishing; corrections as a minor or a major; a new title keeps the name; a citation in another language; a delayed translation; a belief does not become a fact. Refused for an anonymous or unknown user, an unknown or closed publication, anyone but its owner, an empty publication, a broken rule | `agora.action.publish/publish`                       |
+| `cancel-publication.edn` | the owner gives up an open publication: it keeps its drafts, whoever wrote them, frozen and never published; its name stays taken. Refused for an anonymous or unknown user, an unknown, closed or already canceled publication, anyone but its owner | `agora.action.cancel-publication/cancel-publication` |
+| `prepare-timestamp.edn` | the owner of a published version whose type allows it (a prediction) asks to timestamp it: the version gets a pending `:timestamp` holding its hash; its content is unchanged. Refused for an anonymous or unknown user, an unknown version or a draft, anyone but its owner, a type that may not be timestamped, a version already timestamped | `agora.action.prepare-timestamp/prepare-timestamp` |
+| `record-timestamp.edn` | the owner of the version records the proof OpenTimestamps returned: incomplete, then complete; the status only moves forward. Refused for an anonymous or unknown user, an unknown version, anyone but its owner, a version without timestamp, a status not moving forward | `agora.action.record-timestamp/record-timestamp` |
+
+### Not covered yet
+
+| topic                                                        | why                                 |
+|--------------------------------------------------------------|-------------------------------------|
+| an objection replayed step by step (draft, answer, reaction) | the cases only show the final state |

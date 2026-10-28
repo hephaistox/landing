@@ -1,0 +1,479 @@
+;; Use case: "My car is fast", the example of the agora home page.
+;;
+;; Read it from top to bottom: it is the story the home page tells. Each edition of the
+;; article `ma-voiture-est-rapide` is a new minor, published in its own publication with
+;; the statement it brings. Between two editions, an active reader (Hephaistox2) objects;
+;; the next publication answers him (:answers), which closes the objection:
+;;   1.0 - the bare claim
+;;   1.1 - + `rapide`               (definition)
+;;   1.2 - + `le-0-a-100-mesure`    (measurable fact)
+;;   1.3 - + `ce-modele-est-rapide` (induction, which itself cites `cette-voiture-est-rapide`)
+;; Last, the reader reacts to the edition 1.3: going from one car to the whole model is a
+;; leap. That major 2 of his objection is still a :draft. The story in fr, then in en.
+;;
+;; Data copied from the prod database (AGORA_DOCUMENT), 2026-10-18, with three changes: each
+;; statement is published with the edition that first cites it, not all beforehand; each
+;; publication has a language (the fr versions keep the prod id, the en versions get a new
+;; one and an English title); the objections are written from the home page.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:id #uuid "dddddddd-0000-0000-0000-000001010000"
+  :type :publication
+  :name "exemple-pedagogique-1"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010100"
+               :type :article
+               :name "ma-voiture-est-rapide"
+               :lang :fr
+               :major 1
+               :minor 0
+               :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+               :content {:title "Ma voiture est rapide"
+                         :text "Ma voiture est rapide."
+                         :inputs []
+                         :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+  :content {:title "Exemple pédagogique 1"
+            :text "Affirme que ma voiture est rapide, sans appui."
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"
+  :type :objection
+  :name "que-veut-dire-rapide"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010100"}]
+  :content
+  {:reason :omission
+   :title "Que veut dire « rapide » ?"
+   :text
+   "« Rapide », ça veut dire quoi, au juste ? Rapide comme une F1? Rapide par rapport à ma Clio?"
+   :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "dddddddd-0000-0000-0000-000001020000"
+  :type :publication
+  :name "exemple-pedagogique-2"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :answers [{:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}]
+  :documents
+  [{:id #uuid "dddddddd-0000-0000-0000-000010010100"
+    :type :definition
+    :name "rapide"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content {:title "Rapide"
+              :text "atteindre 100 km/h en moins de 5 secondes."
+              :inputs []
+              :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+   {:id #uuid "dddddddd-0000-0000-0000-000020010101"
+    :type :article
+    :name "ma-voiture-est-rapide"
+    :lang :fr
+    :major 1
+    :minor 1
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Ma voiture est rapide"
+     :text
+     "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]])."
+     :inputs [{:type :definition
+               :name "rapide"
+               :lang :fr
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+  :content {:title "Exemple pédagogique 2"
+            :text "Définit ce que veut dire « rapide »."
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "4b8e2f71-2c3d-4f6a-8e90-5a7c1d3b9e22"
+  :type :objection
+  :name "un-fait-mesurable"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010101"}]
+  :content {:reason :omission
+            :title "Un fait mesurable ?"
+            :text "Admettons. Et tu as un fait mesurable ?"
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "dddddddd-0000-0000-0000-000001030000"
+  :type :publication
+  :name "exemple-pedagogique-3"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :answers [{:id #uuid "4b8e2f71-2c3d-4f6a-8e90-5a7c1d3b9e22"}]
+  :documents
+  [{:id #uuid "dddddddd-0000-0000-0000-000010020100"
+    :type :measurable-fact
+    :name "le-0-a-100-mesure"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content {:title "Le 0 à 100 mesuré"
+              :text "Cette voiture atteint 100 km/h en 4,2 secondes."
+              :inputs []
+              :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+   {:id #uuid "dddddddd-0000-0000-0000-000020010102"
+    :type :article
+    :name "ma-voiture-est-rapide"
+    :lang :fr
+    :major 1
+    :minor 2
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Ma voiture est rapide"
+     :text
+     "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide."
+     :inputs [{:type :definition
+               :name "rapide"
+               :lang :fr
+               :major 1}
+              {:type :measurable-fact
+               :name "le-0-a-100-mesure"
+               :lang :fr
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+  :content {:title "Exemple pédagogique 3"
+            :text "Ajoute la mesure du 0 à 100."
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "9a1c5e33-7d2f-4b8a-b1c4-3e6f8a2d5c33"
+  :type :objection
+  :name "et-le-modele-en-general"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010102"}]
+  :content {:reason :omission
+            :title "Et le modèle en général ?"
+            :text "Et le modèle en général, pas seulement la tienne ?"
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "dddddddd-0000-0000-0000-000001040000"
+  :type :publication
+  :name "exemple-pedagogique-4"
+  :lang :fr
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :answers [{:id #uuid "9a1c5e33-7d2f-4b8a-b1c4-3e6f8a2d5c33"}]
+  :documents
+  [{:id #uuid "dddddddd-0000-0000-0000-000010030100"
+    :type :deduction
+    :name "cette-voiture-est-rapide"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Cette voiture est rapide"
+     :text
+     "Elle atteint 100 km/h en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) et « rapide » désigne moins de 5 s ([[definition:rapide:fr@1|la définition]]) — donc elle est rapide."
+     :inputs [{:type :measurable-fact
+               :name "le-0-a-100-mesure"
+               :lang :fr
+               :major 1}
+              {:type :definition
+               :name "rapide"
+               :lang :fr
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+   {:id #uuid "dddddddd-0000-0000-0000-000010040100"
+    :type :induction
+    :name "ce-modele-est-rapide"
+    :lang :fr
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Ce modèle est rapide"
+     :text
+     "Trois exemplaires testés étaient rapides (dont [[deduction:cette-voiture-est-rapide:fr@1|celui-ci]]) — donc le modèle est rapide."
+     :inputs [{:type :deduction
+               :name "cette-voiture-est-rapide"
+               :lang :fr
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+   {:id #uuid "dddddddd-0000-0000-0000-000020010103"
+    :type :article
+    :name "ma-voiture-est-rapide"
+    :lang :fr
+    :major 1
+    :minor 3
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "Ma voiture est rapide"
+     :text
+     "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]])."
+     :inputs [{:type :definition
+               :name "rapide"
+               :lang :fr
+               :major 1}
+              {:type :measurable-fact
+               :name "le-0-a-100-mesure"
+               :lang :fr
+               :major 1}
+              {:type :induction
+               :name "ce-modele-est-rapide"
+               :lang :fr
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+  :content {:title "Exemple pédagogique 4"
+            :text "Généralise de la voiture au modèle."
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"
+  :type :objection
+  :name "et-le-modele-en-general"
+  :lang :fr
+  :major 2
+  :status :draft
+  :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+  :content
+  {:reason :omission
+   :title "Et le modèle en général ?"
+   :text
+   "Passer de ta voiture à tout le modèle est un saut : combien d'exemplaires as-tu testés, et comment les as-tu choisis ?"
+   :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "5cecdc44-b220-4285-b2b6-618e910e2962"
+  :type :publication
+  :name "exemple-pedagogique-1"
+  :lang :en
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010200"
+               :type :article
+               :name "ma-voiture-est-rapide"
+               :lang :en
+               :major 1
+               :minor 0
+               :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+               :content {:title "My car is fast"
+                         :text "My car is fast."
+                         :inputs []
+                         :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+  :content {:title "Teaching example 1"
+            :text "Claims that my car is fast, with no support."
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "ebb662b2-5d24-46fb-881f-1655c9d43e4b"
+  :type :objection
+  :name "que-veut-dire-rapide"
+  :lang :en
+  :major 1
+  :status :closed
+  :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010200"}]
+  :content {:reason :omission
+            :title "What does « fast » mean?"
+            :text "« Fast » — what does that even mean?"
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "398eb4d1-7ea3-4294-855d-060a480f1a9e"
+  :type :publication
+  :name "exemple-pedagogique-2"
+  :lang :en
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :answers [{:id #uuid "ebb662b2-5d24-46fb-881f-1655c9d43e4b"}]
+  :documents
+  [{:id #uuid "dddddddd-0000-0000-0000-000010010200"
+    :type :definition
+    :name "rapide"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content {:title "Fast"
+              :text "reaching 100 km/h in under 5 seconds."
+              :inputs []
+              :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+   {:id #uuid "dddddddd-0000-0000-0000-000020010201"
+    :type :article
+    :name "ma-voiture-est-rapide"
+    :lang :en
+    :major 1
+    :minor 1
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "My car is fast"
+     :text
+     "My car is fast. By « fast » I mean reaching 100 km/h in under 5 seconds ([[definition:rapide:en@1|definition]])."
+     :inputs [{:type :definition
+               :name "rapide"
+               :lang :en
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+  :content {:title "Teaching example 2"
+            :text "Defines what « fast » means."
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "35673bb2-937a-4931-b201-802226c2b791"
+  :type :objection
+  :name "un-fait-mesurable"
+  :lang :en
+  :major 1
+  :status :closed
+  :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010201"}]
+  :content {:reason :omission
+            :title "A measurable fact?"
+            :text "Fine. And do you have a measurable fact?"
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "be306c1b-6fba-4874-adac-df6d0667d5b0"
+  :type :publication
+  :name "exemple-pedagogique-3"
+  :lang :en
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :answers [{:id #uuid "35673bb2-937a-4931-b201-802226c2b791"}]
+  :documents
+  [{:id #uuid "dddddddd-0000-0000-0000-000010020200"
+    :type :measurable-fact
+    :name "le-0-a-100-mesure"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content {:title "The measured 0-to-100"
+              :text "This car reaches 100 km/h in 4.2 seconds."
+              :inputs []
+              :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+   {:id #uuid "dddddddd-0000-0000-0000-000020010202"
+    :type :article
+    :name "ma-voiture-est-rapide"
+    :lang :en
+    :major 1
+    :minor 2
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "My car is fast"
+     :text
+     "My car is fast. By « fast » I mean reaching 100 km/h in under 5 seconds ([[definition:rapide:en@1|definition]]). It does it in 4.2 s ([[measurable-fact:le-0-a-100-mesure:en@1|the timing]]) — so it is fast."
+     :inputs [{:type :definition
+               :name "rapide"
+               :lang :en
+               :major 1}
+              {:type :measurable-fact
+               :name "le-0-a-100-mesure"
+               :lang :en
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+  :content {:title "Teaching example 3"
+            :text "Adds the measured 0-to-100."
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "7f58d9c7-5248-4705-8f35-d9a6cb3c57de"
+  :type :objection
+  :name "et-le-modele-en-general"
+  :lang :en
+  :major 1
+  :status :closed
+  :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010202"}]
+  :content {:reason :omission
+            :title "And the model in general?"
+            :text "And the model in general, not just yours?"
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+ ;; ********************************************************************************
+ {:id #uuid "3936fed5-8c70-43dc-a354-04967584b3b3"
+  :type :publication
+  :name "exemple-pedagogique-4"
+  :lang :en
+  :major 1
+  :status :closed
+  :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :contributors []
+  :answers [{:id #uuid "7f58d9c7-5248-4705-8f35-d9a6cb3c57de"}]
+  :documents
+  [{:id #uuid "dddddddd-0000-0000-0000-000010030200"
+    :type :deduction
+    :name "cette-voiture-est-rapide"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "This car is fast"
+     :text
+     "It reaches 100 km/h in 4.2 s ([[measurable-fact:le-0-a-100-mesure:en@1|the timing]]) and « fast » means under 5 s ([[definition:rapide:en@1|the definition]]) — so it is fast."
+     :inputs [{:type :measurable-fact
+               :name "le-0-a-100-mesure"
+               :lang :en
+               :major 1}
+              {:type :definition
+               :name "rapide"
+               :lang :en
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+   {:id #uuid "dddddddd-0000-0000-0000-000010040200"
+    :type :induction
+    :name "ce-modele-est-rapide"
+    :lang :en
+    :major 1
+    :minor 0
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "This model is fast"
+     :text
+     "Three tested units were fast (including [[deduction:cette-voiture-est-rapide:en@1|this one]]) — so the model is fast."
+     :inputs [{:type :deduction
+               :name "cette-voiture-est-rapide"
+               :lang :en
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+   {:id #uuid "dddddddd-0000-0000-0000-000020010203"
+    :type :article
+    :name "ma-voiture-est-rapide"
+    :lang :en
+    :major 1
+    :minor 3
+    :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+    :content
+    {:title "My car is fast"
+     :text
+     "My car is fast. By « fast » I mean reaching 100 km/h in under 5 seconds ([[definition:rapide:en@1|definition]]). It does it in 4.2 s ([[measurable-fact:le-0-a-100-mesure:en@1|the timing]]) — so it is fast. And it's not a one-off: several tested units were fast too, so the whole model is fast ([[induction:ce-modele-est-rapide:en@1|generalization]])."
+     :inputs [{:type :definition
+               :name "rapide"
+               :lang :en
+               :major 1}
+              {:type :measurable-fact
+               :name "le-0-a-100-mesure"
+               :lang :en
+               :major 1}
+              {:type :induction
+               :name "ce-modele-est-rapide"
+               :lang :en
+               :major 1}]
+     :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]
+  :content {:title "Teaching example 4"
+            :text "Generalizes from the car to the model."
+            :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]

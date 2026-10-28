@@ -1,0 +1,1685 @@
+;; Use case: publishing.
+;;
+;; The owner of an open publication publishes it: it is closed, each draft gets its minor
+;; (the next after the latest published of its major, or 0), and every citation and link
+;; by id becomes a citation by tnlr. Each step starts from snapshots, then the publications
+;; written before it.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description
+  "Agora publishes a new minor of the article with a new title; its name stays, so its citations stay valid."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "The article « Ma voiture est rapide » is published up to 1.3; Agora drafts a new version with another title."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "f818199d-5574-49c5-80df-bbf7cabf44d5"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "42a2000e-2c18-4f60-b520-6ffc706c43fd"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide, et tout le modèle aussi"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]])."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Donne un nouveau titre à l'article."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "f818199d-5574-49c5-80df-bbf7cabf44d5"}
+                     :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "f818199d-5574-49c5-80df-bbf7cabf44d5"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "42a2000e-2c18-4f60-b520-6ffc706c43fd"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :minor 4
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide, et tout le modèle aussi"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]])."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Donne un nouveau titre à l'article."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox publishes a belief: this model uses little energy."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description "Nothing is said yet about the consumption."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "b06a3a21-5c83-452e-8d40-4f179825ee99"
+      :type :publication
+      :name "la-consommation"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "2015d450-59d3-414e-a840-3e10193dc144"
+                   :type :belief
+                   :name "ce-modele-consomme-peu"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Ce modèle consomme peu"
+                             :text "ce modèle consomme peu."
+                             :inputs []
+                             :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "La consommation"
+                :text "Affirme que ce modèle consomme peu."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "b06a3a21-5c83-452e-8d40-4f179825ee99"}
+                     :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "b06a3a21-5c83-452e-8d40-4f179825ee99"
+      :type :publication
+      :name "la-consommation"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "2015d450-59d3-414e-a840-3e10193dc144"
+                   :type :belief
+                   :name "ce-modele-consomme-peu"
+                   :lang :fr
+                   :major 1
+                   :minor 0
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Ce modèle consomme peu"
+                             :text "ce modèle consomme peu."
+                             :inputs []
+                             :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "La consommation"
+                :text "Affirme que ce modèle consomme peu."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox publishes a measurable fact of the same name in a new major of the publication: the belief is not turned into a fact, it stays as it was."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "The belief is published; its publication is taken up in a major 2, holding the measure."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "b06a3a21-5c83-452e-8d40-4f179825ee99"
+      :type :publication
+      :name "la-consommation"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "2015d450-59d3-414e-a840-3e10193dc144"
+                   :type :belief
+                   :name "ce-modele-consomme-peu"
+                   :lang :fr
+                   :major 1
+                   :minor 0
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Ce modèle consomme peu"
+                             :text "ce modèle consomme peu."
+                             :inputs []
+                             :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "La consommation"
+                :text "Affirme que ce modèle consomme peu."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+     {:id #uuid "514bca08-cdfd-4ffa-b9e8-f6c00e24cb28"
+      :type :publication
+      :name "la-consommation"
+      :lang :fr
+      :major 2
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "12446452-5546-4970-a644-4654f1d14c22"
+                   :type :measurable-fact
+                   :name "ce-modele-consomme-peu"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Ce modèle consomme peu"
+                             :text
+                             "Ce modèle consomme 4,5 l/100 km sur le cycle d'homologation WLTP."
+                             :inputs []
+                             :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]
+      :content {:title "La consommation"
+                :text "Remplace la croyance par la mesure de consommation."
+                :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "514bca08-cdfd-4ffa-b9e8-f6c00e24cb28"}
+                     :published-at #inst "2026-10-26T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "514bca08-cdfd-4ffa-b9e8-f6c00e24cb28"
+      :type :publication
+      :name "la-consommation"
+      :lang :fr
+      :major 2
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "12446452-5546-4970-a644-4654f1d14c22"
+                   :type :measurable-fact
+                   :name "ce-modele-consomme-peu"
+                   :lang :fr
+                   :major 1
+                   :minor 0
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Ce modèle consomme peu"
+                             :text
+                             "Ce modèle consomme 4,5 l/100 km sur le cycle d'homologation WLTP."
+                             :inputs []
+                             :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]
+      :content {:title "La consommation"
+                :text "Remplace la croyance par la mesure de consommation."
+                :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox publishes the English definition of « nudge »."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.publish/publish
+  :input
+  {:description "The definition « nudge » is drafted in en only."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "2eaa71e3-db30-4d01-9852-df0a7812d30e"
+      :type :publication
+      :name "behavioural-economics"
+      :lang :en
+      :major 1
+      :status :open
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:id #uuid "762c88a5-0c34-430f-b23f-154223cf9c0e"
+        :type :definition
+        :name "nudge"
+        :lang :en
+        :major 1
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content
+        {:title "Nudge"
+         :text
+         "a change in the way choices are presented that steers people's behaviour, without forbidding any option or changing their incentives."
+         :inputs []
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Behavioural economics"
+                :text "Defines the nudge."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "2eaa71e3-db30-4d01-9852-df0a7812d30e"}
+                     :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "2eaa71e3-db30-4d01-9852-df0a7812d30e"
+      :type :publication
+      :name "behavioural-economics"
+      :lang :en
+      :major 1
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:id #uuid "762c88a5-0c34-430f-b23f-154223cf9c0e"
+        :type :definition
+        :name "nudge"
+        :lang :en
+        :major 1
+        :minor 0
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content
+        {:title "Nudge"
+         :text
+         "a change in the way choices are presented that steers people's behaviour, without forbidding any option or changing their incentives."
+         :inputs []
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Behavioural economics"
+                :text "Defines the nudge."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox publishes a French article citing the English definition of « nudge »."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description "« nudge » is published in en; a French article citing it is drafted."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "2eaa71e3-db30-4d01-9852-df0a7812d30e"
+      :type :publication
+      :name "behavioural-economics"
+      :lang :en
+      :major 1
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:id #uuid "762c88a5-0c34-430f-b23f-154223cf9c0e"
+        :type :definition
+        :name "nudge"
+        :lang :en
+        :major 1
+        :minor 0
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content
+        {:title "Nudge"
+         :text
+         "a change in the way choices are presented that steers people's behaviour, without forbidding any option or changing their incentives."
+         :inputs []
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Behavioural economics"
+                :text "Defines the nudge."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+     {:id #uuid "d47cba7a-9b38-4126-9c4c-7247fafa1cb6"
+      :type :publication
+      :name "les-petits-coups-de-pouce"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "92803def-efff-43e1-a834-0bd1fb166dc2"
+        :type :article
+        :name "les-petits-coups-de-pouce"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Les petits coups de pouce"
+         :text
+         "Placer les fruits à hauteur des yeux à la cantine est un [[definition:nudge:en@1|nudge]] : personne n'est obligé, mais le choix change."
+         :inputs [{:type :definition
+                   :name "nudge"
+                   :lang :en
+                   :major 1}]
+         :published-at #inst "2026-10-24T09:00:00.000-00:00"}}]
+      :content {:title "Les petits coups de pouce"
+                :text
+                "Explique les petits coups de pouce, en citant la définition anglaise du nudge."
+                :published-at #inst "2026-10-24T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "d47cba7a-9b38-4126-9c4c-7247fafa1cb6"}
+                     :published-at #inst "2026-10-24T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "d47cba7a-9b38-4126-9c4c-7247fafa1cb6"
+      :type :publication
+      :name "les-petits-coups-de-pouce"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "92803def-efff-43e1-a834-0bd1fb166dc2"
+        :type :article
+        :name "les-petits-coups-de-pouce"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Les petits coups de pouce"
+         :text
+         "Placer les fruits à hauteur des yeux à la cantine est un [[definition:nudge:en@1|nudge]] : personne n'est obligé, mais le choix change."
+         :inputs [{:type :definition
+                   :name "nudge"
+                   :lang :en
+                   :major 1}]
+         :published-at #inst "2026-10-24T09:00:00.000-00:00"}}]
+      :content {:title "Les petits coups de pouce"
+                :text
+                "Explique les petits coups de pouce, en citant la définition anglaise du nudge."
+                :published-at #inst "2026-10-24T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "The second publication opened is published first: its draft gets the minor 1 of « Le 0 à 100 mesuré »."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.publish/publish
+  :input
+  {:description "Two open publications each hold a draft of a new minor of « Le 0 à 100 mesuré »."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "679bfd2c-d67b-4d1d-89a2-f6dbec4e4bfd"
+      :type :publication
+      :name "chrono-depart-arrete"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "5e8809fc-08f8-41f8-b40d-6e514fb9f8eb"
+                   :type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Le 0 à 100 mesuré"
+                             :text "Cette voiture atteint 100 km/h en 4,2 secondes, départ arrêté."
+                             :inputs []
+                             :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]
+      :content {:title "Chrono départ arrêté"
+                :text "Précise que le chrono est pris départ arrêté."
+                :published-at #inst "2026-10-21T09:00:00.000-00:00"}}
+     {:id #uuid "66a7f04e-967f-4009-ac98-77de291e9563"
+      :type :publication
+      :name "chrono-du-constructeur"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:id #uuid "9214c8ab-1103-4693-968c-3c59e4547fed"
+        :type :measurable-fact
+        :name "le-0-a-100-mesure"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content {:title "Le 0 à 100 mesuré"
+                  :text
+                  "Cette voiture atteint 100 km/h en 4,2 secondes, selon la mesure du constructeur."
+                  :inputs []
+                  :published-at #inst "2026-10-21T10:00:00.000-00:00"}}]
+      :content {:title "Chrono du constructeur"
+                :text "Précise que le chrono vient du constructeur."
+                :published-at #inst "2026-10-21T10:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "66a7f04e-967f-4009-ac98-77de291e9563"}
+                     :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "66a7f04e-967f-4009-ac98-77de291e9563"
+      :type :publication
+      :name "chrono-du-constructeur"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:id #uuid "9214c8ab-1103-4693-968c-3c59e4547fed"
+        :type :measurable-fact
+        :name "le-0-a-100-mesure"
+        :lang :fr
+        :major 1
+        :minor 1
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content {:title "Le 0 à 100 mesuré"
+                  :text
+                  "Cette voiture atteint 100 km/h en 4,2 secondes, selon la mesure du constructeur."
+                  :inputs []
+                  :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Chrono du constructeur"
+                :text "Précise que le chrono vient du constructeur."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "The first publication opened is published last: its draft gets the next minor, 2."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "The other draft of « Le 0 à 100 mesuré » is published as 1.1; this one is still a draft."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "66a7f04e-967f-4009-ac98-77de291e9563"
+      :type :publication
+      :name "chrono-du-constructeur"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:id #uuid "9214c8ab-1103-4693-968c-3c59e4547fed"
+        :type :measurable-fact
+        :name "le-0-a-100-mesure"
+        :lang :fr
+        :major 1
+        :minor 1
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content {:title "Le 0 à 100 mesuré"
+                  :text
+                  "Cette voiture atteint 100 km/h en 4,2 secondes, selon la mesure du constructeur."
+                  :inputs []
+                  :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Chrono du constructeur"
+                :text "Précise que le chrono vient du constructeur."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+     {:id #uuid "679bfd2c-d67b-4d1d-89a2-f6dbec4e4bfd"
+      :type :publication
+      :name "chrono-depart-arrete"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "5e8809fc-08f8-41f8-b40d-6e514fb9f8eb"
+                   :type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Le 0 à 100 mesuré"
+                             :text "Cette voiture atteint 100 km/h en 4,2 secondes, départ arrêté."
+                             :inputs []
+                             :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]
+      :content {:title "Chrono départ arrêté"
+                :text "Précise que le chrono est pris départ arrêté."
+                :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "679bfd2c-d67b-4d1d-89a2-f6dbec4e4bfd"}
+                     :published-at #inst "2026-10-23T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "679bfd2c-d67b-4d1d-89a2-f6dbec4e4bfd"
+      :type :publication
+      :name "chrono-depart-arrete"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "5e8809fc-08f8-41f8-b40d-6e514fb9f8eb"
+                   :type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1
+                   :minor 2
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Le 0 à 100 mesuré"
+                             :text "Cette voiture atteint 100 km/h en 4,2 secondes, départ arrêté."
+                             :inputs []
+                             :published-at #inst "2026-10-23T09:00:00.000-00:00"}}]
+      :content {:title "Chrono départ arrêté"
+                :text "Précise que le chrono est pris départ arrêté."
+                :published-at #inst "2026-10-23T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Agora publishes a precision of « Rapide »: a new minor, 1.1, that the articles citing rapide@1 follow."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.publish/publish
+  :input
+  {:description "« Rapide » 1.0 is published; a precision of it is drafted in a new publication."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "cf28e24a-156f-4574-9dc1-a67fd550c310"
+      :type :publication
+      :name "rapide-depart-arrete"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents [{:id #uuid "e0fff4be-03a8-4f79-844c-5ea81552db4b"
+                   :type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                   :content {:title "Rapide"
+                             :text "atteindre 100 km/h, départ arrêté, en moins de 5 secondes."
+                             :inputs []
+                             :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]
+      :content {:title "Rapide, départ arrêté"
+                :text "Précise que « rapide » se mesure départ arrêté."
+                :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "cf28e24a-156f-4574-9dc1-a67fd550c310"}
+                     :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "cf28e24a-156f-4574-9dc1-a67fd550c310"
+      :type :publication
+      :name "rapide-depart-arrete"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents [{:id #uuid "e0fff4be-03a8-4f79-844c-5ea81552db4b"
+                   :type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1
+                   :minor 1
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                   :content {:title "Rapide"
+                             :text "atteindre 100 km/h, départ arrêté, en moins de 5 secondes."
+                             :inputs []
+                             :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Rapide, départ arrêté"
+                :text "Précise que « rapide » se mesure départ arrêté."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Agora publishes a breaking change of « Rapide »: a new major, 2.0; the articles citing rapide@1 keep reading 1.1."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.publish/publish
+  :input
+  {:description "« Rapide » 1.1 is published; a stricter threshold is drafted as its major 2."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "cf28e24a-156f-4574-9dc1-a67fd550c310"
+      :type :publication
+      :name "rapide-depart-arrete"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents [{:id #uuid "e0fff4be-03a8-4f79-844c-5ea81552db4b"
+                   :type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1
+                   :minor 1
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                   :content {:title "Rapide"
+                             :text "atteindre 100 km/h, départ arrêté, en moins de 5 secondes."
+                             :inputs []
+                             :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "Rapide, départ arrêté"
+                :text "Précise que « rapide » se mesure départ arrêté."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+     {:id #uuid "57fc3d14-b8a8-4184-8099-b92672797a3b"
+      :type :publication
+      :name "rapide-plus-exigeant"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents [{:id #uuid "452fcad9-5904-40de-b698-3e06384b8a6e"
+                   :type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 2
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                   :content {:title "Rapide"
+                             :text "atteindre 100 km/h, départ arrêté, en moins de 4 secondes."
+                             :inputs []
+                             :published-at #inst "2026-10-23T09:00:00.000-00:00"}}]
+      :content {:title "Rapide, plus exigeant"
+                :text "Abaisse le seuil de « rapide » à 4 secondes."
+                :published-at #inst "2026-10-23T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "57fc3d14-b8a8-4184-8099-b92672797a3b"}
+                     :published-at #inst "2026-10-24T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "57fc3d14-b8a8-4184-8099-b92672797a3b"
+      :type :publication
+      :name "rapide-plus-exigeant"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents [{:id #uuid "452fcad9-5904-40de-b698-3e06384b8a6e"
+                   :type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 2
+                   :minor 0
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                   :content {:title "Rapide"
+                             :text "atteindre 100 km/h, départ arrêté, en moins de 4 secondes."
+                             :inputs []
+                             :published-at #inst "2026-10-24T09:00:00.000-00:00"}}]
+      :content {:title "Rapide, plus exigeant"
+                :text "Abaisse le seuil de « rapide » à 4 secondes."
+                :published-at #inst "2026-10-24T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox publishes the English version of « Les misérables », two months after the French one; the extracts are not translated."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description "« Les misérables » is published in fr only; its en version is drafted."
+   :snapshots ["les-miserables.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "3543b5b6-7d1a-4f64-8e71-86600d229371"
+      :type :publication
+      :name "exemple-les-miserables"
+      :lang :en
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "0966902b-d276-4034-a2ed-6479e6453fd8"
+        :type :work
+        :name "les-miserables"
+        :lang :en
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"}
+        :content
+        {:title "Les Misérables"
+         :text nil
+         :inputs []
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"
+         :editor "Albert Lacroix et Cie"
+         :year 1862
+         :url
+         "https://ia801609.us.archive.org/10/items/bub_gb_Oo0NAAAAQAAJ/bub_gb_Oo0NAAAAQAAJ.pdf"}}]
+      :content {:title "Les Misérables example"
+                :text "Describes « Les Misérables » in English."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "3543b5b6-7d1a-4f64-8e71-86600d229371"}
+                     :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "3543b5b6-7d1a-4f64-8e71-86600d229371"
+      :type :publication
+      :name "exemple-les-miserables"
+      :lang :en
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "0966902b-d276-4034-a2ed-6479e6453fd8"
+        :type :work
+        :name "les-miserables"
+        :lang :en
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "6dee51b8-bd9b-4104-aefc-e082c0e1644c"}
+        :content
+        {:title "Les Misérables"
+         :text nil
+         :inputs []
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"
+         :editor "Albert Lacroix et Cie"
+         :year 1862
+         :url
+         "https://ia801609.us.archive.org/10/items/bub_gb_Oo0NAAAAQAAJ/bub_gb_Oo0NAAAAQAAJ.pdf"}}]
+      :content {:title "Les Misérables example"
+                :text "Describes « Les Misérables » in English."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox publishes an assumption, a belief, a prediction for 2030, and a deduction from the assumption."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description "Nothing is said yet about the electric car."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "e1a2f400-d454-49a1-bf1c-32591a58d456"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "7876cb49-7692-4f60-9dd4-ea92bdb35af9"
+        :type :assumption
+        :name "le-prix-de-l-electricite-double"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Le prix de l'électricité double"
+                  :text "supposons que le prix de l'électricité double."
+                  :inputs []
+                  :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "ee7847f8-4306-4da4-8cc3-0948b2a06933"
+        :type :belief
+        :name "une-voiture-doit-etre-sobre"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Une voiture doit être sobre"
+                  :text "une voiture doit être sobre."
+                  :inputs []
+                  :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "ae20bf21-aa26-4b46-94ef-a14a80659447"
+        :type :prediction
+        :name "la-moitie-des-ventes-en-2030"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "La moitié des ventes en 2030"
+         :text
+         "les voitures électriques représenteront la moitié des ventes de voitures neuves en Europe en 2030."
+         :inputs []
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "00f801ea-7037-42e1-8778-569daf982ba4"
+        :type :deduction
+        :name "l-electrique-coutera-plus-cher-a-l-usage"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "L'électrique coûtera plus cher à l'usage"
+         :text
+         "Si le prix de l'électricité double ([[id:7876cb49-7692-4f60-9dd4-ea92bdb35af9|supposition]]), rouler en électrique coûtera deux fois plus cher en énergie qu'aujourd'hui."
+         :inputs [{:id #uuid "7876cb49-7692-4f60-9dd4-ea92bdb35af9"}]
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text
+                "Pose une supposition, une croyance et une prédiction sur la voiture électrique."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "e1a2f400-d454-49a1-bf1c-32591a58d456"}
+                     :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "e1a2f400-d454-49a1-bf1c-32591a58d456"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "7876cb49-7692-4f60-9dd4-ea92bdb35af9"
+        :type :assumption
+        :name "le-prix-de-l-electricite-double"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Le prix de l'électricité double"
+                  :text "supposons que le prix de l'électricité double."
+                  :inputs []
+                  :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "ee7847f8-4306-4da4-8cc3-0948b2a06933"
+        :type :belief
+        :name "une-voiture-doit-etre-sobre"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Une voiture doit être sobre"
+                  :text "une voiture doit être sobre."
+                  :inputs []
+                  :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "ae20bf21-aa26-4b46-94ef-a14a80659447"
+        :type :prediction
+        :name "la-moitie-des-ventes-en-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "La moitié des ventes en 2030"
+         :text
+         "les voitures électriques représenteront la moitié des ventes de voitures neuves en Europe en 2030."
+         :inputs []
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "00f801ea-7037-42e1-8778-569daf982ba4"
+        :type :deduction
+        :name "l-electrique-coutera-plus-cher-a-l-usage"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "L'électrique coûtera plus cher à l'usage"
+         :text
+         "Si le prix de l'électricité double ([[assumption:le-prix-de-l-electricite-double:fr@1|supposition]]), rouler en électrique coûtera deux fois plus cher en énergie qu'aujourd'hui."
+         :inputs [{:type :assumption
+                   :name "le-prix-de-l-electricite-double"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text
+                "Pose une supposition, une croyance et une prédiction sur la voiture électrique."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox publishes the measure of the 2030 sales, and a deduction citing it that refutes the prediction."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "The prediction for 2030 is published; the measure and the deduction refuting it are drafted."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "e1a2f400-d454-49a1-bf1c-32591a58d456"
+      :type :publication
+      :name "la-voiture-electrique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "7876cb49-7692-4f60-9dd4-ea92bdb35af9"
+        :type :assumption
+        :name "le-prix-de-l-electricite-double"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Le prix de l'électricité double"
+                  :text "supposons que le prix de l'électricité double."
+                  :inputs []
+                  :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "ee7847f8-4306-4da4-8cc3-0948b2a06933"
+        :type :belief
+        :name "une-voiture-doit-etre-sobre"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content {:title "Une voiture doit être sobre"
+                  :text "une voiture doit être sobre."
+                  :inputs []
+                  :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "ae20bf21-aa26-4b46-94ef-a14a80659447"
+        :type :prediction
+        :name "la-moitie-des-ventes-en-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "La moitié des ventes en 2030"
+         :text
+         "les voitures électriques représenteront la moitié des ventes de voitures neuves en Europe en 2030."
+         :inputs []
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+       {:id #uuid "00f801ea-7037-42e1-8778-569daf982ba4"
+        :type :deduction
+        :name "l-electrique-coutera-plus-cher-a-l-usage"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "L'électrique coûtera plus cher à l'usage"
+         :text
+         "Si le prix de l'électricité double ([[assumption:le-prix-de-l-electricite-double:fr@1|supposition]]), rouler en électrique coûtera deux fois plus cher en énergie qu'aujourd'hui."
+         :inputs [{:type :assumption
+                   :name "le-prix-de-l-electricite-double"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text
+                "Pose une supposition, une croyance et une prédiction sur la voiture électrique."
+                :published-at #inst "2026-10-22T09:00:00.000-00:00"}}
+     {:id #uuid "8bd8d7bb-a4b9-4522-9489-b1a7dcc60048"
+      :type :publication
+      :name "les-ventes-de-2030"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "720f1e5e-a3bb-4aee-bed9-7a46f25d750d"
+        :type :measurable-fact
+        :name "les-ventes-electriques-en-2030"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Les ventes électriques en 2030"
+         :text
+         "En 2030, les voitures électriques ont représenté 41 % des ventes de voitures neuves en Europe."
+         :inputs []
+         :published-at #inst "2031-02-02T09:00:00.000-00:00"}}
+       {:id #uuid "cc14302c-6e6c-40db-ba34-a91f34d5fa7d"
+        :type :deduction
+        :name "la-prediction-de-2030-est-refutee"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "La prédiction de 2030 est réfutée"
+         :text
+         "La prédiction annonçait la moitié des ventes ([[prediction:la-moitie-des-ventes-en-2030:fr@1|prédiction]]) ; la mesure donne 41 % ([[id:720f1e5e-a3bb-4aee-bed9-7a46f25d750d|mesure]]) — donc la prédiction est réfutée."
+         :inputs [{:type :prediction
+                   :name "la-moitie-des-ventes-en-2030"
+                   :lang :fr
+                   :major 1}
+                  {:id #uuid "720f1e5e-a3bb-4aee-bed9-7a46f25d750d"}]
+         :published-at #inst "2031-02-02T09:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2030"
+                :text "Mesure les ventes de 2030 et en tire que la prédiction est réfutée."
+                :published-at #inst "2031-02-02T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "8bd8d7bb-a4b9-4522-9489-b1a7dcc60048"}
+                     :published-at #inst "2031-02-02T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "8bd8d7bb-a4b9-4522-9489-b1a7dcc60048"
+      :type :publication
+      :name "les-ventes-de-2030"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "720f1e5e-a3bb-4aee-bed9-7a46f25d750d"
+        :type :measurable-fact
+        :name "les-ventes-electriques-en-2030"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Les ventes électriques en 2030"
+         :text
+         "En 2030, les voitures électriques ont représenté 41 % des ventes de voitures neuves en Europe."
+         :inputs []
+         :published-at #inst "2031-02-02T09:00:00.000-00:00"}}
+       {:id #uuid "cc14302c-6e6c-40db-ba34-a91f34d5fa7d"
+        :type :deduction
+        :name "la-prediction-de-2030-est-refutee"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "La prédiction de 2030 est réfutée"
+         :text
+         "La prédiction annonçait la moitié des ventes ([[prediction:la-moitie-des-ventes-en-2030:fr@1|prédiction]]) ; la mesure donne 41 % ([[measurable-fact:les-ventes-electriques-en-2030:fr@1|mesure]]) — donc la prédiction est réfutée."
+         :inputs [{:type :prediction
+                   :name "la-moitie-des-ventes-en-2030"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "les-ventes-electriques-en-2030"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2031-02-02T09:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2030"
+                :text "Mesure les ventes de 2030 et en tire que la prédiction est réfutée."
+                :published-at #inst "2031-02-02T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox publishes « La méthode scientifique »: its eight drafts get their minor 0, and their citations by id become citations by tnlr."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "« La méthode scientifique » is open, with its eight drafts citing each other by id."
+   :snapshots ["scientific-method.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe. On dit universel car cette classe doit être sans borne sur leur nombre ni sur leur localisation dans l'espace et le temps."
+         :inputs []
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+        :type :definition
+        :name "enonce-singulier"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé singulier"
+         :text
+         "un énoncé portant sur un individu ou un événement déterminé, situé dans l'espace et le temps\n\nCe qui le distingue. Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a]] porte sur une classe non bornée, l'énoncé singulier désigne un cas identifiable. C'est cette localisation qui le rend décidable par l'observation : on peut aller voir.\n\nContraste. Un énoncé peut porter sur plusieurs individus sans cesser d'être singulier, dès lors que la classe est close et recensable. « Les trois cygnes de cet étang ce matin sont blancs » reste singulier ; il équivaut à une conjonction finie d'énoncés singuliers."
+         :inputs [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "f08c9e23-ca6b-4670-9e28-91a0510801ad"
+        :type :definition
+        :name "enonce-de-base"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé de base"
+         :text
+         "un énoncé affirmant qu'un événement observable se produit en un lieu et un temps déterminés, et dont l'acceptation peut faire l'objet d'un accord entre observateurs.\n\nPrécision. Un énoncé de base n'est pas vrai par l'observation : il est accepté par décision, et cette acceptation reste révisable. Popper y insiste — les énoncés de base ne forment pas un socle certain, seulement un point d'arrêt conventionnel."
+         :inputs []
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "fb7d7d5c-460d-4bf3-a402-ebac2b889fc5"
+        :type :definition
+        :name "induction"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Induction"
+         :text
+         "une inférence concluant d'un ensemble fini d'[[id:b94e19e4-6542-4edb-bd56-0d33fa3dc391]] à un [[id:a526a25d-c823-4295-a8b4-0e6514d3768a]].\n\nCe qui la caractérise. La conclusion excède les prémisses : elle affirme quelque chose sur des cas dont aucune prémisse ne parle. C'est pourquoi elle n'est pas déductive — les prémisses peuvent être vraies et la conclusion fausse sans contradiction.\n\nRemarque. Induction ne signifie pas ici « raisonnement du particulier au général » au sens large, ni la découverte d'une hypothèse par observation. Le terme désigne strictement une forme d'inférence et la prétention qui l'accompagne : que les prémisses établissent la conclusion."
+         :inputs [{:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"}
+                  {:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "da9204db-7112-47f6-9cb4-6b60f2a582e6"
+        :type :illustration
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "Cet énoncé n'est borné ni dans le temps — elle inclut ceux qui ont vécu et ceux qui vivront — ni dans l'espace.\n\nRemarque. C'est l'absence de borne qui fait le travail, non la présence du mot « tous ». Un énoncé peut porter sur une classe illimitée sans quantificateur explicite — « le cuivre conduit l'électricité » vaut pour tout échantillon de cuivre, partout, toujours."
+         :inputs [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "8fb49111-a45f-470b-bf12-fadc0534ea9d"
+        :type :illustration
+        :name "enonce-de-base"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé de base"
+         :text
+         "Il y a un cygne noir dans le parc de Perth le 3 mai 1697.\n\nIl suffit d'etre là, d'avoir des photos, des témoins, c'est vérifiable"
+         :inputs [{:id #uuid "f08c9e23-ca6b-4670-9e28-91a0510801ad"}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "a5f3f675-add0-4ee2-b854-128be35da99d"
+        :type :counter-example
+        :name "enonce-non-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé non universel "
+         :text
+         "Ce matin, tous les cygnes du lac saint-Clément sont blancs.\n\nCette phrase est localisée dans le temps et dans l'espace, l'un des deux aurait suffit à la rendre non universelle"
+         :inputs [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "5d9aebb3-0675-4ac9-9341-ab7e97a7966c"
+        :type :counter-example
+        :name "enonce-pas-de-base"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé pas de base"
+         :text
+         "Il n'y a pas de cygne noir.\n\nRien n'y est localisé, donc aucun observateur ne peut se prononcer."
+         :inputs [{:id #uuid "f08c9e23-ca6b-4670-9e28-91a0510801ad"}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}]
+      :content
+      {:title "La méthode scientifique"
+       :text
+       "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base, induction."
+       :published-at #inst "2026-10-20T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+  :output
+  {:description "The publication closed, its drafts published."
+   :changed
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe. On dit universel car cette classe doit être sans borne sur leur nombre ni sur leur localisation dans l'espace et le temps."
+         :inputs []
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+        :type :definition
+        :name "enonce-singulier"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé singulier"
+         :text
+         "un énoncé portant sur un individu ou un événement déterminé, situé dans l'espace et le temps\n\nCe qui le distingue. Là où l'[[definition:enonce-universel:fr@1]] porte sur une classe non bornée, l'énoncé singulier désigne un cas identifiable. C'est cette localisation qui le rend décidable par l'observation : on peut aller voir.\n\nContraste. Un énoncé peut porter sur plusieurs individus sans cesser d'être singulier, dès lors que la classe est close et recensable. « Les trois cygnes de cet étang ce matin sont blancs » reste singulier ; il équivaut à une conjonction finie d'énoncés singuliers."
+         :inputs [{:type :definition
+                   :name "enonce-universel"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "f08c9e23-ca6b-4670-9e28-91a0510801ad"
+        :type :definition
+        :name "enonce-de-base"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé de base"
+         :text
+         "un énoncé affirmant qu'un événement observable se produit en un lieu et un temps déterminés, et dont l'acceptation peut faire l'objet d'un accord entre observateurs.\n\nPrécision. Un énoncé de base n'est pas vrai par l'observation : il est accepté par décision, et cette acceptation reste révisable. Popper y insiste — les énoncés de base ne forment pas un socle certain, seulement un point d'arrêt conventionnel."
+         :inputs []
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "fb7d7d5c-460d-4bf3-a402-ebac2b889fc5"
+        :type :definition
+        :name "induction"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Induction"
+         :text
+         "une inférence concluant d'un ensemble fini d'[[definition:enonce-singulier:fr@1]] à un [[definition:enonce-universel:fr@1]].\n\nCe qui la caractérise. La conclusion excède les prémisses : elle affirme quelque chose sur des cas dont aucune prémisse ne parle. C'est pourquoi elle n'est pas déductive — les prémisses peuvent être vraies et la conclusion fausse sans contradiction.\n\nRemarque. Induction ne signifie pas ici « raisonnement du particulier au général » au sens large, ni la découverte d'une hypothèse par observation. Le terme désigne strictement une forme d'inférence et la prétention qui l'accompagne : que les prémisses établissent la conclusion."
+         :inputs [{:type :definition
+                   :name "enonce-singulier"
+                   :lang :fr
+                   :major 1}
+                  {:type :definition
+                   :name "enonce-universel"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "da9204db-7112-47f6-9cb4-6b60f2a582e6"
+        :type :illustration
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "Cet énoncé n'est borné ni dans le temps — elle inclut ceux qui ont vécu et ceux qui vivront — ni dans l'espace.\n\nRemarque. C'est l'absence de borne qui fait le travail, non la présence du mot « tous ». Un énoncé peut porter sur une classe illimitée sans quantificateur explicite — « le cuivre conduit l'électricité » vaut pour tout échantillon de cuivre, partout, toujours."
+         :inputs [{:type :definition
+                   :name "enonce-universel"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "8fb49111-a45f-470b-bf12-fadc0534ea9d"
+        :type :illustration
+        :name "enonce-de-base"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé de base"
+         :text
+         "Il y a un cygne noir dans le parc de Perth le 3 mai 1697.\n\nIl suffit d'etre là, d'avoir des photos, des témoins, c'est vérifiable"
+         :inputs [{:type :definition
+                   :name "enonce-de-base"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "a5f3f675-add0-4ee2-b854-128be35da99d"
+        :type :counter-example
+        :name "enonce-non-universel"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé non universel "
+         :text
+         "Ce matin, tous les cygnes du lac saint-Clément sont blancs.\n\nCette phrase est localisée dans le temps et dans l'espace, l'un des deux aurait suffit à la rendre non universelle"
+         :inputs [{:type :definition
+                   :name "enonce-universel"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}
+       {:id #uuid "5d9aebb3-0675-4ac9-9341-ab7e97a7966c"
+        :type :counter-example
+        :name "enonce-pas-de-base"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :author {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé pas de base"
+         :text
+         "Il n'y a pas de cygne noir.\n\nRien n'y est localisé, donc aucun observateur ne peut se prononcer."
+         :inputs [{:type :definition
+                   :name "enonce-de-base"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-20T09:00:00.000-00:00"}}]
+      :content
+      {:title "La méthode scientifique"
+       :text
+       "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base, induction."
+       :published-at #inst "2026-10-20T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in tries to publish."
+  :by :anonymous
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with his draft « Énoncé universel »; the type vocabulary is published."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-10-25T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :published-at #inst "2026-10-27T09:00:00.000-00:00"}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) tries to publish."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with his draft « Énoncé universel »; the type vocabulary is published."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-10-25T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :published-at #inst "2026-10-27T09:00:00.000-00:00"}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to publish a publication that does not exist."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with his draft « Énoncé universel »; the type vocabulary is published."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-10-25T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+                     :published-at #inst "2026-10-27T09:00:00.000-00:00"}}
+  :output {:description "Refused: no publication has this id."
+           :error {:reason :unknown-publication}}}
+ ;; ********************************************************************************
+ {:description "Agora tries to publish its type vocabulary again."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with his draft « Énoncé universel »; the type vocabulary is published."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-10-25T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"}
+                     :published-at #inst "2026-10-27T09:00:00.000-00:00"}}
+  :output {:description "Refused: the publication is already published."
+           :error {:reason :publication-closed}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 tries to publish the publication of Hephaistox."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with his draft « Énoncé universel »; the type vocabulary is published."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-10-25T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :published-at #inst "2026-10-27T09:00:00.000-00:00"}}
+  :output {:description "Refused: only its owner publishes a publication."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to publish a publication without document."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description "« La méthode scientifique » is open, owned by Hephaistox, and holds no document."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                                :type :publication
+                                :name "la-methode-scientifique"
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors []
+                                :documents []
+                                :content {:title "La méthode scientifique"
+                                          :text "Pose le vocabulaire de la méthode de Popper."
+                                          :published-at #inst "2026-10-25T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :published-at #inst "2026-10-27T09:00:00.000-00:00"}}
+  :output {:description "Refused: a publication without document is canceled, not published."
+           :error {:reason :empty-publication}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox publishes two drafts, one citing the other by its id: the id becomes a citation by tnlr, in the text and in the citations."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.publish/publish
+  :input
+  {:description
+   "« La méthode scientifique » is open, with the draft « Énoncé universel » and the draft « Énoncé singulier », which cites it by its id, in its text and its citations."
+   :snapshots ["type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-10-26T09:00:00.000-00:00"}}
+       {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+        :type :definition
+        :name "enonce-singulier"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé singulier"
+         :text
+         "un énoncé portant sur un individu déterminé. Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a|énoncé universel]] porte sur une classe, il désigne un cas."
+         :inputs [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"}]
+         :published-at #inst "2026-10-26T09:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-10-25T09:00:00.000-00:00"}}]}}
+  :parameter {:description "The publication, and when it is published."
+              :data {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+                     :published-at #inst "2026-10-27T09:00:00.000-00:00"}}
+  :output
+  {:description
+   "The publication closed; both drafts get the minor 0, and « Énoncé singulier » cites « enonce-universel » at its major 1."
+   :changed
+   {:publications
+    [{:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :name "la-methode-scientifique"
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents
+      [{:id #uuid "a526a25d-c823-4295-a8b4-0e6514d3768a"
+        :type :definition
+        :name "enonce-universel"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé universel"
+         :text
+         "un énoncé dans lequel on affirme qu'une propriété est vraie pour tous les membres d'une classe."
+         :inputs []
+         :published-at #inst "2026-10-27T09:00:00.000-00:00"}}
+       {:id #uuid "b94e19e4-6542-4edb-bd56-0d33fa3dc391"
+        :type :definition
+        :name "enonce-singulier"
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+        :content
+        {:title "Énoncé singulier"
+         :text
+         "un énoncé portant sur un individu déterminé. Là où l'[[definition:enonce-universel:fr@1|énoncé universel]] porte sur une classe, il désigne un cas."
+         :inputs [{:type :definition
+                   :name "enonce-universel"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-27T09:00:00.000-00:00"}}]
+      :content {:title "La méthode scientifique"
+                :text "Pose le vocabulaire de la méthode de Popper."
+                :published-at #inst "2026-10-27T09:00:00.000-00:00"}}]}}}]
