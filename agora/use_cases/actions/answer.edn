@@ -1,0 +1,594 @@
+;; Use case: answering an objection.
+;;
+;; The owner of the version contested declares that their open publication answers the
+;; objection. The publication already holds the change, a later version of the document;
+;; publishing it closes the objection.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description
+  "Agora declares that « Exemple pédagogique 5 » answers « Et le modèle en général ? »."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output
+  {:description
+   "The publication answers the objection, which stays pending until the publication is published."
+   :changed
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :answers [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}]
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Agora answers with a publication holding no later version of the article."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.answer/answer
+  :input
+  {:description "« Exemple pédagogique 5 » is open, owned by Agora, and holds no document."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+                                :type :publication
+                                :name "exemple-pedagogique-5"
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                                :contributors []
+                                :documents []
+                                :content {:title "Exemple pédagogique 5"
+                                          :text "Répond : et le modèle en général ?"
+                                          :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: the answer holds the change first."
+           :error {:reason :no-change}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox answers the objection with his own publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.answer/answer
+  :input
+  {:description "« Exemple pédagogique 5 » is open, owned by Hephaistox, and holds no document."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+                                :type :publication
+                                :name "exemple-pedagogique-5"
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors []
+                                :documents []
+                                :content {:title "Exemple pédagogique 5"
+                                          :text "Répond : et le modèle en général ?"
+                                          :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: only the owner of the version contested answers."
+           :error {:reason :not-the-target-owner}}}
+ ;; ********************************************************************************
+ {:description "Agora answers « Que veut dire « rapide » ? », already closed."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}}}
+  :output {:description "Refused: a closed objection was already answered."
+           :error {:reason :objection-closed}}}
+ ;; ********************************************************************************
+ {:description "Agora answers the objection again with the same publication."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article. It already answers the objection."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :answers [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}]
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: the publication already answers it."
+           :error {:reason :already-answered}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox answers with the publication of Agora."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: only its owner declares what a publication answers."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in answers an objection."
+  :by :anonymous
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) answers an objection."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Agora answers with a publication that does not exist."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: no publication has this id."
+           :error {:reason :unknown-publication}}}
+ ;; ********************************************************************************
+ {:description "Agora answers with its published type vocabulary."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: a published publication is frozen."
+           :error {:reason :publication-closed}}}
+ ;; ********************************************************************************
+ {:description "Agora answers with a canceled publication."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.answer/answer
+  :input
+  {:description "« Exemple pédagogique 5 » is canceled, keeping its draft."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :canceled
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}}}
+  :output {:description "Refused: a canceled publication is frozen."
+           :error {:reason :publication-canceled}}}
+ ;; ********************************************************************************
+ {:description "Agora answers an objection that does not exist."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.answer/answer
+  :input
+  {:description
+   "The story of the home page; the objection « Et le modèle en général ? » of Hephaistox2 is pending on the article 1.3, owned by Agora. Agora opens « Exemple pédagogique 5 », holding a draft of the next version of the article."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter {:description "The open publication, and the objection it answers."
+              :data {:publication {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"}
+                     :objection {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}}}
+  :output {:description "Refused: no objection has this id."
+           :error {:reason :unknown-objection}}}]
