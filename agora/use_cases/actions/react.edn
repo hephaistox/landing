@@ -1,0 +1,288 @@
+;; Use case: reacting.
+;;
+;; The author of a closed objection reacts to the change that answered it: the next major
+;; of the objection, on a later version of the same document, pending again. Only on the
+;; latest major, and only once it is answered.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description
+  "Hephaistox2 reacts to the article 1.1, which answered his objection « Que veut dire « rapide » ? »."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output
+  {:description "The major 2 of his objection: same name and language, pending, on the article 1.1."
+   :created {:objections [{:id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+                           :type :objection
+                           :name "que-veut-dire-rapide"
+                           :lang :fr
+                           :major 2
+                           :status :draft
+                           :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                           :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010101"}]
+                           :content
+                           {:reason :omission
+                            :title "Que veut dire « rapide » ?"
+                            :text
+                            "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                            :published-at #inst "2026-10-28T10:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox reacts to the objection of Hephaistox2."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: only the author of an objection reacts."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox2 reacts to the major 1 of « Et le modèle en général ? », though its major 2 exists."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "9a1c5e33-7d2f-4b8a-b1c4-3e6f8a2d5c33"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: one reacts to the latest major."
+           :error {:reason :not-latest}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox2 reacts to « Et le modèle en général ? » while its major 2 awaits its answer."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: the objection still awaits its answer."
+           :error {:reason :objection-pending}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 reacts on the article 1.0, the version he already contested."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010100"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: a reaction contests a later version."
+           :error {:reason :not-newer}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 reacts on the definition « Rapide », another document."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000010010100"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: a reaction contests a later version of the same document."
+           :error {:reason :not-newer}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in reacts."
+  :by :anonymous
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) reacts."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 reacts with the id of an existing document."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "dddddddd-0000-0000-0000-000010010100"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: the id is taken."
+           :error {:reason :id-taken}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 reacts to an objection that does not exist."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: no objection has this id."
+           :error {:reason :unknown-objection}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 reacts on a version that does not exist."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: no published version has this id."
+           :error {:reason :unknown-version}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 reacts for a reason an article does not predefine."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :inexact
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description
+           "Refused: an article is contested as unclear, unbalanced or for an omission."
+           :error {:reason :unknown-reason}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 reacts, finding the article unbalanced, backed by a definition."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.react/react
+  :input
+  {:description
+   "The story of the home page: Hephaistox2 objected to the article 1.0 (« Que veut dire « rapide » ? »), answered by the article 1.1, so closed; his objection « Et le modèle en général ? » is in its major 2, pending on the article 1.3. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description
+   "The id of the new major, the objection, the newer version, and what the reaction says."
+   :data {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+          :version {:id #uuid "dddddddd-0000-0000-0000-000020010101"}
+          :id #uuid "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d"
+          :content {:reason :unbalanced
+                    :title "Que veut dire « rapide » ?"
+                    :text "La définition est là, mais elle ne dit pas si le chrono part arrêté."
+                    :inputs [{:type :definition
+                              :name "rapide"
+                              :lang :fr
+                              :major 1}]
+                    :published-at #inst "2026-10-28T10:00:00.000-00:00"}}}
+  :output {:description "Refused: an unbalanced article is backed by another article."
+           :error {:reason :invalid-backing}}}]

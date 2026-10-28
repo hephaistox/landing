@@ -142,6 +142,20 @@ from one car to the whole model is a leap.
                           :when (some #(= (:id o) (:id %)) (:answers publication))]
                       (assoc o :status :closed)))})
 
+(defn newer?
+  "Is `document` a later version of the lineage of `target`? A draft of the same or a later
+  major is: it gets its minor when published."
+  [target document]
+  (and (= (select-keys target [:type :name :lang]) (select-keys document [:type :name :lang]))
+       (if (nil? (:minor document))
+         (>= (:major document) (:major target))
+         (pos? (compare [(:major document) (:minor document)] [(:major target) (:minor target)])))))
+
+(defn invalid-backing
+  "The citations of `inputs` whose type the predefined objection `reason` does not admit."
+  [reason inputs]
+  (remove #(contains? (:backed-by reason) (:type %)) inputs))
+
 ;; ---------------------------------------------------------------------------
 ;; Rules
 ;; ---------------------------------------------------------------------------
@@ -152,15 +166,6 @@ from one car to the whole model is a leap.
   (let [t (target objection)
         p (publication/from-publication publications t)]
     [p (some #(when (= (:id t) (:id %)) %) (:documents p))]))
-
-(defn- newer?
-  "Is `document` a later version of the lineage of `target`? A draft of the same or a later
-  major is: it gets its minor when published."
-  [target document]
-  (and (= (select-keys target [:type :name :lang]) (select-keys document [:type :name :lang]))
-       (if (nil? (:minor document))
-         (>= (:major document) (:major target))
-         (pos? (compare [(:major document) (:minor document)] [(:major target) (:minor target)])))))
 
 (def rules
   "Rules on `publications`, `objections` and `users`."

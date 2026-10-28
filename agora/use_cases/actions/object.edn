@@ -1,0 +1,299 @@
+;; Use case: objecting.
+;;
+;; A user contests a published version, for a reason its type predefines, possibly backed
+;; by documents of the types that reason admits. Its owner may contest it too. The
+;; objection is pending, in the language of the version, named after its title. One
+;; pending objection per user, version and reason.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox contests the definition « Rapide »: it is incomplete."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data
+   {:version {:id #uuid "dddddddd-0000-0000-0000-000010010100"}
+    :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+    :content
+    {:reason :incomplete
+     :title "Rapide pour qui ?"
+     :text
+     "Cent kilomètres-heure en cinq secondes, c'est rapide pour une citadine, pas pour une sportive."
+     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output
+  {:description "A pending objection, in French like its target, major 1, named after its title."
+   :created
+   {:objections
+    [{:id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+      :type :objection
+      :name "rapide-pour-qui"
+      :lang :fr
+      :major 1
+      :status :draft
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000010010100"}]
+      :content
+      {:reason :incomplete
+       :title "Rapide pour qui ?"
+       :text
+       "Cent kilomètres-heure en cinq secondes, c'est rapide pour une citadine, pas pour une sportive."
+       :published-at #inst "2026-10-28T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Agora contests its own definition « Rapide », relaying a question asked off agora."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter {:description "The id of the objection, the version contested, and what it says."
+              :data {:version {:id #uuid "dddddddd-0000-0000-0000-000010010100"}
+                     :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+                     :content {:reason :incomplete
+                               :title "Rapide, même sous la pluie ?"
+                               :text "On m'a demandé si la définition vaut sur route mouillée."
+                               :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output
+  {:description "Its owner may contest a version too."
+   :created {:objections [{:id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+                           :type :objection
+                           :name "rapide-meme-sous-la-pluie"
+                           :lang :fr
+                           :major 1
+                           :status :draft
+                           :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                           :documents [{:id #uuid "dddddddd-0000-0000-0000-000010010100"}]
+                           :content {:reason :incomplete
+                                     :title "Rapide, même sous la pluie ?"
+                                     :text
+                                     "On m'a demandé si la définition vaut sur route mouillée."
+                                     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox contests the article 1.3 for an omission, backed by the definition « Rapide »."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data {:version {:id #uuid "dddddddd-0000-0000-0000-000020010103"}
+          :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "L'article ne renvoie pas à la définition de « rapide » qu'il emploie."
+                    :inputs [{:type :definition
+                              :name "rapide"
+                              :lang :fr
+                              :major 1}]
+                    :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output
+  {:description "The name drawn from its title is taken in French: a number follows it."
+   :created
+   {:objections
+    [{:id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+      :type :objection
+      :name "que-veut-dire-rapide-2"
+      :lang :fr
+      :major 1
+      :status :draft
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+      :content {:reason :omission
+                :title "Que veut dire « rapide » ?"
+                :text "L'article ne renvoie pas à la définition de « rapide » qu'il emploie."
+                :inputs [{:type :definition
+                          :name "rapide"
+                          :lang :fr
+                          :major 1}]
+                :published-at #inst "2026-10-28T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 contests the article 1.3 again, for being unclear."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter {:description "The id of the objection, the version contested, and what it says."
+              :data {:version {:id #uuid "dddddddd-0000-0000-0000-000020010103"}
+                     :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+                     :content {:reason :unclear
+                               :title "Une phrase obscure"
+                               :text "La dernière phrase de l'article est difficile à comprendre."
+                               :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output
+  {:description "Another reason than his pending objection: allowed."
+   :created {:objections [{:id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+                           :type :objection
+                           :name "une-phrase-obscure"
+                           :lang :fr
+                           :major 1
+                           :status :draft
+                           :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                           :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+                           :content {:reason :unclear
+                                     :title "Une phrase obscure"
+                                     :text
+                                     "La dernière phrase de l'article est difficile à comprendre."
+                                     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 contests the article 1.3 again, for an omission."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data {:version {:id #uuid "dddddddd-0000-0000-0000-000020010103"}
+          :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+          :content {:reason :omission
+                    :title "Que veut dire « rapide » ?"
+                    :text "L'article ne renvoie pas à la définition de « rapide » qu'il emploie."
+                    :inputs [{:type :definition
+                              :name "rapide"
+                              :lang :fr
+                              :major 1}]
+                    :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output {:description "Refused: his objection for an omission is still pending on that version."
+           :error {:reason :already-objected}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in contests a version."
+  :by :anonymous
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data
+   {:version {:id #uuid "dddddddd-0000-0000-0000-000010010100"}
+    :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+    :content
+    {:reason :incomplete
+     :title "Rapide pour qui ?"
+     :text
+     "Cent kilomètres-heure en cinq secondes, c'est rapide pour une citadine, pas pour une sportive."
+     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) contests a version."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data
+   {:version {:id #uuid "dddddddd-0000-0000-0000-000010010100"}
+    :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+    :content
+    {:reason :incomplete
+     :title "Rapide pour qui ?"
+     :text
+     "Cent kilomètres-heure en cinq secondes, c'est rapide pour une citadine, pas pour une sportive."
+     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox contests a version with the id of an existing document."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data
+   {:version {:id #uuid "dddddddd-0000-0000-0000-000010010100"}
+    :id #uuid "dddddddd-0000-0000-0000-000010010100"
+    :content
+    {:reason :incomplete
+     :title "Rapide pour qui ?"
+     :text
+     "Cent kilomètres-heure en cinq secondes, c'est rapide pour une citadine, pas pour une sportive."
+     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output {:description "Refused: the id is taken."
+           :error {:reason :id-taken}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox contests a version that does not exist."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data
+   {:version {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+    :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+    :content
+    {:reason :incomplete
+     :title "Rapide pour qui ?"
+     :text
+     "Cent kilomètres-heure en cinq secondes, c'est rapide pour une citadine, pas pour une sportive."
+     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output {:description "Refused: no published version has this id."
+           :error {:reason :unknown-version}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox contests the definition « Rapide » for an omission."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data
+   {:version {:id #uuid "dddddddd-0000-0000-0000-000010010100"}
+    :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+    :content
+    {:reason :omission
+     :title "Rapide pour qui ?"
+     :text
+     "Cent kilomètres-heure en cinq secondes, c'est rapide pour une citadine, pas pour une sportive."
+     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output {:description
+           "Refused: a definition is contested as incomplete or competing, not for an omission."
+           :error {:reason :unknown-reason}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox contests « Rapide » as incomplete, backed by a measure."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.object/object
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 and the article « Ma voiture est rapide » up to 1.3, owned by Agora; Hephaistox2 has an objection pending on the article 1.3, for an omission. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The id of the objection, the version contested, and what it says."
+   :data
+   {:version {:id #uuid "dddddddd-0000-0000-0000-000010010100"}
+    :id #uuid "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+    :content
+    {:reason :incomplete
+     :title "Rapide pour qui ?"
+     :text
+     "Cent kilomètres-heure en cinq secondes, c'est rapide pour une citadine, pas pour une sportive."
+     :inputs [{:type :measurable-fact
+               :name "le-0-a-100-mesure"
+               :lang :fr
+               :major 1}]
+     :published-at #inst "2026-10-28T09:00:00.000-00:00"}}}
+  :output {:description
+           "Refused: an incomplete definition is backed by a counter-example or an illustration."
+           :error {:reason :invalid-backing}}}]
