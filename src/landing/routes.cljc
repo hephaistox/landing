@@ -20,6 +20,8 @@
       :link-id :box63}
      {:url "https://himalaya-vichy.fr/"
       :link-id :himalaya}
+     {:url "https://www.youtube.com/watch?v=2pdArs1er14"
+      :link-id :youtube-rivalis}
      {:url "https://escalierblues.anthony-hephaistox.workers.dev/#concerts"
       :link-id :escaliers-blues}
      {:link-id :hephaistox
