@@ -24,10 +24,13 @@ metadata."
   `by` is `:anonymous`; its parameters are `{:id :name :provider :provider-id}`. Refuses
   with `:already-logged-in` when someone is logged in: one signs up before having an
   account. Refuses with `:already-signed-up` when a user already has this account: the
-  same provider and `:provider-id`."
+  same provider and `:provider-id`. Refuses with `:reserved-account` for the name or the
+  login of Anonymus."
   {:parameters parameters}
   [repository by {:keys [id name provider provider-id]}]
   (when-not (= :anonymous by) (action/refuse! :already-logged-in))
+  (when (or (user/reserved? name) (user/reserved? provider provider-id))
+    (action/refuse! :reserved-account {:name name}))
   (when (some #(= [provider provider-id] [(:provider %) (:provider-id %)]) (:users repository))
     (action/refuse! :already-signed-up
                     {:provider provider

@@ -55,4 +55,14 @@
   :parameter {:description "The new name."
               :data {:name "Personne"}}
   :output {:description "Refused: no user has this id."
-           :error {:reason :unknown-user}}}]
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox takes the name of Anonymus."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.rename-user/rename-user
+  :input {:description "Hephaistox, Hephaistox2 and Agora have an account."
+          :snapshots ["type-vocabulary.edn"]}
+  :parameter {:description "The new name."
+              :data {:name "Anonymus"}}
+  :output {:description "Refused: the name of Anonymus is reserved."
+           :error {:reason :reserved-account}}}]

@@ -26,6 +26,10 @@
            (sut/apply-changes (assoc sut/empty-repository :persons [anthony])
                               {:created {:users [account]}
                                :changed {:persons [(assoc anthony :name "Antoine")]}}))))
+  (testing "a deleted person"
+    (is (= []
+           (:persons (sut/apply-changes (assoc sut/empty-repository :persons [anthony])
+                                        {:deleted {:persons [{:id (:id anthony)}]}})))))
   (testing "a missing kind starts empty"
     (is (= {:persons [anthony]} (sut/apply-changes {} {:created {:persons [anthony]}})))))
 
@@ -45,6 +49,8 @@
       (is (= "Created ids already there"
              (thrown (assoc sut/empty-repository :persons [anthony])
                      {:created {:persons [anthony]}}))))
+    (testing "a deleted :id missing"
+      (is (= "Deleted ids missing" (thrown sut/empty-repository {:deleted {:persons [anthony]}}))))
     (testing "a changed :id missing"
       (is (= "Changed ids missing"
              (thrown sut/empty-repository {:changed {:persons [anthony]}}))))))

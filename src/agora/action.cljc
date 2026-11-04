@@ -4,7 +4,8 @@
 ## Definition
 
 An **action** is what someone does in agora. It is a pure function of the repository, who
-acts (`by`) and its parameters, returning its changes: what it creates and what it changes.
+acts (`by`) and its parameters, returning its changes: what it creates, changes and
+deletes.
 
 ```clojure
 (f repository by parameters) ;=> {:created {:persons [...]} :changed {:publications [...]}}

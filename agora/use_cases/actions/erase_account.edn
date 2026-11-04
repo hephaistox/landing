@@ -1,0 +1,466 @@
+;; Use case: erasing an account.
+;;
+;; A user has their person and account deleted. What they wrote is reattributed to
+;; Anonymus, one shared person: publications, documents, objections, places as
+;; contributor. Their timestamps are removed, their open publications canceled. Anonymus
+;; itself is never erased.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox2 erases his account."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.erase-account/erase-account
+  :input
+  {:description
+   "The story of the home page, where Hephaistox2 wrote every objection. He also owns « La voiture électrique », closed, with his timestamped prediction for 2030, and « Les ventes de 2035 », still open; and, as a contributor, he wrote a draft in « Vocabulaire électrique » of Agora. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:name "la-voiture-electrique"
+      :id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:name "ventes-2030"
+        :id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:status :pending
+                    :hash "f742b557aa7d6700cae195125a77b00e913fce34b47110c79ae5eb8f7570346a"
+                    :requested-at #inst "2026-10-27T09:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:name "les-ventes-de-2035"
+      :id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents [{:name "ventes-2035"
+                   :id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}
+     {:name "vocabulaire-electrique"
+      :id #uuid "7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors [{:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}]
+      :documents [{:name "voiture-electrique"
+                   :id #uuid "6a7b8c9d-0e1f-4a2b-8c3d-4e5f6a7b8c9d"
+                   :type :definition
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                   :content {:title "Voiture électrique"
+                             :text "une voiture mue par un moteur électrique."
+                             :inputs []
+                             :published-at #inst "2026-10-21T10:00:00.000-00:00"}}]
+      :content {:title "Vocabulaire électrique"
+                :text "Définit les mots de la voiture électrique."
+                :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]}}
+  :parameter {:description "Nothing: who acts is erased."
+              :data {}}
+  :output
+  {:description
+   "His person and account are deleted; Anonymus is created and holds everything he wrote; his timestamp is removed; his open publication is canceled."
+   :created {:persons [{:name "Anonymus"
+                        :id #uuid "00000000-0000-0000-0000-000000000000"}]
+             :users [{:provider :password
+                      :provider-id "anonymus"
+                      :id #uuid "00000000-0000-0000-0000-000000000000"}]}
+   :changed
+   {:publications
+    [{:name "la-voiture-electrique"
+      :id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :contributors []
+      :documents [{:name "ventes-2030"
+                   :id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+                   :type :prediction
+                   :lang :fr
+                   :major 1
+                   :minor 0
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+                   :content
+                   {:title "Les ventes de 2030"
+                    :text
+                    "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-09-01T10:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:name "les-ventes-de-2035"
+      :id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :canceled
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :contributors []
+      :documents [{:name "ventes-2035"
+                   :id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}
+     {:name "vocabulaire-electrique"
+      :id #uuid "7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors [{:id #uuid "00000000-0000-0000-0000-000000000000"}]
+      :documents [{:name "voiture-electrique"
+                   :id #uuid "6a7b8c9d-0e1f-4a2b-8c3d-4e5f6a7b8c9d"
+                   :type :definition
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+                   :content {:title "Voiture électrique"
+                             :text "une voiture mue par un moteur électrique."
+                             :inputs []
+                             :published-at #inst "2026-10-21T10:00:00.000-00:00"}}]
+      :content {:title "Vocabulaire électrique"
+                :text "Définit les mots de la voiture électrique."
+                :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]
+    :objections
+    [{:name "que-veut-dire-rapide"
+      :id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"
+      :type :objection
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010100"}]
+      :content
+      {:reason :omission
+       :title "Que veut dire « rapide » ?"
+       :text
+       "« Rapide », ça veut dire quoi, au juste ? Rapide comme une F1? Rapide par rapport à ma Clio?"
+       :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+     {:name "un-fait-mesurable"
+      :id #uuid "4b8e2f71-2c3d-4f6a-8e90-5a7c1d3b9e22"
+      :type :objection
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010101"}]
+      :content {:reason :omission
+                :title "Un fait mesurable ?"
+                :text "Admettons. Et tu as un fait mesurable ?"
+                :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+     {:name "et-le-modele-en-general"
+      :id #uuid "9a1c5e33-7d2f-4b8a-b1c4-3e6f8a2d5c33"
+      :type :objection
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010102"}]
+      :content {:reason :omission
+                :title "Et le modèle en général ?"
+                :text "Et le modèle en général, pas seulement la tienne ?"
+                :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+     {:name "et-le-modele-en-general"
+      :id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"
+      :type :objection
+      :lang :fr
+      :major 2
+      :status :draft
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+      :content
+      {:reason :omission
+       :title "Et le modèle en général ?"
+       :text
+       "Passer de ta voiture à tout le modèle est un saut : combien d'exemplaires as-tu testés, et comment les as-tu choisis ?"
+       :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+     {:name "que-veut-dire-rapide"
+      :id #uuid "ebb662b2-5d24-46fb-881f-1655c9d43e4b"
+      :type :objection
+      :lang :en
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010200"}]
+      :content {:reason :omission
+                :title "What does « fast » mean?"
+                :text "« Fast » — what does that even mean?"
+                :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+     {:name "un-fait-mesurable"
+      :id #uuid "35673bb2-937a-4931-b201-802226c2b791"
+      :type :objection
+      :lang :en
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010201"}]
+      :content {:reason :omission
+                :title "A measurable fact?"
+                :text "Fine. And do you have a measurable fact?"
+                :published-at #inst "2026-08-28T12:39:01.000-00:00"}}
+     {:name "et-le-modele-en-general"
+      :id #uuid "7f58d9c7-5248-4705-8f35-d9a6cb3c57de"
+      :type :objection
+      :lang :en
+      :major 1
+      :status :closed
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000000"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010202"}]
+      :content {:reason :omission
+                :title "And the model in general?"
+                :text "And the model in general, not just yours?"
+                :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]}
+   :deleted {:persons [{:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}]
+             :users [{:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}]}}}
+ ;; ********************************************************************************
+ {:description "Raphaël, who wrote nothing, erases his account, once Anonymus exists."
+  :by {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+  :action agora.action.erase-account/erase-account
+  :input {:description "Anonymus exists already; Raphaël has an account and wrote nothing."
+          :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+          :repository {:persons [{:name "Anonymus"
+                                  :id #uuid "00000000-0000-0000-0000-000000000000"}
+                                 {:name "Raphaël"
+                                  :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                       :users [{:provider :password
+                                :provider-id "anonymus"
+                                :id #uuid "00000000-0000-0000-0000-000000000000"}
+                               {:provider :password
+                                :provider-id "raphael"
+                                :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]}}
+  :parameter {:description "Nothing: who acts is erased."
+              :data {}}
+  :output {:description "Only his person and account are deleted."
+           :deleted {:persons [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                     :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in as Anonymus tries to erase it."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000000"}
+  :action agora.action.erase-account/erase-account
+  :input {:description "Anonymus exists."
+          :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+          :repository {:persons [{:name "Anonymus"
+                                  :id #uuid "00000000-0000-0000-0000-000000000000"}
+                                 {:name "Raphaël"
+                                  :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                       :users [{:provider :password
+                                :provider-id "anonymus"
+                                :id #uuid "00000000-0000-0000-0000-000000000000"}
+                               {:provider :password
+                                :provider-id "raphael"
+                                :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]}}
+  :parameter {:description "Nothing: who acts is erased."
+              :data {}}
+  :output {:description "Refused: Anonymus is never erased."
+           :error {:reason :reserved-account}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in tries to erase an account."
+  :by :anonymous
+  :action agora.action.erase-account/erase-account
+  :input
+  {:description
+   "The story of the home page, where Hephaistox2 wrote every objection. He also owns « La voiture électrique », closed, with his timestamped prediction for 2030, and « Les ventes de 2035 », still open; and, as a contributor, he wrote a draft in « Vocabulaire électrique » of Agora. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:name "la-voiture-electrique"
+      :id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:name "ventes-2030"
+        :id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:status :pending
+                    :hash "f742b557aa7d6700cae195125a77b00e913fce34b47110c79ae5eb8f7570346a"
+                    :requested-at #inst "2026-10-27T09:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:name "les-ventes-de-2035"
+      :id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents [{:name "ventes-2035"
+                   :id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}
+     {:name "vocabulaire-electrique"
+      :id #uuid "7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors [{:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}]
+      :documents [{:name "voiture-electrique"
+                   :id #uuid "6a7b8c9d-0e1f-4a2b-8c3d-4e5f6a7b8c9d"
+                   :type :definition
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                   :content {:title "Voiture électrique"
+                             :text "une voiture mue par un moteur électrique."
+                             :inputs []
+                             :published-at #inst "2026-10-21T10:00:00.000-00:00"}}]
+      :content {:title "Vocabulaire électrique"
+                :text "Définit les mots de la voiture électrique."
+                :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]}}
+  :parameter {:description "Nothing: who acts is erased."
+              :data {}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) tries to erase an account."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.erase-account/erase-account
+  :input
+  {:description
+   "The story of the home page, where Hephaistox2 wrote every objection. He also owns « La voiture électrique », closed, with his timestamped prediction for 2030, and « Les ventes de 2035 », still open; and, as a contributor, he wrote a draft in « Vocabulaire électrique » of Agora. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:name "la-voiture-electrique"
+      :id #uuid "4b8e1f2a-6c3d-4e5f-9a7b-0c1d2e3f4a5b"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :closed
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents
+      [{:name "ventes-2030"
+        :id #uuid "e7a1c3d5-2b4f-4a68-9c0e-1f3a5b7d9e2c"
+        :type :prediction
+        :lang :fr
+        :major 1
+        :minor 0
+        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :content {:title "Les ventes de 2030"
+                  :text
+                  "la moitié des voitures neuves vendues en France en 2030 seront électriques."
+                  :inputs []
+                  :published-at #inst "2026-09-01T10:00:00.000-00:00"}
+        :timestamp {:status :pending
+                    :hash "f742b557aa7d6700cae195125a77b00e913fce34b47110c79ae5eb8f7570346a"
+                    :requested-at #inst "2026-10-27T09:00:00.000-00:00"}}]
+      :content {:title "La voiture électrique"
+                :text "Prédit les ventes de 2030."
+                :published-at #inst "2026-09-01T10:00:00.000-00:00"}}
+     {:name "les-ventes-de-2035"
+      :id #uuid "5c9f2a3b-7d4e-4f60-8b8c-1d2e3f4a5b6c"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :contributors []
+      :documents [{:name "ventes-2035"
+                   :id #uuid "a9c3e5f7-4d6b-4c8a-9e2a-3b5c7d9f1a4e"
+                   :type :prediction
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                   :content
+                   {:title "Les ventes de 2035"
+                    :text "toutes les voitures neuves vendues en France en 2035 seront électriques."
+                    :inputs []
+                    :published-at #inst "2026-10-20T10:00:00.000-00:00"}}]
+      :content {:title "Les ventes de 2035"
+                :text "Prédit les ventes de 2035."
+                :published-at #inst "2026-10-20T10:00:00.000-00:00"}}
+     {:name "vocabulaire-electrique"
+      :id #uuid "7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors [{:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}]
+      :documents [{:name "voiture-electrique"
+                   :id #uuid "6a7b8c9d-0e1f-4a2b-8c3d-4e5f6a7b8c9d"
+                   :type :definition
+                   :lang :fr
+                   :major 1
+                   :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+                   :content {:title "Voiture électrique"
+                             :text "une voiture mue par un moteur électrique."
+                             :inputs []
+                             :published-at #inst "2026-10-21T10:00:00.000-00:00"}}]
+      :content {:title "Vocabulaire électrique"
+                :text "Définit les mots de la voiture électrique."
+                :published-at #inst "2026-10-21T09:00:00.000-00:00"}}]}}
+  :parameter {:description "Nothing: who acts is erased."
+              :data {}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}]

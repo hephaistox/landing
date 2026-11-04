@@ -25,6 +25,7 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
 
   - `:not-logged-in`, `:unknown-user`: who acts is no user;
   - `:name-taken`: another user has that name, regardless of case and accents;
+  - `:reserved-account`: the name is Anonymus's;
   - `:rules-broken`: the name breaks a rule."
   {:parameters parameters}
   [{:keys [persons users]
@@ -33,6 +34,7 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
    {:keys [name]}]
   (let [me (action/logged-in-user repository by)
         user-ids (set (map :id users))]
+    (when (user/reserved? name) (action/refuse! :reserved-account {:name name}))
     (when (some #(and (user-ids (:id %))
                       (not= (:id me) (:id %))
                       (= (user/name-key name) (user/name-key (:name %))))

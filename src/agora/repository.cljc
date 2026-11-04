@@ -11,14 +11,14 @@ and its objections.
 ```
 
 Every action takes it and returns its **changes**: per kind, the entities it creates and
-the entities it changes, each whole.
+the entities it changes, each whole, and the entities it deletes, by their `{:id}`.
 
 ```clojure
 {:created {:persons [...] :users [...]} :changed {:publications [...]}}
 ```
 
 `apply-changes` applies them: a created entity is added, a changed one replaces the
-entity with the same `:id`. It never changes the repository in place.
+entity with the same `:id`, a deleted one is removed. It never changes the repository in place.
 
 ## Goals
 
@@ -57,19 +57,21 @@ The empty repository, before anyone signs up: `empty-repository`. A sign-up retu
            [:vector [:map [:id :uuid]]]])))
 
 (def changes-schema
-  "The grammar of changes: the entities created, and the entities changed."
+  "The grammar of changes: the entities created, changed, and deleted."
   [:map {:closed true}
    [:created {:optional true}
     kinds-schema]
    [:changed {:optional true}
+    kinds-schema]
+   [:deleted {:optional true}
     kinds-schema]])
 
 (defn apply-changes
   "The repository after `changes`. A created entity is added; a changed one replaces the
-  entity with the same `:id`. Throws when `changes` breaks its grammar, creates an `:id`
-  already there, or changes a missing one."
+  entity with the same `:id`; a deleted one is removed. Throws when `changes` breaks its
+  grammar, creates an `:id` already there, or changes or deletes a missing one."
   [repository
-   {:keys [created changed]
+   {:keys [created changed deleted]
     :as changes}]
   (when-let [invalid (schema/validate-data-humanize changes-schema changes)]
     (throw (ex-info "Invalid changes" invalid)))
@@ -86,8 +88,18 @@ The empty repository, before anyone signs up: `empty-repository`. A sign-up retu
                                    {:kind kind
                                     :ids (mapv :id missing)})))
                  (let [by-id (into {} (map (juxt :id identity)) xs)]
-                   (update r kind (partial mapv #(get by-id (:id %) %)))))]
-    (as-> repository r (reduce create r created) (reduce change r changed))))
+                   (update r kind (partial mapv #(get by-id (:id %) %)))))
+        delete (fn [r [kind xs]]
+                 (when-let [missing (seq (remove (comp (ids r kind) :id) xs))]
+                   (throw (ex-info "Deleted ids missing"
+                                   {:kind kind
+                                    :ids (mapv :id missing)})))
+                 (let [gone (set (map :id xs))]
+                   (update r kind (partial filterv #(not (gone (:id %)))))))]
+    (as-> repository r
+      (reduce create r created)
+      (reduce change r changed)
+      (reduce delete r deleted))))
 
 ;; ---------------------------------------------------------------------------
 ;; Rules

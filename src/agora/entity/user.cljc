@@ -88,6 +88,22 @@ email, no password."
 ;; Rules
 ;; ---------------------------------------------------------------------------
 
+(def anonymus
+  "The account every erased account's writings are reattributed to: one shared person, so
+  what survives an erasure groups every erased person together and identifies none. Nobody
+  logs in as it, and nobody else takes its name or login."
+  {:person {:id #uuid "00000000-0000-0000-0000-000000000000"
+            :name "Anonymus"}
+   :user {:id #uuid "00000000-0000-0000-0000-000000000000"
+          :provider :password
+          :provider-id "anonymus"}})
+
+(defn reserved?
+  "Does the name `display-name`, or the account at `provider`, belong to Anonymus?"
+  ([display-name] (= (name-key display-name) (name-key (get-in anonymus [:person :name]))))
+  ([provider provider-id]
+   (= [provider provider-id] ((juxt :provider :provider-id) (:user anonymus)))))
+
 (def rules
   "Rules on the `persons` and the `users`."
   [{:id :user/shape

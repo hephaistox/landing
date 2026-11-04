@@ -8,7 +8,8 @@
     of the use cases, then the publications and objections of those snapshots, then
     `:repository`, whose entities are added or replace those of the same `:id`;
   - `:parameter`: the parameters of the action (`:data`);
-  - `:output`: what the step creates or changes in the repository (`:created`, `:changed`),
+  - `:output`: what the step creates, changes or deletes in the repository (`:created`,
+    `:changed`, `:deleted`),
     or the refusal it expects (`:error {:reason …}`).
 
   A step:
@@ -65,6 +66,8 @@
      [:created {:optional true}
       repository/kinds-schema]
      [:changed {:optional true}
+      repository/kinds-schema]
+     [:deleted {:optional true}
       repository/kinds-schema]
      [:error {:optional true}
       [:map {:closed true}
