@@ -1,0 +1,272 @@
+;; Use case: editing a publication.
+;;
+;; The owner of an open publication changes what it says, in place: title, text, date.
+;; Its name stays: it was drawn from its first title. A contributor does not edit it.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox renames « La méthode scientifique » and details its text."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.edit-publication/edit-publication
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:persons [{:name "Raphaël"
+                           :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+                         :provider :password
+                         :provider-id "raphael"}]
+                :publications [{:name "la-methode-scientifique"
+                                :id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                                :type :publication
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                                :documents []
+                                :content {:title "La méthode scientifique"
+                                          :text "Pose le vocabulaire de la méthode de Popper."
+                                          :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The publication, and what it now says."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :content
+    {:title "La méthode de Popper"
+     :text
+     "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base."
+     :published-at #inst "2026-08-17T09:00:00.000-00:00"}}}
+  :output
+  {:description "The publication says it differently; its name stays."
+   :changed
+   {:publications
+    [{:name "la-methode-scientifique"
+      :id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+      :type :publication
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+      :documents []
+      :content
+      {:title "La méthode de Popper"
+       :text
+       "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base."
+       :published-at #inst "2026-08-17T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Raphaël, a contributor, tries to edit the publication."
+  :by {:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}
+  :action agora.action.edit-publication/edit-publication
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:persons [{:name "Raphaël"
+                           :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+                         :provider :password
+                         :provider-id "raphael"}]
+                :publications [{:name "la-methode-scientifique"
+                                :id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                                :type :publication
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                                :documents []
+                                :content {:title "La méthode scientifique"
+                                          :text "Pose le vocabulaire de la méthode de Popper."
+                                          :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The publication, and what it now says."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :content
+    {:title "La méthode de Popper"
+     :text
+     "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base."
+     :published-at #inst "2026-08-17T09:00:00.000-00:00"}}}
+  :output {:description "Refused: only its owner edits a publication."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in tries to edit a publication."
+  :by :anonymous
+  :action agora.action.edit-publication/edit-publication
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:persons [{:name "Raphaël"
+                           :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+                         :provider :password
+                         :provider-id "raphael"}]
+                :publications [{:name "la-methode-scientifique"
+                                :id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                                :type :publication
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                                :documents []
+                                :content {:title "La méthode scientifique"
+                                          :text "Pose le vocabulaire de la méthode de Popper."
+                                          :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The publication, and what it now says."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :content
+    {:title "La méthode de Popper"
+     :text
+     "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base."
+     :published-at #inst "2026-08-17T09:00:00.000-00:00"}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) tries to edit a publication."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.edit-publication/edit-publication
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:persons [{:name "Raphaël"
+                           :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+                         :provider :password
+                         :provider-id "raphael"}]
+                :publications [{:name "la-methode-scientifique"
+                                :id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                                :type :publication
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                                :documents []
+                                :content {:title "La méthode scientifique"
+                                          :text "Pose le vocabulaire de la méthode de Popper."
+                                          :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The publication, and what it now says."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :content
+    {:title "La méthode de Popper"
+     :text
+     "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base."
+     :published-at #inst "2026-08-17T09:00:00.000-00:00"}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to edit a publication that does not exist."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.edit-publication/edit-publication
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:persons [{:name "Raphaël"
+                           :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+                         :provider :password
+                         :provider-id "raphael"}]
+                :publications [{:name "la-methode-scientifique"
+                                :id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                                :type :publication
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                                :documents []
+                                :content {:title "La méthode scientifique"
+                                          :text "Pose le vocabulaire de la méthode de Popper."
+                                          :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The publication, and what it now says."
+   :data
+   {:publication {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+    :content
+    {:title "La méthode de Popper"
+     :text
+     "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base."
+     :published-at #inst "2026-08-17T09:00:00.000-00:00"}}}
+  :output {:description "Refused: no publication has this id."
+           :error {:reason :unknown-publication}}}
+ ;; ********************************************************************************
+ {:description "Agora tries to edit its published type vocabulary."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.edit-publication/edit-publication
+  :input
+  {:description
+   "« La méthode scientifique » is open, owned by Hephaistox, with Raphaël as contributor."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:persons [{:name "Raphaël"
+                           :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+                         :provider :password
+                         :provider-id "raphael"}]
+                :publications [{:name "la-methode-scientifique"
+                                :id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                                :type :publication
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                                :documents []
+                                :content {:title "La méthode scientifique"
+                                          :text "Pose le vocabulaire de la méthode de Popper."
+                                          :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The publication, and what it now says."
+   :data
+   {:publication {:id #uuid "c6eb7068-7603-41ee-8bc6-c570f80ec4ab"}
+    :content
+    {:title "La méthode de Popper"
+     :text
+     "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base."
+     :published-at #inst "2026-08-17T09:00:00.000-00:00"}}}
+  :output {:description "Refused: a published publication is frozen."
+           :error {:reason :publication-closed}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to edit a canceled publication."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.edit-publication/edit-publication
+  :input
+  {:description "« La méthode scientifique » is canceled."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:persons [{:name "Raphaël"
+                           :id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                :users [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"
+                         :provider :password
+                         :provider-id "raphael"}]
+                :publications [{:name "la-methode-scientifique"
+                                :id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"
+                                :type :publication
+                                :lang :fr
+                                :major 1
+                                :status :canceled
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors [{:id #uuid "362e5e53-a302-487a-bfb5-c7c7293fef5d"}]
+                                :documents []
+                                :content {:title "La méthode scientifique"
+                                          :text "Pose le vocabulaire de la méthode de Popper."
+                                          :published-at #inst "2026-08-16T09:59:26.000-00:00"}}]}}
+  :parameter
+  {:description "The publication, and what it now says."
+   :data
+   {:publication {:id #uuid "86c19eb7-df81-4705-942a-7570667fcd25"}
+    :content
+    {:title "La méthode de Popper"
+     :text
+     "Pose le vocabulaire de la méthode de Popper : énoncés universels, singuliers et de base."
+     :published-at #inst "2026-08-17T09:00:00.000-00:00"}}}
+  :output {:description "Refused: a canceled publication is frozen."
+           :error {:reason :publication-canceled}}}]

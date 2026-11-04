@@ -1293,8 +1293,8 @@ brouillons :
   {:en-hash "b217f6cb16f9"
    :fr
    "chaque type qu'utilise un document est décrit par une définition type-<type>, dans la langue du document"}
-  :type/known {:en-hash "ddebf55a29c7"
-               :fr "le type est pris dans la liste fermée ; il n'y a plus de :kind"}
+  :type/known {:en-hash "3dc9b6d4a212"
+               :fr "le type est pris dans la liste fermée"}
   :type/text {:en-hash "a2750b32dea3"
               :fr "une œuvre a un auteur crédité ; tout autre document a un texte"}
   :user/is-a-person {:en-hash "be71879ec984"

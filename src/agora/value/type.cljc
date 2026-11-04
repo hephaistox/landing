@@ -316,7 +316,7 @@ So \"Rapide\" is not contested in itself: one writes another definition of \"rap
 (def rules
   "Rules on a sequence of documents."
   [{:id :type/known
-    :description "the type is taken from the closed list; no more :kind"
+    :description "the type is taken from the closed list"
     :check (fn [documents]
              (for [d documents
                    :when (or (not (types (:type d))) (contains? d :kind))]
