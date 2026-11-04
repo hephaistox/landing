@@ -123,4 +123,16 @@ The tnlr of the definition of \"rapide\", as the articles cite it:
                    :when (not= minors (range (count minors)))]
                {:rule :identity/minors
                 :subject r
-                :detail minors}))}])
+                :detail minors}))}
+   {:id :identity/lineage-owner
+    :description
+    "the versions of a major, drafts included, belong to the owner of its first published version"
+    :check (fn [documents]
+             (let [first-owner
+                   (into {} (for [d documents :when (= 0 (:minor d))] [(tnlr d) (:owner d)]))]
+               (for [d documents
+                     :let [owner (first-owner (tnlr d))]
+                     :when (and owner (not= owner (:owner d)))]
+                 {:rule :identity/lineage-owner
+                  :subject (select-keys d [:type :name :lang :major :minor])
+                  :detail (:owner d)})))}])

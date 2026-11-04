@@ -97,3 +97,21 @@
       (is (contains? (:error (sut/validate (assoc tnlr :minor -1))) :minor)))
     (testing "a tnlr has no minor"
       (is (contains? (:error (sut/validate-tnlr (assoc tnlr :minor 0))) :minor)))))
+
+(deftest lineage-owner-test
+  (let [broken #(set (map :rule (mapcat (fn [r] ((:check r) %)) sut/rules)))
+        v (fn [minor owner]
+            (cond-> {:type :definition
+                     :name "rapide"
+                     :lang :fr
+                     :major 1
+                     :owner {:id owner}}
+              minor (assoc :minor minor)))
+        a #uuid "00000000-0000-4000-8000-000000000001"
+        b #uuid "00000000-0000-4000-8000-000000000002"]
+    (is (not ((broken [(v 0 a) (v 1 a) (v nil a)]) :identity/lineage-owner)))
+    (testing "a minor by someone else" (is ((broken [(v 0 a) (v 1 b)]) :identity/lineage-owner)))
+    (testing "a draft of the major by someone else"
+      (is ((broken [(v 0 a) (v nil b)]) :identity/lineage-owner)))
+    (testing "the next major, by anyone"
+      (is (not ((broken [(v 0 a) (assoc (v nil b) :major 2)]) :identity/lineage-owner))))))

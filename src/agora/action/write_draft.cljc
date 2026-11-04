@@ -4,7 +4,9 @@
 
 The draft takes the language of the publication. It has no minor yet: no `:minor` key. Its owner is who
 writes it. It is a new document (major 1), a new version of a document (one of its majors,
-for a minor), or its next major (a breaking change).
+for a minor), or its next major (a breaking change). A new minor is for the owner of the
+major only, so nobody changes what citers of another's major read; anyone may write the
+next major.
 
 An action takes the repository, who acts (`by`) and its parameters, and returns its
 changes. Its `:parameters` metadata is the grammar of its parameters."
@@ -53,6 +55,8 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
   - `:id-taken`: a publication, a document or an objection already has the draft's `:id`;
   - `:already-in-publication`: the publication already holds a version of that document;
   - `:invalid-major`: the major is neither one of the document's nor the next;
+  - `:not-the-lineage-owner`: the major is published already and owned by someone else: a
+    new minor is for its owner only, anyone may write the next major;
   - `:rules-broken`: the draft breaks a rule, e.g. a link that is no citation."
   {:parameters parameters}
   [repository by {:keys [publication draft]}]
@@ -66,4 +70,9 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
     (when (some #(= (identity/tnlr d) (identity/tnlr %)) (:documents p))
       (action/refuse! :already-in-publication (identity/tnlr d)))
     (when-not ((majors documents d) (:major d)) (action/refuse! :invalid-major (identity/tnlr d)))
+    (when-let [first-version
+               (some #(when (and (= 0 (:minor %)) (= (identity/tnlr d) (identity/tnlr %))) %)
+                     documents)]
+      (when-not (= writer (:owner first-version))
+        (action/refuse! :not-the-lineage-owner (identity/tnlr d))))
     (action/check-rules! repository {:changed {:publications [(update p :documents conj d)]}})))

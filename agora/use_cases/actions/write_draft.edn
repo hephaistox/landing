@@ -1087,4 +1087,96 @@
       :inputs []
       :published-at #inst "2026-08-18T06:06:03.000-00:00"}}}}
   :output {:description "Refused: a canceled publication is frozen."
-           :error {:reason :publication-canceled}}}]
+           :error {:reason :publication-canceled}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox writes the next major of « Rapide », owned by Agora."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 is published by Agora. Hephaistox opened « Ma définition de rapide »."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d"
+                                :type :publication
+                                :name "ma-definition-de-rapide"
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors []
+                                :documents []
+                                :content {:title "Ma définition de rapide"
+                                          :text "Propose une autre définition de « rapide »."
+                                          :published-at #inst "2026-11-04T09:00:00.000-00:00"}}]}}
+  :parameter {:description "His publication, and a draft of « Rapide »."
+              :data {:publication {:id #uuid "8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d"}
+                     :draft {:id #uuid "9b0c1d2e-3f4a-4b5c-8d6e-7f8a9b0c1d2e"
+                             :type :definition
+                             :name "rapide"
+                             :major 2
+                             :content {:title "Rapide"
+                                       :text
+                                       "atteindre 100 km/h en moins de 4 secondes, départ arrêté."
+                                       :inputs []
+                                       :published-at #inst "2026-11-04T09:30:00.000-00:00"}}}}
+  :output
+  {:description
+   "A draft of « Rapide » 2, owned by Hephaistox: anyone may write the next major; the readers of rapide@1 keep reading it."
+   :changed
+   {:publications
+    [{:id #uuid "8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d"
+      :type :publication
+      :name "ma-definition-de-rapide"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :contributors []
+      :documents [{:id #uuid "9b0c1d2e-3f4a-4b5c-8d6e-7f8a9b0c1d2e"
+                   :type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 2
+                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :content {:title "Rapide"
+                             :text "atteindre 100 km/h en moins de 4 secondes, départ arrêté."
+                             :inputs []
+                             :published-at #inst "2026-11-04T09:30:00.000-00:00"}}]
+      :content {:title "Ma définition de rapide"
+                :text "Propose une autre définition de « rapide »."
+                :published-at #inst "2026-11-04T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to write a new minor of « Rapide » 1, owned by Agora."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "The story of the home page: « Rapide » 1.0 is published by Agora. Hephaistox opened « Ma définition de rapide »."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d"
+                                :type :publication
+                                :name "ma-definition-de-rapide"
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors []
+                                :documents []
+                                :content {:title "Ma définition de rapide"
+                                          :text "Propose une autre définition de « rapide »."
+                                          :published-at #inst "2026-11-04T09:00:00.000-00:00"}}]}}
+  :parameter {:description "His publication, and a draft of « Rapide »."
+              :data {:publication {:id #uuid "8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d"}
+                     :draft {:id #uuid "9b0c1d2e-3f4a-4b5c-8d6e-7f8a9b0c1d2e"
+                             :type :definition
+                             :name "rapide"
+                             :major 1
+                             :content {:title "Rapide"
+                                       :text
+                                       "atteindre 100 km/h en moins de 4 secondes, départ arrêté."
+                                       :inputs []
+                                       :published-at #inst "2026-11-04T09:30:00.000-00:00"}}}}
+  :output
+  {:description
+   "Refused: a new minor is for the owner of the major, or Hephaistox would change what the readers of rapide@1 read."
+   :error {:reason :not-the-lineage-owner}}}]

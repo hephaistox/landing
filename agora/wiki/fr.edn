@@ -86,9 +86,9 @@
    :fr
    "Retirer une réponse : le propriétaire d'une publication ouverte déclare qu'elle ne répond plus\n  à une objection.\n\nTant qu'elle n'est pas publiée, une publication peut retirer une réponse déclarée par erreur. Une\nfois publiée, la réponse est faite : l'objection est fermée.\n\nLe propriétaire de la `publication` ouverte retire sa réponse à `objection`. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;\n  - `:not-answered` : la publication ne répond pas à l'objection ;\n  - `:rules-broken` : la publication enfreint une règle."}
   agora.action.write-draft/write-draft
-  {:en-hash "134e3e08c0d0"
+  {:en-hash "df9f9ffa072b"
    :fr
-   "Écrire un brouillon : le propriétaire d'une publication ouverte, ou l'un de ses contributeurs,\n  y ajoute un brouillon.\n\nLe brouillon prend la langue de la publication. Il n'a pas encore de mineure : pas de clé `:minor`.\nSon propriétaire est qui l'écrit. C'est un nouveau document (majeure 1), une nouvelle version d'un\ndocument (l'une de ses majeures, pour une mineure), ou sa majeure suivante (une modification\nincompatible).\n\nQui agit écrit `draft` dans la `publication` ouverte, comme son propriétaire ou un contributeur.\n  Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed` : la publication est publiée ;\n  - `:not-a-contributor` : qui agit n'est ni son propriétaire ni un contributeur ;\n  - `:id-taken` : une publication, un document ou une objection a déjà l'`:id` du brouillon ;\n  - `:already-in-publication` : la publication contient déjà une version de ce document ;\n  - `:invalid-major` : la majeure n'est ni l'une de celles du document ni la suivante ;\n  - `:rules-broken` : le brouillon enfreint une règle, par exemple un lien qui n'est pas une citation."}}
+   "Écrire un brouillon : le propriétaire d'une publication ouverte, ou l'un de ses contributeurs,\n  y ajoute un brouillon.\n\nLe brouillon prend la langue de la publication. Il n'a pas encore de mineure : pas de clé `:minor`.\nSon propriétaire est qui l'écrit. C'est un nouveau document (majeure 1), une nouvelle version d'un\ndocument (l'une de ses majeures, pour une mineure), ou sa majeure suivante (une modification\nincompatible). Une nouvelle mineure est réservée au propriétaire de la majeure, pour que personne ne change ce que lisent ceux qui citent la majeure d'un autre ; n'importe qui peut écrire la majeure suivante.\n\nQui agit écrit `draft` dans la `publication` ouverte, comme son propriétaire ou un contributeur.\n  Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed` : la publication est publiée ;\n  - `:not-a-contributor` : qui agit n'est ni son propriétaire ni un contributeur ;\n  - `:id-taken` : une publication, un document ou une objection a déjà l'`:id` du brouillon ;\n  - `:already-in-publication` : la publication contient déjà une version de ce document ;\n  - `:invalid-major` : la majeure n'est ni l'une de celles du document ni la suivante ;\n  - `:not-the-lineage-owner` : la majeure est déjà publiée et appartient à quelqu'un d'autre : une nouvelle mineure est réservée à son propriétaire, n'importe qui peut écrire la majeure suivante ;\n  - `:rules-broken` : le brouillon enfreint une règle, par exemple un lien qui n'est pas une citation."}}
  :concepts
  {agora.action
   {:en-hash "d71003f6ce2c"
@@ -171,6 +171,10 @@
   {:en-hash "2cd28993047d"
    :fr
    "un document suit sa grammaire : id, identité, propriétaire, titre, texte, citations et date de publication"}
+  :identity/lineage-owner
+  {:en-hash "263c57398b80"
+   :fr
+   "les versions d'une majeure, brouillons compris, appartiennent au propriétaire de sa première version publiée"}
   :identity/minors {:en-hash "b057e383bace"
                     :fr "les mineures publiées d'une majeure vont de 0 à n, sans trou"}
   :identity/unique {:en-hash "b0aff751e452"

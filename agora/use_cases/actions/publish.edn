@@ -404,7 +404,7 @@
  ;; ********************************************************************************
  {:description
   "The second publication opened is published first: its draft gets the minor 1 of « Le 0 à 100 mesuré »."
-  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
   :action agora.action.publish/publish
   :input
   {:description "Two open publications each hold a draft of a new minor of « Le 0 à 100 mesuré »."
@@ -417,14 +417,14 @@
       :lang :fr
       :major 1
       :status :open
-      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
       :contributors []
       :documents [{:id #uuid "5e8809fc-08f8-41f8-b40d-6e514fb9f8eb"
                    :type :measurable-fact
                    :name "le-0-a-100-mesure"
                    :lang :fr
                    :major 1
-                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
                    :content {:title "Le 0 à 100 mesuré"
                              :text "Cette voiture atteint 100 km/h en 4,2 secondes, départ arrêté."
                              :inputs []
@@ -438,7 +438,7 @@
       :lang :fr
       :major 1
       :status :open
-      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
       :contributors []
       :documents
       [{:id #uuid "9214c8ab-1103-4693-968c-3c59e4547fed"
@@ -446,7 +446,7 @@
         :name "le-0-a-100-mesure"
         :lang :fr
         :major 1
-        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
         :content {:title "Le 0 à 100 mesuré"
                   :text
                   "Cette voiture atteint 100 km/h en 4,2 secondes, selon la mesure du constructeur."
@@ -468,7 +468,7 @@
       :lang :fr
       :major 1
       :status :closed
-      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
       :contributors []
       :documents
       [{:id #uuid "9214c8ab-1103-4693-968c-3c59e4547fed"
@@ -477,7 +477,7 @@
         :lang :fr
         :major 1
         :minor 1
-        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
         :content {:title "Le 0 à 100 mesuré"
                   :text
                   "Cette voiture atteint 100 km/h en 4,2 secondes, selon la mesure du constructeur."
@@ -488,7 +488,7 @@
                 :published-at #inst "2026-10-22T09:00:00.000-00:00"}}]}}}
  ;; ********************************************************************************
  {:description "The first publication opened is published last: its draft gets the next minor, 2."
-  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
   :action agora.action.publish/publish
   :input
   {:description
@@ -502,7 +502,7 @@
       :lang :fr
       :major 1
       :status :closed
-      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
       :contributors []
       :documents
       [{:id #uuid "9214c8ab-1103-4693-968c-3c59e4547fed"
@@ -511,7 +511,7 @@
         :lang :fr
         :major 1
         :minor 1
-        :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
         :content {:title "Le 0 à 100 mesuré"
                   :text
                   "Cette voiture atteint 100 km/h en 4,2 secondes, selon la mesure du constructeur."
@@ -526,14 +526,14 @@
       :lang :fr
       :major 1
       :status :open
-      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
       :contributors []
       :documents [{:id #uuid "5e8809fc-08f8-41f8-b40d-6e514fb9f8eb"
                    :type :measurable-fact
                    :name "le-0-a-100-mesure"
                    :lang :fr
                    :major 1
-                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
                    :content {:title "Le 0 à 100 mesuré"
                              :text "Cette voiture atteint 100 km/h en 4,2 secondes, départ arrêté."
                              :inputs []
@@ -554,7 +554,7 @@
       :lang :fr
       :major 1
       :status :closed
-      :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
       :contributors []
       :documents [{:id #uuid "5e8809fc-08f8-41f8-b40d-6e514fb9f8eb"
                    :type :measurable-fact
@@ -562,7 +562,7 @@
                    :lang :fr
                    :major 1
                    :minor 2
-                   :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                   :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
                    :content {:title "Le 0 à 100 mesuré"
                              :text "Cette voiture atteint 100 km/h en 4,2 secondes, départ arrêté."
                              :inputs []
