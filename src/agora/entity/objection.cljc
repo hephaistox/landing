@@ -13,7 +13,10 @@ stays the one of its origin publication. As a publication, it has a language, a 
 owner and a **status**:
 
 - `:draft`: it awaits an answer;
-- `:closed`: it has been dealt with.
+- `:closed`: it has been dealt with;
+- `:canceled`: its author took it back. It stays visible, awaits nothing, and is never
+  reacted to: canceling closes the discussion. A publication that answers it leaves it
+  canceled.
 
 Any user may object. An objection is written in the language of the document it targets.
 
@@ -99,7 +102,7 @@ from one car to the whole model is a leap.
    [:name name/schema]
    [:lang lang/schema]
    [:major version/major-schema]
-   [:status [:enum :draft :closed]]
+   [:status [:enum :draft :closed :canceled]]
    [:owner reference/user-schema]
    [:documents
     [:vector {:min 1
@@ -116,6 +119,8 @@ from one car to the whole model is a leap.
 
 (defn draft? [objection] (= :draft (:status objection)))
 
+(defn canceled? [objection] (= :canceled (:status objection)))
+
 (defn target
   "The published version `objection` wants to change.
 
@@ -129,12 +134,13 @@ from one car to the whole model is a leap.
   (filter (fn [p] (some #(= (:id objection) (:id %)) (:answers p))) publications))
 
 (defn publish
-  "`publication` published at `at`, with every objection it answers closed.
+  "`publication` published at `at`, with every pending objection it answers closed; a
+  canceled one stays canceled.
   Returns `{:publication :objections}`, the objections being only those it closes."
   [publication publications objections at]
   {:publication (publication/publish publication publications at)
    :objections (vec (for [o objections
-                          :when (some #(= (:id o) (:id %)) (:answers publication))]
+                          :when (and (draft? o) (some #(= (:id o) (:id %)) (:answers publication)))]
                       (assoc o :status :closed)))})
 
 (defn newer?
@@ -166,7 +172,7 @@ from one car to the whole model is a leap.
   "Rules on `publications`, `objections` and `users`."
   [{:id :objection/shape
     :description
-    "an objection follows its grammar: type :objection, a language, a major and no minor, a title, a text, a :reason, a status :draft or :closed, an owner, a single {:id} targeted, its backing citations"
+    "an objection follows its grammar: type :objection, a language, a major and no minor, a title, a text, a :reason, a status :draft, :closed or :canceled, an owner, a single {:id} targeted, its backing citations"
     :check (fn [_publications objections _users]
              (for [o objections
                    :let [error (validate o)]
@@ -254,11 +260,12 @@ from one car to the whole model is a leap.
                         :subject o
                         :detail (:name p)})))}
    {:id :objection/status
-    :description "an objection is closed exactly when a closed publication answers it"
+    :description
+    "a closed objection is answered by a closed publication; a pending one is not; a canceled one may be"
     :check (fn [publications objections _users]
              (for [o objections
                    :let [answered? (some publication/closed? (answering publications o))]
-                   :when (not= (closed? o) (boolean answered?))]
+                   :when (or (and (closed? o) (not answered?)) (and (draft? o) answered?))]
                {:rule :objection/status
                 :subject o}))}])
 

@@ -32,6 +32,7 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
   - `:not-the-owner`: who acts does not own the publication;
   - `:unknown-objection`: no objection has this `:id`;
   - `:objection-closed`: the objection is already closed;
+  - `:objection-canceled`: its author canceled it;
   - `:not-the-target-owner`: who acts does not own the version contested;
   - `:already-answered`: the publication already answers the objection;
   - `:no-change`: the publication holds no later version of the document contested;
@@ -49,6 +50,7 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
         o (some #(when (= (:id ref) (:id %)) %) (:objections repository))
         _ (when-not o (action/refuse! :unknown-objection ref))
         _ (when (objection/closed? o) (action/refuse! :objection-closed ref))
+        _ (when (objection/canceled? o) (action/refuse! :objection-canceled ref))
         target (publication/published-version (:publications repository) (first (:documents o)))]
     (when-not (= (:owner target) me) (action/refuse! :not-the-target-owner ref))
     (when (some #{ref} (:answers p)) (action/refuse! :already-answered ref))

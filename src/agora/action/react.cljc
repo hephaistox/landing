@@ -38,6 +38,7 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
   - `:unknown-objection`: no objection has this `:id`;
   - `:not-the-owner`: who acts did not write the objection;
   - `:objection-pending`: a major of the objection still awaits its answer;
+  - `:objection-canceled`: its author canceled its latest major, closing the discussion;
   - `:unknown-version`: no published version has this `:id`;
   - `:not-newer`: the version is not later than the one the latest major contests;
   - `:unknown-reason`: the type of the version predefines no objection with this `:reason`;
@@ -60,6 +61,8 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
         latest (apply max-key :major majors)
         _ (when (some objection/draft? majors)
             (action/refuse! :objection-pending (:objection parameters)))
+        _ (when (objection/canceled? latest)
+            (action/refuse! :objection-canceled (:objection parameters)))
         v (publication/published-version publications version)
         _ (when-not v (action/refuse! :unknown-version version))
         target (publication/published-version publications (first (:documents latest)))

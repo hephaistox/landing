@@ -126,6 +126,10 @@
   (testing "closed without any answer" (is ((broken [edition-1] [objection]) :objection/status)))
   (testing "still a draft once answered"
     (is ((broken [edition-1 edition-2] [(assoc objection :status :draft)]) :objection/status)))
+  (testing "canceled, answered by no publication"
+    (is (empty? (broken [edition-1] [(assoc objection :status :canceled)]))))
+  (testing "canceled, though a closed publication answers it"
+    (is (empty? (broken [edition-1 edition-2] [(assoc objection :status :canceled)]))))
   (testing "a draft answered by a publication still open"
     (is (empty? (broken [edition-1
                          (assoc edition-2

@@ -2,1204 +2,150 @@
 ;; hash of the English it translates: a changed English makes it outdated.
 {:actions
  {agora.action.answer/answer
-  {:en-hash "d8225ccc0147"
+  {:en-hash "6a34267684c6"
    :fr
-   "Répondre à une objection : le propriétaire de la version contestée déclare qu'une de ses
-  publications ouvertes y répond.
-
-La publication contient déjà la modification : une version ultérieure du document contesté.
-Quand elle est publiée, l'objection est fermée : fermée signifie qu'une modification a été faite.
-
-Le propriétaire de la `publication` ouverte déclare qu'elle répond à `objection`. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;
-  - `:unknown-objection` : aucune objection n'a cet `:id` ;
-  - `:objection-closed` : l'objection est déjà fermée ;
-  - `:not-the-target-owner` : qui agit n'est pas propriétaire de la version contestée ;
-  - `:already-answered` : la publication répond déjà à l'objection ;
-  - `:no-change` : la publication ne contient aucune version ultérieure du document contesté ;
-  - `:rules-broken` : la réponse enfreint une règle."}
+   "Répondre à une objection : le propriétaire de la version contestée déclare qu'une de ses\n  publications ouvertes y répond.\n\nLa publication contient déjà la modification : une version ultérieure du document contesté.\nQuand elle est publiée, l'objection est fermée : fermée signifie qu'une modification a été faite.\n\nLe propriétaire de la `publication` ouverte déclare qu'elle répond à `objection`. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;\n  - `:unknown-objection` : aucune objection n'a cet `:id` ;\n  - `:objection-closed` : l'objection est déjà fermée ;\n  - `:objection-canceled` : son auteur l'a annulée ;\n  - `:not-the-target-owner` : qui agit n'est pas propriétaire de la version contestée ;\n  - `:already-answered` : la publication répond déjà à l'objection ;\n  - `:no-change` : la publication ne contient aucune version ultérieure du document contesté ;\n  - `:rules-broken` : la réponse enfreint une règle."}
+  agora.action.cancel-objection/cancel-objection
+  {:en-hash "7841f12e4b3f"
+   :fr
+   "Annuler une objection : son auteur reprend une objection en attente, parce qu'il s'est trompé ou a été convaincu.\n\nL'objection reste visible, annulée : elle n'attend plus rien, et ne reçoit jamais de réaction. L'annulation ne change que l'objection : une publication ouverte qui déclare y répondre garde sa réponse, et la publier ensuite laisse l'objection annulée.\n\nL'auteur de l'`objection` en attente l'annule. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-objection` : aucune objection n'a cet `:id` ;\n  - `:not-the-owner` : qui agit n'a pas écrit l'objection ;\n  - `:objection-closed` : l'objection a reçu sa réponse, une modification a donc été faite ;\n  - `:objection-canceled` : l'objection est déjà annulée ;\n  - `:rules-broken` : l'annulation enfreint une règle."}
   agora.action.cancel-publication/cancel-publication
   {:en-hash "dfe85d503127"
    :fr
-   "Annuler une publication : son propriétaire renonce à une publication ouverte.
-
-Elle garde ses brouillons, figés, jamais publiés : rien n'est perdu. Son nom reste pris : le
-statut ne fait pas partie de l'identité. Aucun texte ne dit pourquoi.
-
-Avant l'annulation, toute l'intégrité est vérifiée, comme pour publier : chaque brouillon
-appartient au propriétaire ou à un contributeur déclaré.
-
-Le propriétaire de la `publication` ouverte l'annule : ses brouillons restent, figés. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed` : la publication est publiée ;
-  - `:publication-canceled` : la publication est déjà annulée ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;
-  - `:foreign-draft` : un brouillon appartient à quelqu'un qui n'est ni son propriétaire ni un
-    contributeur déclaré ;
-  - `:rules-broken` : la publication annulée enfreint une règle."}
+   "Annuler une publication : son propriétaire renonce à une publication ouverte.\n\nElle garde ses brouillons, figés, jamais publiés : rien n'est perdu. Son nom reste pris : le\nstatut ne fait pas partie de l'identité. Aucun texte ne dit pourquoi.\n\nAvant l'annulation, toute l'intégrité est vérifiée, comme pour publier : chaque brouillon\nappartient au propriétaire ou à un contributeur déclaré.\n\nLe propriétaire de la `publication` ouverte l'annule : ses brouillons restent, figés. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed` : la publication est publiée ;\n  - `:publication-canceled` : la publication est déjà annulée ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;\n  - `:foreign-draft` : un brouillon appartient à quelqu'un qui n'est ni son propriétaire ni un\n    contributeur déclaré ;\n  - `:rules-broken` : la publication annulée enfreint une règle."}
   agora.action.create-person/create-person
   {:en-hash "797744bbf6f0"
    :fr
-   "Créer une personne : un utilisateur connecté enregistre quelqu'un sans compte, pour lui
-  attribuer une œuvre.
-
-Un utilisateur connecté crée une personne sans compte. `by` est cet utilisateur, `{:id …}` ; les
-  paramètres sont la personne, `{:id :name}`. Deux personnes peuvent porter le même nom. Refuse avec
-  `:not-logged-in` quand personne n'est connecté, et `:unknown-user` quand aucun utilisateur n'a l'id
-  de `by`."}
+   "Créer une personne : un utilisateur connecté enregistre quelqu'un sans compte, pour lui\n  attribuer une œuvre.\n\nUn utilisateur connecté crée une personne sans compte. `by` est cet utilisateur, `{:id …}` ; les\n  paramètres sont la personne, `{:id :name}`. Deux personnes peuvent porter le même nom. Refuse avec\n  `:not-logged-in` quand personne n'est connecté, et `:unknown-user` quand aucun utilisateur n'a l'id\n  de `by`."}
   agora.action.delete-draft/delete-draft
   {:en-hash "568839ddcd18"
    :fr
-   "Supprimer un brouillon : son propriétaire, ou le propriétaire de la publication, le retire
-  d'une publication ouverte.
-
-Le propriétaire de la publication a priorité sur ses contributeurs : il supprime n'importe quel
-brouillon, si bien qu'aucun contributeur ne peut bloquer la publication avec un brouillon qu'il ne
-modifie ni ne supprime jamais. Il ne le modifie jamais : seul son propriétaire le fait.
-
-Un brouillon n'a jamais été publié : personne hors de sa publication ne s'appuie dessus. À
-l'intérieur, un autre brouillon peut le citer par son id ; le supprimer casserait cette citation,
-écrite par quelqu'un d'autre, donc c'est refusé.
-
-Le propriétaire de `draft`, ou de la `publication` ouverte, supprime le brouillon. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;
-  - `:unknown-draft` : la publication ne contient aucun brouillon avec cet `:id` ;
-  - `:not-the-owner` : qui agit n'est propriétaire ni du brouillon ni de la publication ;
-  - `:draft-cited` : un autre brouillon de la publication le cite par son id ;
-  - `:rules-broken` : la publication sans lui enfreint une règle."}
+   "Supprimer un brouillon : son propriétaire, ou le propriétaire de la publication, le retire\n  d'une publication ouverte.\n\nLe propriétaire de la publication a priorité sur ses contributeurs : il supprime n'importe quel\nbrouillon, si bien qu'aucun contributeur ne peut bloquer la publication avec un brouillon qu'il ne\nmodifie ni ne supprime jamais. Il ne le modifie jamais : seul son propriétaire le fait.\n\nUn brouillon n'a jamais été publié : personne hors de sa publication ne s'appuie dessus. À\nl'intérieur, un autre brouillon peut le citer par son id ; le supprimer casserait cette citation,\nécrite par quelqu'un d'autre, donc c'est refusé.\n\nLe propriétaire de `draft`, ou de la `publication` ouverte, supprime le brouillon. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;\n  - `:unknown-draft` : la publication ne contient aucun brouillon avec cet `:id` ;\n  - `:not-the-owner` : qui agit n'est propriétaire ni du brouillon ni de la publication ;\n  - `:draft-cited` : un autre brouillon de la publication le cite par son id ;\n  - `:rules-broken` : la publication sans lui enfreint une règle."}
   agora.action.edit-draft/edit-draft
   {:en-hash "d7f9709ff4e7"
    :fr
-   "Modifier un brouillon : son propriétaire change ce qu'il dit, dans une publication ouverte.
-
-Seul le propriétaire d'un brouillon le modifie, pas le propriétaire de la publication. L'identité
-du brouillon (type, nom, langue, majeure) et son propriétaire ne changent jamais : une autre
-identité est un autre brouillon. Ce qu'il dit (`:content`) est remplacé en bloc : titre, texte,
-citations, et les attributs d'une œuvre.
-
-Le propriétaire d'un brouillon de la `publication` ouverte remplace ce qu'il dit par `draft`.
-  Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed` : la publication est publiée ;
-  - `:unknown-draft` : la publication ne contient aucun brouillon avec cet `:id` ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire du brouillon ;
-  - `:rules-broken` : le brouillon enfreint une règle, par exemple un lien qui n'est pas une citation."}
+   "Modifier un brouillon : son propriétaire change ce qu'il dit, dans une publication ouverte.\n\nSeul le propriétaire d'un brouillon le modifie, pas le propriétaire de la publication. L'identité\ndu brouillon (type, nom, langue, majeure) et son propriétaire ne changent jamais : une autre\nidentité est un autre brouillon. Ce qu'il dit (`:content`) est remplacé en bloc : titre, texte,\ncitations, et les attributs d'une œuvre.\n\nLe propriétaire d'un brouillon de la `publication` ouverte remplace ce qu'il dit par `draft`.\n  Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed` : la publication est publiée ;\n  - `:unknown-draft` : la publication ne contient aucun brouillon avec cet `:id` ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire du brouillon ;\n  - `:rules-broken` : le brouillon enfreint une règle, par exemple un lien qui n'est pas une citation."}
   agora.action.edit-publication/edit-publication
   {:en-hash "24ca97be2075"
    :fr
-   "Modifier une publication : son propriétaire change ce que dit une publication ouverte.
-
-Une publication ouverte est modifiée sur place : son titre, le texte qui décrit sa modification,
-sa date. Son identité, son statut, ses contributeurs et ses documents ne changent jamais ainsi.
-
-Le propriétaire de la `publication` ouverte remplace ce qu'elle dit par `content`. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication, un contributeur compris ;
-  - `:rules-broken` : la publication enfreint une règle."}
+   "Modifier une publication : son propriétaire change ce que dit une publication ouverte.\n\nUne publication ouverte est modifiée sur place : son titre, le texte qui décrit sa modification,\nsa date. Son identité, son statut, ses contributeurs et ses documents ne changent jamais ainsi.\n\nLe propriétaire de la `publication` ouverte remplace ce qu'elle dit par `content`. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication, un contributeur compris ;\n  - `:rules-broken` : la publication enfreint une règle."}
   agora.action.invite-contributor/invite-contributor
   {:en-hash "60a5f82d5ed6"
    :fr
-   "Inviter un contributeur : le propriétaire d'une publication ouverte permet à un autre
-utilisateur d'y écrire.
-
-L'invitation vaut pour cette publication seulement, pas pour ses autres majeures. Une autre action
-la révoque.
-
-Le propriétaire de la `publication` ouverte invite l'utilisateur `contributor` à y écrire.
-  Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed` : la publication est publiée ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;
-  - `:not-a-user` : aucun utilisateur n'a l'id de `contributor` ;
-  - `:already-a-writer` : `contributor` y écrit déjà, comme propriétaire ou contributeur ;
-  - `:rules-broken` : l'invitation enfreint une règle."}
+   "Inviter un contributeur : le propriétaire d'une publication ouverte permet à un autre\nutilisateur d'y écrire.\n\nL'invitation vaut pour cette publication seulement, pas pour ses autres majeures. Une autre action\nla révoque.\n\nLe propriétaire de la `publication` ouverte invite l'utilisateur `contributor` à y écrire.\n  Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed` : la publication est publiée ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;\n  - `:not-a-user` : aucun utilisateur n'a l'id de `contributor` ;\n  - `:already-a-writer` : `contributor` y écrit déjà, comme propriétaire ou contributeur ;\n  - `:rules-broken` : l'invitation enfreint une règle."}
   agora.action.object/object
   {:en-hash "b05560bdb859"
    :fr
-   "Objecter : un utilisateur conteste une version publiée, en demandant à son propriétaire de la
-modifier.
-
-Son propriétaire peut aussi objecter : l'objection peut venir de quelqu'un sans compte, sur un
-réseau social, dans la vie réelle. Un utilisateur peut avoir plusieurs objections en attente sur
-une version, pour des raisons différentes, mais une par raison.
-
-L'objection prend la langue de la version, sa majeure 1, le statut `:draft` (elle attend une
-réponse), et un nom tiré de son titre ; quand ce nom est pris dans cette langue, un numéro le
-suit : `que-veut-dire-rapide-2`.
-
-Qui agit conteste la `version` publiée. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:id-taken` : quelque chose a déjà l'`:id` de l'objection ;
-  - `:unknown-version` : aucune version publiée n'a cet `:id`, brouillon compris ;
-  - `:unknown-reason` : le type de la version ne prédéfinit aucune objection avec cette `:reason` ;
-  - `:invalid-backing` : une citation qui l'étaye est d'un type que la raison n'admet pas ;
-  - `:already-objected` : qui agit a une objection en attente sur cette version, pour cette raison ;
-  - `:rules-broken` : l'objection enfreint une règle."}
+   "Objecter : un utilisateur conteste une version publiée, en demandant à son propriétaire de la\nmodifier.\n\nSon propriétaire peut aussi objecter : l'objection peut venir de quelqu'un sans compte, sur un\nréseau social, dans la vie réelle. Un utilisateur peut avoir plusieurs objections en attente sur\nune version, pour des raisons différentes, mais une par raison.\n\nL'objection prend la langue de la version, sa majeure 1, le statut `:draft` (elle attend une\nréponse), et un nom tiré de son titre ; quand ce nom est pris dans cette langue, un numéro le\nsuit : `que-veut-dire-rapide-2`.\n\nQui agit conteste la `version` publiée. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:id-taken` : quelque chose a déjà l'`:id` de l'objection ;\n  - `:unknown-version` : aucune version publiée n'a cet `:id`, brouillon compris ;\n  - `:unknown-reason` : le type de la version ne prédéfinit aucune objection avec cette `:reason` ;\n  - `:invalid-backing` : une citation qui l'étaye est d'un type que la raison n'admet pas ;\n  - `:already-objected` : qui agit a une objection en attente sur cette version, pour cette raison ;\n  - `:rules-broken` : l'objection enfreint une règle."}
   agora.action.open-publication/open-publication
   {:en-hash "8f7b540c708a"
    :fr
-   "Ouvrir une publication : un utilisateur connecté lance un nouveau sujet, pour y écrire des
-documents.
-
-L'utilisateur devient le propriétaire de la publication, ouverte dans sa majeure 1, sans document.
-Un nom est pris une fois par langue : reprendre un sujet est une autre action.
-
-Un utilisateur connecté ouvre une publication. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:id-taken` : une publication, un document ou une objection a déjà son `:id` ;
-  - `:name-taken` : une publication de cette langue a déjà ce nom ;
-  - `:rules-broken` : la publication enfreint une règle."}
+   "Ouvrir une publication : un utilisateur connecté lance un nouveau sujet, pour y écrire des\ndocuments.\n\nL'utilisateur devient le propriétaire de la publication, ouverte dans sa majeure 1, sans document.\nUn nom est pris une fois par langue : reprendre un sujet est une autre action.\n\nUn utilisateur connecté ouvre une publication. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:id-taken` : une publication, un document ou une objection a déjà son `:id` ;\n  - `:name-taken` : une publication de cette langue a déjà ce nom ;\n  - `:rules-broken` : la publication enfreint une règle."}
   agora.action.prepare-timestamp/prepare-timestamp
   {:en-hash "033220c30411"
    :fr
-   "Préparer un horodatage : le propriétaire d'une version publiée demande à prouver qu'elle
-existait maintenant.
-
-La version reçoit son horodatage, en attente, contenant son empreinte : OpenTimestamps, hors
-d'agora, l'ancre, et `record-timestamp` écrit sa preuve.
-
-Le propriétaire de la `version` publiée demande à l'horodater : un horodatage en attente
-  contenant son empreinte. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-version` : aucune version publiée n'a cet `:id`, brouillon compris ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la version ;
-  - `:not-timestampable` : le type de la version ne peut pas être horodaté ;
-  - `:already-timestamped` : la version a déjà son horodatage ;
-  - `:rules-broken` : l'horodatage enfreint une règle."}
+   "Préparer un horodatage : le propriétaire d'une version publiée demande à prouver qu'elle\nexistait maintenant.\n\nLa version reçoit son horodatage, en attente, contenant son empreinte : OpenTimestamps, hors\nd'agora, l'ancre, et `record-timestamp` écrit sa preuve.\n\nLe propriétaire de la `version` publiée demande à l'horodater : un horodatage en attente\n  contenant son empreinte. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-version` : aucune version publiée n'a cet `:id`, brouillon compris ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la version ;\n  - `:not-timestampable` : le type de la version ne peut pas être horodaté ;\n  - `:already-timestamped` : la version a déjà son horodatage ;\n  - `:rules-broken` : l'horodatage enfreint une règle."}
   agora.action.publish/publish
   {:en-hash "4fb7ecfd46fa"
    :fr
-   "Publier : le propriétaire d'une publication ouverte la ferme, et ses brouillons deviennent des
-  versions publiées.
-
-Chaque brouillon reçoit sa mineure : la suivante après la dernière publiée de sa majeure, ou 0.
-Chaque citation et chaque lien par id devient une citation par tnlr. Les objections auxquelles la
-publication répond sont fermées. Une publication sans document n'est pas publiée : elle est
-annulée, par une autre action.
-
-Avant la fermeture, toute l'intégrité est vérifiée : chaque brouillon appartient au propriétaire
-ou à un contributeur déclaré, et le dépôt qui en résulte n'enfreint aucune règle.
-
-Le propriétaire de la `publication` ouverte la publie à `published-at`. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed` : la publication est déjà publiée ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;
-  - `:empty-publication` : la publication ne contient aucun document ;
-  - `:foreign-draft` : un brouillon appartient à quelqu'un qui n'est ni son propriétaire ni un
-    contributeur déclaré ;
-  - `:rules-broken` : le dépôt publié enfreint une règle, par exemple une citation par tnlr d'une
-    version pas encore publiée."}
+   "Publier : le propriétaire d'une publication ouverte la ferme, et ses brouillons deviennent des\n  versions publiées.\n\nChaque brouillon reçoit sa mineure : la suivante après la dernière publiée de sa majeure, ou 0.\nChaque citation et chaque lien par id devient une citation par tnlr. Les objections auxquelles la\npublication répond sont fermées. Une publication sans document n'est pas publiée : elle est\nannulée, par une autre action.\n\nAvant la fermeture, toute l'intégrité est vérifiée : chaque brouillon appartient au propriétaire\nou à un contributeur déclaré, et le dépôt qui en résulte n'enfreint aucune règle.\n\nLe propriétaire de la `publication` ouverte la publie à `published-at`. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed` : la publication est déjà publiée ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;\n  - `:empty-publication` : la publication ne contient aucun document ;\n  - `:foreign-draft` : un brouillon appartient à quelqu'un qui n'est ni son propriétaire ni un\n    contributeur déclaré ;\n  - `:rules-broken` : le dépôt publié enfreint une règle, par exemple une citation par tnlr d'une\n    version pas encore publiée."}
   agora.action.react/react
-  {:en-hash "986242ab4295"
+  {:en-hash "f0ba1134fd08"
    :fr
-   "Réagir : l'auteur d'une objection fermée réagit à la modification qui y a répondu.
-
-Il ouvre une nouvelle majeure de l'objection : même nom, même langue, de nouveau en attente. Il
-peut réagir depuis n'importe quelle majeure : la nouvelle vient après la dernière majeure de
-l'objection, pas après celle à laquelle il réagit. Elle conteste une version ultérieure à celle
-que contestait la dernière majeure. Elle n'est ouverte que si aucune majeure de l'objection n'est
-en attente : la réponse est venue d'abord.
-
-L'auteur de `objection` en ouvre une nouvelle majeure, après sa dernière, sur la `version`
-  plus récente.
-  Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:id-taken` : quelque chose a déjà l'`:id` de la nouvelle majeure ;
-  - `:unknown-objection` : aucune objection n'a cet `:id` ;
-  - `:not-the-owner` : qui agit n'a pas écrit l'objection ;
-  - `:objection-pending` : une majeure de l'objection attend encore sa réponse ;
-  - `:unknown-version` : aucune version publiée n'a cet `:id` ;
-  - `:not-newer` : la version n'est pas ultérieure à celle que conteste la dernière majeure ;
-  - `:unknown-reason` : le type de la version ne prédéfinit aucune objection avec cette `:reason` ;
-  - `:invalid-backing` : une citation qui l'étaye est d'un type que la raison n'admet pas ;
-  - `:rules-broken` : la réaction enfreint une règle."}
+   "Réagir : l'auteur d'une objection fermée réagit à la modification qui y a répondu.\n\nIl ouvre une nouvelle majeure de l'objection : même nom, même langue, de nouveau en attente. Il\npeut réagir depuis n'importe quelle majeure : la nouvelle vient après la dernière majeure de\nl'objection, pas après celle à laquelle il réagit. Elle conteste une version ultérieure à celle\nque contestait la dernière majeure. Elle n'est ouverte que si aucune majeure de l'objection n'est\nen attente : la réponse est venue d'abord.\n\nL'auteur de `objection` en ouvre une nouvelle majeure, après sa dernière, sur la `version`\n  plus récente.\n  Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:id-taken` : quelque chose a déjà l'`:id` de la nouvelle majeure ;\n  - `:unknown-objection` : aucune objection n'a cet `:id` ;\n  - `:not-the-owner` : qui agit n'a pas écrit l'objection ;\n  - `:objection-pending` : une majeure de l'objection attend encore sa réponse ;\n  - `:objection-canceled` : son auteur a annulé sa dernière majeure, ce qui clôt la discussion ;\n  - `:unknown-version` : aucune version publiée n'a cet `:id` ;\n  - `:not-newer` : la version n'est pas ultérieure à celle que conteste la dernière majeure ;\n  - `:unknown-reason` : le type de la version ne prédéfinit aucune objection avec cette `:reason` ;\n  - `:invalid-backing` : une citation qui l'étaye est d'un type que la raison n'admet pas ;\n  - `:rules-broken` : la réaction enfreint une règle."}
   agora.action.record-timestamp/record-timestamp
   {:en-hash "fbb8ef0cc694"
    :fr
-   "Enregistrer un horodatage : le propriétaire d'une version écrit la preuve renvoyée par
-OpenTimestamps.
-
-Les calendriers renvoient d'abord une preuve incomplète ; une fois ancrée dans un bloc Bitcoin,
-la preuve complète la remplace. Le statut ne fait qu'avancer. Vérifier la preuve par rapport à
-l'empreinte est le rôle d'OpenTimestamps, hors d'agora.
-
-Le propriétaire de `version` écrit `proof` sur son horodatage, qui prend `status`. Refuse
-  avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-version` : aucune version publiée n'a cet `:id` ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la version ;
-  - `:not-timestamped` : la version n'a pas d'horodatage à enregistrer ;
-  - `:status-not-advancing` : le statut ne vient pas après le statut actuel ;
-  - `:rules-broken` : l'horodatage enfreint une règle."}
+   "Enregistrer un horodatage : le propriétaire d'une version écrit la preuve renvoyée par\nOpenTimestamps.\n\nLes calendriers renvoient d'abord une preuve incomplète ; une fois ancrée dans un bloc Bitcoin,\nla preuve complète la remplace. Le statut ne fait qu'avancer. Vérifier la preuve par rapport à\nl'empreinte est le rôle d'OpenTimestamps, hors d'agora.\n\nLe propriétaire de `version` écrit `proof` sur son horodatage, qui prend `status`. Refuse\n  avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-version` : aucune version publiée n'a cet `:id` ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la version ;\n  - `:not-timestamped` : la version n'a pas d'horodatage à enregistrer ;\n  - `:status-not-advancing` : le statut ne vient pas après le statut actuel ;\n  - `:rules-broken` : l'horodatage enfreint une règle."}
   agora.action.rename-user/rename-user
   {:en-hash "c699a7e2a617"
    :fr
-   "Renommer un utilisateur : un utilisateur change le nom qu'agora affiche pour lui.
-
-Le nom appartient à la personne : tout ce qu'elle a écrit la désigne par son id, donc tout affiche
-aussitôt le nouveau nom, et aucun horodatage ne casse. Le nom d'un utilisateur reste unique parmi
-les utilisateurs, sans tenir compte de la casse ni des accents : personne ne se fait passer pour
-un autre.
-
-Qui agit prend `name`. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:name-taken` : un autre utilisateur a ce nom, sans tenir compte de la casse ni des accents ;
-  - `:rules-broken` : le nom enfreint une règle."}
+   "Renommer un utilisateur : un utilisateur change le nom qu'agora affiche pour lui.\n\nLe nom appartient à la personne : tout ce qu'elle a écrit la désigne par son id, donc tout affiche\naussitôt le nouveau nom, et aucun horodatage ne casse. Le nom d'un utilisateur reste unique parmi\nles utilisateurs, sans tenir compte de la casse ni des accents : personne ne se fait passer pour\nun autre.\n\nQui agit prend `name`. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:name-taken` : un autre utilisateur a ce nom, sans tenir compte de la casse ni des accents ;\n  - `:rules-broken` : le nom enfreint une règle."}
   agora.action.revoke-contributor/revoke-contributor
   {:en-hash "224ee7e8ec81"
    :fr
-   "Révoquer un contributeur : le propriétaire d'une publication ouverte empêche un utilisateur
-d'y écrire.
-
-Le contributeur supprime d'abord ses brouillons : la révocation est refusée tant qu'il en a, ainsi
-rien de ce qu'il a écrit ne change de propriétaire ni ne disparaît en silence.
-
-Le propriétaire de la `publication` ouverte révoque `contributor`. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;
-  - `:not-invited` : `contributor` n'est pas contributeur de la publication ;
-  - `:has-drafts` : `contributor` a encore des brouillons dans la publication ;
-  - `:rules-broken` : la révocation enfreint une règle."}
+   "Révoquer un contributeur : le propriétaire d'une publication ouverte empêche un utilisateur\nd'y écrire.\n\nLe contributeur supprime d'abord ses brouillons : la révocation est refusée tant qu'il en a, ainsi\nrien de ce qu'il a écrit ne change de propriétaire ni ne disparaît en silence.\n\nLe propriétaire de la `publication` ouverte révoque `contributor`. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;\n  - `:not-invited` : `contributor` n'est pas contributeur de la publication ;\n  - `:has-drafts` : `contributor` a encore des brouillons dans la publication ;\n  - `:rules-broken` : la révocation enfreint une règle."}
   agora.action.sign-up/sign-up
   {:en-hash "6ec38533c2f5"
    :fr
-   "S'inscrire : quelqu'un sans compte en crée un.
-
-Quelqu'un sans compte s'inscrit : une personne, et l'utilisateur qui est son compte.
-  `by` vaut `:anonymous` ; ses paramètres sont `{:id :name :provider :provider-id}`. Refuse
-  avec `:already-logged-in` quand quelqu'un est connecté : on s'inscrit avant d'avoir un
-  compte. Refuse avec `:already-signed-up` quand un utilisateur a déjà ce compte : le
-  même fournisseur et le même `:provider-id`."}
+   "S'inscrire : quelqu'un sans compte en crée un.\n\nQuelqu'un sans compte s'inscrit : une personne, et l'utilisateur qui est son compte.\n  `by` vaut `:anonymous` ; ses paramètres sont `{:id :name :provider :provider-id}`. Refuse\n  avec `:already-logged-in` quand quelqu'un est connecté : on s'inscrit avant d'avoir un\n  compte. Refuse avec `:already-signed-up` quand un utilisateur a déjà ce compte : le\n  même fournisseur et le même `:provider-id`."}
   agora.action.take-up/take-up
   {:en-hash "30bbb52e9d78"
    :fr
-   "Reprendre une publication : son propriétaire ouvre une nouvelle majeure, sur le même sujet.
-
-N'importe quelle majeure peut être reprise : la nouvelle vient après la dernière majeure de la
-publication, pas après celle reprise. Reprendre la majeure 2 quand une majeure 3 existe ouvre la
-majeure 4. Elle a le même nom et la même langue, s'ouvre vide, et n'a encore aucun contributeur :
-une invitation vaut pour une majeure. Elle n'est ouverte que si aucune majeure de la publication
-n'est ouverte : deux majeures ne sont jamais ouvertes en même temps. Les majeures précédentes
-restent telles quelles.
-
-Le propriétaire de `publication` ouvre une nouvelle majeure, après sa dernière. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:id-taken` : quelque chose a déjà l'`:id` de la nouvelle majeure ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;
-  - `:publication-open` : une majeure de la publication est encore ouverte ;
-  - `:rules-broken` : la nouvelle majeure enfreint une règle."}
+   "Reprendre une publication : son propriétaire ouvre une nouvelle majeure, sur le même sujet.\n\nN'importe quelle majeure peut être reprise : la nouvelle vient après la dernière majeure de la\npublication, pas après celle reprise. Reprendre la majeure 2 quand une majeure 3 existe ouvre la\nmajeure 4. Elle a le même nom et la même langue, s'ouvre vide, et n'a encore aucun contributeur :\nune invitation vaut pour une majeure. Elle n'est ouverte que si aucune majeure de la publication\nn'est ouverte : deux majeures ne sont jamais ouvertes en même temps. Les majeures précédentes\nrestent telles quelles.\n\nLe propriétaire de `publication` ouvre une nouvelle majeure, après sa dernière. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:id-taken` : quelque chose a déjà l'`:id` de la nouvelle majeure ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;\n  - `:publication-open` : une majeure de la publication est encore ouverte ;\n  - `:rules-broken` : la nouvelle majeure enfreint une règle."}
   agora.action.unanswer/unanswer
   {:en-hash "ac50f3acb09d"
    :fr
-   "Retirer une réponse : le propriétaire d'une publication ouverte déclare qu'elle ne répond plus
-  à une objection.
-
-Tant qu'elle n'est pas publiée, une publication peut retirer une réponse déclarée par erreur. Une
-fois publiée, la réponse est faite : l'objection est fermée.
-
-Le propriétaire de la `publication` ouverte retire sa réponse à `objection`. Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;
-  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;
-  - `:not-answered` : la publication ne répond pas à l'objection ;
-  - `:rules-broken` : la publication enfreint une règle."}
+   "Retirer une réponse : le propriétaire d'une publication ouverte déclare qu'elle ne répond plus\n  à une objection.\n\nTant qu'elle n'est pas publiée, une publication peut retirer une réponse déclarée par erreur. Une\nfois publiée, la réponse est faite : l'objection est fermée.\n\nLe propriétaire de la `publication` ouverte retire sa réponse à `objection`. Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed`, `:publication-canceled` : la publication n'est plus ouverte ;\n  - `:not-the-owner` : qui agit n'est pas propriétaire de la publication ;\n  - `:not-answered` : la publication ne répond pas à l'objection ;\n  - `:rules-broken` : la publication enfreint une règle."}
   agora.action.write-draft/write-draft
   {:en-hash "134e3e08c0d0"
    :fr
-   "Écrire un brouillon : le propriétaire d'une publication ouverte, ou l'un de ses contributeurs,
-  y ajoute un brouillon.
-
-Le brouillon prend la langue de la publication. Il n'a pas encore de mineure : pas de clé `:minor`.
-Son propriétaire est qui l'écrit. C'est un nouveau document (majeure 1), une nouvelle version d'un
-document (l'une de ses majeures, pour une mineure), ou sa majeure suivante (une modification
-incompatible).
-
-Qui agit écrit `draft` dans la `publication` ouverte, comme son propriétaire ou un contributeur.
-  Refuse avec :
-
-  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;
-  - `:unknown-publication` : aucune publication n'a cet `:id` ;
-  - `:publication-closed` : la publication est publiée ;
-  - `:not-a-contributor` : qui agit n'est ni son propriétaire ni un contributeur ;
-  - `:id-taken` : une publication, un document ou une objection a déjà l'`:id` du brouillon ;
-  - `:already-in-publication` : la publication contient déjà une version de ce document ;
-  - `:invalid-major` : la majeure n'est ni l'une de celles du document ni la suivante ;
-  - `:rules-broken` : le brouillon enfreint une règle, par exemple un lien qui n'est pas une citation."}}
+   "Écrire un brouillon : le propriétaire d'une publication ouverte, ou l'un de ses contributeurs,\n  y ajoute un brouillon.\n\nLe brouillon prend la langue de la publication. Il n'a pas encore de mineure : pas de clé `:minor`.\nSon propriétaire est qui l'écrit. C'est un nouveau document (majeure 1), une nouvelle version d'un\ndocument (l'une de ses majeures, pour une mineure), ou sa majeure suivante (une modification\nincompatible).\n\nQui agit écrit `draft` dans la `publication` ouverte, comme son propriétaire ou un contributeur.\n  Refuse avec :\n\n  - `:not-logged-in`, `:unknown-user` : qui agit n'est pas un utilisateur ;\n  - `:unknown-publication` : aucune publication n'a cet `:id` ;\n  - `:publication-closed` : la publication est publiée ;\n  - `:not-a-contributor` : qui agit n'est ni son propriétaire ni un contributeur ;\n  - `:id-taken` : une publication, un document ou une objection a déjà l'`:id` du brouillon ;\n  - `:already-in-publication` : la publication contient déjà une version de ce document ;\n  - `:invalid-major` : la majeure n'est ni l'une de celles du document ni la suivante ;\n  - `:rules-broken` : le brouillon enfreint une règle, par exemple un lien qui n'est pas une citation."}}
  :concepts
  {agora.action
   {:en-hash "d711c0e1ef21"
    :fr
-   "### Définition
-
-Une **action** est ce que quelqu'un fait dans agora. C'est une fonction pure du dépôt, de
-qui agit (`by`) et de ses paramètres, qui renvoie ses changements : ce qu'elle crée et ce
-qu'elle modifie.
-
-```clojure
-(f repository by parameters) ;=> {:created {:persons [...]} :changed {:publications [...]}}
-```
-
-`agora.repository/apply-changes` les transforme en nouveau dépôt.
-
-Les ids sont créés par le backend, hors de l'action, et donnés dans ses paramètres : le
-client n'en choisit jamais, et l'action reste pure.
-
-`by` vaut `:anonymous` quand personne n'est connecté, sinon l'utilisateur connecté,
-`{:id …}`. Chaque action déclare la grammaire de ses paramètres dans sa métadonnée
-`:parameters`.
-
-Une action peut **refuser** : elle lève alors une exception, avec la raison (`:reason`) du
-refus (`:not-logged-in`, `:unknown-user`, `:name-taken`…), et rien ne change.
-
-Une action vérifie ce qu'elle sait, pour refuser avec une raison précise. Puis
-`check-rules!` vérifie chaque règle sur le dépôt que donnent ses changements : une action
-ne renvoie jamais de changements qui enfreignent une règle.
-
-### Buts
-
-- Une seule forme pour tout ce que fait quelqu'un, pour que chaque action s'exécute et se
-  teste de la même façon.
-- Les refus comme données : la raison dit pourquoi, jamais un simple échec.
-
-### Liens
-
-- `agora.repository` : ce que prend une action, et comment ses changements s'appliquent.
-- `agora.entity.user` : qui agit."}
+   "### Définition\n\nUne **action** est ce que quelqu'un fait dans agora. C'est une fonction pure du dépôt, de\nqui agit (`by`) et de ses paramètres, qui renvoie ses changements : ce qu'elle crée et ce\nqu'elle modifie.\n\n```clojure\n(f repository by parameters) ;=> {:created {:persons [...]} :changed {:publications [...]}}\n```\n\n`agora.repository/apply-changes` les transforme en nouveau dépôt.\n\nLes ids sont créés par le backend, hors de l'action, et donnés dans ses paramètres : le\nclient n'en choisit jamais, et l'action reste pure.\n\n`by` vaut `:anonymous` quand personne n'est connecté, sinon l'utilisateur connecté,\n`{:id …}`. Chaque action déclare la grammaire de ses paramètres dans sa métadonnée\n`:parameters`.\n\nUne action peut **refuser** : elle lève alors une exception, avec la raison (`:reason`) du\nrefus (`:not-logged-in`, `:unknown-user`, `:name-taken`…), et rien ne change.\n\nUne action vérifie ce qu'elle sait, pour refuser avec une raison précise. Puis\n`check-rules!` vérifie chaque règle sur le dépôt que donnent ses changements : une action\nne renvoie jamais de changements qui enfreignent une règle.\n\n### Buts\n\n- Une seule forme pour tout ce que fait quelqu'un, pour que chaque action s'exécute et se\n  teste de la même façon.\n- Les refus comme données : la raison dit pourquoi, jamais un simple échec.\n\n### Liens\n\n- `agora.repository` : ce que prend une action, et comment ses changements s'appliquent.\n- `agora.entity.user` : qui agit."}
   agora.entity.document
   {:en-hash "9628a658eea3"
    :fr
-   "### Définition
-
-Un **document** est l'unité d'écriture d'agora. Tout ce qui s'écrit dans agora est un
-document : une définition, un article, une œuvre citée, une publication.
-
-Un document a, en plus de son identité :
-
-- son **contenu**, ce qu'il dit (`:content`) : un **titre**, le plus souvent un **texte**,
-  ses citations et sa **date de publication**. Une fois publié, le contenu ne change plus ;
-- une **langue** ;
-- un **propriétaire** : l'utilisateur qui en répond, désigné par son `:id` : celui qui l'a
-  écrit, ou le compte qui détient les contenus de la plateforme, « Agora » ;
-- pour une œuvre, un **auteur** : la personne à qui elle est attribuée, avec ou sans
-  compte ;
-- un **horodatage**, quand son propriétaire a prouvé qu'il existait à une date
-  (`agora.value.timestamp`).
-
-La date de publication (`:published-at`) est un `#inst` EDN, en UTC.
-
-Ses autres attributs sont décrits par `agora.value.type`, `agora.value.name`, `agora.value.version` et
-`agora.value.identity`.
-
-### Buts
-
-- Un seul concept pour tout ce qui s'écrit. Les mêmes règles valent partout : versions,
-  langues, citations.
-- Toujours savoir qui répond de ce qui est écrit.
-
-### Exemples
-
-Le plus petit document de l'exemple de la page d'accueil :
-
-```clojure
-{:lang :fr
- :content {:title \"Ma voiture est rapide\"
-           :text \"Ma voiture est rapide.\"
-           :inputs []
-           :published-at #inst \"2026-08-28T12:39:01Z\"}}
-```
-
-Son propriétaire est « Agora ».
-
-### Liens
-
-- `agora.entity.person` : le propriétaire est une personne.
-- `agora.entity.user` : un utilisateur écrit le document.
-- `agora.value.lang` : chaque document est dans une seule langue."}
+   "### Définition\n\nUn **document** est l'unité d'écriture d'agora. Tout ce qui s'écrit dans agora est un\ndocument : une définition, un article, une œuvre citée, une publication.\n\nUn document a, en plus de son identité :\n\n- son **contenu**, ce qu'il dit (`:content`) : un **titre**, le plus souvent un **texte**,\n  ses citations et sa **date de publication**. Une fois publié, le contenu ne change plus ;\n- une **langue** ;\n- un **propriétaire** : l'utilisateur qui en répond, désigné par son `:id` : celui qui l'a\n  écrit, ou le compte qui détient les contenus de la plateforme, « Agora » ;\n- pour une œuvre, un **auteur** : la personne à qui elle est attribuée, avec ou sans\n  compte ;\n- un **horodatage**, quand son propriétaire a prouvé qu'il existait à une date\n  (`agora.value.timestamp`).\n\nLa date de publication (`:published-at`) est un `#inst` EDN, en UTC.\n\nSes autres attributs sont décrits par `agora.value.type`, `agora.value.name`, `agora.value.version` et\n`agora.value.identity`.\n\n### Buts\n\n- Un seul concept pour tout ce qui s'écrit. Les mêmes règles valent partout : versions,\n  langues, citations.\n- Toujours savoir qui répond de ce qui est écrit.\n\n### Exemples\n\nLe plus petit document de l'exemple de la page d'accueil :\n\n```clojure\n{:lang :fr\n :content {:title \"Ma voiture est rapide\"\n           :text \"Ma voiture est rapide.\"\n           :inputs []\n           :published-at #inst \"2026-08-28T12:39:01Z\"}}\n```\n\nSon propriétaire est « Agora ».\n\n### Liens\n\n- `agora.entity.person` : le propriétaire est une personne.\n- `agora.entity.user` : un utilisateur écrit le document.\n- `agora.value.lang` : chaque document est dans une seule langue."}
   agora.entity.objection
-  {:en-hash "ac93b017ced1"
+  {:en-hash "ffff0ac25a31"
    :fr
-   "### Définition
-
-Une **objection** est une publication particulière, de type `:objection`. Son texte dit ce
-qu'elle conteste, et ses `:documents` désignent **une seule version publiée**, par son
-`:id` : celle qu'elle veut voir évoluer. Elle demande au propriétaire de la modifier. Elle
-vise un document, jamais un ensemble : on ne conteste pas un graphe entier.
-
-Elle échappe à la règle « une version appartient à une publication » : la version qu'elle
-désigne reste celle de sa publication d'origine. Comme publication, elle a une langue, une
-majeure, un propriétaire et un **statut** :
-
-- `:draft` : elle attend une réponse ;
-- `:closed` : elle a été traitée.
-
-Tout utilisateur peut objecter. Une objection s'écrit dans la langue du document qu'elle
-vise.
-
-Le propriétaire du document visé y répond par une publication qui la désigne par son `:id`
-(`:answers`) et contient une nouvelle version du document. Quand cette publication est
-publiée, l'objection est fermée : **fermée veut dire qu'un changement a été fait**. L'auteur
-de l'objection peut alors réagir à ce changement en ouvrant la majeure suivante de
-l'objection, qui vise la nouvelle version. Une nouvelle majeure ne s'ouvre qu'une fois la
-précédente fermée.
-
-### Buts
-
-- Contester un document précis, sur son propre terrain, et obtenir un changement.
-- Garder la trace de la discussion : chaque majeure de l'objection répond à une version du
-  document.
-- Empêcher de contester d'un coup des parties entières du graphe.
-
-### Exemples
-
-L'exemple de la page d'accueil : un lecteur actif (Hephaistox2) objecte après chaque
-édition de « Ma voiture est rapide », et l'édition suivante lui répond.
-
-```clojure
-  {:type :objection
-   :name \"que-veut-dire-rapide\"
-   :lang :fr
-   :major 1
-   :owner {:id #uuid \"8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9\"}
-   :status :closed
-   :documents [{:id #uuid \"dddddddd-0000-0000-0000-000020010100\"}]
-   :content {:title \"Que veut dire « rapide » ?\"
-             :text \"« Rapide », ça veut dire quoi, au juste ?\"
-             :reason :omission …}}
-;; the edition 1.0, in fr
-```
-
-La publication `exemple-pedagogique-2` y répond (`:answers`) et contient l'édition 1.1, qui
-définit « rapide ». Une fois celle-ci publiée, l'objection est fermée.
-
-« Et le modèle en général ? » est fermée par l'édition 1.3. Le lecteur réagit à ce
-changement : la majeure 2 de son objection, un `:draft`, désigne l'édition 1.3 et dit que
-passer d'une voiture au modèle entier est un saut.
-
-### Liens
-
-- `agora.value.identity` : une objection vise une version précise, mineure comprise.
-- `agora.entity.user` : son auteur est un utilisateur.
-- `agora.entity.publication` : c'est une sorte de publication ; une publication y répond.
-
-`violations` applique les règles de chaque concept, objections comprises."}
+   "### Définition\n\nUne **objection** est une publication particulière, de type `:objection`. Son texte dit ce\nqu'elle conteste, et ses `:documents` désignent **une seule version publiée**, par son\n`:id` : celle qu'elle veut voir évoluer. Elle demande au propriétaire de la modifier. Elle\nvise un document, jamais un ensemble : on ne conteste pas un graphe entier.\n\nElle échappe à la règle « une version appartient à une publication » : la version qu'elle\ndésigne reste celle de sa publication d'origine. Comme publication, elle a une langue, une\nmajeure, un propriétaire et un **statut** :\n\n- `:draft` : elle attend une réponse ;\n- `:closed` : elle a été traitée ;\n- `:canceled` : son auteur l'a annulée. Elle reste visible, n'attend plus rien, et ne reçoit jamais de réaction : l'annuler clôt la discussion. Une publication qui y répond la laisse annulée.\n\nTout utilisateur peut objecter. Une objection s'écrit dans la langue du document qu'elle\nvise.\n\nLe propriétaire du document visé y répond par une publication qui la désigne par son `:id`\n(`:answers`) et contient une nouvelle version du document. Quand cette publication est\npubliée, l'objection est fermée : **fermée veut dire qu'un changement a été fait**. L'auteur\nde l'objection peut alors réagir à ce changement en ouvrant la majeure suivante de\nl'objection, qui vise la nouvelle version. Une nouvelle majeure ne s'ouvre qu'une fois la\nprécédente fermée.\n\n### Buts\n\n- Contester un document précis, sur son propre terrain, et obtenir un changement.\n- Garder la trace de la discussion : chaque majeure de l'objection répond à une version du\n  document.\n- Empêcher de contester d'un coup des parties entières du graphe.\n\n### Exemples\n\nL'exemple de la page d'accueil : un lecteur actif (Hephaistox2) objecte après chaque\nédition de « Ma voiture est rapide », et l'édition suivante lui répond.\n\n```clojure\n  {:type :objection\n   :name \"que-veut-dire-rapide\"\n   :lang :fr\n   :major 1\n   :owner {:id #uuid \"8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9\"}\n   :status :closed\n   :documents [{:id #uuid \"dddddddd-0000-0000-0000-000020010100\"}]\n   :content {:title \"Que veut dire « rapide » ?\"\n             :text \"« Rapide », ça veut dire quoi, au juste ?\"\n             :reason :omission …}}\n;; the edition 1.0, in fr\n```\n\nLa publication `exemple-pedagogique-2` y répond (`:answers`) et contient l'édition 1.1, qui\ndéfinit « rapide ». Une fois celle-ci publiée, l'objection est fermée.\n\n« Et le modèle en général ? » est fermée par l'édition 1.3. Le lecteur réagit à ce\nchangement : la majeure 2 de son objection, un `:draft`, désigne l'édition 1.3 et dit que\npasser d'une voiture au modèle entier est un saut.\n\n### Liens\n\n- `agora.value.identity` : une objection vise une version précise, mineure comprise.\n- `agora.entity.user` : son auteur est un utilisateur.\n- `agora.entity.publication` : c'est une sorte de publication ; une publication y répond.\n\n`violations` applique les règles de chaque concept, objections comprises."}
   agora.entity.person
   {:en-hash "8352f012ab54"
    :fr
-   "### Définition
-
-Une **personne** est quelqu'un à qui un écrit peut être attribué. Une personne a un id et
-un nom affiché.
-
-Une personne n'a pas forcément de compte. Victor Hugo est une personne d'agora : une œuvre
-lui est attribuée, mais il ne se connecte jamais.
-
-**Auteur** est un rôle d'une personne pour un document : celle à qui il est attribué. Ce
-n'est pas une sorte de personne.
-
-Ailleurs, une personne est désignée par son seul `:id`, par exemple comme auteur d'une
-œuvre : voir `agora.value.reference`. Un propriétaire ou un contributeur est un utilisateur. Son nom se lit dans les personnes, il n'est jamais copié.
-
-Les personnes que nomment les cas d'usage, avec ou sans compte, sont dans
-`agora/use_cases/persons.edn`.
-
-### Buts
-
-- Dire **qui répond** d'un écrit.
-- Créditer un **auteur public** qui n'utilise pas agora.
-- N'afficher jamais qu'un nom, jamais un id.
-
-### Exemples
-
-```clojure
-{:id #uuid \"61a3d5a4-a94a-4e02-9e1e-0db6f5c03503\" :name \"Hephaistox\"}   ; an account
-{:id #uuid \"6dee51b8-bd9b-4104-aefc-e082c0e1644c\" :name \"Victor hugo\"}  ; an author without an account
-{:id #uuid \"00000000-0000-0000-0000-000000000001\" :name \"Agora\"}        ; the platform itself, an account
-```
-
-« Agora » est l'utilisateur qui détient les contenus de la plateforme : le vocabulaire des
-types et l'exemple de la page d'accueil.
-
-### Liens
-
-Aucun : c'est le premier concept."}
+   "### Définition\n\nUne **personne** est quelqu'un à qui un écrit peut être attribué. Une personne a un id et\nun nom affiché.\n\nUne personne n'a pas forcément de compte. Victor Hugo est une personne d'agora : une œuvre\nlui est attribuée, mais il ne se connecte jamais.\n\n**Auteur** est un rôle d'une personne pour un document : celle à qui il est attribué. Ce\nn'est pas une sorte de personne.\n\nAilleurs, une personne est désignée par son seul `:id`, par exemple comme auteur d'une\nœuvre : voir `agora.value.reference`. Un propriétaire ou un contributeur est un utilisateur. Son nom se lit dans les personnes, il n'est jamais copié.\n\nLes personnes que nomment les cas d'usage, avec ou sans compte, sont dans\n`agora/use_cases/persons.edn`.\n\n### Buts\n\n- Dire **qui répond** d'un écrit.\n- Créditer un **auteur public** qui n'utilise pas agora.\n- N'afficher jamais qu'un nom, jamais un id.\n\n### Exemples\n\n```clojure\n{:id #uuid \"61a3d5a4-a94a-4e02-9e1e-0db6f5c03503\" :name \"Hephaistox\"}   ; an account\n{:id #uuid \"6dee51b8-bd9b-4104-aefc-e082c0e1644c\" :name \"Victor hugo\"}  ; an author without an account\n{:id #uuid \"00000000-0000-0000-0000-000000000001\" :name \"Agora\"}        ; the platform itself, an account\n```\n\n« Agora » est l'utilisateur qui détient les contenus de la plateforme : le vocabulaire des\ntypes et l'exemple de la page d'accueil.\n\n### Liens\n\nAucun : c'est le premier concept."}
   agora.entity.publication
   {:en-hash "9e9d00606642"
    :fr
-   "### Définition
-
-Une **publication** est un document de type `:publication` qui rassemble un ensemble de
-changements. Elle a un titre, un **texte** (une phrase qui décrit son changement), une
-langue, un propriétaire et un **statut** :
-
-- `:open` : elle est encore en cours d'écriture. Ses documents sont des brouillons.
-- `:closed` : elle est publiée. Ses documents sont publiés et figés.
-- `:canceled` : son propriétaire l'a abandonnée. Elle garde ses brouillons, figés, jamais
-  publiés : rien n'est perdu. Son nom reste pris : le statut ne fait pas partie de
-  l'identité.
-
-Tout document qui n'est pas une publication appartient à **exactement une** publication :
-celle qui l'a créé, sa **publication d'origine** (`from-publication`). Elle ne change
-jamais.
-
-Dans une publication ouverte, les brouillons **peuvent se citer entre eux**. C'est la seule
-exception à la règle qui interdit de citer un brouillon : ils sont publiés en même temps,
-donc une fois la publication fermée, plus aucune citation ne vise un brouillon. Un
-brouillon ne peut pas être cité depuis une autre publication.
-
-Dans la publication, un brouillon cite un autre brouillon par son **`:id`** : il n'a pas
-encore de mineure, son id est ce qui le relie aux autres. La citation s'écrit `{:id \"…\"}`
-dans `:inputs`, et le lien `[[id:…|label]]` dans le texte.
-
-**Publier** une publication, c'est la fermer. À ce moment :
-
-- chaque brouillon reçoit sa mineure : celle qui suit la dernière déjà publiée pour la même
-  majeure, ou 0 s'il n'y en a pas. Si une autre publication a publié une mineure entre-temps,
-  elle vient après celle-ci ;
-- chaque citation par `:id` devient une citation par tnlr `(type, name, language, major)`,
-  comme toute citation publiée.
-
-Une publication ne contient que des documents **de sa langue**. La même publication existe
-en plusieurs langues sous un seul nom, comme tout document. Ses documents citent librement
-des documents d'autres langues, qu'elle ne contient pas.
-
-Une publication **n'affirme rien** et n'est pas contestée. Ce qui tient ensemble est porté
-par les documents qui se citent : une déduction affirme que sa conclusion découle de ses
-entrées, un article que son raisonnement tient. Ce sont ces documents qu'on conteste, pas la
-publication qui les a publiés. Comme tout type, `:publication` est décrit par le document
-`type-publication`.
-
-Un document publié est figé : son identité, son propriétaire et son contenu ne changent
-jamais. Seul son horodatage peut être ajouté, puis complété. Pour le **corriger**, son auteur en publie une nouvelle version
-dans une nouvelle publication. L'ancienne publication reste lisible telle qu'elle était.
-
-Une publication n'a qu'une **majeure** : ni mineure, ni brouillon. Son statut tient lieu de
-brouillon. Ouverte, elle est modifiée sur place, titre compris. Fermée, elle est figée pour
-toujours. Elle se corrige par une nouvelle publication, une mineure n'aurait donc pas de
-sens.
-
-Le propriétaire d'une publication ouverte peut **inviter** d'autres utilisateurs à y
-contribuer : ses **contributeurs** (`:contributors`, chacun `{:id}`). Sans invitation, personne d'autre n'y écrit. Chaque
-document nomme son propre propriétaire (`:owner`) : celui qui l'a écrit, le propriétaire de
-la publication ou un contributeur. L'invitation vaut pour cette publication seulement, pas
-pour ses autres majeures, et peut être révoquée.
-
-Tant qu'une publication est ouverte, on continue de la modifier. Une **nouvelle majeure**
-n'est créée qu'une fois la dernière fermée : deux majeures d'une publication ne sont jamais
-ouvertes en même temps.
-
-Une nouvelle majeure **reprend le même sujet**. Personne ne cite une publication, donc sa
-majeure ne signale pas un changement cassant, comme pour les autres documents : elle marque
-une nouvelle reprise. Son identité est :
-
-```
-(:publication, name, language, major)
-```
-
-### Buts
-
-- Préparer plusieurs documents ensemble, puis les publier d'un coup.
-- Toujours savoir d'où vient chaque version.
-- Raconter une évolution : une publication par étape.
-- Publier chaque langue quand elle est prête, sans attendre les autres.
-- Écrire ensemble, sur invitation.
-- Garder la trace de ce qui a été publié, puis corrigé.
-
-### Exemples
-
-L'exemple de la page d'accueil tient en quatre publications fermées, une par édition,
-chacune en `:fr` et en `:en` :
-
-| publication             | ce qu'elle publie                                 |
-|-------------------------|---------------------------------------------------|
-| `exemple-pedagogique-1` | l'article 1.0                                     |
-| `exemple-pedagogique-2` | la définition « Rapide » et l'article 1.1         |
-| `exemple-pedagogique-3` | le chronométrage et l'article 1.2                 |
-| `exemple-pedagogique-4` | la déduction, l'induction et l'article 1.3        |
-
-Les deux langues de la première édition :
-
-```clojure
-{:type :publication :name \"exemple-pedagogique-1\" :lang :fr :status :closed
- :documents [{:type :article :name \"ma-voiture-est-rapide\" :lang :fr
-              :content {:title \"Ma voiture est rapide\" …}}]
- :content {:title \"Exemple pédagogique 1\" …}}
-{:type :publication :name \"exemple-pedagogique-1\" :lang :en :status :closed
- :documents [{:type :article :name \"ma-voiture-est-rapide\" :lang :en
-              :content {:title \"My car is fast\" …}}]
- :content {:title \"Teaching example 1\" …}}
-```
-
-« La méthode scientifique » est une publication ouverte : ses huit documents sont des
-brouillons.
-
-Dans cette publication, la définition « Énoncé singulier » cite la définition « Énoncé
-universel » par son id :
-
-```clojure
-{:type :definition :name \"enonce-singulier\"
- :content {:text \"un énoncé portant sur un individu ou un événement déterminé … Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a]] porte sur une classe non bornée, …\"
-           :inputs [{:id #uuid \"a526a25d-c823-4295-a8b4-0e6514d3768a\"}] …}}
-```
-
-Une fois publié, ce lien devient `[[definition:enonce-universel:fr@1]]`.
-
-```clojure
-{:type :publication :name \"la-methode-scientifique\" :lang :fr :status :open
- :owner {:id #uuid \"61a3d5a4-a94a-4e02-9e1e-0db6f5c03503\"}
- :documents [{:type :definition :content {:title \"Énoncé universel\" …}} …]
- :content {:title \"La méthode scientifique\" …}}
-```
-
-### Liens
-
-- `agora.entity.document`, `agora.value.type` : une publication est un document de type `:publication`.
-- `agora.value.version` : ouverte, elle contient des brouillons ; fermée, des versions publiées. Elle-même n'a qu'une majeure.
-- `agora.value.identity` : la sienne n'a pas de mineure.
-- `agora.entity.person` : son propriétaire.
-- `agora.entity.user` : ses contributeurs, invités par le propriétaire.
-- `agora.value.lang` : une publication a une langue, celle de ses documents.
-- `agora.value.citation` : ses documents citent au-delà de sa langue."}
+   "### Définition\n\nUne **publication** est un document de type `:publication` qui rassemble un ensemble de\nchangements. Elle a un titre, un **texte** (une phrase qui décrit son changement), une\nlangue, un propriétaire et un **statut** :\n\n- `:open` : elle est encore en cours d'écriture. Ses documents sont des brouillons.\n- `:closed` : elle est publiée. Ses documents sont publiés et figés.\n- `:canceled` : son propriétaire l'a abandonnée. Elle garde ses brouillons, figés, jamais\n  publiés : rien n'est perdu. Son nom reste pris : le statut ne fait pas partie de\n  l'identité.\n\nTout document qui n'est pas une publication appartient à **exactement une** publication :\ncelle qui l'a créé, sa **publication d'origine** (`from-publication`). Elle ne change\njamais.\n\nDans une publication ouverte, les brouillons **peuvent se citer entre eux**. C'est la seule\nexception à la règle qui interdit de citer un brouillon : ils sont publiés en même temps,\ndonc une fois la publication fermée, plus aucune citation ne vise un brouillon. Un\nbrouillon ne peut pas être cité depuis une autre publication.\n\nDans la publication, un brouillon cite un autre brouillon par son **`:id`** : il n'a pas\nencore de mineure, son id est ce qui le relie aux autres. La citation s'écrit `{:id \"…\"}`\ndans `:inputs`, et le lien `[[id:…|label]]` dans le texte.\n\n**Publier** une publication, c'est la fermer. À ce moment :\n\n- chaque brouillon reçoit sa mineure : celle qui suit la dernière déjà publiée pour la même\n  majeure, ou 0 s'il n'y en a pas. Si une autre publication a publié une mineure entre-temps,\n  elle vient après celle-ci ;\n- chaque citation par `:id` devient une citation par tnlr `(type, name, language, major)`,\n  comme toute citation publiée.\n\nUne publication ne contient que des documents **de sa langue**. La même publication existe\nen plusieurs langues sous un seul nom, comme tout document. Ses documents citent librement\ndes documents d'autres langues, qu'elle ne contient pas.\n\nUne publication **n'affirme rien** et n'est pas contestée. Ce qui tient ensemble est porté\npar les documents qui se citent : une déduction affirme que sa conclusion découle de ses\nentrées, un article que son raisonnement tient. Ce sont ces documents qu'on conteste, pas la\npublication qui les a publiés. Comme tout type, `:publication` est décrit par le document\n`type-publication`.\n\nUn document publié est figé : son identité, son propriétaire et son contenu ne changent\njamais. Seul son horodatage peut être ajouté, puis complété. Pour le **corriger**, son auteur en publie une nouvelle version\ndans une nouvelle publication. L'ancienne publication reste lisible telle qu'elle était.\n\nUne publication n'a qu'une **majeure** : ni mineure, ni brouillon. Son statut tient lieu de\nbrouillon. Ouverte, elle est modifiée sur place, titre compris. Fermée, elle est figée pour\ntoujours. Elle se corrige par une nouvelle publication, une mineure n'aurait donc pas de\nsens.\n\nLe propriétaire d'une publication ouverte peut **inviter** d'autres utilisateurs à y\ncontribuer : ses **contributeurs** (`:contributors`, chacun `{:id}`). Sans invitation, personne d'autre n'y écrit. Chaque\ndocument nomme son propre propriétaire (`:owner`) : celui qui l'a écrit, le propriétaire de\nla publication ou un contributeur. L'invitation vaut pour cette publication seulement, pas\npour ses autres majeures, et peut être révoquée.\n\nTant qu'une publication est ouverte, on continue de la modifier. Une **nouvelle majeure**\nn'est créée qu'une fois la dernière fermée : deux majeures d'une publication ne sont jamais\nouvertes en même temps.\n\nUne nouvelle majeure **reprend le même sujet**. Personne ne cite une publication, donc sa\nmajeure ne signale pas un changement cassant, comme pour les autres documents : elle marque\nune nouvelle reprise. Son identité est :\n\n```\n(:publication, name, language, major)\n```\n\n### Buts\n\n- Préparer plusieurs documents ensemble, puis les publier d'un coup.\n- Toujours savoir d'où vient chaque version.\n- Raconter une évolution : une publication par étape.\n- Publier chaque langue quand elle est prête, sans attendre les autres.\n- Écrire ensemble, sur invitation.\n- Garder la trace de ce qui a été publié, puis corrigé.\n\n### Exemples\n\nL'exemple de la page d'accueil tient en quatre publications fermées, une par édition,\nchacune en `:fr` et en `:en` :\n\n| publication             | ce qu'elle publie                                 |\n|-------------------------|---------------------------------------------------|\n| `exemple-pedagogique-1` | l'article 1.0                                     |\n| `exemple-pedagogique-2` | la définition « Rapide » et l'article 1.1         |\n| `exemple-pedagogique-3` | le chronométrage et l'article 1.2                 |\n| `exemple-pedagogique-4` | la déduction, l'induction et l'article 1.3        |\n\nLes deux langues de la première édition :\n\n```clojure\n{:type :publication :name \"exemple-pedagogique-1\" :lang :fr :status :closed\n :documents [{:type :article :name \"ma-voiture-est-rapide\" :lang :fr\n              :content {:title \"Ma voiture est rapide\" …}}]\n :content {:title \"Exemple pédagogique 1\" …}}\n{:type :publication :name \"exemple-pedagogique-1\" :lang :en :status :closed\n :documents [{:type :article :name \"ma-voiture-est-rapide\" :lang :en\n              :content {:title \"My car is fast\" …}}]\n :content {:title \"Teaching example 1\" …}}\n```\n\n« La méthode scientifique » est une publication ouverte : ses huit documents sont des\nbrouillons.\n\nDans cette publication, la définition « Énoncé singulier » cite la définition « Énoncé\nuniversel » par son id :\n\n```clojure\n{:type :definition :name \"enonce-singulier\"\n :content {:text \"un énoncé portant sur un individu ou un événement déterminé … Là où l'[[id:a526a25d-c823-4295-a8b4-0e6514d3768a]] porte sur une classe non bornée, …\"\n           :inputs [{:id #uuid \"a526a25d-c823-4295-a8b4-0e6514d3768a\"}] …}}\n```\n\nUne fois publié, ce lien devient `[[definition:enonce-universel:fr@1]]`.\n\n```clojure\n{:type :publication :name \"la-methode-scientifique\" :lang :fr :status :open\n :owner {:id #uuid \"61a3d5a4-a94a-4e02-9e1e-0db6f5c03503\"}\n :documents [{:type :definition :content {:title \"Énoncé universel\" …}} …]\n :content {:title \"La méthode scientifique\" …}}\n```\n\n### Liens\n\n- `agora.entity.document`, `agora.value.type` : une publication est un document de type `:publication`.\n- `agora.value.version` : ouverte, elle contient des brouillons ; fermée, des versions publiées. Elle-même n'a qu'une majeure.\n- `agora.value.identity` : la sienne n'a pas de mineure.\n- `agora.entity.person` : son propriétaire.\n- `agora.entity.user` : ses contributeurs, invités par le propriétaire.\n- `agora.value.lang` : une publication a une langue, celle de ses documents.\n- `agora.value.citation` : ses documents citent au-delà de sa langue."}
   agora.entity.user
   {:en-hash "96e395c6218c"
    :fr
-   "### Définition
-
-Un **utilisateur** est une personne qui a un **compte** : il se connecte à agora et y
-écrit, avec son compte Google ou avec un mot de passe.
-
-Tout utilisateur est une personne. Toute personne n'est pas un utilisateur :
-
-|                                 | personne | utilisateur                   |
-|---------------------------------|----------|-------------------------------|
-| a un nom affiché                | oui      | oui                           |
-| peut se voir attribuer un écrit | oui      | oui                           |
-| se connecte, écrit dans agora   | non      | oui                           |
-| nom affiché unique              | non      | oui, parmi les utilisateurs   |
-
-Le nom affiché d'un utilisateur est unique. Celui d'une personne sans compte ne l'est pas :
-deux auteurs cités peuvent partager un nom.
-
-### Buts
-
-- Savoir **qui agit** dans agora, et le vérifier à la connexion.
-- Distinguer ceux qui écrivent dans agora de ceux qu'agora cite.
-- Empêcher un utilisateur de se faire passer pour un autre : un nom affiché ne désigne
-  qu'un seul utilisateur. Les noms sont comparés sans tenir compte de la casse ni des
-  accents.
-
-### Exemples
-
-- « Hephaistox » est un utilisateur : il se connecte avec Google. Il a enregistré l'œuvre
-  « Les misérables ».
-- « Victor hugo » est une personne sans compte : cette œuvre lui est attribuée, mais il ne se connecte jamais.
-- « Agora » est un utilisateur : le compte qui détient les contenus de la plateforme. Ses
-  contenus appartiennent à un utilisateur, il répond donc aux objections qui leur sont
-  faites.
-
-### Liens
-
-- `agora.entity.person` : un utilisateur est une personne qui a un compte.
-
-Les utilisateurs que nomment les cas d'usage sont dans `agora/use_cases/users.edn`. Chacun
-ne contient que ce que le compte ajoute à sa personne : `{:id :provider :provider-id}`. Le
-`:provider-id` est l'id du compte chez son fournisseur : chez Google, le lien OAuth ; pour
-un mot de passe, l'identifiant de connexion, agora étant le fournisseur. Ce n'est jamais le
-`:id` d'agora. Son nom est celui de sa personne. Pas d'e-mail, pas de mot de passe."}
+   "### Définition\n\nUn **utilisateur** est une personne qui a un **compte** : il se connecte à agora et y\nécrit, avec son compte Google ou avec un mot de passe.\n\nTout utilisateur est une personne. Toute personne n'est pas un utilisateur :\n\n|                                 | personne | utilisateur                   |\n|---------------------------------|----------|-------------------------------|\n| a un nom affiché                | oui      | oui                           |\n| peut se voir attribuer un écrit | oui      | oui                           |\n| se connecte, écrit dans agora   | non      | oui                           |\n| nom affiché unique              | non      | oui, parmi les utilisateurs   |\n\nLe nom affiché d'un utilisateur est unique. Celui d'une personne sans compte ne l'est pas :\ndeux auteurs cités peuvent partager un nom.\n\n### Buts\n\n- Savoir **qui agit** dans agora, et le vérifier à la connexion.\n- Distinguer ceux qui écrivent dans agora de ceux qu'agora cite.\n- Empêcher un utilisateur de se faire passer pour un autre : un nom affiché ne désigne\n  qu'un seul utilisateur. Les noms sont comparés sans tenir compte de la casse ni des\n  accents.\n\n### Exemples\n\n- « Hephaistox » est un utilisateur : il se connecte avec Google. Il a enregistré l'œuvre\n  « Les misérables ».\n- « Victor hugo » est une personne sans compte : cette œuvre lui est attribuée, mais il ne se connecte jamais.\n- « Agora » est un utilisateur : le compte qui détient les contenus de la plateforme. Ses\n  contenus appartiennent à un utilisateur, il répond donc aux objections qui leur sont\n  faites.\n\n### Liens\n\n- `agora.entity.person` : un utilisateur est une personne qui a un compte.\n\nLes utilisateurs que nomment les cas d'usage sont dans `agora/use_cases/users.edn`. Chacun\nne contient que ce que le compte ajoute à sa personne : `{:id :provider :provider-id}`. Le\n`:provider-id` est l'id du compte chez son fournisseur : chez Google, le lien OAuth ; pour\nun mot de passe, l'identifiant de connexion, agora étant le fournisseur. Ce n'est jamais le\n`:id` d'agora. Son nom est celui de sa personne. Pas d'e-mail, pas de mot de passe."}
   agora.repository
   {:en-hash "58572b24b776"
    :fr
-   "### Définition
-
-Le **dépôt** est l'état complet d'agora : ses personnes, ses utilisateurs, ses publications
-et ses objections.
-
-```clojure
-{:persons [] :users [] :publications [] :objections []}
-```
-
-Chaque action le prend et renvoie ses **changements** : par sorte, les entités qu'elle crée
-et celles qu'elle modifie, chacune en entier.
-
-```clojure
-{:created {:persons [...] :users [...]} :changed {:publications [...]}}
-```
-
-`apply-changes` les applique : une entité créée est ajoutée, une entité modifiée remplace
-celle qui a le même `:id`. Il ne modifie jamais le dépôt sur place.
-
-### Buts
-
-- Donner aux actions un seul point d'entrée et de sortie.
-- Une seule façon générique d'appliquer ce que fait n'importe quelle action.
-- Vérifier d'un coup chaque règle de chaque concept (`violations`).
-
-### Exemples
-
-Le dépôt vide, avant toute inscription : `empty-repository`. Une inscription renvoie
-`{:created {:persons [anthony] :users [anthony-account]}}`.
-
-### Liens
-
-- `agora.entity.person`, `agora.entity.user`, `agora.entity.publication`, `agora.entity.objection` : ce qu'il contient."}
+   "### Définition\n\nLe **dépôt** est l'état complet d'agora : ses personnes, ses utilisateurs, ses publications\net ses objections.\n\n```clojure\n{:persons [] :users [] :publications [] :objections []}\n```\n\nChaque action le prend et renvoie ses **changements** : par sorte, les entités qu'elle crée\net celles qu'elle modifie, chacune en entier.\n\n```clojure\n{:created {:persons [...] :users [...]} :changed {:publications [...]}}\n```\n\n`apply-changes` les applique : une entité créée est ajoutée, une entité modifiée remplace\ncelle qui a le même `:id`. Il ne modifie jamais le dépôt sur place.\n\n### Buts\n\n- Donner aux actions un seul point d'entrée et de sortie.\n- Une seule façon générique d'appliquer ce que fait n'importe quelle action.\n- Vérifier d'un coup chaque règle de chaque concept (`violations`).\n\n### Exemples\n\nLe dépôt vide, avant toute inscription : `empty-repository`. Une inscription renvoie\n`{:created {:persons [anthony] :users [anthony-account]}}`.\n\n### Liens\n\n- `agora.entity.person`, `agora.entity.user`, `agora.entity.publication`, `agora.entity.objection` : ce qu'il contient."}
   agora.value.citation
   {:en-hash "625389d29689"
    :fr
-   "### Définition
-
-Une **citation** dit qu'un document s'appuie sur un autre. Un document liste ses citations
-dans `:inputs` : par tnlr, ou par id pour un brouillon de la même publication.
-
-Un **lien** est une citation placée dans le texte, là où elle sert :
-
-```
-[[type:name:language@major|label]]
-```
-
-Le type, le nom, la langue et la majeure sont obligatoires : un lien porte toujours un
-tnlr complet. Le libellé est facultatif ; sans lui, le titre du document cité est
-affiché.
-
-Tout lien est une citation. Une citation n'est pas forcément un lien : on peut s'appuyer
-sur un document sans le nommer dans la phrase.
-
-Seules les versions **publiées** sont citées : un brouillon change encore, on ne peut pas
-s'appuyer dessus.
-
-Une citation peut viser un document dans **une autre langue**. Le tnlr porte la
-langue du document cité.
-
-### Buts
-
-- Rendre visible **ce sur quoi repose un écrit**.
-- Remonter d'une affirmation à ses appuis, en un clic.
-- Écrire une prose lisible qui garde ses appuis.
-- Citer une pensée sans la figer à une mineure : les mineures ne cassent rien, donc une
-  citation reste valide quand le document cité s'améliore.
-- S'appuyer sur ce qui existe dans une autre langue, sans le traduire d'abord.
-
-### Exemples
-
-L'édition 1.1 de l'article de la page d'accueil cite la définition de « rapide » et la
-place dans sa phrase :
-
-```clojure
-  {:type :article
-   :name \"ma-voiture-est-rapide\"
-   :lang :fr
-   :major 1
-   :minor 1
-   :content {:text \"Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]).\"
-             :inputs [{:type :definition :name \"rapide\" :lang :fr :major 1}] …}}
-```
-
-L'illustration « Énoncé universel » cite la définition qu'elle illustre, sans lien dans
-son texte :
-
-```clojure
-{:type :illustration
- :content {:title \"Énoncé universel\"
-           :text \"Cet énoncé n'est borné ni dans le temps … ni dans l'espace. …\"
-           :inputs [{:type :definition :name \"enonce-universel\" :lang :fr :major 1}] …}}
-```
-
-*Exemple fictif* : un concept bien plus répandu en anglais qu'en français. Un texte
-français le cite tel quel, sans attendre qu'il existe en français :
-
-```
-… comme le montre le [[definition:nudge:en@1|nudge]] …
-```
-
-### Liens
-
-- `agora.value.lang` : la langue du document cité fait partie de la citation.
-- `agora.entity.document` : une citation va d'un document à un autre.
-- `agora.value.reference` : une citation est une référence, par tnlr ou par id.
-- `agora.value.type` : le type du document cité fait partie de la citation et du lien."}
+   "### Définition\n\nUne **citation** dit qu'un document s'appuie sur un autre. Un document liste ses citations\ndans `:inputs` : par tnlr, ou par id pour un brouillon de la même publication.\n\nUn **lien** est une citation placée dans le texte, là où elle sert :\n\n```\n[[type:name:language@major|label]]\n```\n\nLe type, le nom, la langue et la majeure sont obligatoires : un lien porte toujours un\ntnlr complet. Le libellé est facultatif ; sans lui, le titre du document cité est\naffiché.\n\nTout lien est une citation. Une citation n'est pas forcément un lien : on peut s'appuyer\nsur un document sans le nommer dans la phrase.\n\nSeules les versions **publiées** sont citées : un brouillon change encore, on ne peut pas\ns'appuyer dessus.\n\nUne citation peut viser un document dans **une autre langue**. Le tnlr porte la\nlangue du document cité.\n\n### Buts\n\n- Rendre visible **ce sur quoi repose un écrit**.\n- Remonter d'une affirmation à ses appuis, en un clic.\n- Écrire une prose lisible qui garde ses appuis.\n- Citer une pensée sans la figer à une mineure : les mineures ne cassent rien, donc une\n  citation reste valide quand le document cité s'améliore.\n- S'appuyer sur ce qui existe dans une autre langue, sans le traduire d'abord.\n\n### Exemples\n\nL'édition 1.1 de l'article de la page d'accueil cite la définition de « rapide » et la\nplace dans sa phrase :\n\n```clojure\n  {:type :article\n   :name \"ma-voiture-est-rapide\"\n   :lang :fr\n   :major 1\n   :minor 1\n   :content {:text \"Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]).\"\n             :inputs [{:type :definition :name \"rapide\" :lang :fr :major 1}] …}}\n```\n\nL'illustration « Énoncé universel » cite la définition qu'elle illustre, sans lien dans\nson texte :\n\n```clojure\n{:type :illustration\n :content {:title \"Énoncé universel\"\n           :text \"Cet énoncé n'est borné ni dans le temps … ni dans l'espace. …\"\n           :inputs [{:type :definition :name \"enonce-universel\" :lang :fr :major 1}] …}}\n```\n\n*Exemple fictif* : un concept bien plus répandu en anglais qu'en français. Un texte\nfrançais le cite tel quel, sans attendre qu'il existe en français :\n\n```\n… comme le montre le [[definition:nudge:en@1|nudge]] …\n```\n\n### Liens\n\n- `agora.value.lang` : la langue du document cité fait partie de la citation.\n- `agora.entity.document` : une citation va d'un document à un autre.\n- `agora.value.reference` : une citation est une référence, par tnlr ou par id.\n- `agora.value.type` : le type du document cité fait partie de la citation et du lien."}
   agora.value.hash
   {:en-hash "c3a8eec97f9f"
    :fr
-   "### Définition
-
-L'**empreinte** d'une valeur est le SHA-256 de son texte canonique, en hexadécimal
-minuscule : 64 caractères. Le texte canonique est l'EDN de la valeur, ses maps triées par
-clé. La même valeur donne la même empreinte, en Clojure comme en ClojureScript ; tout
-changement en donne une autre.
-
-### Buts
-
-- Savoir si un contenu est exactement celui dont on a pris l'empreinte plus tôt.
-- Donner une empreinte courte, de taille fixe, pour horodater un contenu.
-
-### Exemples
-
-```clojure
-(of {:b 1 :a 2}) ; same as (of {:a 2 :b 1})
-```
-
-### Liens
-
-- `agora.entity.timestamp` : un horodatage contient l'empreinte d'une version publiée."}
+   "### Définition\n\nL'**empreinte** d'une valeur est le SHA-256 de son texte canonique, en hexadécimal\nminuscule : 64 caractères. Le texte canonique est l'EDN de la valeur, ses maps triées par\nclé. La même valeur donne la même empreinte, en Clojure comme en ClojureScript ; tout\nchangement en donne une autre.\n\n### Buts\n\n- Savoir si un contenu est exactement celui dont on a pris l'empreinte plus tôt.\n- Donner une empreinte courte, de taille fixe, pour horodater un contenu.\n\n### Exemples\n\n```clojure\n(of {:b 1 :a 2}) ; same as (of {:a 2 :b 1})\n```\n\n### Liens\n\n- `agora.entity.timestamp` : un horodatage contient l'empreinte d'une version publiée."}
   agora.value.identity
   {:en-hash "5796b1e5a748"
    :fr
-   "### Définition
-
-L'**identité** d'une version de document est le quintuplet :
-
-```
-(type, name, language, major, minor)
-```
-
-Deux versions ne peuvent pas avoir la même identité. Deux documents de types différents
-peuvent donc partager un nom : ce sont deux documents distincts. C'est permis, même si
-c'est étrange en pratique.
-
-Chaque version a aussi un **id** (`:id`, un UUID) qui la désigne de façon permanente. Un
-brouillon en a un, alors que son identité est incomplète : il n'a pas encore de mineure.
-
-Le **tnlr** est l'identité sans la mineure :
-
-```
-(type, name, language, major)
-```
-
-Il désigne une **lignée** : toutes les mineures d'une majeure. C'est ce qu'on cite.
-
-### Buts
-
-- Désigner un document sans ambiguïté.
-- Rendre le type inséparable du document : changer de type, c'est changer d'identité.
-
-### Exemples
-
-Identité de la dernière édition de l'article de la page d'accueil, en français :
-
-```
-  [:article, \"ma-voiture-est-rapide\", :fr, 1, 3]
-```
-
-Le tnlr de la définition de « rapide », tel que les articles la citent :
-
-```clojure
-{:type :definition :name \"rapide\" :lang :fr :major 1}
-```
-
-### Liens
-
-- `agora.value.type`, `agora.value.name`, `agora.value.lang`, `agora.value.version` : les parties de l'identité.
-- `agora.value.reference` : la grammaire d'un tnlr."}
+   "### Définition\n\nL'**identité** d'une version de document est le quintuplet :\n\n```\n(type, name, language, major, minor)\n```\n\nDeux versions ne peuvent pas avoir la même identité. Deux documents de types différents\npeuvent donc partager un nom : ce sont deux documents distincts. C'est permis, même si\nc'est étrange en pratique.\n\nChaque version a aussi un **id** (`:id`, un UUID) qui la désigne de façon permanente. Un\nbrouillon en a un, alors que son identité est incomplète : il n'a pas encore de mineure.\n\nLe **tnlr** est l'identité sans la mineure :\n\n```\n(type, name, language, major)\n```\n\nIl désigne une **lignée** : toutes les mineures d'une majeure. C'est ce qu'on cite.\n\n### Buts\n\n- Désigner un document sans ambiguïté.\n- Rendre le type inséparable du document : changer de type, c'est changer d'identité.\n\n### Exemples\n\nIdentité de la dernière édition de l'article de la page d'accueil, en français :\n\n```\n  [:article, \"ma-voiture-est-rapide\", :fr, 1, 3]\n```\n\nLe tnlr de la définition de « rapide », tel que les articles la citent :\n\n```clojure\n{:type :definition :name \"rapide\" :lang :fr :major 1}\n```\n\n### Liens\n\n- `agora.value.type`, `agora.value.name`, `agora.value.lang`, `agora.value.version` : les parties de l'identité.\n- `agora.value.reference` : la grammaire d'un tnlr."}
   agora.value.lang
   {:en-hash "651729ca723e"
    :fr
-   "### Définition
-
-Une **langue** est la langue dans laquelle un texte est écrit, notée par son code ISO 639-1
-à deux lettres : `:fr`, `:en`.
-
-### Buts
-
-- Lire agora dans sa langue.
-- Écrire la même pensée en plusieurs langues, sans en faire plusieurs pensées.
-
-### Exemples
-
-Le titre « Ma voiture est rapide » est en `:fr`. Le titre « My car is fast » est en `:en`.
-
-### Liens
-
-Aucun."}
+   "### Définition\n\nUne **langue** est la langue dans laquelle un texte est écrit, notée par son code ISO 639-1\nà deux lettres : `:fr`, `:en`.\n\n### Buts\n\n- Lire agora dans sa langue.\n- Écrire la même pensée en plusieurs langues, sans en faire plusieurs pensées.\n\n### Exemples\n\nLe titre « Ma voiture est rapide » est en `:fr`. Le titre « My car is fast » est en `:en`.\n\n### Liens\n\nAucun."}
   agora.value.name
   {:en-hash "b234c9529fc6"
    :fr
-   "### Définition
-
-Le **nom** d'un document est une chaîne stable qui regroupe tous ses états successifs, dans
-toutes ses langues. Il ne change pas quand le titre change.
-
-Le nom est opaque : il n'est pas affiché comme titre, et aucune règle ne le lie au titre.
-En pratique, il est tiré du titre à la création, en minuscules, sans accents, les mots
-reliés par des tirets : « Groupes et individus » donne `groupes-et-individus`. Si le titre
-change ensuite, le nom reste, pour ne pas casser ce qui le cite, et ne correspond plus au
-titre.
-
-Les descriptions de type font exception : elles sont toujours nommées `type-<type>`, par
-exemple `type-definition`, car elles ne changent pas.
-
-### Buts
-
-- Suivre une même pensée dans le temps, même quand son titre ou son texte changent.
-- Désigner un document sans dépendre de son titre.
-- Rester lisible : un nom dit de quoi parle le document.
-
-### Exemples
-
-Les quatre éditions de l'article de la page d'accueil, en français et en anglais, sont
-toutes nommées `ma-voiture-est-rapide`.
-
-La définition « Énoncé universel » est nommée `enonce-universel`. L'illustration du même
-titre est nommée `enonce-universel` aussi : elle est d'un autre type.
-
-*Exemple fictif* : si une nouvelle version de l'article s'intitule « Ma voiture est très
-rapide », son nom reste `ma-voiture-est-rapide`. Les citations qui pointent déjà vers lui
-restent valides.
-
-### Liens
-
-- `agora.entity.document` : tout document a un nom.
-- `agora.value.type` : deux documents de types différents sont deux documents différents,
-  même avec le même nom.
-
-`from-title` donne le nom tiré d'un titre. Ce n'est pas une règle : un nom reste valide
-quand le titre change. Si ce nom est déjà pris par un autre document de même type et de
-même langue, l'auteur en choisit un autre, sans changer le titre : une définition
-concurrente de « Rapide » garde le titre « Rapide » et se nomme
-`rapide-en-vitesse-de-pointe`."}
+   "### Définition\n\nLe **nom** d'un document est une chaîne stable qui regroupe tous ses états successifs, dans\ntoutes ses langues. Il ne change pas quand le titre change.\n\nLe nom est opaque : il n'est pas affiché comme titre, et aucune règle ne le lie au titre.\nEn pratique, il est tiré du titre à la création, en minuscules, sans accents, les mots\nreliés par des tirets : « Groupes et individus » donne `groupes-et-individus`. Si le titre\nchange ensuite, le nom reste, pour ne pas casser ce qui le cite, et ne correspond plus au\ntitre.\n\nLes descriptions de type font exception : elles sont toujours nommées `type-<type>`, par\nexemple `type-definition`, car elles ne changent pas.\n\n### Buts\n\n- Suivre une même pensée dans le temps, même quand son titre ou son texte changent.\n- Désigner un document sans dépendre de son titre.\n- Rester lisible : un nom dit de quoi parle le document.\n\n### Exemples\n\nLes quatre éditions de l'article de la page d'accueil, en français et en anglais, sont\ntoutes nommées `ma-voiture-est-rapide`.\n\nLa définition « Énoncé universel » est nommée `enonce-universel`. L'illustration du même\ntitre est nommée `enonce-universel` aussi : elle est d'un autre type.\n\n*Exemple fictif* : si une nouvelle version de l'article s'intitule « Ma voiture est très\nrapide », son nom reste `ma-voiture-est-rapide`. Les citations qui pointent déjà vers lui\nrestent valides.\n\n### Liens\n\n- `agora.entity.document` : tout document a un nom.\n- `agora.value.type` : deux documents de types différents sont deux documents différents,\n  même avec le même nom.\n\n`from-title` donne le nom tiré d'un titre. Ce n'est pas une règle : un nom reste valide\nquand le titre change. Si ce nom est déjà pris par un autre document de même type et de\nmême langue, l'auteur en choisit un autre, sans changer le titre : une définition\nconcurrente de « Rapide » garde le titre « Rapide » et se nomme\n`rapide-en-vitesse-de-pointe`."}
   agora.value.reference
   {:en-hash "5748bde887ae"
    :fr
-   "### Définition
-
-Une **référence** désigne quelque chose. Jamais utilisée seule : sa sorte dit ce qu'elle
-désigne, et comment.
-
-- **Par id** (`{:id …}`) : une entité précise, une personne, un utilisateur, une
-  publication, une objection, une version d'un document. Elle ne contient rien d'autre :
-  l'entité elle-même, nom compris, est lue dans le dépôt, jamais copiée.
-- **Par tnlr** (`{:type :name :lang :major}`) : une lignée, toutes les mineures d'une
-  majeure d'un document. C'est ainsi qu'on cite une version publiée.
-
-### Buts
-
-- Désigner sans copier : un changement de l'entité ne laisse jamais de copie périmée.
-- Dire quelle sorte d'entité une désignation attend.
-- Permettre aux entités de se désigner les unes les autres sans dépendre les unes des
-  autres.
-- Citer une lignée, pour qu'un lecteur obtienne sa dernière mineure.
-
-### Exemples
-
-```clojure
-{:id #uuid \"61a3d5a4-a94a-4e02-9e1e-0db6f5c03503\"}   ; Hephaistox, a user, as an owner
-{:id #uuid \"d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11\"}   ; an objection a publication answers
-{:type :definition :name \"rapide\" :lang :fr :major 1}  ; the definition of \"rapide\", cited
-```
-
-### Liens
-
-- `agora.value.identity` : le tnlr est l'identité sans la mineure."}
+   "### Définition\n\nUne **référence** désigne quelque chose. Jamais utilisée seule : sa sorte dit ce qu'elle\ndésigne, et comment.\n\n- **Par id** (`{:id …}`) : une entité précise, une personne, un utilisateur, une\n  publication, une objection, une version d'un document. Elle ne contient rien d'autre :\n  l'entité elle-même, nom compris, est lue dans le dépôt, jamais copiée.\n- **Par tnlr** (`{:type :name :lang :major}`) : une lignée, toutes les mineures d'une\n  majeure d'un document. C'est ainsi qu'on cite une version publiée.\n\n### Buts\n\n- Désigner sans copier : un changement de l'entité ne laisse jamais de copie périmée.\n- Dire quelle sorte d'entité une désignation attend.\n- Permettre aux entités de se désigner les unes les autres sans dépendre les unes des\n  autres.\n- Citer une lignée, pour qu'un lecteur obtienne sa dernière mineure.\n\n### Exemples\n\n```clojure\n{:id #uuid \"61a3d5a4-a94a-4e02-9e1e-0db6f5c03503\"}   ; Hephaistox, a user, as an owner\n{:id #uuid \"d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11\"}   ; an objection a publication answers\n{:type :definition :name \"rapide\" :lang :fr :major 1}  ; the definition of \"rapide\", cited\n```\n\n### Liens\n\n- `agora.value.identity` : le tnlr est l'identité sans la mineure."}
   agora.value.timestamp
   {:en-hash "9ee6901d522d"
    :fr
-   "### Définition
-
-Un **horodatage** prouve qu'une version publiée existait à une date, sans faire confiance
-à agora. C'est une clé de la version (`:timestamp`). Le propriétaire de la version le
-demande, quand son type le permet (une prédiction : on prouve qu'elle a été faite avant ce
-qu'elle prédit), et enregistre sa preuve. Une version mineure a au plus un horodatage :
-c'est une clé.
-
-Il contient l'**empreinte** de la version, prise au moment de la demande. L'empreinte
-couvre ce qui ne change jamais une fois publié : l'identité, l'id du propriétaire et le
-contenu. Le nom du propriétaire, lu dans les personnes, est en dehors : renommer une
-personne ne casse jamais un horodatage. L'horodatage lui-même est en dehors aussi.
-
-L'empreinte est ancrée dans Bitcoin par OpenTimestamps, hors d'agora, qui renvoie une
-**preuve**. Le statut :
-
-- `:pending` : demandé, pas encore de preuve ;
-- `:incomplete` : une preuve des calendriers OpenTimestamps, pas encore ancrée dans un bloc ;
-- `:complete` : une preuve ancrée dans un bloc Bitcoin.
-
-Un statut ne fait qu'avancer.
-
-### Buts
-
-- Prouver, face à quiconque, qu'une prédiction a été faite avant sa date.
-- Ne jamais changer ce que dit la version : l'horodatage est à côté de son contenu.
-
-### Exemples
-
-```clojure
-{:id #uuid \"…\" :type :prediction :name \"ventes-2030\" :lang :fr :major 1 :minor 0
- :owner {:id #uuid \"…\"}
- :content {:title \"Les ventes de 2030\" :text \"…\" :inputs [] :published-at #inst \"…\"}
- :timestamp {:hash \"04ee5cc5…\" :requested-at #inst \"2026-10-27T09:00:00Z\" :status :pending}}
-```
-
-### Liens
-
-- `agora.value.hash` : l'empreinte de la version.
-- `agora.value.type` : les types auxquels s'applique un horodatage.
-- `agora.value.version` : seule une version publiée est horodatée."}
+   "### Définition\n\nUn **horodatage** prouve qu'une version publiée existait à une date, sans faire confiance\nà agora. C'est une clé de la version (`:timestamp`). Le propriétaire de la version le\ndemande, quand son type le permet (une prédiction : on prouve qu'elle a été faite avant ce\nqu'elle prédit), et enregistre sa preuve. Une version mineure a au plus un horodatage :\nc'est une clé.\n\nIl contient l'**empreinte** de la version, prise au moment de la demande. L'empreinte\ncouvre ce qui ne change jamais une fois publié : l'identité, l'id du propriétaire et le\ncontenu. Le nom du propriétaire, lu dans les personnes, est en dehors : renommer une\npersonne ne casse jamais un horodatage. L'horodatage lui-même est en dehors aussi.\n\nL'empreinte est ancrée dans Bitcoin par OpenTimestamps, hors d'agora, qui renvoie une\n**preuve**. Le statut :\n\n- `:pending` : demandé, pas encore de preuve ;\n- `:incomplete` : une preuve des calendriers OpenTimestamps, pas encore ancrée dans un bloc ;\n- `:complete` : une preuve ancrée dans un bloc Bitcoin.\n\nUn statut ne fait qu'avancer.\n\n### Buts\n\n- Prouver, face à quiconque, qu'une prédiction a été faite avant sa date.\n- Ne jamais changer ce que dit la version : l'horodatage est à côté de son contenu.\n\n### Exemples\n\n```clojure\n{:id #uuid \"…\" :type :prediction :name \"ventes-2030\" :lang :fr :major 1 :minor 0\n :owner {:id #uuid \"…\"}\n :content {:title \"Les ventes de 2030\" :text \"…\" :inputs [] :published-at #inst \"…\"}\n :timestamp {:hash \"04ee5cc5…\" :requested-at #inst \"2026-10-27T09:00:00Z\" :status :pending}}\n```\n\n### Liens\n\n- `agora.value.hash` : l'empreinte de la version.\n- `agora.value.type` : les types auxquels s'applique un horodatage.\n- `agora.value.version` : seule une version publiée est horodatée."}
   agora.value.type
   {:en-hash "bb9f14cc90b8"
    :fr
-   "### Définition
-
-Le **type** d'un document dit ce qu'il est, donc comment on le lit et comment on le
-discute. Il est pris dans une liste fermée :
-
-| famille       | types                                                                                                                                       |
-|---------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| regroupement  | `:publication`                                                                                                                              |
-| énoncés       | `:definition`, `:assumption`, `:belief`, `:measurable-fact`, `:prediction`, `:deduction`, `:induction`, `:illustration`, `:counter-example` |
-| explication   | `:article`                                                                                                                                  |
-| provenance    | `:work`, `:extract`                                                                                                                         |
-| contestation  | `:objection`                                                                                                                                |
-
-Chaque type est décrit dans agora même, par un document de type `:definition` nommé
-`type-<type>` : `type-definition`, `type-article`, `type-work`… Ce document donne le sens
-du type, la formule qui ouvre son texte et la façon de le contester. Le badge qui affiche
-le type d'un document renvoie vers lui.
-
-Chaque type est aussi défini comme donnée, dans `definitions` : sa famille, ce qu'il cite
-(`:inputs`), la formule qui ouvre son texte (`:opening`), le type par défaut d'un document
-construit dessus (`:consequence`) et les **objections qu'il prédéfinit**. Un type peut
-recevoir des objections, et chaque type dit comment : une définition n'est jamais
-contredite, mais on peut la compléter ou lui en opposer une concurrente ; une affirmation
-générale reçoit pour objection un contre-exemple ; une mesure, son protocole ou une mesure
-contraire. Chaque objection dit quels types de documents peuvent l'étayer (`:backed-by`).
-Une publication et une objection n'en prédéfinissent aucune : elles ne sont pas
-contestées.
-
-**Le type fait partie de l'identité du document.** Il ne change jamais. Transformer une
-déduction en définition, c'est créer un nouveau document de type `:definition`.
-L'interface peut rendre cela facile, mais c'est un autre document.
-
-### Buts
-
-- Donner à chaque document une **règle de lecture** et une **règle de contestation**. Une
-  mesure ne se conteste pas comme une déduction.
-- Empêcher les glissements de sens : une publication ne devient jamais un article.
-- Définir la formule d'ouverture qui commence le texte du document, selon sa règle de
-  lecture.
-- Permettre au lecteur de toujours savoir ce que signifie un type : sa description suit
-  les mêmes règles que tout document ; elle est versionnée, citée et discutée.
-
-### Exemples
-
-Trois documents de types différents :
-
-```clojure
-{:type :definition :content {:title \"Rapide\" …}}
-{:type :article    :content {:title \"Ma voiture est rapide\" …}}
-{:type :work       :content {:title \"Les misérables\" …}}
-```
-
-Le type `:definition` est décrit par le document `type-definition` :
-
-```clojure
-{:type :definition
- :name \"type-definition\"
- :lang :fr
- :major 1
- :minor 0
- :content {:title \"Définition\"
-           :text \"un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient.\\n\\nUne définition ne se conteste pas en elle-même : on lui oppose une autre définition du même mot. Le graphe fait alors apparaître l'ambiguïté — plusieurs définitions concurrentes pour un terme — au lieu de trancher.\" …}}
-```
-
-- Son texte complète la formule « Définition signifie … ».
-- Son premier paragraphe donne le sens du type.
-- Son second paragraphe dit comment contester un document de ce type.
-
-Ce document est lui-même de type `:definition` : il se décrit lui-même, et son badge
-renvoie vers lui. Toutes les autres descriptions de type sont aussi des définitions, et
-leur badge renvoie vers `type-definition`.
-
-La définition « Rapide » est de ce type. Son badge renvoie vers cette description :
-
-```
-┌──────────────────────────────────────────────────┐
-│ [Définition] ──► type-definition                 │
-│ Rapide                                           │
-│ atteindre 100 km/h en moins de 5 secondes.       │
-└──────────────────────────────────────────────────┘
-```
-
-Ainsi, « Rapide » ne se conteste pas en elle-même : on écrit une autre définition de
-« rapide ».
-
-### Liens
-
-- `agora.entity.document` : tout document a exactement un type."}
+   "### Définition\n\nLe **type** d'un document dit ce qu'il est, donc comment on le lit et comment on le\ndiscute. Il est pris dans une liste fermée :\n\n| famille       | types                                                                                                                                       |\n|---------------|---------------------------------------------------------------------------------------------------------------------------------------------|\n| regroupement  | `:publication`                                                                                                                              |\n| énoncés       | `:definition`, `:assumption`, `:belief`, `:measurable-fact`, `:prediction`, `:deduction`, `:induction`, `:illustration`, `:counter-example` |\n| explication   | `:article`                                                                                                                                  |\n| provenance    | `:work`, `:extract`                                                                                                                         |\n| contestation  | `:objection`                                                                                                                                |\n\nChaque type est décrit dans agora même, par un document de type `:definition` nommé\n`type-<type>` : `type-definition`, `type-article`, `type-work`… Ce document donne le sens\ndu type, la formule qui ouvre son texte et la façon de le contester. Le badge qui affiche\nle type d'un document renvoie vers lui.\n\nChaque type est aussi défini comme donnée, dans `definitions` : sa famille, ce qu'il cite\n(`:inputs`), la formule qui ouvre son texte (`:opening`), le type par défaut d'un document\nconstruit dessus (`:consequence`) et les **objections qu'il prédéfinit**. Un type peut\nrecevoir des objections, et chaque type dit comment : une définition n'est jamais\ncontredite, mais on peut la compléter ou lui en opposer une concurrente ; une affirmation\ngénérale reçoit pour objection un contre-exemple ; une mesure, son protocole ou une mesure\ncontraire. Chaque objection dit quels types de documents peuvent l'étayer (`:backed-by`).\nUne publication et une objection n'en prédéfinissent aucune : elles ne sont pas\ncontestées.\n\n**Le type fait partie de l'identité du document.** Il ne change jamais. Transformer une\ndéduction en définition, c'est créer un nouveau document de type `:definition`.\nL'interface peut rendre cela facile, mais c'est un autre document.\n\n### Buts\n\n- Donner à chaque document une **règle de lecture** et une **règle de contestation**. Une\n  mesure ne se conteste pas comme une déduction.\n- Empêcher les glissements de sens : une publication ne devient jamais un article.\n- Définir la formule d'ouverture qui commence le texte du document, selon sa règle de\n  lecture.\n- Permettre au lecteur de toujours savoir ce que signifie un type : sa description suit\n  les mêmes règles que tout document ; elle est versionnée, citée et discutée.\n\n### Exemples\n\nTrois documents de types différents :\n\n```clojure\n{:type :definition :content {:title \"Rapide\" …}}\n{:type :article    :content {:title \"Ma voiture est rapide\" …}}\n{:type :work       :content {:title \"Les misérables\" …}}\n```\n\nLe type `:definition` est décrit par le document `type-definition` :\n\n```clojure\n{:type :definition\n :name \"type-definition\"\n :lang :fr\n :major 1\n :minor 0\n :content {:title \"Définition\"\n           :text \"un contrat sémantique qui fixe le sens d'un terme dans le graphe ; les termes clés des autres énoncés y renvoient.\\n\\nUne définition ne se conteste pas en elle-même : on lui oppose une autre définition du même mot. Le graphe fait alors apparaître l'ambiguïté — plusieurs définitions concurrentes pour un terme — au lieu de trancher.\" …}}\n```\n\n- Son texte complète la formule « Définition signifie … ».\n- Son premier paragraphe donne le sens du type.\n- Son second paragraphe dit comment contester un document de ce type.\n\nCe document est lui-même de type `:definition` : il se décrit lui-même, et son badge\nrenvoie vers lui. Toutes les autres descriptions de type sont aussi des définitions, et\nleur badge renvoie vers `type-definition`.\n\nLa définition « Rapide » est de ce type. Son badge renvoie vers cette description :\n\n```\n┌──────────────────────────────────────────────────┐\n│ [Définition] ──► type-definition                 │\n│ Rapide                                           │\n│ atteindre 100 km/h en moins de 5 secondes.       │\n└──────────────────────────────────────────────────┘\n```\n\nAinsi, « Rapide » ne se conteste pas en elle-même : on écrit une autre définition de\n« rapide ».\n\n### Liens\n\n- `agora.entity.document` : tout document a exactement un type."}
   agora.value.version
   {:en-hash "dfc355168457"
    :fr
-   "### Définition
-
-Un document évolue par **versions**. Une version se note `major.minor`, par exemple `1.3`.
-
-- La **version majeure** (`:major`) change quand le changement est **cassant** : ce qui
-  s'appuyait sur la version précédente pourrait ne plus tenir.
-- La **version mineure** (`:minor`) change pour un changement **non cassant** : préciser,
-  corriger, compléter.
-
-Une version publiée est **immuable**. Pour changer un document publié, on en écrit une
-nouvelle version.
-
-Un **brouillon** est une version en cours d'écriture : une version **sans mineure**, sans
-clé `:minor`. Il se modifie sur place. Le publier lui donne sa mineure et le fige.
-
-### Buts
-
-- Améliorer un écrit sans casser ce qui le cite.
-- Garder l'historique : chaque version publiée reste lisible.
-- Travailler un texte avant de s'engager sur son contenu.
-
-### Exemples
-
-L'article `ma-voiture-est-rapide` a quatre versions mineures. Aucune ne casse la
-précédente : chacune ajoute un argument.
-
-| version | texte (fr)                            |
-|---------|---------------------------------------|
-| 1.0     | Ma voiture est rapide.                |
-| 1.1     | + la définition de « rapide »         |
-| 1.2     | + le 0 à 100 mesuré                   |
-| 1.3     | + la généralisation au modèle         |
-
-Les huit définitions et exemples de « La méthode scientifique » sont encore des
-brouillons :
-
-```clojure
-{:name \"enonce-universel\" :major 1 :content {:title \"Énoncé universel\" …}}
-```
-
-### Liens
-
-- `agora.entity.document` : une version est un état d'un document.
-- `agora.value.name` : les versions d'un document partagent son nom."}}
+   "### Définition\n\nUn document évolue par **versions**. Une version se note `major.minor`, par exemple `1.3`.\n\n- La **version majeure** (`:major`) change quand le changement est **cassant** : ce qui\n  s'appuyait sur la version précédente pourrait ne plus tenir.\n- La **version mineure** (`:minor`) change pour un changement **non cassant** : préciser,\n  corriger, compléter.\n\nUne version publiée est **immuable**. Pour changer un document publié, on en écrit une\nnouvelle version.\n\nUn **brouillon** est une version en cours d'écriture : une version **sans mineure**, sans\nclé `:minor`. Il se modifie sur place. Le publier lui donne sa mineure et le fige.\n\n### Buts\n\n- Améliorer un écrit sans casser ce qui le cite.\n- Garder l'historique : chaque version publiée reste lisible.\n- Travailler un texte avant de s'engager sur son contenu.\n\n### Exemples\n\nL'article `ma-voiture-est-rapide` a quatre versions mineures. Aucune ne casse la\nprécédente : chacune ajoute un argument.\n\n| version | texte (fr)                            |\n|---------|---------------------------------------|\n| 1.0     | Ma voiture est rapide.                |\n| 1.1     | + la définition de « rapide »         |\n| 1.2     | + le 0 à 100 mesuré                   |\n| 1.3     | + la généralisation au modèle         |\n\nLes huit définitions et exemples de « La méthode scientifique » sont encore des\nbrouillons :\n\n```clojure\n{:name \"enonce-universel\" :major 1 :content {:title \"Énoncé universel\" …}}\n```\n\n### Liens\n\n- `agora.entity.document` : une version est un état d'un document.\n- `agora.value.name` : les versions d'un document partagent son nom."}}
  :rules
  {:citation/inputs
   {:en-hash "91925e25a3f0"
@@ -1238,12 +184,13 @@ brouillons :
    :fr
    "une objection invoque une objection que le type de sa cible prévoit, et ne cite que des documents des types qui peuvent l'appuyer"}
   :objection/shape
-  {:en-hash "c6665b141e9c"
+  {:en-hash "385823e679bb"
    :fr
-   "une objection suit sa grammaire : type :objection, une langue, une majeure et pas de mineure, un titre, un texte, une :reason, un statut :draft ou :closed, un propriétaire, un seul {:id} visé, ses citations d'appui"}
-  :objection/status {:en-hash "d8cf21b9069c"
-                     :fr
-                     "une objection est fermée exactement quand une publication fermée y répond"}
+   "une objection suit sa grammaire : type :objection, une langue, une majeure et pas de mineure, un titre, un texte, une :reason, un statut :draft, :closed ou :canceled, un propriétaire, un seul {:id} visé, ses citations d'appui"}
+  :objection/status
+  {:en-hash "feb2ed4e0f95"
+   :fr
+   "une objection fermée reçoit la réponse d'une publication fermée ; une objection en attente, non ; une objection annulée, peut-être"}
   :objection/target
   {:en-hash "e4e5a7e21550"
    :fr "une objection désigne par son :id une version publiée d'un document, dans sa langue"}
