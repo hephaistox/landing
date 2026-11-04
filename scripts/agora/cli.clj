@@ -279,10 +279,11 @@
      (b/bling [:bold.green "  ✔ "] [:green verb] " " [:gray (name kind)] "  " (label repo x)))))
 
 (defn- refusal-explanation
-  "The line of the docstring of `action-var` explaining `reason`, or nil."
+  "The item of the docstring of `action-var` explaining `reason`, or nil."
   [action-var reason]
   (some->> (:doc (meta action-var))
-           str/split-lines
+           (#(str/split % #"\n\s*-\s+"))
+           (map #(str/join " " (map str/trim (str/split-lines %))))
            (some #(when (str/includes? % (str "`" reason "`"))
                     (-> %
                         (str/replace #"^\s*-\s*" "")
@@ -423,6 +424,8 @@
   (reduce
    (fn [m [k props schema]]
      (cond
+       (and (map? (get fixed k)) (vector? schema) (= :map (first schema)))
+       (assoc m k (value-map repo (merge ctx m) schema (get default k) (get fixed k)))
        (contains? fixed k) (let [v (get fixed k)
                                  m (assoc m k v)]
                              (if-let [target (target-of repo k v)]
@@ -576,12 +579,22 @@
   [repo u]
   (tagged (str "user:" (:id u)) [:bold.cyan "👤 "] [:bold (person-name repo u)]))
 
+(def ^:private shortcuts
+  "Screen actions that are another action with values already set, and what they say."
+  {"new-major" ["write-draft" "a new major of this document, in one of your open publications"]
+   "new-minor" ["write-draft"
+                "a new minor of this document, yours, in one of your open publications"]})
+
+(defn- action-var
+  [label]
+  (let [n (first (shortcuts label [label]))] ((actions) (symbol (str "agora.action." n) n))))
+
 (defn- action-item
-  [action-name]
-  (tagged (str "act:" action-name)
+  [label]
+  (tagged (str "act:" label)
           [:bold.yellow "⚡ "]
-          [:yellow (format "%-20s" action-name)]
-          [:gray (summary ((actions) (symbol (str "agora.action." action-name) action-name)))]))
+          [:yellow (format "%-20s" label)]
+          [:gray (or (second (shortcuts label)) (summary (action-var label)))]))
 
 (def ^:private back-item (tagged "back" [:gray "← back"]))
 
@@ -611,11 +624,22 @@
     (if (zero? exit) (first (str/split (str/trim out) #"\t")) "back")))
 
 (defn- doc-actions
-  [repo d]
+  [repo by d]
   (let [p (pub-of repo d)
-        pref {:id (:id p)}]
+        pref {:id (:id p)}
+        lineage (filter #(= ((juxt :type :name :lang) d) ((juxt :type :name :lang) %))
+                        (publication/documents (:publications repo)))
+        draft-of (fn [major]
+                   {:draft {:type (:type d)
+                            :name (:name d)
+                            :major major}})]
     (if (:minor d)
-      (cond-> [["object" {:version {:id (:id d)}}]]
+      (cond-> [["new-major"
+                (draft-of (inc (apply max (map :major lineage))))
+                {:draft {:content (:content d)}}]]
+        (= by (:owner d)) (conj
+                           ["new-minor" (draft-of (:major d)) {:draft {:content (:content d)}}])
+        true (conj ["object" {:version {:id (:id d)}}])
         (type/timestamp? (:type d)) (conj ["prepare-timestamp" {:version {:id (:id d)}}])
         (:timestamp d) (conj ["record-timestamp" {:version {:id (:id d)}}]))
       [["edit-draft" {:publication pref} {:draft (select-keys d [:id :content])}]
@@ -646,11 +670,12 @@
       [])))
 
 (defn- run-from-screen
-  "Runs the action `action-name` with the values the screen knows."
-  [repo by [action-name fixed default]]
-  (let [v ((actions) (symbol (str "agora.action." action-name) action-name))]
+  "Runs the action labelled `label` with the values the screen knows."
+  [repo by [label fixed default]]
+  (let [v (action-var label)]
     (println)
-    (println (b/bling [:bold.yellow (str "⚡ " action-name)] [:gray (str "  " (summary v))]))
+    (println (b/bling [:bold.yellow (str "⚡ " label)]
+                      [:gray (str "  " (or (second (shortcuts label)) (summary v)))]))
     (perform! repo by v (parameters repo v fixed default))))
 
 (defn navigate
@@ -664,7 +689,7 @@
           up (if (> (count stack) 1) (pop stack) stack)
           acts (case kind
                  :pub (pub-actions (pub-by-id repo id))
-                 :doc (doc-actions repo (doc-by-id repo id))
+                 :doc (doc-actions repo by (doc-by-id repo id))
                  :obj (obj-actions (obj-by-id repo id))
                  :user (when (= by {:id id}) [["rename-user" {}] ["erase-account" {}]])
                  :pubs [["open-publication" {}]]
@@ -772,8 +797,11 @@
   (let [[t v] (str/split (str tag) #":" 2)]
     (case t
       ("pub" "doc" "obj" "user") (detail repo v)
-      "act" (when-let [a ((actions) (symbol (str "agora.action." v) v))]
+      "act" (when-let [a (action-var v)]
               (println (b/bling [:bold.yellow v]))
+              (when-let [[n why] (shortcuts v)]
+                (println (b/bling [:gray (str why " — the action " n ":")]))
+                (println))
               (println (:doc (meta (the-ns (symbol (namespace (symbol a)))))))
               (println)
               (println (:doc (meta a))))
