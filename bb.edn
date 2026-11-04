@@ -7,6 +7,15 @@
   :requires [[auto-build.os.exit-codes]
              [auto-build.os.exiting :refer [exit]]
              [auto-build.echo :refer [level1-header]]]
+  agora
+  {:doc
+   "Agora from the command line: run the domain's actions on a local repository (bb agora help)"
+   :extra-deps {com.github.hephaistox/auto-core {:git/sha "c170d425edcae7730253994382bf3960ed5e247f"
+                                                 :git/url "https://github.com/hephaistox/auto-core"}
+                io.github.paintparty/bling {:mvn/version "0.10.0"}}
+   :extra-paths ["src"]
+   :requires [[agora.cli :as agora-cli]]
+   :task (apply agora-cli/-main *command-line-args*)}
   bp {:doc "To fail fast before git pushing a version"
       :requires [[auto-build.tasks.deps :as td]]
       :task (binding [exit (fn [exit-code & _] (when-not (zero? exit-code) exit-code))]
