@@ -1,8 +1,14 @@
     <p class="w3-hide-small w3-hide-medium" style="height:1px;margin-bottom:1px;margin-top:1px;"></p>
-    <div class="w3-sidebar w3-bar-block w3-collapse w3-padding w3-animate-left w3-small l2" id="menu-sidebar" style="z-index:0;">
-      <a class="w3-bar-item w3-button" data-link-name="home" href="{LANG_ROOT}index.html">Accueil</a>
-      <hr>
-      <a class="w3-bar-item w3-button" data-link-name="rivalis" href="{LANG_ROOT}articles/rivalis.html">Conseil aux TPEs</a><a class="w3-bar-item w3-button" data-link-name="projets" href="{LANG_ROOT}articles/projets.html">Projets informatique</a>
-      <hr>
-      <a class="w3-bar-item w3-button" data-link-name="hephaistox" href="{LANG_ROOT}articles/hephaistox.html">Hephaistox</a><a class="w3-bar-item w3-button" data-link-name="contacts" href="{LANG_ROOT}articles/contacts.html">Contact</a><a class="w3-bar-item w3-button" data-link-name="about-this-website" href="{LANG_ROOT}articles/about-site.html">A propos de ce site</a><button class="w3-button w3-large w3-display-topright w3-cell w3-hide-large" onclick="document.getElementById(&quot;menu-sidebar&quot;).style.display = &quot;none&quot;;"><i class="fa fa-times"></i></button>
-    </div>
+    <nav class="w3-sidebar w3-bar-block w3-collapse w3-animate-left w3-small l2" id="menu-sidebar" style="z-index:0;">
+      <a class="w3-bar-item w3-button" data-link-name="home" href="{LANG_ROOT}index.html"><i class="fa fas fa-house fa-fw"></i> Accueil</a>
+      <p class="menu-section">Services</p>
+      <a class="w3-bar-item w3-button" data-link-name="rivalis" href="{LANG_ROOT}articles/rivalis.html"><i class="fa fas fa-handshake fa-fw"></i> Conseil aux TPEs</a>
+      <a class="w3-bar-item w3-button" data-link-name="projets" href="{LANG_ROOT}articles/projets.html"><i class="fa fas fa-diagram-project fa-fw"></i> Projets informatique</a>
+      <a class="w3-bar-item w3-button" data-link-name="realisations" href="{LANG_ROOT}articles/realisations.html"><i class="fa fas fa-star fa-fw"></i> Réalisations</a>
+      <p class="menu-section">À propos</p>
+      <a class="w3-bar-item w3-button" data-link-name="hephaistox" href="{LANG_ROOT}articles/hephaistox.html"><i class="fa fas fa-hammer fa-fw"></i> Hephaistox</a>
+      <a class="w3-bar-item w3-button" data-link-name="contacts" href="{LANG_ROOT}articles/contacts.html"><i class="fa fas fa-envelope fa-fw"></i> Contact</a>
+      <a class="w3-bar-item w3-button" data-link-name="about-this-website" href="{LANG_ROOT}articles/about-site.html"><i class="fa fas fa-circle-info fa-fw"></i> A propos de ce site</a>
+      <button class="w3-button w3-large w3-display-topright w3-cell w3-hide-large" onclick="document.getElementById(&quot;menu-sidebar&quot;).style.display = &quot;none&quot;;"><i class="fa fa-times"></i></button>
+    </nav>
+    <script src="/js/menu.js"></script>

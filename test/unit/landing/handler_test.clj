@@ -133,6 +133,7 @@
 (def article-slugs
   ["rivalis"
    "projets"
+   "realisations"
    "hephaistox"
    "who-are-we"
    "contacts"

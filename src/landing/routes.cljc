@@ -13,6 +13,15 @@
      {:link-id :projets
       :text :projets
       :url "/fr/articles/projets.html"}
+     {:link-id :realisations
+      :text :realisations
+      :url "/fr/articles/realisations.html"}
+     {:url "https://app-48779a28-64d4-4a25-b98e-797dc112c45b.cleverapps.io/"
+      :link-id :box63}
+     {:url "https://himalaya-vichy.fr/"
+      :link-id :himalaya}
+     {:url "https://escalierblues.anthony-hephaistox.workers.dev/#concerts"
+      :link-id :escaliers-blues}
      {:link-id :hephaistox
       :text :hephaistox
       :url "/fr/articles/hephaistox.html"}

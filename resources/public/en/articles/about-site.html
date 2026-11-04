@@ -34,13 +34,19 @@
   <div class="w3-col m3 l2" id="left-menu-placeholder">
     <!-- BEGIN:LEFT-MENU -->
     <p class="w3-hide-small w3-hide-medium" style="height:1px;margin-bottom:1px;margin-top:1px;"></p>
-    <div class="w3-sidebar w3-bar-block w3-collapse w3-padding w3-animate-left w3-small l2" id="menu-sidebar" style="z-index:0;">
-      <a class="w3-bar-item w3-button" data-link-name="home" href="../index.html">Home</a>
-      <hr>
-      <a class="w3-bar-item w3-button" data-link-name="rivalis" href="../articles/rivalis.html">Small entreprise coaching</a><a class="w3-bar-item w3-button" data-link-name="projets" href="../articles/projets.html">IT project</a>
-      <hr>
-      <a class="w3-bar-item w3-button" data-link-name="hephaistox" href="../articles/hephaistox.html">Hephaistox</a><a class="w3-bar-item w3-button" data-link-name="contacts" href="../articles/contacts.html">Contact</a><a class="w3-bar-item w3-button" data-link-name="about-this-website" href="../articles/about-site.html">About this website</a><button class="w3-button w3-large w3-display-topright w3-cell w3-hide-large" onclick="document.getElementById(&quot;menu-sidebar&quot;).style.display = &quot;none&quot;;"><i class="fa fa-times"></i></button>
-    </div>
+    <nav class="w3-sidebar w3-bar-block w3-collapse w3-animate-left w3-small l2" id="menu-sidebar" style="z-index:0;">
+      <a class="w3-bar-item w3-button" data-link-name="home" href="../index.html"><i class="fa fas fa-house fa-fw"></i> Home</a>
+      <p class="menu-section">Services</p>
+      <a class="w3-bar-item w3-button" data-link-name="rivalis" href="../articles/rivalis.html"><i class="fa fas fa-handshake fa-fw"></i> Small entreprise coaching</a>
+      <a class="w3-bar-item w3-button" data-link-name="projets" href="../articles/projets.html"><i class="fa fas fa-diagram-project fa-fw"></i> IT project</a>
+      <a class="w3-bar-item w3-button" data-link-name="realisations" href="../articles/realisations.html"><i class="fa fas fa-star fa-fw"></i> Achievements</a>
+      <p class="menu-section">About</p>
+      <a class="w3-bar-item w3-button" data-link-name="hephaistox" href="../articles/hephaistox.html"><i class="fa fas fa-hammer fa-fw"></i> Hephaistox</a>
+      <a class="w3-bar-item w3-button" data-link-name="contacts" href="../articles/contacts.html"><i class="fa fas fa-envelope fa-fw"></i> Contact</a>
+      <a class="w3-bar-item w3-button" data-link-name="about-this-website" href="../articles/about-site.html"><i class="fa fas fa-circle-info fa-fw"></i> About this website</a>
+      <button class="w3-button w3-large w3-display-topright w3-cell w3-hide-large" onclick="document.getElementById(&quot;menu-sidebar&quot;).style.display = &quot;none&quot;;"><i class="fa fa-times"></i></button>
+    </nav>
+    <script src="/js/menu.js"></script>
 <!-- END:LEFT-MENU -->
   </div>
   <div class="w3-col s12 m12 l10" id="article-content">

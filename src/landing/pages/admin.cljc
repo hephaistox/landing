@@ -41,6 +41,7 @@
   [[:home "index.html"]
    [:rivalis "articles/rivalis.html"]
    [:projets "articles/projets.html"]
+   [:realisations "articles/realisations.html"]
    [:hephaistox "articles/hephaistox.html"]
    [:contacts "articles/contacts.html"]
    [:about-site "articles/about-site.html"]

@@ -54,4 +54,41 @@ html { scroll-behavior: smooth;}
 @media (min-width: 993px) {
   #left-menu-placeholder { width: 200px; }
   #article-content       { width: calc(100% - 200px); }
+  /* A gap between the menu panel and the content, wider on wider screens. */
+  #article-content       { padding-left: clamp(1.5rem, 4vw, 5rem); }
 }
+
+/* Left menu: a light panel, sections, the current page marked. */
+#menu-sidebar {
+  padding: 1.5em 0.75em !important;
+  border-right: 1px solid #e3e6ea;}
+#menu-sidebar .menu-section {
+  margin: 1.4em 12px 0.4em;
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a9099;}
+#menu-sidebar .w3-bar-item {
+  margin: 2px 0;
+  padding: 8px 12px;
+  border-left: 3px solid transparent;
+  border-radius: 0 6px 6px 0;
+  transition: background-color 0.15s, border-color 0.15s;}
+#menu-sidebar .w3-bar-item i {
+  margin-right: 6px;
+  color: #f44336;}
+#menu-sidebar .w3-bar-item:hover {
+  background-color: rgba(244, 67, 54, 0.08) !important;
+  border-left-color: rgba(244, 67, 54, 0.5);}
+#menu-sidebar .w3-bar-item[aria-current="page"] {
+  background-color: rgba(244, 67, 54, 0.12) !important;
+  border-left-color: #f44336;
+  font-weight: 600;}
+@media (prefers-color-scheme: light) {
+  #menu-sidebar {
+    background-color: #f7f8fa !important;}}
+@media (prefers-color-scheme: dark) {
+  #menu-sidebar {
+    background-color: #1b1d22 !important;
+    border-right-color: #2a2d33;}}
