@@ -1,0 +1,314 @@
+;; Use case: editing an objection.
+;;
+;; The author of a pending objection replaces what it says: title, text, reason, backing
+;; citations. Its name, language, major and target stay. Once a publication declares to
+;; answer it, it is frozen: to say something else, its author writes another objection.
+;!zprint {:map {:sort? false}}
+[;; ********************************************************************************
+ {:description "Hephaistox2 makes his pending objection « Et le modèle en général ? » more precise."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+    :content
+    {:reason :omission
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output
+  {:description "The objection says it differently; its name, language, major and target stay."
+   :changed
+   {:objections
+    [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"
+      :type :objection
+      :name "et-le-modele-en-general"
+      :lang :fr
+      :major 2
+      :status :draft
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+      :content
+      {:reason :omission
+       :title "Et le modèle en général ?"
+       :text
+       "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+       :published-at #inst "2026-10-29T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox2 changes the reason of his objection: the article is unclear, rather than omitting something."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter {:description "The objection, and what it now says."
+              :data {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+                     :content
+                     {:reason :unclear
+                      :title "Une conclusion obscure"
+                      :text
+                      "La dernière phrase, sur le modèle en général, est difficile à comprendre."
+                      :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output
+  {:description "Another reason the article predefines: allowed while nobody answers."
+   :changed {:objections
+             [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"
+               :type :objection
+               :name "et-le-modele-en-general"
+               :lang :fr
+               :major 2
+               :status :draft
+               :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+               :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+               :content {:reason :unclear
+                         :title "Une conclusion obscure"
+                         :text
+                         "La dernière phrase, sur le modèle en général, est difficile à comprendre."
+                         :published-at #inst "2026-10-29T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description
+  "Hephaistox2 tries to edit his objection, which an open publication of Agora declares to answer."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published. Agora's open « Exemple pédagogique 5 » declares to answer it."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:publications
+    [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70"
+      :type :publication
+      :name "exemple-pedagogique-5"
+      :lang :fr
+      :major 1
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :answers [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}]
+      :documents
+      [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+        :type :article
+        :name "ma-voiture-est-rapide"
+        :lang :fr
+        :major 1
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Ma voiture est rapide"
+         :text
+         "Ma voiture est rapide. Par « rapide », j'entends atteindre 100 km/h en moins de 5 secondes ([[definition:rapide:fr@1|définition]]). Or elle l'atteint en 4,2 s ([[measurable-fact:le-0-a-100-mesure:fr@1|le chrono]]) — donc elle est rapide. Et ce n'est pas un cas isolé : plusieurs exemplaires testés l'étaient aussi, donc le modèle entier est rapide ([[induction:ce-modele-est-rapide:fr@1|généralisation]]). Et le modèle en général : voir la mesure du constructeur."
+         :inputs [{:type :definition
+                   :name "rapide"
+                   :lang :fr
+                   :major 1}
+                  {:type :measurable-fact
+                   :name "le-0-a-100-mesure"
+                   :lang :fr
+                   :major 1}
+                  {:type :induction
+                   :name "ce-modele-est-rapide"
+                   :lang :fr
+                   :major 1}]
+         :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]
+      :content {:title "Exemple pédagogique 5"
+                :text "Répond : et le modèle en général ?"
+                :published-at #inst "2026-10-28T11:00:00.000-00:00"}}]}}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+    :content
+    {:reason :omission
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output
+  {:description
+   "Refused: the answer was prepared from what the objection said; to say something else, he writes another objection."
+   :error {:reason :objection-answered}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 tries to edit « Que veut dire « rapide » ? », already answered."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "d6f0a3c2-6f1b-4c41-9a51-1f3e0c2a7b11"}
+    :content
+    {:reason :omission
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output {:description "Refused: the objection is no longer pending."
+           :error {:reason :objection-closed}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 tries to edit his canceled objection."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description "The story of the home page; Hephaistox2 canceled « Et le modèle en général ? »."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]
+   :repository
+   {:objections
+    [{:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"
+      :type :objection
+      :name "et-le-modele-en-general"
+      :lang :fr
+      :major 2
+      :status :canceled
+      :owner {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+      :documents [{:id #uuid "dddddddd-0000-0000-0000-000020010103"}]
+      :content
+      {:reason :omission
+       :title "Et le modèle en général ?"
+       :text
+       "Passer de ta voiture à tout le modèle est un saut : combien d'exemplaires as-tu testés, et comment les as-tu choisis ?"
+       :published-at #inst "2026-08-28T12:39:01.000-00:00"}}]}}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+    :content
+    {:reason :omission
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output {:description "Refused: a canceled objection is no longer pending."
+           :error {:reason :objection-canceled}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to edit the objection of Hephaistox2."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+    :content
+    {:reason :omission
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output {:description "Refused: only its author edits an objection."
+           :error {:reason :not-the-owner}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 gives his objection a reason an article does not predefine."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+    :content
+    {:reason :inexact
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output {:description
+           "Refused: an article is contested as unclear, unbalanced or for an omission."
+           :error {:reason :unknown-reason}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 finds the article unbalanced, backed by a definition."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+          :content {:reason :unbalanced
+                    :title "Une conclusion obscure"
+                    :text
+                    "La dernière phrase, sur le modèle en général, est difficile à comprendre."
+                    :inputs [{:type :definition
+                              :name "rapide"
+                              :lang :fr
+                              :major 1}]
+                    :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output {:description "Refused: an unbalanced article is backed by another article."
+           :error {:reason :invalid-backing}}}
+ ;; ********************************************************************************
+ {:description "Someone not logged in edits an objection."
+  :by :anonymous
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+    :content
+    {:reason :omission
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output {:description "Refused: one must be logged in."
+           :error {:reason :not-logged-in}}}
+ ;; ********************************************************************************
+ {:description "Someone logged in with an id no user has (9e2b7c41…) edits an objection."
+  :by {:id #uuid "9e2b7c41-3d5a-4f86-b1c0-7a4e2d9f6b13"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "2f7d9b14-5e8a-4c3b-9d61-7a0e4c8b2f44"}
+    :content
+    {:reason :omission
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output {:description "Refused: no user has this id."
+           :error {:reason :unknown-user}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox2 edits an objection that does not exist."
+  :by {:id #uuid "8e2ad0d5-c936-49ca-ada3-9e7dd84d13a9"}
+  :action agora.action.edit-objection/edit-objection
+  :input
+  {:description
+   "The story of the home page: the objection « Et le modèle en général ? » of Hephaistox2 is pending, in its major 2, on the article 1.3; « Que veut dire « rapide » ? » is closed. The type vocabulary is published."
+   :snapshots ["my-car-is-fast.edn" "type-vocabulary.edn"]}
+  :parameter
+  {:description "The objection, and what it now says."
+   :data
+   {:objection {:id #uuid "3f6d2b8e-7a1c-4e59-9d04-b2c8e1a7f635"}
+    :content
+    {:reason :omission
+     :title "Et le modèle en général ?"
+     :text
+     "L'article parle de ma voiture ; mais le modèle en général, est-il rapide ? Aucune mesure ne le dit."
+     :published-at #inst "2026-10-29T09:00:00.000-00:00"}}}
+  :output {:description "Refused: no objection has this id."
+           :error {:reason :unknown-objection}}}]
