@@ -47,10 +47,12 @@ Its owner is \"Agora\".
 - `agora.entity.user`: a user writes the document.
 - `agora.value.lang`: every document is in one language."
   (:require
+   [agora.entity.user     :as user]
    [agora.value.citation  :as citation]
    [agora.value.identity  :as identity]
    [agora.value.reference :as reference]
    [agora.value.timestamp :as timestamp]
+   [agora.value.type      :as type]
    [auto-core.schema      :as schema]))
 
 ;; ---------------------------------------------------------------------------
@@ -110,4 +112,13 @@ Its owner is \"Agora\".
                    :when error]
                {:rule :document/shape
                 :subject d
-                :detail (:error error)}))}])
+                :detail (:error error)}))}
+   {:id :document/vocabulary
+    :description "a type description, draft included, belongs to Agora"
+    :check (fn [documents]
+             (for [d documents
+                   :when (and (type/description? d)
+                              (not= (get-in user/agora [:user :id]) (get-in d [:owner :id])))]
+               {:rule :document/vocabulary
+                :subject (select-keys d [:type :name :lang :major :minor])
+                :detail (:owner d)}))}])

@@ -98,6 +98,14 @@ email, no password."
           :provider :password
           :provider-id "anonymus"}})
 
+(def agora
+  "The account holding the contents of the platform. It owns the vocabulary of types."
+  {:person {:id #uuid "00000000-0000-0000-0000-000000000001"
+            :name "Agora"}
+   :user {:id #uuid "00000000-0000-0000-0000-000000000001"
+          :provider :password
+          :provider-id "agora"}})
+
 (defn reserved?
   "Does the name `display-name`, or the account at `provider`, belong to Anonymus?"
   ([display-name] (= (name-key display-name) (name-key (get-in anonymus [:person :name]))))

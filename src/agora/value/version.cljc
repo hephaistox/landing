@@ -43,9 +43,7 @@ The eight definitions and examples of \"La méthode scientifique\" are still dra
 ## Links
 
 - `agora.entity.document`: a version is a state of a document.
-- `agora.value.name`: the versions of a document share its name."
-  (:require
-   [agora.value.type :as type]))
+- `agora.value.name`: the versions of a document share its name.")
 
 ;; ---------------------------------------------------------------------------
 ;; Domain
@@ -76,11 +74,4 @@ The eight definitions and examples of \"La méthode scientifique\" are still dra
                    :when (and (contains? d :minor) (not (nat-int? (:minor d))))]
                {:rule :version/minor
                 :subject d
-                :detail (:minor d)}))}
-   {:id :version/described-types-published
-    :description "type descriptions are published"
-    :check (fn [documents]
-             (for [d documents
-                   :when (and (type/description? d) (draft? d))]
-               {:rule :version/described-types-published
-                :subject d}))}])
+                :detail (:minor d)}))}])

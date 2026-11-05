@@ -1179,4 +1179,105 @@
   :output
   {:description
    "Refused: a new minor is for the owner of the major, or Hephaistox would change what the readers of rapide@1 read."
-   :error {:reason :not-the-lineage-owner}}}]
+   :error {:reason :not-the-lineage-owner}}}
+ ;; ********************************************************************************
+ {:description "Agora writes the next major of « type-definition »: the vocabulary is its own."
+  :by {:id #uuid "00000000-0000-0000-0000-000000000001"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description "The type vocabulary is published; Agora opened its major 2."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+                                :type :publication
+                                :name "vocabulaire-des-types"
+                                :lang :fr
+                                :major 2
+                                :status :open
+                                :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+                                :contributors []
+                                :documents []
+                                :content {:title "Vocabulaire des types"
+                                          :text "Précise la définition d'une définition."
+                                          :published-at #inst "2026-11-05T09:00:00.000-00:00"}}]}}
+  :parameter
+  {:description "The publication, and a draft of « type-definition », major 2."
+   :data
+   {:publication {:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"}
+    :draft
+    {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a"
+     :type :definition
+     :name "type-definition"
+     :major 2
+     :content
+     {:title "Définition"
+      :text
+      "un contrat sémantique qui fixe le sens d'un terme ; les autres énoncés y renvoient par citation."
+      :inputs []
+      :published-at #inst "2026-11-05T09:30:00.000-00:00"}}}}
+  :output
+  {:description "The publication holds the draft, owned by Agora."
+   :changed
+   {:publications
+    [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+      :type :publication
+      :name "vocabulaire-des-types"
+      :lang :fr
+      :major 2
+      :status :open
+      :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+      :contributors []
+      :documents
+      [{:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a"
+        :type :definition
+        :name "type-definition"
+        :lang :fr
+        :major 2
+        :owner {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        :content
+        {:title "Définition"
+         :text
+         "un contrat sémantique qui fixe le sens d'un terme ; les autres énoncés y renvoient par citation."
+         :inputs []
+         :published-at #inst "2026-11-05T09:30:00.000-00:00"}}]
+      :content {:title "Vocabulaire des types"
+                :text "Précise la définition d'une définition."
+                :published-at #inst "2026-11-05T09:00:00.000-00:00"}}]}}}
+ ;; ********************************************************************************
+ {:description "Hephaistox tries to write the next major of « type-definition »."
+  :by {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+  :action agora.action.write-draft/write-draft
+  :input
+  {:description
+   "The type vocabulary is published; Hephaistox opened his own publication, in French."
+   :snapshots ["type-vocabulary.edn"]
+   :repository {:publications [{:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
+                                :type :publication
+                                :name "mon-vocabulaire"
+                                :lang :fr
+                                :major 1
+                                :status :open
+                                :owner {:id #uuid "61a3d5a4-a94a-4e02-9e1e-0db6f5c03503"}
+                                :contributors []
+                                :documents []
+                                :content {:title "Mon vocabulaire"
+                                          :text "Précise la définition d'une définition."
+                                          :published-at #inst "2026-11-05T09:00:00.000-00:00"}}]}}
+  :parameter
+  {:description "His publication, and a draft of « type-definition », major 2."
+   :data
+   {:publication {:id #uuid "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"}
+    :draft
+    {:id #uuid "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a"
+     :type :definition
+     :name "type-definition"
+     :major 2
+     :content
+     {:title "Définition"
+      :text
+      "un contrat sémantique qui fixe le sens d'un terme ; les autres énoncés y renvoient par citation."
+      :inputs []
+      :published-at #inst "2026-11-05T09:30:00.000-00:00"}}}}
+  :output
+  {:description
+   "Refused: the vocabulary of types belongs to Agora; anyone else would redefine it for everyone."
+   :error {:reason :vocabulary-of-agora}}}]

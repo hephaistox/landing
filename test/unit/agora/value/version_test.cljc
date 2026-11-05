@@ -22,6 +22,4 @@
   (testing "a minor that is not a number"
     (is ((broken [{:name "rapide"
                    :minor "1"}])
-         :version/minor)))
-  (testing "a type described by a draft"
-    (is ((broken [{:name "type-work"}]) :version/described-types-published))))
+         :version/minor))))

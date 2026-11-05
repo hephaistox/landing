@@ -8,8 +8,10 @@
 
   `bb agora help` lists the commands."
   (:require
+   [agora.entity.objection   :as objection]
    [agora.entity.publication :as publication]
    [agora.repository         :as repository]
+   [agora.value.name         :as name]
    [agora.value.type         :as type]
    [babashka.fs              :as fs]
    [babashka.process         :as p]
@@ -324,9 +326,24 @@
 
 (defn yes? [prompt] (= "yes" (fzf prompt ["no" "yes"])))
 
+(defn- doc-by-id
+  [repo id]
+  (some #(when (= id (:id %)) %) (publication/documents (:publications repo))))
+
+(defn- pub-of [repo d] (publication/from-publication (:publications repo) d))
+
+(defn- obj-by-id [repo id] (some #(when (= id (:id %)) %) (:objections repo)))
+
+(defn- pub-by-id [repo id] (some #(when (= id (:id %)) %) (:publications repo)))
+
 ;; ---------------------------------------------------------------------------
-;; Parameters, from the grammar of an action
+;; Parameters, from the grammar of an action and what the screen knows
 ;; ---------------------------------------------------------------------------
+
+;; `ctx` carries what is known while the parameters are asked: who acts (`::by`), the
+;; action (`::action`), the values the screen fixed (`::fixed`), the version an objection
+;; contests (`::target`), the reason picked (`::reason`). Every pick offers only what makes
+;; sense there; a single candidate is taken without asking.
 
 (defn- children
   "`[key props schema]` of a `[:map …]` grammar."
@@ -343,69 +360,23 @@
 
 (defn- drafts [repo] (remove :minor (publication/documents (:publications repo))))
 
-(defn- reference
-  "Picks the entity `k` designates, as `{:id}`."
-  [repo k]
-  (let [[xs prompt] (case k
-                      :publication [(:publications repo) "publication"]
-                      :objection [(:objections repo) "objection"]
-                      :version [(published-versions repo) "published version"]
-                      :draft [(drafts repo) "draft"]
-                      :contributor
-                      [(filter #(some #{(:id %)} (map :id (:users repo))) (:persons repo)) "user"]
-                      [nil (name k)])]
-    (if (seq xs)
-      (select-keys (pick prompt xs #(label repo %)) [:id])
-      (do (println (b/bling [:italic.gray (str "  nothing to pick as " prompt)])) nil))))
+(defn- writes-in?
+  "Does `by` write in the publication `p`, open, as its owner or a contributor?"
+  [by p]
+  (and (publication/open? p) (some #{by} (cons (:owner p) (:contributors p)))))
 
-(defn- citation
-  "Picks a citation: a published version by tnlr, or a draft by id."
-  [repo]
-  (let [choices (concat (for [d (published-versions repo)]
-                          [(str "tnlr  " (version-label d))
-                           (select-keys d [:type :name :lang :major])])
-                        (for [d (drafts repo)] [(str "draft " (version-label d)) {:id (:id d)}]))]
-    (when (seq choices) (second (pick "cite" choices first)))))
+(defn- lineage-of
+  [repo d]
+  (filter #(= ((juxt :type :name :lang) d) ((juxt :type :name :lang) %))
+          (publication/documents (:publications repo))))
 
-(declare value value-map)
-
-(defn- enum-values [schema] (when (and (vector? schema) (= :enum (first schema))) (rest schema)))
-
-(defn- value
-  "A value for `k` following `schema`, picked or typed; `default` proposed."
-  [repo ctx k schema default]
-  (let [schema (if (and (vector? schema) (#{:and} (first schema))) (second schema) schema)]
-    (cond
-      (= :id k) (or default (random-uuid))
-      (str/ends-with? (name k) "-at") (java.util.Date.)
-      (ref? schema) (reference repo k)
-      (= :inputs k) (loop [acc (vec default)]
-                      (if (yes? (str "add a citation (" (count acc) " so far)"))
-                        (recur (if-let [c (citation repo)]
-                                 (conj acc c)
-                                 acc))
-                        acc))
-      (= :reason k) (let [reasons (some->> (::target-type ctx)
-                                           type/definition-of
-                                           :objections
-                                           (map :id))]
-                      (if (seq reasons)
-                        (keyword (fzf "reason" (map name reasons)))
-                        (keyword (ask "reason"
-                                      (some-> default
-                                              name)))))
-      (enum-values schema) (keyword (fzf (name k) (map name (enum-values schema))))
-      (and (vector? schema) (= := (first schema))) (second schema)
-      (and (vector? schema) (= :map (first schema))) (value-map repo ctx schema default)
-      (#{:int} schema) (parse-long (ask (name k)
-                                        (some-> default
-                                                str)))
-      (and (vector? schema) (= :maybe (first schema)))
-      (let [s (ask (str (name k) " (empty for none)") default)] (when-not (str/blank? s) s))
-      :else (ask (name k) default))))
+(defn- holds-change?
+  "Does the publication `p` hold a later version of `target`?"
+  [p target]
+  (some #(objection/newer? target %) (:documents p)))
 
 (defn- target-of
-  "The version a picked `:version` or `:objection` designates, to offer its type's reasons."
+  "The version a picked `:version` designates, or the one an `:objection` contests."
   [repo k v]
   (let [docs (publication/documents (:publications repo))
         by-id (fn [id] (some #(when (= id (:id %)) %) docs))]
@@ -417,54 +388,263 @@
                           :id by-id)
       nil)))
 
+(defn- latest-target
+  "The version the latest major of the objection `o` contests."
+  [repo o]
+  (let [majors (filter #(= ((juxt :name :lang) o) ((juxt :name :lang) %)) (:objections repo))]
+    (target-of repo :objection (apply max-key :major majors))))
+
+(defn- candidates
+  "`[entities prompt]` that `k` may designate, given `ctx`."
+  [repo ctx k]
+  (let [{by ::by
+         action ::action
+         fixed ::fixed
+         target ::target}
+        ctx
+        me? (map? by)
+        pub (some->> fixed
+                     :publication
+                     :id
+                     (pub-by-id repo))]
+    (case k
+      :publication
+      (let [mine (if me? (filter #(writes-in? by %) (:publications repo)) (:publications repo))]
+        [(if (and (= "answer" action) target)
+           (or (seq (filter #(holds-change? % target) mine)) mine)
+           mine)
+         (if me? "one of your open publications" "publication")])
+      :objection
+      [(case action
+         "unanswer" (filter #(some #{{:id (:id %)}} (:answers pub)) (:objections repo))
+         "answer" (filter #(and (objection/draft? %)
+                                (let [t (target-of repo :objection %)]
+                                  (and t (= by (:owner t)) (or (nil? pub) (holds-change? pub t)))))
+                          (:objections repo))
+         (:objections repo))
+       "objection"]
+      :version [(if (and (= "react" action) target)
+                  (filter #(objection/newer? target %) (filter :minor (lineage-of repo target)))
+                  (published-versions repo))
+                "published version"]
+      :draft [(filter #(or (= by (:owner %))
+                           (and (= "delete-draft" action) (= by (:owner (pub-of repo %)))))
+                      (drafts repo))
+              "draft"]
+      :contributor
+      (let [users (filter #(some #{(:id %)} (map :id (:users repo))) (:persons repo))]
+        [(case action
+           "invite-contributor"
+           (remove #(some #{{:id (:id %)}} (cons (:owner pub) (:contributors pub))) users)
+           "revoke-contributor" (filter #(some #{{:id (:id %)}} (:contributors pub)) users)
+           users)
+         "user"])
+      [nil (name k)])))
+
+(declare open-publication-for!)
+
+(def ^:private new-publication ::new-publication)
+
+(defn- reference
+  "Picks the entity `k` designates, as `{:id}`: among its candidates, the single one taken
+  without asking. Writing a draft, a new publication may be opened for it instead."
+  [repo ctx k]
+  (let [[xs prompt] (candidates repo ctx k)]
+    (if (and (= :publication k) (= "write-draft" (::action ctx)) (map? (::by ctx)))
+      (let [chosen (pick prompt
+                         (concat xs [new-publication])
+                         #(if (= new-publication %) "✚ a new publication for it" (label repo %)))]
+        (cond
+          (= new-publication chosen) (open-publication-for! repo ctx)
+          chosen (select-keys chosen [:id])))
+      (case (count xs)
+        0 (do (println (b/bling [:italic.gray (str "  nothing to pick as " prompt)])) nil)
+        1 (do (println (b/bling [:gray (str "  " prompt ": ")] (label repo (first xs))))
+              (select-keys (first xs) [:id]))
+        (select-keys (pick prompt xs #(label repo %)) [:id])))))
+
+(defn- citation
+  "Picks a citation: a published version by tnlr, or a draft of the same publication by id.
+  Backing an objection, only the types its reason admits."
+  [repo ctx]
+  (let [reason (some-> (::target ctx)
+                       :type
+                       (type/objection-of (::reason ctx)))
+        admitted? (if reason #(contains? (:backed-by reason) (:type %)) (constantly true))
+        pub (some->> ctx
+                     ::fixed :publication
+                     :id (pub-by-id repo))
+        choices (concat (for [d (published-versions repo)
+                              :when (admitted? d)]
+                          [(str "tnlr  " (version-label d))
+                           (select-keys d [:type :name :lang :major])])
+                        (for [d (:documents pub)
+                              :when (not (:minor d))]
+                          [(str "draft " (version-label d)) {:id (:id d)}]))]
+    (when (seq choices) (second (pick "cite" choices first)))))
+
+(declare value-map)
+
+(defn- enum-values [schema] (when (and (vector? schema) (= :enum (first schema))) (rest schema)))
+
+(defn- choose
+  "A keyword among `options`, `default` first."
+  [prompt options default]
+  (keyword (fzf prompt
+                (distinct (map name
+                               (cond->> options
+                                 default (cons default)))))))
+
+(defn- value
+  "A value for `k` following `schema`, picked or typed; `default` proposed."
+  [repo ctx k schema default]
+  (let [schema (if (and (vector? schema) (#{:and} (first schema))) (second schema) schema)]
+    (cond
+      (= :id k) (or default (random-uuid))
+      (str/ends-with? (name k) "-at") (java.util.Date.)
+      (ref? schema) (reference repo ctx k)
+      (= :inputs k) (if (and (seq default)
+                             (not (yes? (str "change its " (count default) " citations?"))))
+                      (vec default)
+                      (loop [acc []]
+                        (if (yes? (str "add a citation (" (count acc) " so far)"))
+                          (recur (if-let [c (citation repo ctx)]
+                                   (conj acc c)
+                                   acc))
+                          acc)))
+      (= :reason k) (let [reasons (some->> (::target ctx)
+                                           :type type/definition-of
+                                           :objections (map :id))]
+                      (if (seq reasons)
+                        (choose "reason" reasons default)
+                        (keyword (ask "reason"
+                                      (some-> default
+                                              name)))))
+      (enum-values schema) (choose (name k) (enum-values schema) default)
+      (and (vector? schema) (= := (first schema))) (second schema)
+      (and (vector? schema) (= :map (first schema))) (value-map repo ctx schema default)
+      (#{:int} schema) (parse-long (ask (name k)
+                                        (some-> default
+                                                str)))
+      (and (vector? schema) (= :maybe (first schema)))
+      (let [s (ask (str (name k) " (empty for none)") default)] (when-not (str/blank? s) s))
+      :else (ask (name k) default))))
+
+(defn- known
+  "What a value just set teaches the next questions."
+  [repo ctx k v]
+  (cond-> ctx
+    (and (= :objection k) v)
+    (assoc ::target
+           (if (= "react" (::action ctx))
+             (latest-target repo (some #(when (= (:id v) (:id %)) %) (:objections repo)))
+             (target-of repo :objection v)))
+    (and (= :version k) v (not= "react" (::action ctx))) (assoc ::target
+                                                                (target-of repo :version v))
+    (= :reason k) (assoc ::reason v)
+    (= :type k) (assoc ::type v)))
+
+(def ^:private only-for
+  "The optional keys that only some types have."
+  {:author #{:work}
+   :editor #{:work}
+   :year #{:work}
+   :url #{:work}
+   :locator #{:extract}})
+
+(defn- irrelevant?
+  "Is the optional key `k` meaningless for the type being written?"
+  [ctx k]
+  (when-let [types (only-for k)] (and (::type ctx) (not (types (::type ctx))))))
+
+(defn- derived
+  "A default the answers already given imply: a name drawn from the title, the next major
+  of a name already taken."
+  [repo ctx m k]
+  (case k
+    :name (if-let [t (get-in m [:content :title])]
+            (name/from-title t)
+            (when-let [t (:title m)]
+              (let [drawn (name/from-title t)
+                    taken (set (keep #(when (= (:lang m) (:lang %)) (:name %))
+                                     (:publications repo)))]
+                (first (remove taken (cons drawn (map #(str drawn "-" %) (iterate inc 2))))))))
+    :major (let [lang (or (some->> ctx
+                                   ::fixed
+                                   :publication
+                                   :id
+                                   (pub-by-id repo)
+                                   :lang)
+                          (:lang m))
+                 majors (map :major (lineage-of repo (assoc m :lang lang)))]
+             (if (seq majors) (inc (apply max majors)) 1))
+    nil))
+
+(defn- in-order
+  "The children of a grammar, the name and the major last: they derive from the title."
+  [grammar]
+  (let [cs (children grammar)
+        late? (comp #{:name :major} first)]
+    (concat (remove late? cs) (filter late? cs))))
+
 (defn value-map
   "A map following the `[:map …]` grammar, key by key: a key of `fixed` takes its value,
-  the others are picked or typed, `default` proposed. An optional key is set on demand."
+  the others are picked or typed, `default` proposed, or a value the answers imply. An
+  optional key is asked only when nothing it starts from is known."
   [repo ctx grammar default & [fixed]]
-  (reduce
-   (fn [m [k props schema]]
-     (cond
-       (and (map? (get fixed k)) (vector? schema) (= :map (first schema)))
-       (assoc m k (value-map repo (merge ctx m) schema (get default k) (get fixed k)))
-       (contains? fixed k) (let [v (get fixed k)
-                                 m (assoc m k v)]
-                             (if-let [target (target-of repo k v)]
-                               (assoc m ::target-type (:type target))
-                               m))
-       (and (:optional props) (not (contains? default k)) (not (yes? (str "set " (name k) "?")))) m
-       :else (let [v (value repo (merge ctx m) k schema (get default k))
-                   m (cond-> m
-                       (some? v) (assoc k v))]
-               (if-let [target (target-of repo k v)]
-                 (assoc m ::target-type (:type target))
-                 m))))
-   {}
-   (children grammar)))
+  (first (reduce
+          (fn [[m ctx] [k props schema]]
+            (cond
+              (and (map? (get fixed k)) (vector? schema) (= :map (first schema)))
+              [(assoc m k (value-map repo ctx schema (get default k) (get fixed k))) ctx]
+              (contains? fixed k) [(assoc m k (get fixed k)) (known repo ctx k (get fixed k))]
+              (and (:optional props)
+                   (not (contains? default k))
+                   (or (map? default) (irrelevant? ctx k) (not (yes? (str "set " (name k) "?")))))
+              [m ctx]
+              :else (let [v (value repo ctx k schema (get default k (derived repo ctx m k)))]
+                      [(cond-> m
+                         (some? v) (assoc k v))
+                       (known repo ctx k v)])))
+          [{} ctx]
+          (in-order grammar))))
 
 (defn- defaults
-  "What an edit starts from: the draft or objection it edits."
-  [repo action-sym]
+  "What an action started from the menu proposes: the draft or objection it edits, the name
+  of who acts."
+  [repo action-sym by]
   (case (name action-sym)
-    "edit-draft" (when-let [r (reference repo :draft)]
+    "edit-draft" (when-let [r (reference repo
+                                         {::by by
+                                          ::action "edit-draft"}
+                                         :draft)]
                    {:draft (select-keys (some #(when (= (:id r) (:id %)) %) (drafts repo))
-                                        [:id :content])})
-    "edit-objection" (when-let [r (reference repo :objection)]
+                                        [:id :author :content])})
+    "edit-objection" (when-let [r (reference repo {::by by} :objection)]
                        {:objection r
                         :content (:content (some #(when (= (:id r) (:id %)) %)
                                                  (:objections repo)))})
+    "rename-user" (when (map? by) {:name (person-name repo by)})
     nil))
 
 (defn parameters
   "The parameters of `action-var`, asked one by one. `fixed` gives the values the screen
-  already knows; `default` proposes the others, else an edit starts from what it edits."
-  ([repo action-var] (parameters repo action-var nil nil))
-  ([repo action-var fixed default]
-   (let [grammar (:parameters (meta action-var))
-         start (or default (when-not fixed (defaults repo (symbol action-var))))
-         o (or (:objection fixed) (:objection start))
-         ctx (when o {::target-type (:type (target-of repo :objection o))})]
-     (walk/postwalk #(if (map? %) (dissoc % ::target-type) %)
-                    (value-map repo ctx grammar start fixed)))))
+  already knows; `default` proposes the others, else what the action starts from."
+  ([repo action-var] (parameters repo action-var nil nil nil nil))
+  ([repo action-var fixed default by extra]
+   (let [action (name (symbol action-var))
+         start (merge (when-not fixed (defaults repo (symbol action-var) by)) default)
+         ctx (reduce-kv #(known repo %1 %2 %3)
+                        (merge extra
+                               {::by by
+                                ::action action
+                                ::fixed fixed})
+                        (merge (select-keys start [:objection]) fixed))]
+     (walk/postwalk
+      #(if (map? %)
+         (apply dissoc % [::target ::reason ::type ::by ::action ::fixed ::base ::gesture])
+         %)
+      (value-map repo ctx (:parameters (meta action-var)) start fixed)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Actions
@@ -544,16 +724,6 @@
     (save-repo! repo)
     (save-by! :anonymous)
     repo))
-
-(defn- doc-by-id
-  [repo id]
-  (some #(when (= id (:id %)) %) (publication/documents (:publications repo))))
-
-(defn- pub-of [repo d] (publication/from-publication (:publications repo) d))
-
-(defn- obj-by-id [repo id] (some #(when (= id (:id %)) %) (:objections repo)))
-
-(defn- pub-by-id [repo id] (some #(when (= id (:id %)) %) (:publications repo)))
 
 (defn- tagged [tag & parts] (str tag "\t" (apply b/bling parts)))
 
@@ -636,13 +806,18 @@
     (if (:minor d)
       (cond-> [["new-major"
                 (draft-of (inc (apply max (map :major lineage))))
-                {:draft {:content (:content d)}}]]
-        (= by (:owner d)) (conj
-                           ["new-minor" (draft-of (:major d)) {:draft {:content (:content d)}}])
+                {:draft (select-keys d [:author :content])}
+                {::base d
+                 ::gesture :new-major}]]
+        (= by (:owner d)) (conj ["new-minor"
+                                 (draft-of (:major d))
+                                 {:draft (select-keys d [:author :content])}
+                                 {::base d
+                                  ::gesture :new-minor}])
         true (conj ["object" {:version {:id (:id d)}}])
         (type/timestamp? (:type d)) (conj ["prepare-timestamp" {:version {:id (:id d)}}])
         (:timestamp d) (conj ["record-timestamp" {:version {:id (:id d)}}]))
-      [["edit-draft" {:publication pref} {:draft (select-keys d [:id :content])}]
+      [["edit-draft" {:publication pref} {:draft (select-keys d [:id :author :content])}]
        ["delete-draft"
         {:publication pref
          :draft {:id (:id d)}}]])))
@@ -666,17 +841,56 @@
   (let [r {:objection {:id (:id o)}}]
     (case (:status o)
       :draft [["edit-objection" r {:content (:content o)}] ["cancel-objection" r] ["answer" r]]
-      :closed [["react" r]]
+      :closed [["react" r {:content (:content o)}]]
       [])))
+
+(defn- open-publication-for!
+  "Opens a publication for the draft about to be written, with its context: the language of
+  its base document, a title and a text drawn from it. Returns it as `{:id}`, or nil when
+  the opening is refused."
+  [repo ctx]
+  (let [v ((actions) 'agora.action.open-publication/open-publication)
+        base (::base ctx)
+        title (-> base
+                  :content
+                  :title)
+        text (when title
+               (if (= :new-minor (::gesture ctx))
+                 (str "Correction de « " title " ».")
+                 (str "Nouvelle majeure de « " title " ».")))
+        before (set (map :id (:publications repo)))
+        _ (println (b/bling [:bold.yellow "  ⚡ open-publication"] [:gray "  for the draft"]))
+        after (perform! repo
+                        (::by ctx)
+                        v
+                        (parameters repo
+                                    v
+                                    (when base {:lang (:lang base)})
+                                    (when title
+                                      {:title title
+                                       :text text})
+                                    (::by ctx)
+                                    nil))]
+    (some #(when-not (before (:id %)) {:id (:id %)}) (:publications after))))
+
+(defn- do-run
+  "Runs `v`, labelled `label`, with the values the screen knows."
+  [repo by v label fixed default extra]
+  (println)
+  (println (b/bling [:bold.yellow (str "⚡ " label)]
+                    [:gray (str "  " (or (second (shortcuts label)) (summary v)))]))
+  (let [params (parameters repo v fixed default by extra)]
+    ;; asking the parameters may have opened a publication: act on the saved repository
+    (perform! (load-repo) by v params)))
 
 (defn- run-from-screen
   "Runs the action labelled `label` with the values the screen knows."
-  [repo by [label fixed default]]
+  [repo by [label fixed default extra]]
   (let [v (action-var label)]
-    (println)
-    (println (b/bling [:bold.yellow (str "⚡ " label)]
-                      [:gray (str "  " (or (second (shortcuts label)) (summary v)))]))
-    (perform! repo by v (parameters repo v fixed default))))
+    (if (and (= "erase-account" label)
+             (not (yes? "erase your account for good? its writings go to Anonymus")))
+      repo
+      (do-run repo by v label fixed default extra))))
 
 (defn navigate
   "The interactive navigation: from the home screen down to publications, documents,

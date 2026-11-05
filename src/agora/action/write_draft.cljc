@@ -6,7 +6,8 @@ The draft takes the language of the publication. It has no minor yet: no `:minor
 writes it. It is a new document (major 1), a new version of a document (one of its majors,
 for a minor), or its next major (a breaking change). A new minor is for the owner of the
 major only, so nobody changes what citers of another's major read; anyone may write the
-next major.
+next major. The descriptions of the types are the exception: they belong to Agora, who alone
+writes their versions.
 
 An action takes the repository, who acts (`by`) and its parameters, and returns its
 changes. Its `:parameters` metadata is the grammar of its parameters."
@@ -14,8 +15,10 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
    [agora.action             :as action]
    [agora.entity.document    :as document]
    [agora.entity.publication :as publication]
+   [agora.entity.user        :as user]
    [agora.value.identity     :as identity]
-   [agora.value.reference    :as reference]))
+   [agora.value.reference    :as reference]
+   [agora.value.type         :as type]))
 
 ;; ---------------------------------------------------------------------------
 ;; Actions
@@ -57,6 +60,7 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
   - `:invalid-major`: the major is neither one of the document's nor the next;
   - `:not-the-lineage-owner`: the major is published already and owned by someone else: a
     new minor is for its owner only, anyone may write the next major;
+  - `:vocabulary-of-agora`: the draft describes a type, and who acts is not Agora;
   - `:rules-broken`: the draft breaks a rule, e.g. a link that is no citation."
   {:parameters parameters}
   [repository by {:keys [publication draft]}]
@@ -70,6 +74,8 @@ changes. Its `:parameters` metadata is the grammar of its parameters."
     (when (some #(= (identity/tnlr d) (identity/tnlr %)) (:documents p))
       (action/refuse! :already-in-publication (identity/tnlr d)))
     (when-not ((majors documents d) (:major d)) (action/refuse! :invalid-major (identity/tnlr d)))
+    (when (and (type/description? d) (not= (get-in user/agora [:user :id]) (:id writer)))
+      (action/refuse! :vocabulary-of-agora (identity/tnlr d)))
     (when-let [first-version
                (some #(when (and (= 0 (:minor %)) (= (identity/tnlr d) (identity/tnlr %))) %)
                      documents)]

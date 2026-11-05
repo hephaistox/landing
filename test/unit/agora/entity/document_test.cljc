@@ -66,3 +66,16 @@
 (deftest rules-test
   (is (empty? (broken [rapide])))
   (is ((broken [(update rapide :content dissoc :published-at)]) :document/shape)))
+
+(deftest vocabulary-test
+  (let [agora {:id #uuid "00000000-0000-0000-0000-000000000001"}
+        description (assoc rapide :name "type-definition" :owner agora)]
+    (is (not ((broken [description]) :document/vocabulary)) "owned by Agora")
+    (is (not ((broken [(dissoc description :minor)]) :document/vocabulary)) "a draft by Agora")
+    (testing "owned by someone else"
+      (is ((broken [(assoc description :owner (:owner rapide))]) :document/vocabulary))
+      (is ((broken [(-> description
+                        (dissoc :minor)
+                        (assoc :owner (:owner rapide)))])
+           :document/vocabulary)))
+    (is (not ((broken [rapide]) :document/vocabulary)) "any other document")))

@@ -17,7 +17,8 @@ It is taken from a closed list:
 Each type is described in agora itself, by a document of type `:definition` named
 `type-<type>`: `type-definition`, `type-article`, `type-work`… That document gives the
 meaning of the type, the phrase that opens its text and the way to contest it. The badge
-showing a document's type links to it.
+showing a document's type links to it. These descriptions are the vocabulary of agora: they
+belong to the user \"Agora\", who alone writes their versions.
 
 Each type is also defined as data, in `definitions`: its family, what it cites
 (`:inputs`), the phrase that opens its text (`:opening`), the default type of a document
