@@ -10,6 +10,7 @@
   (:require
    [agora.entity.objection   :as objection]
    [agora.entity.publication :as publication]
+   [agora.entity.user        :as user]
    [agora.repository         :as repository]
    [agora.value.name         :as name]
    [agora.value.type         :as type]
@@ -316,11 +317,16 @@
           chosen (fzf prompt labels)]
       (some (fn [[l x]] (when (= l chosen) x)) (map vector labels xs)))))
 
+(def ^:dynamic *subject*
+  "What the questions asked now are about, e.g. \"publication\"; nil when obvious."
+  nil)
+
 (defn ask
-  "A line typed after `prompt`; `default` when the line is empty."
+  "A line typed after `prompt`, named after `*subject*`; `default` when the line is empty."
   [prompt & [default]]
-  (print
-   (b/bling [:bold.blue (str "  " prompt)] (when default [:gray (str " [" default "]")]) ": "))
+  (print (b/bling [:bold.blue (str "  " (when *subject* (str *subject* " ")) prompt)]
+                  (when default [:gray (str " [" default "]")])
+                  ": "))
   (flush)
   (let [line (str/trim (or (read-line) ""))] (if (and (str/blank? line) default) default line)))
 
@@ -408,12 +414,14 @@
                      :id
                      (pub-by-id repo))]
     (case k
-      :publication
-      (let [mine (if me? (filter #(writes-in? by %) (:publications repo)) (:publications repo))]
-        [(if (and (= "answer" action) target)
-           (or (seq (filter #(holds-change? % target) mine)) mine)
-           mine)
-         (if me? "one of your open publications" "publication")])
+      :publication (let [mine (cond->> (if me?
+                                         (filter #(writes-in? by %) (:publications repo))
+                                         (:publications repo))
+                                (::base ctx) (filter #(= (:lang (::base ctx)) (:lang %))))]
+                     [(if (and (= "answer" action) target)
+                        (or (seq (filter #(holds-change? % target) mine)) mine)
+                        mine)
+                      (if me? "one of your open publications" "publication")])
       :objection
       [(case action
          "unanswer" (filter #(some #{{:id (:id %)}} (:answers pub)) (:objections repo))
@@ -450,18 +458,21 @@
   without asking. Writing a draft, a new publication may be opened for it instead."
   [repo ctx k]
   (let [[xs prompt] (candidates repo ctx k)]
-    (if (and (= :publication k) (= "write-draft" (::action ctx)) (map? (::by ctx)))
+    (cond
+      (and (= :publication k) (= "write-draft" (::action ctx)) (map? (::by ctx)) (empty? xs))
+      (open-publication-for! repo ctx)
+      (and (= :publication k) (= "write-draft" (::action ctx)) (map? (::by ctx)))
       (let [chosen (pick prompt
                          (concat xs [new-publication])
                          #(if (= new-publication %) "✚ a new publication for it" (label repo %)))]
         (cond
           (= new-publication chosen) (open-publication-for! repo ctx)
           chosen (select-keys chosen [:id])))
-      (case (count xs)
-        0 (do (println (b/bling [:italic.gray (str "  nothing to pick as " prompt)])) nil)
-        1 (do (println (b/bling [:gray (str "  " prompt ": ")] (label repo (first xs))))
-              (select-keys (first xs) [:id]))
-        (select-keys (pick prompt xs #(label repo %)) [:id])))))
+      :else (case (count xs)
+              0 (do (println (b/bling [:italic.gray (str "  nothing to pick as " prompt)])) nil)
+              1 (do (println (b/bling [:gray (str "  " prompt ": ")] (label repo (first xs))))
+                    (select-keys (first xs) [:id]))
+              (select-keys (pick prompt xs #(label repo %)) [:id])))))
 
 (defn- citation
   "Picks a citation: a published version by tnlr, or a draft of the same publication by id.
@@ -557,6 +568,12 @@
   [ctx k]
   (when-let [types (only-for k)] (and (::type ctx) (not (types (::type ctx))))))
 
+(defn- free-name
+  "`drawn`, or `drawn-2`, `drawn-3`… : the first no publication in `lang` has."
+  [repo lang drawn]
+  (let [taken (set (keep #(when (= lang (:lang %)) (:name %)) (:publications repo)))]
+    (first (remove taken (cons drawn (map #(str drawn "-" %) (iterate inc 2)))))))
+
 (defn- derived
   "A default the answers already given imply: a name drawn from the title, the next major
   of a name already taken."
@@ -564,11 +581,7 @@
   (case k
     :name (if-let [t (get-in m [:content :title])]
             (name/from-title t)
-            (when-let [t (:title m)]
-              (let [drawn (name/from-title t)
-                    taken (set (keep #(when (= (:lang m) (:lang %)) (:name %))
-                                     (:publications repo)))]
-                (first (remove taken (cons drawn (map #(str drawn "-" %) (iterate inc 2))))))))
+            (when-let [t (:title m)] (free-name repo (:lang m) (name/from-title t))))
     :major (let [lang (or (some->> ctx
                                    ::fixed
                                    :publication
@@ -669,16 +682,11 @@
   [v]
   (first (str/split-lines (or (:doc (meta (the-ns (symbol (namespace (symbol v)))))) ""))))
 
-(defn perform!
-  "Runs `action-var` as `by` with `params`: saves the changes, or shows the refusal."
+(defn- attempt
+  "`[after changes]` of running `action-var` as `by` with `params`, or nil once its refusal
+  is shown. Saves nothing."
   [repo by action-var params]
-  (try (let [changes (action-var repo by params)
-             after (repository/apply-changes repo changes)]
-         (save-repo! after)
-         (println)
-         (println (b/bling [:bold.green "✔ "] [:bold (name (symbol action-var))] [:green " done"]))
-         (show-changes after changes)
-         after)
+  (try (let [changes (action-var repo by params)] [(repository/apply-changes repo changes) changes])
        (catch clojure.lang.ExceptionInfo e
          (if-let [reason (:reason (ex-data e))]
            (do (println)
@@ -688,8 +696,21 @@
                                    (when-let [why (refusal-explanation action-var reason)]
                                      (str "\n" why))
                                    (when-let [v (:violations (ex-data e))] (str "\n" (pr-str v)))))
-               repo)
+               nil)
            (throw e)))))
+
+(defn- done
+  [action-var after changes]
+  (println)
+  (println (b/bling [:bold.green "✔ "] [:bold (name (symbol action-var))] [:green " done"]))
+  (show-changes after changes))
+
+(defn perform!
+  "Runs `action-var` as `by` with `params`: saves the changes, or shows the refusal."
+  [repo by action-var params]
+  (if-let [[after changes] (attempt repo by action-var params)]
+    (do (save-repo! after) (done action-var after changes) after)
+    repo))
 
 (defn login!
   "Picks who acts among the users, or nobody."
@@ -704,7 +725,7 @@
 
 (defn- use-case-file [f] (edn/read-string (slurp (io/file "agora/use_cases" f))))
 
-(def ^:private agora-id #uuid "00000000-0000-0000-0000-000000000001")
+(def ^:private agora-id (get-in user/agora [:user :id]))
 
 (defn init!
   "A new repository: the vocabulary of types, which every document needs, and Agora, its
@@ -804,11 +825,13 @@
                             :name (:name d)
                             :major major}})]
     (if (:minor d)
-      (cond-> [["new-major"
-                (draft-of (inc (apply max (map :major lineage))))
-                {:draft (select-keys d [:author :content])}
-                {::base d
-                 ::gesture :new-major}]]
+      (cond-> []
+        (or (not (type/description? d)) (= by {:id agora-id}))
+        (conj ["new-major"
+               (draft-of (inc (apply max (map :major lineage))))
+               {:draft (select-keys d [:author :content])}
+               {::base d
+                ::gesture :new-major}])
         (= by (:owner d)) (conj ["new-minor"
                                  (draft-of (:major d))
                                  {:draft (select-keys d [:author :content])}
@@ -844,34 +867,62 @@
       :closed [["react" r {:content (:content o)}]]
       [])))
 
-(defn- open-publication-for!
-  "Opens a publication for the draft about to be written, with its context: the language of
-  its base document, a title and a text drawn from it. Returns it as `{:id}`, or nil when
-  the opening is refused."
+(def ^:private gesture-texts
+  "The title and the text of a publication opened for a single gesture, by language."
+  {:fr {:new-major ["Nouvelle majeure de « %s »" "Propose la majeure %d de « %s »."]
+        :new-minor ["Correction de « %s »" "Corrige la majeure %d de « %s »."]}
+   :en {:new-major ["New major of “%s”" "Proposes major %d of “%s”."]
+        :new-minor ["Correction of “%s”" "Corrects major %d of “%s”."]}})
+
+(defn- gesture-publication
+  "The parameters of the publication opened for the gesture of `ctx` on its base document:
+  everything derived, in the document's language."
   [repo ctx]
-  (let [v ((actions) 'agora.action.open-publication/open-publication)
-        base (::base ctx)
-        title (-> base
-                  :content
-                  :title)
-        text (when title
-               (if (= :new-minor (::gesture ctx))
-                 (str "Correction de « " title " ».")
-                 (str "Nouvelle majeure de « " title " ».")))
-        before (set (map :id (:publications repo)))
-        _ (println (b/bling [:bold.yellow "  ⚡ open-publication"] [:gray "  for the draft"]))
-        after (perform! repo
-                        (::by ctx)
-                        v
-                        (parameters repo
-                                    v
-                                    (when base {:lang (:lang base)})
-                                    (when title
-                                      {:title title
-                                       :text text})
-                                    (::by ctx)
-                                    nil))]
-    (some #(when-not (before (:id %)) {:id (:id %)}) (:publications after))))
+  (let [base (::base ctx)
+        lang (:lang base)
+        doc-title (-> base
+                      :content
+                      :title)
+        major (or (get-in ctx [::fixed :draft :major]) (:major base))
+        [title-format text-format] (get-in gesture-texts [lang (::gesture ctx)])
+        title (format title-format doc-title)]
+    {:id (random-uuid)
+     :name (free-name repo lang (name/from-title title))
+     :lang lang
+     :title title
+     :text (format text-format major doc-title)
+     :published-at (java.util.Date.)}))
+
+(def ^:dynamic *pending*
+  "An atom holding the publication to open before the action run, as `[action-var params]`."
+  nil)
+
+(defn- open-publication-for!
+  "The publication for the draft about to be written, as `{:id}`. For a gesture on a
+  document, every field is derived from it, and it opens with the draft: both or neither.
+  Otherwise its fields are asked and it opens at once; nil when refused."
+  [repo ctx]
+  (let [v ((actions) 'agora.action.open-publication/open-publication)]
+    (if (and (::base ctx) (::gesture ctx) *pending*)
+      (let [params (gesture-publication repo ctx)]
+        (println (b/bling [:gray "  in a new publication: "] [:bold (:title params)]))
+        (reset! *pending* [v params])
+        {:id (:id params)})
+      (let [before (set (map :id (:publications repo)))
+            _ (println (b/bling [:bold.yellow "  the new publication"]
+                                [:gray "  then the draft it holds"]))
+            params (binding [*subject* "publication"] (parameters repo v nil nil (::by ctx) nil))
+            after (perform! repo (::by ctx) v params)]
+        (some #(when-not (before (:id %)) {:id (:id %)}) (:publications after))))))
+
+(defn- subject-of
+  "What the questions of `v` are about: the kind it writes."
+  [v]
+  (let [n (name (symbol v))]
+    (some (fn [[re subject]] (when (re-find re n) subject))
+          [[#"draft$" "draft"]
+           [#"publication$" "publication"]
+           [#"objection$|^object$|^react$" "objection"]])))
 
 (defn- do-run
   "Runs `v`, labelled `label`, with the values the screen knows."
@@ -879,9 +930,18 @@
   (println)
   (println (b/bling [:bold.yellow (str "⚡ " label)]
                     [:gray (str "  " (or (second (shortcuts label)) (summary v)))]))
-  (let [params (parameters repo v fixed default by extra)]
-    ;; asking the parameters may have opened a publication: act on the saved repository
-    (perform! (load-repo) by v params)))
+  (binding [*pending* (atom nil)]
+    (let [params (binding [*subject* (subject-of v)] (parameters repo v fixed default by extra))]
+      (if-let [[pv pparams] @*pending*]
+        (or (when-let [[opened pchanges] (attempt repo by pv pparams)]
+              (when-let [[after changes] (attempt opened by v params)]
+                (save-repo! after)
+                (done pv opened pchanges)
+                (done v after changes)
+                after))
+            repo)
+        ;; asking the parameters may have opened a publication: act on the saved repository
+        (perform! (load-repo) by v params)))))
 
 (defn- run-from-screen
   "Runs the action labelled `label` with the values the screen knows."
