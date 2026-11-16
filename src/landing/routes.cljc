@@ -24,6 +24,8 @@
       :link-id :youtube-rivalis}
      {:url "https://escalierblues.anthony-hephaistox.workers.dev/#concerts"
       :link-id :escaliers-blues}
+     {:url "https://mont-bogdo.anthony-hephaistox.workers.dev/"
+      :link-id :mont-bogdo}
      {:link-id :hephaistox
       :text :hephaistox
       :url "/fr/articles/hephaistox.html"}
