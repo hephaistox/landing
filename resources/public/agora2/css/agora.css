@@ -353,6 +353,50 @@ h2 {
   font-size: 0.8em;
 }
 
+.site-footer .made-by {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 14px;
+  margin: 0 auto 0.9em;
+  color: var(--faint);
+  font-size: 0.8em;
+  text-align: left;
+}
+
+.made-by img {
+  width: 64px;
+  height: 64px;
+  padding: 6px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 12px;
+  transition: transform 0.25s;
+}
+
+.made-by strong {
+  display: block;
+  color: var(--on-dark-title);
+  font-size: 1.4em;
+  line-height: 1.2;
+  transition: color 0.2s;
+}
+
+.made-by:hover img {
+  transform: rotate(-4deg) scale(1.05);
+}
+
+.made-by:hover strong {
+  color: var(--copper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .made-by img,
+  .made-by strong {
+    transition: none;
+  }
+}
+
 /* --- brand icons (Font Awesome brands glyphs) ---------------------------- */
 
 .icon {
