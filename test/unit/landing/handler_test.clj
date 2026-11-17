@@ -135,6 +135,7 @@
    "projets"
    "realisations"
    "hephaistox"
+   "publications"
    "who-are-we"
    "contacts"
    "about-site"

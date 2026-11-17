@@ -16,6 +16,21 @@
      {:link-id :realisations
       :text :realisations
       :url "/fr/articles/realisations.html"}
+     {:link-id :publications
+      :text :publications
+      :url "/fr/articles/publications.html"}
+     ;; HAL blocks bots (Anubis), so the reachability check would always fail.
+     {:url "https://theses.hal.science/tel-00713587/document"
+      :skip-test? true
+      :link-id :these-hal}
+     {:url "https://doi.org/10.1016/j.cor.2006.11.007"
+      :link-id :doi-cor}
+     {:url "https://doi.org/10.1016/j.ejor.2008.03.051"
+      :link-id :doi-ejor}
+     ;; Academia answers 403 to bots.
+     {:url "https://independent.academia.edu/AnthonyCAUMOND"
+      :skip-test? true
+      :link-id :academia}
      {:url "https://app-48779a28-64d4-4a25-b98e-797dc112c45b.cleverapps.io/"
       :link-id :box63}
      {:url "https://himalaya-vichy.fr/"

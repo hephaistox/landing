@@ -43,6 +43,7 @@
    [:projets "articles/projets.html"]
    [:realisations "articles/realisations.html"]
    [:hephaistox "articles/hephaistox.html"]
+   [:publications "articles/publications.html"]
    [:contacts "articles/contacts.html"]
    [:about-site "articles/about-site.html"]
    [:legal-notice "articles/legal-notice.html"]
