@@ -92,3 +92,22 @@ html { scroll-behavior: smooth;}
   #menu-sidebar {
     background-color: #1b1d22 !important;
     border-right-color: #2a2d33;}}
+
+/* Link to the reviews on Trustpilot: plain link, nothing loaded from
+   Trustpilot until the visitor clicks. Readable in light and dark mode. */
+.review-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0.5em 0 1em;
+  padding: 0.6em 1.3em;
+  border: 2px solid #00b67a;
+  border-radius: 999px;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.2s;}
+.review-link .fa-star {
+  color: #00b67a;}
+.review-link:hover {
+  background-color: rgba(0, 182, 122, 0.12);}

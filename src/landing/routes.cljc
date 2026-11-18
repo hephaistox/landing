@@ -37,6 +37,10 @@
       :link-id :himalaya}
      {:url "https://www.youtube.com/watch?v=2pdArs1er14"
       :link-id :youtube-rivalis}
+     ;; Trustpilot answers 403 to bots.
+     {:url "https://fr.trustpilot.com/review/rivalis.fr"
+      :skip-test? true
+      :link-id :trustpilot}
      {:url "https://escalierblues.anthony-hephaistox.workers.dev/#concerts"
       :link-id :escaliers-blues}
      {:url "https://mont-bogdo.anthony-hephaistox.workers.dev/"
