@@ -111,3 +111,31 @@ html { scroll-behavior: smooth;}
   color: #00b67a;}
 .review-link:hover {
   background-color: rgba(0, 182, 122, 0.12);}
+
+/* Who runs an offer: round portraits with the first name underneath. */
+.person-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.2em;}
+.person-thumb {
+  margin: 0;
+  text-align: center;}
+.person-thumb img {
+  display: block;
+  width: 6.5em;
+  height: 6.5em;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 3px #ff9800, 0 10px 24px rgba(0, 0, 0, 0.2);}
+.person-thumb figcaption {
+  margin-top: 0.6em;
+  font-size: 0.85em;
+  font-weight: 600;}
+
+/* Small screens: the opened menu must sit above the page header (burger and
+   language switch), or the header swallows the clicks on the menu's first
+   links and on its close cross. */
+@media (max-width: 992px) {
+  #menu-sidebar { z-index: 10 !important; }}
